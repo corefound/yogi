@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { Loggers } from "@/loggers";
+import { Nodes } from "@/helpers/types";
 
 export type Constructor<T = {}> = new (...args: any[]) => T;
 export type Mixin<T extends Constructor> = <TBase extends Constructor>(Base: TBase) => T & TBase;
@@ -13,9 +14,12 @@ export class BaseVisitor {
     public filePath: string;
     public program: ts.Program;
     public sourceFile: ts.SourceFile;
+    public currentFile: string;
+    public currentModuleImports: any[] = [];
 
     constructor(filePath: string, options: ts.CompilerOptions) {
         this.filePath = filePath;
+        // this.currentFile = filePath;
         this.program = ts.createProgram([filePath], options);
 
         const diagnostics = ts.getPreEmitDiagnostics(this.program);
@@ -133,30 +137,30 @@ export class BaseVisitor {
             const text = node.text.endsWith("n") ? node.text.slice(0, -1) : node.text;
             const numValue = Number(text);
 
-            // Cero → IntegerLiteral("0")
+            // Cero → Nodes.NumberLiteral("0")
             if (numValue === 0) {
-                return { kind: "IntegerLiteral", value: "0" };
+                return { kind: Nodes.NumberLiteral, value: "0" };
             }
 
             // Entero exacto → IntegerLiteral
             if (Number.isInteger(numValue)) {
-                return { kind: "IntegerLiteral", value: BigInt(text).toString() };
+                return { kind: Nodes.NumberLiteral, value: BigInt(text).toString() };
             }
 
             // Float → FloatLiteral
-            return { kind: "FloatLiteral", value: text };
+            return { kind: Nodes.NumberLiteral, value: text };
         }
 
         if (ts.isStringLiteral(node)) {
-            return { kind: "StringLiteral", value: node.text };
+            return { kind: Nodes.StringLiteral, value: node.text };
         }
 
         if (node.kind === ts.SyntaxKind.TrueKeyword || node.kind === ts.SyntaxKind.FalseKeyword) {
-            return { kind: "BooleanLiteral", value: node.kind === ts.SyntaxKind.TrueKeyword ? 1 : 0 };
+            return { kind: Nodes.BooleanLiteral, value: node.kind === ts.SyntaxKind.TrueKeyword ? 1 : 0 };
         }
 
         if (node.kind === ts.SyntaxKind.NullKeyword) {
-            return { kind: "NullLiteral", value: "null" };
+            return { kind: Nodes.NullLiteral, value: "null" };
         }
     }
 

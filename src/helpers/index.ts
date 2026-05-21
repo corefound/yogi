@@ -44,5 +44,10 @@ export class Helpers {
         };
     }
 
+    static inferDataType(node: ts.Node, checker: ts.TypeChecker): string {
+        const type = checker.getTypeAtLocation(node);
+        return checker.typeToString(type);
+    }
+
 }
 

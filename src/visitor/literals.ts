@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { BaseVisitor, Constructor } from "@/visitor/base";
+import { Nodes } from "@/helpers/types";
 
 
 export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TBase) {
@@ -7,7 +8,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
         visitNode(node: ts.Node): any {
             if (ts.isBinaryExpression(node)) {
                 return {
-                    type: "BinaryExpression",
+                    type: Nodes.BinaryExpression,
                     start: node.getStart(),
                     end: node.getEnd(),
                     operator: node.operatorToken.getText(),
@@ -18,7 +19,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
 
             if (ts.isNumericLiteral(node)) {
                 return {
-                    type: "NumberLiteral",
+                    type: Nodes.NumberLiteral,
                     start: node.getStart(),
                     end: node.getEnd(),
                     value: Number(node.text),
@@ -28,7 +29,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
 
             if (ts.isIdentifier(node)) {
                 return {
-                    type: "Identifier",
+                    type: Nodes.IdentifierLiteral,
                     start: node.getStart(),
                     end: node.getEnd(),
                     name: node.text,
@@ -37,14 +38,14 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
 
             if (node.kind === ts.SyntaxKind.FalseKeyword || node.kind === ts.SyntaxKind.TrueKeyword) {
                 return {
-                    type: "BooleanLiteral",
+                    type: Nodes.BooleanLiteral,
                     value: node.kind === ts.SyntaxKind.TrueKeyword ? 1 : 0,
                 };
             }
 
             if (ts.isStringLiteral(node)) {
                 return {
-                    type: "StringLiteral",
+                    type: Nodes.StringLiteral,
                     start: node.getStart(),
                     end: node.getEnd(),
                     value: node.text,
@@ -54,7 +55,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
 
             if (node.kind === ts.SyntaxKind.NullKeyword) {
                 return {
-                    type: "NullLiteral",
+                    type: Nodes.NullLiteral,
                     start: node.getStart(),
                     end: node.getEnd(),
                     value: null

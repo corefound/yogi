@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { BaseVisitor, Constructor } from "@/visitor/base";
+import { Nodes } from "@/helpers/types";
 
 export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
@@ -25,7 +26,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
 
                             case declaration?.initializer?.kind === ts.SyntaxKind.StringLiteral && dataType === 'any':
                             case dataType === 'string':
-                                dataType = 'str'
+                                dataType = 'string'
                                 break;
 
                             case declaration?.initializer?.kind === ts.SyntaxKind.NullKeyword && dataType === 'any':
@@ -38,12 +39,14 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                         }
                     }
 
+                    const initializer = declaration.initializer ? this.visitNode(declaration.initializer) : null;
+                    
                     return {
                         flag,
                         name: declaration.name.getText(),
-                        type: dataType,
-                        storage,
-                        value: declaration.initializer ? this.visitNode(declaration.initializer) : null
+                        // type: initializer?.kind,
+                        // storage,
+                        value: initializer
                     };
 
                 }).at(0)
