@@ -1,5 +1,4 @@
 import { Visitor } from "@/visitor";
-import { Past } from '@corefound/past';
 import ts from "typescript";
 import { ModuleScanner } from "./dfs";
 import fs from "fs";
@@ -51,4 +50,4 @@ const program: Program = {
     modules
 }
 
-console.log(program);
+console.log(JSON.stringify(program, null, 2));

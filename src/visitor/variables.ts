@@ -4,52 +4,66 @@ import { Nodes } from "@/helpers/types";
 
 export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
-        visitVariableDeclaration(node: ts.VariableStatement, storage: string = "stack") {
-            const { declarations, flags } = node.declarationList;
-            return {
-                kind: "VariableDeclaration",
-                ...declarations?.map((declaration: ts.VariableDeclaration) => {
-                    const flag = flags & ts.NodeFlags.Const ? "const" : flags & ts.NodeFlags.Let ? "let" : "var"
-                    let dataType = declaration.type ? declaration.type.getText() : 'any'
+        visitVariableDeclaration(node: ts.VariableStatement) {
+            const declarationList = node.declarationList;
 
-                    if (flag === 'const') {
-                        switch (true) {
-                            case dataType === 'boolean':
-                            case declaration?.initializer?.kind === ts.SyntaxKind.FalseKeyword && dataType === 'any':
-                            case declaration?.initializer?.kind === ts.SyntaxKind.TrueKeyword && dataType === 'any':
-                                dataType = 'i1'
+            const flag = declarationList.flags & ts.NodeFlags.Const
+                ? "const"
+                : declarationList.flags & ts.NodeFlags.Let
+                    ? "let"
+                    : "var";
+
+            const isExported = node.modifiers?.some(
+                m => m.kind === ts.SyntaxKind.ExportKeyword
+            ) ?? false;
+
+            const declarations = declarationList.declarations.map(
+                (declaration: ts.VariableDeclaration) => {
+                    const initializer = declaration.initializer ? this.visitNode(declaration.initializer) : null;
+
+                    // Explicit TS type
+                    let type = declaration.type?.getText() ?? "any";
+
+                    // Infer type from initializer if type is not specified
+                    if (type === "any" && declaration.initializer) {
+                        switch (declaration.initializer.kind) {
+                            case ts.SyntaxKind.TrueKeyword:
+                            case ts.SyntaxKind.FalseKeyword:
+                                type = "boolean";
                                 break;
 
-                            case declaration?.initializer?.kind === ts.SyntaxKind.NumericLiteral && dataType === 'any':
-                                dataType = 'i64'
+                            case ts.SyntaxKind.NumericLiteral:
+                                type = "number";
                                 break;
 
-                            case declaration?.initializer?.kind === ts.SyntaxKind.StringLiteral && dataType === 'any':
-                            case dataType === 'string':
-                                dataType = 'string'
+                            case ts.SyntaxKind.StringLiteral:
+                                type = "string";
                                 break;
 
-                            case declaration?.initializer?.kind === ts.SyntaxKind.NullKeyword && dataType === 'any':
-                                dataType = 'i8'
+                            case ts.SyntaxKind.NullKeyword:
+                                type = "null";
                                 break;
 
                             default:
-                                dataType = 'any'
+                                type = "any";
                                 break;
                         }
                     }
 
-                    const initializer = declaration.initializer ? this.visitNode(declaration.initializer) : null;
-                    
                     return {
-                        flag,
+                        kind: "Variable",
                         name: declaration.name.getText(),
-                        // type: initializer?.kind,
-                        // storage,
+                        flag,
+                        type,
                         value: initializer
                     };
+                }
+            );
 
-                }).at(0)
+            return {
+                kind: "VariableStatement",
+                export: isExported,
+                declarations
             };
         }
     }

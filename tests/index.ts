@@ -1,3 +1,1 @@
-import * as dev from "./dev"
-import { b } from "./utils"
-
+var a: number

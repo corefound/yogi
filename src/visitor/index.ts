@@ -2,10 +2,11 @@ import ts from "typescript";
 import { VariableVisitor } from "@/visitor/variables";
 import { ExpressionVisitor } from "@/visitor/expressions";
 import { BaseVisitor, applyMixins } from "@/visitor/base";
-import { ScannerVisitor } from "./scanner";
+import { ImportsVisitor } from "./imports";
+import { ExportsVisitor } from "./exports";
 
 
-export class Visitor extends applyMixins(BaseVisitor, ExpressionVisitor, VariableVisitor, ScannerVisitor) {
+export class Visitor extends applyMixins(BaseVisitor, ExpressionVisitor, VariableVisitor, ImportsVisitor, ExportsVisitor) {
     constructor(filePath: string, options?: ts.CompilerOptions) {
         super(filePath, options || {});
     }
@@ -23,11 +24,20 @@ export class Visitor extends applyMixins(BaseVisitor, ExpressionVisitor, Variabl
             if (ts.isImportDeclaration(stmt)) {
                 body.push(this.visitAllImports(stmt));
             }
+
+            if (ts.isExportDeclaration(stmt)) {
+                body.push(this.ExportDeclaration(stmt));
+            }
+
+            const visitExports = this.visitExports(stmt);
+            if (visitExports) {
+                body.push(visitExports);
+            }
         });
 
         return {
             module: this.filePath,
-            body,            
+            body,
         };
     }
 }

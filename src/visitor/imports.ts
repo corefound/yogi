@@ -3,7 +3,7 @@ import { BaseVisitor, Constructor } from "@/visitor/base";
 import { Nodes } from "@/helpers/types";
 import path from "path";
 
-export function ScannerVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
+export function ImportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
         visitAllImports(node: ts.ImportDeclaration) {
             const modulePath = path.resolve(path.dirname(this.filePath), (node.moduleSpecifier as ts.StringLiteral).text) + ".ts";

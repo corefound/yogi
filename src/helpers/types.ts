@@ -8,7 +8,10 @@ export enum Nodes {
     StringLiteral = "StringLiteral",
     BinaryExpression = "BinaryExpression",
     NullLiteral = "NullLiteral",
-    ImportCall = "ImportCall"
+    ImportCall = "ImportCall",
+    ExportCall = "ExportCall",
+    ExportVariable = "ExportVariable",
+    ExportVariableStatement = "ExportVariableStatement"
 }
 
 

@@ -1,4 +1,6 @@
+// import ts from "typescript";
 import ts from "typescript";
+
 
 export class ModuleScanner {
     private visited = new Set<string>();

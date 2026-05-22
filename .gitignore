@@ -4,3 +4,6 @@ build/
 .vscode/
 cmake-build-debug/
 test.ts
+/src/ts/
+yarn-error.log
+yarn.lock
