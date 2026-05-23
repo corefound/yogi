@@ -12,7 +12,7 @@ export class Visitor extends applyMixins(BaseVisitor, ExpressionVisitor, Variabl
     }
     public visit() {
         const body: any[] = [];
-        this.sourceFile.statements.forEach((stmt: ts.Statement) => {
+        this.sourceFile.statements?.forEach((stmt: ts.Statement) => {
             if (ts.isVariableStatement(stmt)) {
                 body.push(this.visitVariableDeclaration(stmt));
             }
@@ -26,7 +26,7 @@ export class Visitor extends applyMixins(BaseVisitor, ExpressionVisitor, Variabl
             }
 
             if (ts.isExportDeclaration(stmt)) {
-                body.push(this.ExportDeclaration(stmt));
+                body.push(this.visitExportDeclaration(stmt));
             }
 
             const visitExports = this.visitExports(stmt);

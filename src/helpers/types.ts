@@ -11,7 +11,13 @@ export enum Nodes {
     ImportCall = "ImportCall",
     ExportCall = "ExportCall",
     ExportVariable = "ExportVariable",
-    ExportVariableStatement = "ExportVariableStatement"
+    ExportVariableStatement = "ExportVariableStatement",
+}
+
+
+export enum Kinds {
+    ExportVariableStatement = "ExportVariableStatement",
+    VariableDeclaration = "VariableDeclaration"
 }
 
 
@@ -26,7 +32,3 @@ export type Program = {
     graph: Map<string, string[]>;
     modules: Module[];
 };
-
-
-
-

@@ -1,1 +1,1 @@
-var a: number
+export const b = 10, a: number = b + 10;

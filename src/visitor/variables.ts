@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { BaseVisitor, Constructor } from "@/visitor/base";
-import { Nodes } from "@/helpers/types";
+import { Kinds } from "@/helpers/types";
 
 export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
@@ -51,9 +51,8 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     }
 
                     return {
-                        kind: "Variable",
+                        kind: Kinds.VariableDeclaration,
                         name: declaration.name.getText(),
-                        flag,
                         type,
                         value: initializer
                     };
@@ -61,7 +60,8 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             );
 
             return {
-                kind: "VariableStatement",
+                kind: Kinds.ExportVariableStatement,
+                flag,
                 export: isExported,
                 declarations
             };

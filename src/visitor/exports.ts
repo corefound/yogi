@@ -1,20 +1,13 @@
 import ts from "typescript";
+import path from "path";
 import { BaseVisitor, Constructor } from "@/visitor/base";
 import { Nodes } from "@/helpers/types";
-import path from "path";
 
 export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
         visitExports = (stmt: ts.Statement) => {
             if (ts.isExportDeclaration(stmt)) {
                 return this.visitExportDeclaration(stmt);
-            }
-
-            // 2. export const / let / var ...
-            if (ts.isVariableStatement(stmt)) {
-                if (stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) {
-                    return this.visitExportedVariable(stmt);
-                }
             }
 
             return null;
@@ -38,9 +31,7 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
 
                 // export { a, b } from "x"
                 namedImports: [],
-
                 defaultImport: null,
-
                 sideEffectOnly: !node.exportClause && !!moduleSpecifier
             };
 
@@ -58,29 +49,6 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
             }
 
             return result;
-        }
-
-        visitExportedVariable(node: ts.VariableStatement) {
-            const isExported = node.modifiers?.some(
-                m => m.kind === ts.SyntaxKind.ExportKeyword
-            );
-
-            if (!isExported) return null;
-
-            const declarations = node.declarationList.declarations.map((decl) => {
-                const name = (decl.name as ts.Identifier).text;
-
-                return {
-                    kind: Nodes.ExportVariable,
-                    name,
-                    value: decl.initializer ? decl.initializer.getText() : null,
-                };
-            });
-
-            return {
-                kind: Nodes.ExportVariableStatement,
-                declarations
-            };
         }
     };
 }
