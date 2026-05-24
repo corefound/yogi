@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { BaseVisitor, Constructor } from "@/visitor/base";
-import { Nodes } from "@/helpers/types";
+import { Kinds, Nodes } from "@/helpers/types";
 
 
 export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TBase) {
@@ -29,7 +29,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
 
             if (ts.isIdentifier(node)) {
                 return {
-                    type: Nodes.IdentifierLiteral,
+                    type: Kinds.Identifier,
                     start: node.getStart(),
                     end: node.getEnd(),
                     name: node.text,

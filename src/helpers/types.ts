@@ -3,7 +3,7 @@
 export enum Nodes {
     CallExpression = "CallExpression",
     NumberLiteral = "NumberLiteral",
-    IdentifierLiteral = "IdentifierLiteral",
+    Identifier = "Identifier",
     BooleanLiteral = "BooleanLiteral",
     StringLiteral = "StringLiteral",
     BinaryExpression = "BinaryExpression",
@@ -17,7 +17,17 @@ export enum Nodes {
 
 export enum Kinds {
     ExportVariableStatement = "ExportVariableStatement",
-    VariableDeclaration = "VariableDeclaration"
+    
+    BinaryExpression = "BinaryExpression",
+
+    VariableDeclaration = "VariableDeclaration",
+    VariableReassignment = "VariableReassignment",
+    AssignmentExpression = "AssignmentExpression",
+
+    Identifier = "Identifier",
+    UndefinedLiteral = "UndefinedLiteral",
+    NaNLiteral = "NaNLiteral",
+    InfinityLiteral = "InfinityLiteral",
 }
 
 

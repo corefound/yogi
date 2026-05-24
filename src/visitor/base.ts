@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { Loggers } from "@/loggers";
-import { Nodes } from "@/helpers/types";
+import { Kinds, Nodes } from "@/helpers/types";
 
 export type Constructor<T = {}> = new (...args: any[]) => T;
 export type Mixin<T extends Constructor> = <TBase extends Constructor>(Base: TBase) => T & TBase;
@@ -168,17 +168,17 @@ export class BaseVisitor {
     // Identifiers
     // ----------------------------
     visitIdentifier(node: ts.Identifier) {
-        let kind = "IdentifierLiteral";
+        let kind = Kinds.Identifier;
         switch (node.text) {
             case "undefined":
-                kind = "UndefinedLiteral";
+                kind = Kinds.Identifier;
                 break;
             case "NaN":
-                kind = "NaNLiteral";
+                kind = Kinds.Identifier;
                 break;
             case "Infinity":
             case "-Infinity":
-                kind = "InfinityLiteral";
+                kind = Kinds.Identifier;
                 break;
         }
 

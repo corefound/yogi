@@ -6,7 +6,6 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
     return class extends base {
         visitVariableDeclaration(node: ts.VariableStatement) {
             const declarationList = node.declarationList;
-
             const flag = declarationList.flags & ts.NodeFlags.Const
                 ? "const"
                 : declarationList.flags & ts.NodeFlags.Let
@@ -64,6 +63,17 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 flag,
                 export: isExported,
                 declarations
+            };
+        }
+
+        visitAssignment(node: ts.BinaryExpression) {
+            const left = node.left;
+            const right = node.right;
+
+            return {
+                kind: Kinds.VariableReassignment,
+                name: left.getText(),
+                value: this.visitNode(right)
             };
         }
     }
