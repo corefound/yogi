@@ -17,9 +17,13 @@ export enum Nodes {
 
 export enum Kinds {
     ExportVariableStatement = "ExportVariableStatement",
-    
+
     BinaryExpression = "BinaryExpression",
 
+    DictionaryDeclaration = "DictionaryDeclaration",
+    DictionaryProperty = "DictionaryProperty",
+
+    DeclarationStatement = "DeclarationStatement",
     VariableDeclaration = "VariableDeclaration",
     VariableReassignment = "VariableReassignment",
     AssignmentExpression = "AssignmentExpression",

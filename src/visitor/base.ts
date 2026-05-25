@@ -61,8 +61,6 @@ export class BaseVisitor {
         if (ts.isIdentifier(node)) {
             return this.visitIdentifier(node);
         }
-
-        throw Error(node.getText());
     }
 
     // ----------------------------
@@ -184,6 +182,4 @@ export class BaseVisitor {
 
         return { kind, value: node.text };
     }
-
-
 }
