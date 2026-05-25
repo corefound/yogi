@@ -15,7 +15,9 @@ export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
                     return {
                         kind: Kinds.DictionaryProperty,
                         key: property.name.getText(),
-                        value: this.visitNode(property.initializer)
+                        value: this.visitNode(property.initializer),
+                        source: node.getFullText(),
+                        position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
                     };
                 }).filter(Boolean)
             };

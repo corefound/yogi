@@ -1,20 +1,4 @@
 
-
-export enum Nodes {
-    CallExpression = "CallExpression",
-    NumberLiteral = "NumberLiteral",
-    Identifier = "Identifier",
-    BooleanLiteral = "BooleanLiteral",
-    StringLiteral = "StringLiteral",
-    BinaryExpression = "BinaryExpression",
-    NullLiteral = "NullLiteral",
-    ImportCall = "ImportCall",
-    ExportCall = "ExportCall",
-    ExportVariable = "ExportVariable",
-    ExportVariableStatement = "ExportVariableStatement",
-}
-
-
 export enum Kinds {
     ExportVariableStatement = "ExportVariableStatement",
 
@@ -23,6 +7,16 @@ export enum Kinds {
     DictionaryDeclaration = "DictionaryDeclaration",
     DictionaryProperty = "DictionaryProperty",
 
+    // --------------------------
+    // FunctionDeclaration
+    // --------------------------
+    FunctionDeclaration = "FunctionDeclaration",
+    FunctionExpression = "FunctionExpression",
+
+    // ----------------------------
+    // Expressions
+    // ----------------------------
+    ExpressionStatement = "ExpressionStatement",
     DeclarationStatement = "DeclarationStatement",
     VariableDeclaration = "VariableDeclaration",
     VariableReassignment = "VariableReassignment",
@@ -32,6 +26,15 @@ export enum Kinds {
     UndefinedLiteral = "UndefinedLiteral",
     NaNLiteral = "NaNLiteral",
     InfinityLiteral = "InfinityLiteral",
+
+    CallExpression = "CallExpression",
+    NumberLiteral = "NumberLiteral",
+    BooleanLiteral = "BooleanLiteral",
+    StringLiteral = "StringLiteral",
+    NullLiteral = "NullLiteral",
+    ImportCall = "ImportCall",
+    ExportCall = "ExportCall",
+    ExportVariable = "ExportVariable",
 }
 
 

@@ -1,7 +1,7 @@
 import ts from "typescript";
 import path from "path";
 import { BaseVisitor, Constructor } from "@/visitor/base";
-import { Nodes } from "@/helpers/types";
+import { Kinds } from "@/helpers/types";
 
 export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
@@ -21,7 +21,7 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
             const modulePath = moduleSpecifier ? path.resolve(path.dirname(this.filePath), moduleSpecifier) + ".ts" : null;
 
             const result: any = {
-                kind: Nodes.ExportCall,
+                kind: Kinds.ExportCall,
                 module: modulePath,
 
                 // export * from "x"
@@ -32,14 +32,18 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
                 // export { a, b } from "x"
                 namedImports: [],
                 defaultImport: null,
-                sideEffectOnly: !node.exportClause && !!moduleSpecifier
+                sideEffectOnly: !node.exportClause && !!moduleSpecifier,
+                source: node.getFullText(),
+                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
             };
 
             // Handle: export { a, b } from "x"
             if (node.exportClause && ts.isNamedExports(node.exportClause)) {
                 result.namedImports = node.exportClause.elements.map((el) => ({
                     name: el.name.text,
-                    alias: el.propertyName ? el.propertyName.text : null
+                    alias: el.propertyName ? el.propertyName.text : null,
+                    source: el.getFullText(),
+                    position: el.getSourceFile().getLineAndCharacterOfPosition(el.pos),
                 }));
             }
 

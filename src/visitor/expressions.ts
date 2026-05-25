@@ -6,16 +6,18 @@ import { Kinds } from "@/helpers/types";
 export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: TBase) {
     return class extends Base {
         visitExpression(node: ts.ExpressionStatement) {
-            console.log(node.getText())
-            const { expression } = node;
-            if (ts.isBinaryExpression(expression)) {
-                return {
-                    kind: Kinds.BinaryExpression,
-                    operator: expression.operatorToken.getText(),
-                    left: this.visitNode(expression.left),
-                    right: this.visitNode(expression.right)
-                };
-            }
+            return this.visitNode(node.expression);
+        }
+
+        visitBinaryExpression(node: ts.BinaryExpression) {
+            return {
+                kind: Kinds.BinaryExpression,
+                operator: node.operatorToken.getText(),
+                left: this.visitNode(node.left),
+                right: this.visitNode(node.right),
+                source: node.getFullText(),
+                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+            };
         }
     };
 } 

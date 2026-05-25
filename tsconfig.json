@@ -13,7 +13,7 @@
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
-    // "esModuleInterop": true,
+    "noImplicitAny": true,
     "paths": {
       "@/*": [
         "./src/*"
