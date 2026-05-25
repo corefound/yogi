@@ -1,6 +1,7 @@
 import ts from "typescript";
-import { BaseVisitor, Constructor } from "@/visitor/base";
-import { Kinds } from "@/helpers/types";
+import { BaseVisitor, Constructor } from "../visitor/base";
+import { Kinds } from "../helpers/types";
+
 
 
 export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TBase) {

@@ -1,24 +1,36 @@
-import { Visitor } from "@/visitor";
 import ts from "typescript";
-import { ModuleScanner } from "./dfs";
+import util from "node:util";
 import fs from "fs";
 import path from "path";
+import { Visitor } from "./visitor";
+import { ModuleScanner } from "./dfs";
 import { Module, Program } from "./helpers/types";
 
-const parseFile = (filePath: string): ts.SourceFile => {
-    const code = fs.readFileSync(filePath, "utf-8");
 
-    return ts.createSourceFile(
-        filePath,
-        code,
-        ts.ScriptTarget.Latest,
-        true
-    );
+const parseFile = (filePath: string): ts.SourceFile => {
+    try {
+        const code = fs.readFileSync(filePath, "utf-8");
+        return ts.createSourceFile(
+            filePath,
+            code,
+            ts.ScriptTarget.Latest,
+            true,
+        );
+
+    } catch (error: any) {
+        throw error?.toString()
+    }
 };
 
 const resolveModule = (fromFile: string, specifier: string): string => {
+    const resolvedFilePath = path.resolve(path.dirname(fromFile), specifier);
+
+    // only allow .io
+
+
+
     if (specifier.startsWith(".")) {
-        return path.resolve(path.dirname(fromFile), specifier) + ".ts";
+        return path.resolve(path.dirname(fromFile), specifier);
     }
 
     // fallback for now (node_modules etc.)
@@ -36,7 +48,8 @@ graph.forEach((_, key) => {
         module: ts.ModuleKind.NodeNext,
         strictNullChecks: false,
         moduleResolution: ts.ModuleResolutionKind.NodeNext,
-        strict: false
+        strict: false,
+        allowJs: false
     });
 
     const ast = visitor.visit();
@@ -50,4 +63,7 @@ const program: Program = {
     modules
 }
 
-console.log(JSON.stringify(program, null, 2));
+console.log(util.inspect(modules, {
+    colors: true,
+    depth: null,
+}));

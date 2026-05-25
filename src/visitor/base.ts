@@ -1,6 +1,7 @@
 import ts from "typescript";
-import { Loggers } from "@/loggers";
-import { Kinds } from "@/helpers/types";
+import { Loggers } from "../loggers";
+import { Kinds } from "../helpers/types";
+import fs from "fs"
 
 export type Constructor<T = {}> = new (...args: any[]) => T;
 export type Mixin<T extends Constructor> = <TBase extends Constructor>(Base: TBase) => T & TBase;
@@ -15,18 +16,23 @@ export class BaseVisitor {
     public program: ts.Program;
     public sourceFile: ts.SourceFile;
 
-    constructor(filePath: string, options: ts.CompilerOptions) {
+    constructor(filePath: string) {
         this.filePath = filePath;
-        this.program = ts.createProgram([filePath], options);
+        const code = fs.readFileSync(filePath, "utf8");
 
-        const diagnostics = ts.getPreEmitDiagnostics(this.program);
-        this.checkDiagnostics(diagnostics);
-
-        this.sourceFile = this.program.getSourceFile(filePath)!;
+        this.sourceFile = ts.createSourceFile(
+            filePath,
+            code,
+            ts.ScriptTarget.Latest,
+            true
+        );
     }
 
     public checkDiagnostics(diagnostics: readonly ts.Diagnostic[]) {
         if (!diagnostics.length) return;
+
+        console.log(JSON.stringify({ diagnostics }, null, 2));
+
 
         diagnostics.forEach(d => {
             const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
@@ -40,6 +46,10 @@ export class BaseVisitor {
     // =========================
     visitNode(node: ts.Node): any {
         if (!node) return null;
+
+        // imports
+        if (ts.isExportDeclaration(node)) return this.visitExports(node);
+        if (ts.isImportDeclaration(node)) return this.visitImports(node);
 
         // statements
         if (ts.isVariableStatement(node)) return this.visitVariableDeclaration(node);
@@ -82,6 +92,10 @@ export class BaseVisitor {
 
         return null;
     }
+
+    // Imports and Exports
+    visitImports(_: ts.ImportDeclaration): any { }
+    visitExports(_: ts.ExportDeclaration): any { }
 
 
     // placeholders (implemented in mixins)

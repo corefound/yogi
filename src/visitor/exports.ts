@@ -1,7 +1,7 @@
 import ts from "typescript";
 import path from "path";
-import { BaseVisitor, Constructor } from "@/visitor/base";
-import { Kinds } from "@/helpers/types";
+import { BaseVisitor, Constructor } from "../visitor/base";
+import { Kinds } from "../helpers/types";
 
 export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {

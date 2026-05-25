@@ -1,4 +1,4 @@
-// import ts from "typescript";
+import { Errors } from "../loggers/error";
 import ts from "typescript";
 
 
@@ -74,22 +74,29 @@ export class ModuleScanner {
         return order;
     }
     private visit(file: string) {
+
         if (this.visited.has(file)) return;
         this.visited.add(file);
-
         const sourceFile = this.parseFile(file);
-
         const imports: string[] = [];
 
         const visitNode = (node: ts.Node) => {
             if (ts.isImportDeclaration(node)) {
-                const specifier = (node.moduleSpecifier as ts.StringLiteral).text;
+                try {
+                    const specifier = (node.moduleSpecifier as ts.StringLiteral).text;
 
-                const resolved = this.resolveModule(file, specifier);
+                    if (!specifier.endsWith(".io")) {
+                        Errors.unnownModuleError(node.moduleSpecifier, file)
+                    }
 
-                imports.push(resolved);
+                    const resolved = this.resolveModule(file, specifier);
+                    imports.push(resolved);
 
-                this.visit(resolved);
+                    this.visit(resolved);
+
+                } catch (error) {
+                    Errors.unnownModuleError(node, file)
+                }
             }
 
             ts.forEachChild(node, visitNode);

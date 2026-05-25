@@ -6,4 +6,8 @@ cmake-build-debug/
 test.ts
 /src/ts/
 yarn-error.log
+/test/
+
+/dist/
 yarn.lock
+myBin

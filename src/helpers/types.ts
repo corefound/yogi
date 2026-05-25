@@ -1,3 +1,7 @@
+export enum Types {
+    Any = "any",
+}
+
 
 export enum Kinds {
     ExportVariableStatement = "ExportVariableStatement",
@@ -34,7 +38,7 @@ export enum Kinds {
     NullLiteral = "NullLiteral",
     ImportCall = "ImportCall",
     ExportCall = "ExportCall",
-    ExportVariable = "ExportVariable",
+    ExportVariable = "ExportVariable"
 }
 
 

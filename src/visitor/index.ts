@@ -1,7 +1,7 @@
 import ts from "typescript";
-import { VariableVisitor } from "@/visitor/variables";
-import { ExpressionVisitor } from "@/visitor/expressions";
-import { BaseVisitor, applyMixins } from "@/visitor/base";
+import { VariableVisitor } from "../visitor/variables";
+import { ExpressionVisitor } from "../visitor/expressions";
+import { BaseVisitor, applyMixins } from "../visitor/base";
 import { ImportsVisitor } from "./imports";
 import { ExportsVisitor } from "./exports";
 import { LiteralsVisitor } from "./literals";

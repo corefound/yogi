@@ -1,11 +1,11 @@
 import ts from "typescript";
-import { BaseVisitor, Constructor } from "@/visitor/base";
-import { Kinds } from "@/helpers/types";
+import { BaseVisitor, Constructor } from "../visitor/base";
+import { Kinds } from "../helpers/types";
 import path from "path";
 
 export function ImportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
-        visitAllImports(node: ts.ImportDeclaration) {
+        visitImports(node: ts.ImportDeclaration) {
             const modulePath = path.resolve(path.dirname(this.filePath), (node.moduleSpecifier as ts.StringLiteral).text) + ".ts";
             const result: any = {
                 kind: Kinds.ImportCall,

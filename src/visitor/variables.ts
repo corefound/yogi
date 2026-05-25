@@ -1,7 +1,7 @@
 import ts from "typescript";
-import { BaseVisitor, Constructor } from "@/visitor/base";
-import { Kinds } from "@/helpers/types";
-import { Errors } from "@/loggers/error";
+import { BaseVisitor, Constructor } from "../visitor/base";
+import { Kinds, Types } from "../helpers/types";
+import { Errors } from "../loggers/error";
 
 export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
@@ -22,10 +22,11 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 kind: Kinds.DeclarationStatement,
                 flag,
                 export: isExported,
-                source: node.getFullText(),
                 declarations: declarationList.declarations.map(
                     decl => this.transformDeclaration(decl)
-                )
+                ),
+                source: node.getFullText(),
+                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
             };
         }
 
@@ -98,12 +99,11 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             const init = declaration.initializer;
 
             // this.handleErrors(declaration);
-
             if (!init) {
                 return {
                     kind: Kinds.VariableDeclaration,
                     name,
-                    type: declaration.type?.getText() ?? "any",
+                    type: declaration.type?.getText() || "any",
                     value: null as any,
                     source: declaration.getFullText(),
                     position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
@@ -144,7 +144,9 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
                     params: init.parameters.map(p => ({
                         name: p.name.getText(),
-                        type: p.type?.getText() ?? "any"
+                        type: p.type?.getText() ?? "any",
+                        source: p.getFullText(),
+                        position: p.getSourceFile().getLineAndCharacterOfPosition(p.pos),
                     })),
                     body: ts.isBlock(init.body)
                         ? init.body.statements.map(s => this.visitNode(s))
@@ -161,26 +163,9 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     name,
                     source: declaration.getFullText(),
                     position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
-                    type: this.inferPrimitiveType(init),
+                    type: declaration.type?.getText() ?? Types.Any,
                     value: this.visitNode(init)
                 };
-            }
-
-        }
-
-        inferPrimitiveType(init: ts.Expression): string {
-            switch (init.kind) {
-                case ts.SyntaxKind.NumericLiteral:
-                    return "number";
-                case ts.SyntaxKind.StringLiteral:
-                    return "string";
-                case ts.SyntaxKind.TrueKeyword:
-                case ts.SyntaxKind.FalseKeyword:
-                    return "boolean";
-                case ts.SyntaxKind.NullKeyword:
-                    return "null";
-                default:
-                    return "any";
             }
         }
 
