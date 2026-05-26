@@ -1,0 +1,3 @@
+/Users/brayhandeaza/Documents/dev/projects/ts-bk/yogi/build/CMakeFiles/yogi.dir
+/Users/brayhandeaza/Documents/dev/projects/ts-bk/yogi/build/CMakeFiles/edit_cache.dir
+/Users/brayhandeaza/Documents/dev/projects/ts-bk/yogi/build/CMakeFiles/rebuild_cache.dir

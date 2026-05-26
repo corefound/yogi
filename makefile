@@ -1,12 +1,7 @@
-.PHONY: all dev build
+# variable
+.PHONY: run
 
-dev:
-	@yarn --cwd ./yogi dev & yarn --cwd ./past dev & wait
+TS_PATH := $(CURDIR)/src/ts
 
-add:
-	yarn add ../past/corefound-past-0.0.1.tgz
-
-build:
-	@cd ./src/libs/llvm/build && rm -rf ./* 
-	@cd ./src/libs/llvm && npx node-gyp configure
-	@cd ./src/libs/llvm && npx node-gyp build
+run: 
+	$(TS_PATH)/ts-parser $(TS_PATH)/tests/main.io
