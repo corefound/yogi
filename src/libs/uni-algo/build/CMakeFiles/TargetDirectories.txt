@@ -1,0 +1,9 @@
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/uni-algo.dir
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/package.dir
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/package_source.dir
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/edit_cache.dir
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/rebuild_cache.dir
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/list_install_components.dir
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/install.dir
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/install/local.dir
+/Users/brayhandeaza/Documents/dev/projects/yogi/libs/uno-algo/build/CMakeFiles/install/strip.dir
