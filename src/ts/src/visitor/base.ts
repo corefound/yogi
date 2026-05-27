@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "../ts/built/local/typescript";
 import { Loggers } from "../loggers";
 import { Kinds } from "../helpers/types";
 import fs from "fs"
