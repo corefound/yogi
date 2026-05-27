@@ -1,0 +1,3 @@
+[submodule "src/ts/src/ts"]
+	path = src/ts/src/ts
+	url = https://github.com/microsoft/TypeScript.git
