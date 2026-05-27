@@ -1,3 +1,3 @@
-import { b } from 'utils';
+import { b } from './utils.io';
 
-const sum = 10, sum = 15;
+const sum = 1 + 10 + b;

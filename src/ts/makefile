@@ -1,4 +1,4 @@
-.PHONY: all dev build
+.PHONY: dev build
 
 
 dev:
@@ -7,7 +7,7 @@ dev:
 
 build:
 	@rm -rf dist
-	@npx tsc -p tsconfig.json
+	@npx tsc
 	@npx pkg dist/index.js \
 		--targets node18-linux-x64,node18-macos-x64,node18-macos-arm64,node18-win-x64 \
 		--output ./bin/parser

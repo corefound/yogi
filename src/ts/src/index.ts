@@ -1,11 +1,10 @@
-import ts from "typescript";
+import ts from "./ts/built/local/typescript";
 import util from "node:util";
 import fs from "fs";
 import path from "path";
 import { Visitor } from "./visitor";
 import { ModuleScanner } from "./dfs";
 import { Module, Program } from "./helpers/types";
-
 
 const parseFile = (filePath: string): ts.SourceFile => {
     try {
@@ -41,29 +40,29 @@ const scanner = new ModuleScanner(resolveModule, parseFile);
 const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
 const dag = scanner.topoSort(graph);
 
-const modules: Module[] = []
-graph.forEach((_, key) => {
-    const visitor = new Visitor(key, {
-        target: ts.ScriptTarget.ESNext,
-        module: ts.ModuleKind.NodeNext,
-        strictNullChecks: false,
-        moduleResolution: ts.ModuleResolutionKind.NodeNext,
-        strict: false,
-        allowJs: false
-    });
+// const modules: Module[] = []
+// graph.forEach((_, key) => {
+//     const visitor = new Visitor(key, {
+//         target: ts.ScriptTarget.ESNext,
+//         module: ts.ModuleKind.NodeNext,
+//         strictNullChecks: false,
+//         moduleResolution: ts.ModuleResolutionKind.NodeNext,
+//         strict: false,
+//         allowJs: false
+//     });
 
-    const ast = visitor.visit();
-    modules.push(ast);
-})
+//     const ast = visitor.visit();
+//     modules.push(ast);
+// })
 
-const program: Program = {
-    entry: path.resolve(process.cwd(), process.argv[2]),
-    graph,
-    dag,
-    modules
-}
+// const program: Program = {
+//     entry: path.resolve(process.cwd(), process.argv[2]),
+//     graph,
+//     dag,
+//     modules
+// }
 
-console.log(util.inspect({ ok: true, program }, {
+console.log(util.inspect({ ok: true, graph }, {
     colors: true,
     depth: null,
 }));

@@ -4,10 +4,10 @@ build/
 .vscode/
 cmake-build-debug/
 test.ts
-/src/ts/
+# /src/ts/
 yarn-error.log
 /test/
 /libs/
 /dist/
-yarn.lock
-myBin
+
+.gitmodules/

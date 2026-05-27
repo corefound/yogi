@@ -30,69 +30,6 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             };
         }
 
-        isUnexpectedType = (type: ts.TypeNode) => {
-            switch (true) {
-                // =========================
-                // ❌ TIPOS PROHIBIDOS (DINÁMICOS / INSEGUROS)
-                // =========================
-
-                case type.kind == ts.SyntaxKind.AnyKeyword:
-                case type.kind == ts.SyntaxKind.UnknownKeyword:
-                case type.kind == ts.SyntaxKind.ObjectKeyword:
-                case type.kind == ts.SyntaxKind.FunctionType:
-                case type.kind == ts.SyntaxKind.ConstructorType:
-
-                // JS/TS escape hatches
-                case type.kind == ts.SyntaxKind.MappedType:
-                case type.kind == ts.SyntaxKind.IndexedAccessType:
-                case type.kind == ts.SyntaxKind.TypeReference &&
-                    (type as ts.TypeReferenceNode).typeName.getText() === "Function":
-
-                    return true;
-
-                // =========================
-                // ❌ TIPOS AMBIGUOS (opcional en tu modelo estricto)
-                // =========================
-
-                case type.kind == ts.SyntaxKind.TypeOperator:
-                case type.kind == ts.SyntaxKind.TypeQuery:
-                case type.kind == ts.SyntaxKind.TypePredicate:
-
-                    return true;
-
-                // =========================
-                // ✔ TIPOS PERMITIDOS (BASE DEL LENGUAJE)
-                // =========================
-
-                case type.kind == ts.SyntaxKind.NumberKeyword:
-                case type.kind == ts.SyntaxKind.StringKeyword:
-                case type.kind == ts.SyntaxKind.BooleanKeyword:
-                case type.kind == ts.SyntaxKind.VoidKeyword:
-
-                // Tu sistema estructurado
-                case type.kind == ts.SyntaxKind.TypeLiteral:
-                case type.kind == ts.SyntaxKind.TypeAliasDeclaration:
-
-                    return false;
-
-                // =========================
-                // DEFAULT: seguro en modo estricto
-                // =========================
-
-                default:
-                    return false;
-            }
-        };
-
-        handleErrors = (declaration: ts.VariableDeclaration) => {
-            if (!declaration.type?.getText()) {
-                Errors.typeError(declaration, this.filePath)
-            }
-
-            if (this.isUnexpectedType(declaration.type)) {
-                Errors.unexpectedTypeError(declaration, this.filePath)
-            }
-        }
 
         transformDeclaration(declaration: ts.VariableDeclaration) {
             const name = declaration.name.getText();
@@ -152,6 +89,11 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                         ? init.body.statements.map(s => this.visitNode(s))
                         : this.visitNode(init.body)
                 };
+            }
+
+            // Binary Expression
+            if (ts.isBinaryExpression(init)) {
+                return this.visitNode(init);
             }
 
             // -----------------------------------
