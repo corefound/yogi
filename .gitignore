@@ -1,6 +1,8 @@
 *.vscode/
 .idea/
 /build/
+./.DS_Store
+
 
 tools/typescript/
 libs/uni-algo/
