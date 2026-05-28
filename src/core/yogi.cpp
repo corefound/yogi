@@ -1,10 +1,10 @@
 #include <iostream>
 #include <string>
 #include <json.hpp>
-#include "includes/core.h"
+#include "core.h"
 
-int main() {
-    const nlohmann::json ast = yogi::core::Core::TSParser();
-    std::cout << ast.dump(1) << std::endl;
+int main(const int argc, const char *argv[]) {
+	const yogi::core::Core core(argc, argv);
 
+	std::cout << core.ast.dump(1) << std::endl;
 }

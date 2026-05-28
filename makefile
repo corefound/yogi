@@ -1,14 +1,29 @@
 # variable
-.PHONY: run ts-build
+.PHONY: compile ts-build build run
 
-run: 
-	$(CURDIR)/src/compiler/bin/parser-macos-arm64 $(CURDIR)/src/compiler/tests/main.io
 
-compile: 
+compile:
 	@cd $(CURDIR)/src/compiler && npm run build
 	@cd $(CURDIR)/src/compiler && npm run pkg
+
+build:
+	@rm -rf ./build
+	@cmake -G Ninja -B build && cmake --build build
+	@echo
+	@echo Build complete
+
+run:
+	@./build/yogi ./tests/main.io
+
+
+# TypeScript
+ts-run:
+	$(CURDIR)/src/compiler/bin/ts-parser-macos-arm64 $(CURDIR)/tests/main.io
 
 ts-build:
 	@cd $(CURDIR)/tools/typescript && npm run build
 	@cd $(CURDIR)/src/compiler/src/ts && rm -rf local
 	@mv $(CURDIR)/tools/typescript/built/local $(CURDIR)/src/compiler/src/ts/local
+
+ts-pkg:
+	@cd $(CURDIR)/src/compiler && npm run pkg

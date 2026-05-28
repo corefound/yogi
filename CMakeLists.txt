@@ -16,8 +16,6 @@ set(TS_PARSER_DIR "${CMAKE_SOURCE_DIR}/src/core")
 cmake_policy(SET CMP0075 NEW)
 cmake_policy(SET CMP0074 NEW)
 
-
-
 # ============================================================
 #                  SOURCES
 # ============================================================

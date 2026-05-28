@@ -33,9 +33,5 @@ const program: Program = {
     modules
 }
 
-// console.log(util.inspect(program, {
-//     colors: true,
-//     depth: null,
-// }));
-
-// process.stdout.write(JSON.stringify({ ok: true, program }));
+process.stdout.write(JSON.stringify({ ok: true, program }, null, 0).toString());
+process.exit(0);
