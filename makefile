@@ -2,7 +2,7 @@
 .PHONY: run ts-build
 
 run: 
-	/Users/brayhandeaza/Documents/dev/projects/ts-bk/yogi/src/compiler/bin/parser-macos-arm64 /Users/brayhandeaza/Documents/dev/projects/ts-bk/yogi/tests/main.io
+	$(CURDIR)/src/compiler/bin/parser-macos-arm64 $(CURDIR)/src/compiler/tests/main.io
 
 compile: 
 	@cd $(CURDIR)/src/compiler && npm run build
