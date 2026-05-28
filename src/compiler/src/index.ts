@@ -1,5 +1,4 @@
 import ts from "./ts";
-import util from "node:util";
 import path from "path";
 import { Visitor } from "./visitor";
 import { ModuleScanner } from "./dfs";

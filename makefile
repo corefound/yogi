@@ -2,10 +2,6 @@
 .PHONY: compile ts-build build run
 
 
-compile:
-	@cd $(CURDIR)/src/compiler && npm run build
-	@cd $(CURDIR)/src/compiler && npm run pkg
-
 build:
 	@rm -rf ./build
 	@cmake -G Ninja -B build && cmake --build build
