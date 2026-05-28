@@ -1,36 +1,13 @@
 import ts from "./ts";
 import util from "node:util";
-import fs from "fs";
 import path from "path";
 import { Visitor } from "./visitor";
 import { ModuleScanner } from "./dfs";
 import { Module, Program } from "./helpers/types";
+import { Helpers } from "./helpers";
 
-const parseFile = (filePath: string): ts.SourceFile => {
-    try {
-        const code = fs.readFileSync(filePath, "utf-8");
-        return ts.createSourceFile(
-            filePath,
-            code,
-            ts.ScriptTarget.Latest,
-            true,
-        );
 
-    } catch (error: any) {
-        throw error?.toString()
-    }
-};
-
-const resolveModule = (fromFile: string, specifier: string): string => {
-    if (specifier.startsWith(".")) {
-        return path.resolve(path.dirname(fromFile), specifier);
-    }
-
-    // fallback for now (node_modules etc.)
-    return specifier;
-};
-
-const scanner = new ModuleScanner(resolveModule, parseFile);
+const scanner = new ModuleScanner(Helpers.resolveModule, Helpers.parseFile);
 const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
 const dag = scanner.topoSort(graph);
 
@@ -56,10 +33,9 @@ const program: Program = {
     modules
 }
 
-console.log(util.inspect({ ok: true, graph }, {
-    colors: true,
-    depth: null,
-}));
+// console.log(util.inspect(program, {
+//     colors: true,
+//     depth: null,
+// }));
 
-
-// console.log(JSON.stringify({ ok: true, program }, null, 2));
+// process.stdout.write(JSON.stringify({ ok: true, program }));

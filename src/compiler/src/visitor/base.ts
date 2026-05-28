@@ -1,7 +1,9 @@
-import { Loggers } from "../loggers";
-import { Kinds } from "../helpers/types";
 import fs from "fs"
 import ts from "../ts";
+import { Loggers } from "../loggers";
+import { Kinds } from "../helpers/types";
+import { ZodSchemas } from "../schemas";
+import { z } from "zod";
 
 export type Constructor<T = {}> = new (...args: any[]) => T;
 export type Mixin<T extends Constructor> = <TBase extends Constructor>(Base: TBase) => T & TBase;
@@ -11,10 +13,12 @@ export function applyMixins<TBase extends Constructor>(Base: TBase, ...mixins: M
     return mixins.reduce((current, mixin) => mixin(current), Base);
 }
 
+
 export class BaseVisitor {
     public filePath: string;
     public program: ts.Program;
     public sourceFile: ts.SourceFile;
+    public diagnostics: z.infer<typeof ZodSchemas.DiagnosticsSchema>[] = [];
 
     constructor(filePath: string) {
         this.filePath = filePath;
@@ -31,13 +35,47 @@ export class BaseVisitor {
     public checkDiagnostics(diagnostics: readonly ts.Diagnostic[]) {
         if (!diagnostics.length) return;
 
-        console.log(JSON.stringify({ diagnostics }, null, 2));
 
+        // const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
+        //     const position = d.file?.getLineAndCharacterOfPosition(d.start!)!;
+        //     const diagnostics = ZodSchemas.DiagnosticsSchema.safeParse({
+        //         kind: d.code,
+        //         category: d.category,
+        //         message,
+        //         position,
+        //         source: d.file!.text,
+        //         fileName: this.filePath
+        //     })
+
+        //     if (diagnostics.success) {
+        //         this.diagnostics.push(diagnostics.data);
+
+        //     } else {
+        //         process.stderr.write(JSON.stringify({
+        //             ok: false,
+        //             error: diagnostics.error
+        //         }));
+        //     }
 
         diagnostics.forEach(d => {
             const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
             const position = d.file?.getLineAndCharacterOfPosition(d.start!)!;
             Loggers.error(message, position, d.file!.text, this.filePath);
+
+            const diagnostics = ZodSchemas.DiagnosticsSchema.safeParse({
+                kind: d.code,
+                category: d.category,
+                message,
+                position,
+                source: d.source,
+                fileName: this.filePath
+            })
+
+            if (diagnostics.success) {
+                this.diagnostics.push(diagnostics.data);             
+            } else {
+                process.stderr.write(JSON.stringify(diagnostics.error));
+            }
         });
     }
 

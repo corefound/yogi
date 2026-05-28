@@ -26,11 +26,7 @@ export class Loggers {
         const error = `${line + 1}: ${lineText} \n `;
         const underline = ' '.repeat(character + `${line + 1}: `.length) + '~';
 
-        console.log(util.inspect({ ok: false, error: msg + error + underline }, {
-            colors: true,
-            depth: null,
-        }));
-
+        process.stdout.write(JSON.stringify({ ok: false, error: `${msg}${error}${underline}` }));
         process.exit(1);
     }
 }
