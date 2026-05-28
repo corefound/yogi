@@ -1,4 +1,4 @@
-import ts from "@/ts";
+import ts from "../ts";
 import { BaseVisitor, Constructor } from "../visitor/base";
 import { Kinds } from "../helpers/types";
 
@@ -9,7 +9,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
         visitLiteral(node: ts.Node): any {
             if (ts.isBinaryExpression(node)) {
                 return {
-                    kind: Kinds.BinaryExpression,                   
+                    kind: Kinds.BinaryExpression,
                     operator: node.operatorToken.getText(),
                     left: this.visitNode(node.left),
                     right: this.visitNode(node.right),
@@ -32,7 +32,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
                     type: Kinds.StringLiteral,
                     value: node.text,
                     source: node.getFullText(),
-                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),                  
+                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
                 };
             }
 

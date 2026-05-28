@@ -3,7 +3,7 @@
     "types": ["node"],
     "module": "nodenext",
     "target": "esnext",
-    "outDir": "dist",
+    "outDir": "build",
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,

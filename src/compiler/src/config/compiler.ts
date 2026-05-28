@@ -1,5 +1,5 @@
 import fs from "fs";
-import ts from "@/ts";
+import ts from "../ts";
 
 function run(file: string) {
     const code = fs.readFileSync(file, "utf8");

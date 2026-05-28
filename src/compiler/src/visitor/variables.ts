@@ -1,4 +1,4 @@
-import ts from "@/ts";
+import ts from "../ts";
 import { BaseVisitor, Constructor } from "../visitor/base";
 import { Kinds, Types } from "../helpers/types";
 import { Errors } from "../loggers/error";

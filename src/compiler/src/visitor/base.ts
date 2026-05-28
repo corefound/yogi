@@ -1,7 +1,7 @@
 import { Loggers } from "../loggers";
 import { Kinds } from "../helpers/types";
 import fs from "fs"
-import ts from "@/ts";
+import ts from "../ts";
 
 export type Constructor<T = {}> = new (...args: any[]) => T;
 export type Mixin<T extends Constructor> = <TBase extends Constructor>(Base: TBase) => T & TBase;

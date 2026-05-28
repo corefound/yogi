@@ -1,4 +1,4 @@
-import ts from "@/ts";
+import ts from "../ts";
 import util from "node:util";
 
 
