@@ -24,10 +24,5 @@ std::string exec(const std::string& cmd) {
 }
 
 int main() {
-    std::string input =
-        std::string(TS_PARSER) + " " +
-        std::string(TS_TESTS) + "/main.io";
-    std::string output = exec(input);
-
-    std::cout << "RAW OUTPUT:\n" << input << std::endl;
+    std::cout << "RAW OUTPUT" << std::endl;
 }

@@ -1,6 +1,3 @@
-[submodule "src/ts/src/ts"]
-	path = src/ts/src/ts
-	url = https://github.com/microsoft/TypeScript.git
-[submodule "src/compiler/typescript"]
-	path = src/compiler/typescript
+[submodule "tools/typescript"]
+	path = tools/typescript
 	url = https://github.com/corefound/typescript.git
