@@ -9,5 +9,6 @@ yarn-error.log
 /test/
 /libs/
 /dist/
+/bin/ts-parser-*
 
 .gitmodules/
