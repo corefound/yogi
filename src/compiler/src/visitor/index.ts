@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "@/ts";
 import { VariableVisitor } from "../visitor/variables";
 import { ExpressionVisitor } from "../visitor/expressions";
 import { BaseVisitor, applyMixins } from "../visitor/base";

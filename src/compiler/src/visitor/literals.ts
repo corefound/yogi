@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "@/ts";
 import { BaseVisitor, Constructor } from "../visitor/base";
 import { Kinds } from "../helpers/types";
 

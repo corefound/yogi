@@ -1,5 +1,5 @@
 import { Errors } from "../loggers/error";
-import ts from "typescript";
+import ts from "@/ts";
 
 
 export class ModuleScanner {

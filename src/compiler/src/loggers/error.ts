@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "@/ts";
 import { Loggers } from "./";
 
 

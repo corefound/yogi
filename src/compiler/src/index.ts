@@ -1,4 +1,5 @@
-import ts from "./ts";
+import "tsconfig-paths/lib/register"
+import ts from "@/ts";
 import util from "node:util";
 import fs from "fs";
 import path from "path";

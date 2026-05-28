@@ -1,19 +1,14 @@
 # variable
 .PHONY: run ts-build
 
-# PATHS
-COMPILER_PATH := $(CURDIR)/src/compiler 
-TS_SOURCE_PATH := $(CURDIR)/tools/typescript
-
 run: 
-	$(TS_PATH)/ts-parser $(TS_PATH)/tests/main.io
+	/Users/brayhandeaza/Documents/dev/projects/ts-bk/yogi/src/compiler/bin/parser-macos-arm64 /Users/brayhandeaza/Documents/dev/projects/ts-bk/yogi/tests/main.io
 
 compile: 
-	@cd $(COMPILER_PATH) && npm run build
-	@cd $(COMPILER_PATH) && npm run pkg
-
+	@cd $(CURDIR)/src/compiler && npm run build
+	@cd $(CURDIR)/src/compiler && npm run pkg
 
 ts-build:
-	@cd $(TS_SOURCE_PATH) && npm run build
-	@cd $(COMPILER_PATH)/src/ts && rm -rf local
-	@mv $(TS_SOURCE_PATH)/built/local $(COMPILER_PATH)/src/ts/local
+	@cd $(CURDIR)/tools/typescript && npm run build
+	@cd $(CURDIR)/src/compiler/src/ts && rm -rf local
+	@mv $(CURDIR)/tools/typescript/built/local $(CURDIR)/src/compiler/src/ts/local
