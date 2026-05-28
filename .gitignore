@@ -1,6 +1,6 @@
 *.vscode/
 .idea/
-build/
+/build/
 
 tools/typescript/
 libs/uni-algo/
