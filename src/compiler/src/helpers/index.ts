@@ -26,8 +26,6 @@ export class Helpers {
         // fallback for now (node_modules etc.)
         return specifier;
     };
-
-
 }
 
 

@@ -32,5 +32,7 @@ const program: Program = {
     modules
 }
 
+console.log(JSON.stringify(program, null, 2));
+
 process.stdout.write(JSON.stringify({ ok: true, program }, null, 0).toString());
 process.exit(0);

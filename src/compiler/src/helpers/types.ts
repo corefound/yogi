@@ -4,6 +4,20 @@ export enum Types {
 
 
 export enum Kinds {
+    Program = "Program",
+
+    // --------------------------
+    // Externs
+    // --------------------------
+    ExternDeclarations = "ExternDeclarations",
+    ExternMember = "ExternMember",
+    ExternProperty = "ExternProperty",
+    ExternMethod = "ExternMethod",
+    
+    // --------------------------
+    // Exports and imports
+    // --------------------------
+    ImportDeclarations = "ImportDeclarations",
     ExportVariableStatement = "ExportVariableStatement",
 
     BinaryExpression = "BinaryExpression",
@@ -38,7 +52,9 @@ export enum Kinds {
     NullLiteral = "NullLiteral",
     ImportCall = "ImportCall",
     ExportCall = "ExportCall",
-    ExportVariable = "ExportVariable"
+    ExportVariable = "ExportVariable",
+
+    Unknown = "Unknown",
 }
 
 

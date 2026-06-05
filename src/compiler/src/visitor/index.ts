@@ -5,6 +5,8 @@ import { BaseVisitor, applyMixins } from "../visitor/base";
 import { ImportsVisitor } from "./imports";
 import { ExportsVisitor } from "./exports";
 import { LiteralsVisitor } from "./literals";
+import { ExternsVisitor } from "./extern";
+import { TypesVisitor } from "./types";
 
 export class Visitor extends applyMixins(
     BaseVisitor,
@@ -12,7 +14,9 @@ export class Visitor extends applyMixins(
     VariableVisitor,
     ImportsVisitor,
     ExportsVisitor,
-    LiteralsVisitor
+    LiteralsVisitor,
+    ExternsVisitor,
+    TypesVisitor
 ) {
     constructor(filePath: string, options?: ts.CompilerOptions) {
         super(filePath, options || {});

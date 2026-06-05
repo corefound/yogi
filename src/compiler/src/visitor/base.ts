@@ -13,7 +13,6 @@ export function applyMixins<TBase extends Constructor>(Base: TBase, ...mixins: M
     return mixins.reduce((current, mixin) => mixin(current), Base);
 }
 
-
 export class BaseVisitor {
     public filePath: string;
     public program: ts.Program;
@@ -35,28 +34,6 @@ export class BaseVisitor {
     public checkDiagnostics(diagnostics: readonly ts.Diagnostic[]) {
         if (!diagnostics.length) return;
 
-
-        // const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
-        //     const position = d.file?.getLineAndCharacterOfPosition(d.start!)!;
-        //     const diagnostics = ZodSchemas.DiagnosticsSchema.safeParse({
-        //         kind: d.code,
-        //         category: d.category,
-        //         message,
-        //         position,
-        //         source: d.file!.text,
-        //         fileName: this.filePath
-        //     })
-
-        //     if (diagnostics.success) {
-        //         this.diagnostics.push(diagnostics.data);
-
-        //     } else {
-        //         process.stderr.write(JSON.stringify({
-        //             ok: false,
-        //             error: diagnostics.error
-        //         }));
-        //     }
-
         diagnostics.forEach(d => {
             const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
             const position = d.file?.getLineAndCharacterOfPosition(d.start!)!;
@@ -72,7 +49,7 @@ export class BaseVisitor {
             })
 
             if (diagnostics.success) {
-                this.diagnostics.push(diagnostics.data);             
+                this.diagnostics.push(diagnostics.data);
             } else {
                 process.stderr.write(JSON.stringify(diagnostics.error));
             }
@@ -85,6 +62,29 @@ export class BaseVisitor {
     visitNode(node: ts.Node): any {
         if (!node) return null;
 
+
+        if (ts.isTypeElement(node)) {
+            switch (node.kind) {
+                case ts.SyntaxKind.PropertySignature:
+                    return this.visitPropertySignature(node as ts.PropertySignature);
+
+                case ts.SyntaxKind.MethodSignature:
+                    return this.visitMethodSignature(node as ts.MethodSignature);
+
+                default:
+                    return {
+                        kind: Kinds.Unknown,
+                        text: node.getText(),
+                        type: ts.SyntaxKind[node.kind],
+                    };
+            }
+        }
+
+        // extern
+        if (ts.isExternDeclaration(node)) {
+            return this.visitExternDeclaration(node)
+        };
+
         // imports
         if (ts.isExportDeclaration(node)) return this.visitExports(node);
         if (ts.isImportDeclaration(node)) return this.visitImports(node);
@@ -94,7 +94,7 @@ export class BaseVisitor {
         if (ts.isExpressionStatement(node)) return this.visitExpression(node);
         if (ts.isFunctionDeclaration(node)) return this.visitFunctionDeclaration(node);
         if (ts.isIfStatement(node)) return this.visitIfStatement(node);
-        if (ts.isBlock(node)) return node.statements.map(s => this.visitNode(s));
+        if (ts.isBlock(node)) return node.statements.map((s: ts.Statement) => this.visitNode(s));
         if (ts.isReturnStatement(node)) {
             return {
                 kind: "ReturnStatement",
@@ -131,12 +131,16 @@ export class BaseVisitor {
         return null;
     }
 
+    // 
+    visitMethodSignature(_: ts.MethodSignature): any { }
+    visitPropertySignature(_: ts.PropertySignature): any { }
+
     // Imports and Exports
     visitImports(_: ts.ImportDeclaration): any { }
     visitExports(_: ts.ExportDeclaration): any { }
 
-
     // placeholders (implemented in mixins)
+    visitExternDeclaration(_: ts.ExternDeclaration): any { }
     visitVariableDeclaration(_: ts.VariableStatement): any { }
     visitExpression(_: ts.ExpressionStatement): any { }
     visitFunctionDeclaration(_: ts.FunctionDeclaration): any { }

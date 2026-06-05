@@ -13,11 +13,14 @@ run:
 
 
 # TypeScript
+ts-dev:
+	@cd $(CURDIR)/src/compiler && npm run dev
+
 ts-run:
 	$(CURDIR)/src/compiler/bin/ts-parser-macos-arm64 $(CURDIR)/tests/main.io
 
 ts-build:
-	@cd $(CURDIR)/tools/typescript && npm run build
+	@cd $(CURDIR)/tools/typescript && rm -rf built && npm run build
 	@cd $(CURDIR)/src/compiler/src/ts && rm -rf local
 	@mv $(CURDIR)/tools/typescript/built/local $(CURDIR)/src/compiler/src/ts/local
 
