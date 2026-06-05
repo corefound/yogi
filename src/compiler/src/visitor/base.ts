@@ -63,8 +63,6 @@ export class BaseVisitor {
     visitNode(node: ts.Node): any {
         if (!node) return null;
 
-        console.log(node.kind)
-
         if (ts.isTypeElement(node)) {
             switch (node.kind) {
                 case ts.SyntaxKind.PropertySignature:
