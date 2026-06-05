@@ -1,0 +1,3 @@
+[submodule "tools/typescript"]
+	path = tools/typescript
+	url = https://github.com/corefound/typescript.git
