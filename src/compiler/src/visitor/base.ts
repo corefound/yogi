@@ -27,7 +27,8 @@ export class BaseVisitor {
             filePath,
             code,
             ts.ScriptTarget.Latest,
-            true
+            true,
+            ts.ScriptKind.TS,
         );
     }
 
