@@ -7,6 +7,10 @@ export enum Kinds {
     Program = "Program",
 
     IfStatement = "IfStatement",
+    SwitchStatement = "SwitchStatement",
+    CaseClause = "CaseClause",
+    DefaultClause = "DefaultClause",
+    BreakStatement = "BreakStatement",
 
     // --------------------------
     // Dictionaries

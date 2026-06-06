@@ -96,10 +96,23 @@ export class BaseVisitor {
         if (ts.isExportDeclaration(node)) return this.visitExports(node);
         if (ts.isImportDeclaration(node)) return this.visitImports(node);
 
+        // if (ts.isIfStatement(node)) return this.visitIfStatement(node);
+        // if (ts.isIfStatement(node)) {
+        //     return this.visitIfStatement(node);
+        // }
+
+        // if (ts.isSwitchStatement(node)) {
+        //     return this.visitSwitchStatement(node);
+        // }
+
+        // if (ts.isBreakStatement(node)) {
+        //     return this.visitBreakStatement(node);
+        // }
+
+
         // statements
         if (ts.isVariableStatement(node)) return this.visitVariableDeclaration(node);
         if (ts.isExpressionStatement(node)) return this.visitExpression(node);
-        if (ts.isIfStatement(node)) return this.visitIfStatement(node);
         if (ts.isBlock(node)) return node.statements.map((s: ts.Statement) => this.visitNode(s));
         if (ts.isReturnStatement(node)) {
             return {
@@ -120,6 +133,10 @@ export class BaseVisitor {
         // literals
         const literal = this.visitLiterals(node);
         if (literal) return literal;
+
+        // types
+        const conditionals = this.visitConditionals(node);
+        if (conditionals) return conditionals;
 
         throw new Error(`Unsupported node type: ${ts.SyntaxKind[node.kind]}`);
     }
@@ -159,4 +176,5 @@ export class BaseVisitor {
     visitIdentifier(_: ts.Node): any { }
 
     visitLiterals(_: ts.Node): any { }
+    visitConditionals(_: ts.Node): any { }
 }
