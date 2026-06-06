@@ -4,7 +4,7 @@ import { Visitor } from "./visitor";
 import { ModuleScanner } from "./dfs";
 import { Module, Program } from "./helpers/types";
 import { Helpers } from "./helpers";
-
+import util from "node:util";
 
 const scanner = new ModuleScanner(Helpers.resolveModule, Helpers.parseFile);
 const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
@@ -32,7 +32,7 @@ const program: Program = {
     modules
 }
 
-console.log(JSON.stringify(program, null, 2));
+console.log(util.inspect(modules, false, null, true));
 
-process.stdout.write(JSON.stringify({ ok: true, program }, null, 0).toString());
-process.exit(0);
+// process.stdout.write(JSON.stringify({ ok: true, program }, null, 0).toString());
+// process.exit(0);
