@@ -52,7 +52,6 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             return {
                 kind: Kinds.FunctionDeclaration,
                 name,
-                type: "function",
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),
                 returnType: this.visitType(node.type),
                 body: this.visitFunctionBody(node.body),
