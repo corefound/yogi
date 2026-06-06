@@ -1,6 +1,7 @@
 import ts from "../ts";
 import { BaseVisitor, Constructor } from "../visitor/base";
 import { Kinds } from "../helpers/types";
+import { Nodes } from "../nodes";
 
 export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: TBase) {
     return class extends Base {
@@ -13,7 +14,7 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
             if (ts.isPropertyAccessExpression(node)) return this.visitPropertyAccessExpression(node);
         }
 
-        visitExpression(node: ts.ExpressionStatement) {
+        visitExpression(node: ts.ExpressionStatement): Nodes.BinaryExpression {
             return this.visitNode(node.expression);
         }
 
@@ -31,8 +32,8 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
         visitPrefixUnaryExpression(node: ts.PrefixUnaryExpression) {
             return {
                 kind: Kinds.Expressions.UnaryExpression,
-                operator: ts.tokenToString(node.operator) ?? node.getText()[0],
                 prefix: true,
+                operator: ts.tokenToString(node.operator) ?? node.getText()[0],
                 operand: this.visitNode(node.operand),
                 source: node.getText(),
                 position: this.getNodePosistion(node),

@@ -40,6 +40,31 @@ export namespace Kinds {
         Program = "Program",
     }
 
+    export enum Operators {
+        Add = "+",
+        Subtract = "-",
+        Multiply = "*",
+        Divide = "/",
+        Modulo = "%",
+        Exponent = "**",
+        Equals = "==",
+        NotEquals = "!=",
+        LessThan = "<",
+        LessThanOrEqual = "<=",
+        GreaterThan = ">",
+        GreaterThanOrEqual = ">=",
+        LogicalAnd = "&&",
+        LogicalOr = "||",
+        LogicalNot = "!",
+        BitwiseAnd = "&",
+        BitwiseOr = "|",
+        BitwiseXor = "^",
+        BitwiseNot = "~",
+        LeftShift = "<<",
+        RightShift = ">>",
+        RightShiftUnsigned = ">>>",
+    }
+
     export enum Statements {
         BlockStatement = "BlockStatement",
         ExpressionStatement = "ExpressionStatement",
@@ -164,10 +189,10 @@ export namespace Kinds {
     }
 
     export enum ScopeSymbols {
-        function = "function",
-        variable = "variable",
-        parameter = "parameter",
-        extern = "extern",
+        Function = "function",
+        Variable = "variable",
+        Parameter = "parameter",
+        Extern = "extern",
     }
 
     export enum Diagnostics {

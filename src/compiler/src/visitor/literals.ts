@@ -11,7 +11,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
             if (ts.isIdentifier(node)) {
                 return {
                     kind: Kinds.Expressions.IdentifierExpression,
-                    name: node.text,
+                    value: node.text,
                     source: node.getText(),
                     position: this.getNodePosistion(node)
                 };
@@ -20,26 +20,14 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
             if (node.kind === ts.SyntaxKind.FalseKeyword || node.kind === ts.SyntaxKind.TrueKeyword) {
                 return {
                     kind: Kinds.Literals.BooleanLiteral,
-                    value: node.kind === ts.SyntaxKind.TrueKeyword ? 1 : 0,
+                    value: node.kind === ts.SyntaxKind.TrueKeyword ? "true" : "false",
                     source: node.getText(),
                     position: this.getNodePosistion(node)
                 };
             }
-
         }
 
         visitLiteral(node: ts.Node) {
-            if (ts.isBinaryExpression(node)) {
-                return {
-                    kind: Kinds.Expressions.BinaryExpression,
-                    operator: node.operatorToken.getText(),
-                    left: this.visitNode(node.left),
-                    right: this.visitNode(node.right),
-                    source: node.getText(),
-                    position: this.getNodePosistion(node)
-                };
-            }
-
             if (ts.isNumericLiteral(node)) {
                 return {
                     kind: Kinds.Literals.NumberLiteral,

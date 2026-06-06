@@ -1,9 +1,8 @@
 import fs from "fs"
 import ts from "../ts";
-import { Loggers } from "../loggers";
 import { Kinds } from "../helpers/types";
-import { ZodSchemas } from "../schemas";
 import { z } from "zod";
+import { Nodes } from "@/nodes";
 
 export type Constructor<T = {}> = new (...args: any[]) => T;
 export type Mixin<T extends Constructor> = <TBase extends Constructor>(Base: TBase) => T & TBase;
@@ -17,7 +16,7 @@ export class BaseVisitor {
     public filePath: string;
     public program: ts.Program;
     public sourceFile: ts.SourceFile;
-    public diagnostics: z.infer<typeof ZodSchemas.DiagnosticsSchema>[] = [];
+    public diagnostics: Nodes.Diagnostics[] = [];
 
     constructor(filePath: string) {
         this.filePath = filePath;

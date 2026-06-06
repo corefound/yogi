@@ -1,1 +1,1 @@
-const users: string[] = ["a", "b"];
+10 + 10

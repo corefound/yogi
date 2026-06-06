@@ -28,10 +28,13 @@ const ast = visitor.visit();
 const semantic = new Semantic(ast);
 const sir = semantic.analyze();
 
+console.log(util.inspect({ sir }, false, null, true));
 
+
+
+// Program
 const program: Types.Program = {
-    entry: path.resolve(process.cwd(),
-        process.argv[2]),
+    entry: path.resolve(process.cwd(), process.argv[2]),
     graph,
     dag,
     ast
@@ -39,5 +42,5 @@ const program: Types.Program = {
 
 // console.log(util.inspect(program, false, null, true));
 
-// process.stdout.write(JSON.stringify({ ok: true, program }, null, 0).toString());
-// process.exit(0);
+process.stdout.write(JSON.stringify({ ok: true, program }, null, 0).toString());
+process.exit(0);
