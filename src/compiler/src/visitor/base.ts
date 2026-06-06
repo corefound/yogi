@@ -103,7 +103,7 @@ export class BaseVisitor {
         if (ts.isBlock(node)) return node.statements.map((s: ts.Statement) => this.visitNode(s));
         if (ts.isReturnStatement(node)) {
             return {
-                kind: "ReturnStatement",
+                kind: Kinds.ReturnStatement,
                 value: node.expression ? this.visitNode(node.expression) : null
             };
         }

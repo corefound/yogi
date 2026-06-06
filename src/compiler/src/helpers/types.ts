@@ -6,6 +6,8 @@ export enum Types {
 export enum Kinds {
     Program = "Program",
 
+    IfStatement = "IfStatement",
+
     // --------------------------
     // Dictionaries
     // --------------------------

@@ -10,6 +10,7 @@ import { TypesVisitor } from "./types";
 import { ArrayVisitor } from "./arrays";
 import { DictionaryVisitor } from "./dictionary";
 import { FunctionVisitor } from "./functions";
+import { ConditionalVisitor } from "./conditional";
 
 export class Visitor extends applyMixins(
     BaseVisitor,
@@ -22,7 +23,8 @@ export class Visitor extends applyMixins(
     TypesVisitor,
     ArrayVisitor,
     DictionaryVisitor,
-    FunctionVisitor
+    FunctionVisitor,
+    ConditionalVisitor
 ) {
     constructor(filePath: string, options?: ts.CompilerOptions) {
         super(filePath, options || {});
