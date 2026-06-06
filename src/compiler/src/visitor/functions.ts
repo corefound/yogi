@@ -17,7 +17,7 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
         // -----------------------------------
         visitFunctionDeclaration(node: ts.FunctionDeclaration) {
             return {
-                kind: Kinds.FunctionDeclaration,
+                kind: Kinds.Functions.FunctionDeclaration,
                 name: node.name?.getText() ?? "anonymous",
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),
                 returnType: this.visitType(node.type),
@@ -46,7 +46,7 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
 
         visitArrowFunctionDeclaration(name: string, node: ts.ArrowFunction, declaration: ts.VariableDeclaration) {
             return {
-                kind: Kinds.FunctionDeclaration,
+                kind: Kinds.Functions.FunctionDeclaration,
                 name,
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),
                 returnType: this.visitType(node.type),
@@ -61,7 +61,7 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
         // -----------------------------------
         visitFunctionParameter(param: ts.ParameterDeclaration) {
             return {
-                kind: Kinds.FunctionParameter,
+                kind: Kinds.Functions.FunctionParameter,
                 name: param.name.getText(),
                 type: this.visitType(param.type),
                 source: param.getText(),
@@ -74,7 +74,7 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
         // -----------------------------------
         visitFunctionBlock(body: ts.Block) {
             return {
-                kind: Kinds.BlockStatement,
+                kind: Kinds.Statements.BlockStatement,
                 statements: body.statements.map(statement => this.visitNode(statement)),
                 source: body.getText(),
                 position: this.getNodePosistion(body)
@@ -93,10 +93,10 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             }
 
             return {
-                kind: Kinds.BlockStatement,
+                kind: Kinds.Statements.BlockStatement,
                 statements: [
                     {
-                        kind: Kinds.ReturnStatement,
+                        kind: Kinds.Statements.ReturnStatement,
                         implicit: true,
                         value: this.visitNode(body),
                         source: body.getText(),
@@ -114,7 +114,7 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
         // -----------------------------------
         visitReturnStatement(node: ts.ReturnStatement) {
             return {
-                kind: Kinds.ReturnStatement,
+                kind: Kinds.Statements.ReturnStatement,
                 value: node.expression ? this.visitNode(node.expression) : null,
                 source: node.getText(),
                 position: this.getNodePosistion(node)

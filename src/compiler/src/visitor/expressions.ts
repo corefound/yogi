@@ -19,7 +19,7 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
 
         visitBinaryExpression(node: ts.BinaryExpression) {
             return {
-                kind: Kinds.BinaryExpression,
+                kind: Kinds.Expressions.BinaryExpression,
                 left: this.visitNode(node.left),
                 operator: node.operatorToken.getText(),
                 right: this.visitNode(node.right),
@@ -30,7 +30,7 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
 
         visitPrefixUnaryExpression(node: ts.PrefixUnaryExpression) {
             return {
-                kind: Kinds.UnaryExpression,
+                kind: Kinds.Expressions.UnaryExpression,
                 operator: ts.tokenToString(node.operator) ?? node.getText()[0],
                 prefix: true,
                 operand: this.visitNode(node.operand),
@@ -41,7 +41,7 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
 
         visitPostfixUnaryExpression(node: ts.PostfixUnaryExpression) {
             return {
-                kind: Kinds.UnaryExpression,
+                kind: Kinds.Expressions.UnaryExpression,
                 operator: ts.tokenToString(node.operator) ?? node.getText().slice(-2),
                 prefix: false,
                 operand: this.visitNode(node.operand),
@@ -52,7 +52,7 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
 
         visitCallExpression(node: ts.CallExpression) {
             return {
-                kind: Kinds.CallExpression,
+                kind: Kinds.Expressions.CallExpression,
                 callee: this.visitNode(node.expression),
                 arguments: node.arguments.map(arg => this.visitNode(arg)),
                 source: node.getText(),
@@ -62,7 +62,7 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
 
         visitPropertyAccessExpression(node: ts.PropertyAccessExpression) {
             return {
-                kind: Kinds.PropertyAccessExpression,
+                kind: Kinds.Expressions.PropertyAccessExpression,
                 object: this.visitNode(node.expression),
                 property: node.name.getText(),
                 source: node.getText(),

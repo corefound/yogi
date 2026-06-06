@@ -6,7 +6,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
     return class extends base {
         visitMethodSignature(node: ts.MethodSignature) {
             return {
-                kind: Kinds.ExternMethod,
+                kind: Kinds.Externs.ExternMethod,
                 name: node.name.getText(),
                 returnType: this.visitType(node.type),
                 parameters: node.parameters.map((param: any) => ({
@@ -22,7 +22,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
 
         visitPropertySignature(node: ts.PropertySignature) {
             return {
-                kind: Kinds.ExternProperty,
+                kind: Kinds.Externs.ExternProperty,
                 name: node.name.getText(),
                 type: this.visitType(node.type)
             };
@@ -31,7 +31,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
         visitType(node?: ts.TypeNode): any {
             if (!node) {
                 return {
-                    kind: Kinds.UnTyped,
+                    kind: Kinds.Types.UnTyped,
                     raw: null
                 };
             }
@@ -40,55 +40,55 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                 // primitives
                 case ts.SyntaxKind.AnyKeyword:
                     return {
-                        kind: Kinds.AnyType,
+                        kind: Kinds.Types.AnyType,
                         raw: "any",
                     };
 
                 case ts.SyntaxKind.UnknownKeyword:
                     return {
-                        kind: Kinds.UnknownType,
+                        kind: Kinds.Types.UnknownType,
                         raw: "unknown",
                     };
 
                 case ts.SyntaxKind.NeverKeyword:
                     return {
-                        kind: Kinds.NeverType,
+                        kind: Kinds.Types.NeverType,
                         raw: "never",
                     };
 
                 case ts.SyntaxKind.NumberKeyword:
                     return {
-                        kind: Kinds.NumberType,
+                        kind: Kinds.Types.NumberType,
                         raw: "number",
                     };
 
                 case ts.SyntaxKind.StringKeyword:
                     return {
-                        kind: Kinds.StringType,
+                        kind: Kinds.Types.StringType,
                         raw: "string",
                     };
 
                 case ts.SyntaxKind.BooleanKeyword:
                     return {
-                        kind: Kinds.BooleanType,
+                        kind: Kinds.Types.BooleanType,
                         raw: "boolean",
                     };
 
                 case ts.SyntaxKind.VoidKeyword:
                     return {
-                        kind: Kinds.VoidType,
+                        kind: Kinds.Types.VoidType,
                         raw: "void",
                     };
 
                 case ts.SyntaxKind.NullKeyword:
                     return {
-                        kind: Kinds.NullType,
+                        kind: Kinds.Types.NullType,
                         raw: "null",
                     };
 
                 case ts.SyntaxKind.UndefinedKeyword:
                     return {
-                        kind: Kinds.UndefinedType,
+                        kind: Kinds.Types.UndefinedType,
                         raw: "undefined",
                     };
 
@@ -97,7 +97,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const literal = node as ts.LiteralTypeNode;
 
                     return {
-                        kind: Kinds.LiteralType,
+                        kind: Kinds.Types.LiteralType,
                         literal: literal.literal.getText(),
                         raw: literal.getText(),
                     };
@@ -110,7 +110,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const ref = node as ts.TypeReferenceNode;
 
                     return {
-                        kind: Kinds.TypeReference,
+                        kind: Kinds.Types.TypeReference,
                         name: ref.typeName.getText(),
                         typeArguments:
                             ref.typeArguments?.map((arg: any) => this.visitType(arg)) ?? [],
@@ -123,7 +123,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const arr = node as ts.ArrayTypeNode;
 
                     return {
-                        kind: Kinds.ArrayType,
+                        kind: Kinds.Types.ArrayType,
                         elementType: this.visitType(arr.elementType),
                         raw: arr.getText(),
                     };
@@ -134,7 +134,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const tuple = node as ts.TupleTypeNode;
 
                     return {
-                        kind: Kinds.TupleType,
+                        kind: Kinds.Types.TupleType,
                         elements: tuple.elements.map((el: any) => this.visitType(el)),
                         raw: tuple.getText(),
                     };
@@ -145,7 +145,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const union = node as ts.UnionTypeNode;
 
                     return {
-                        kind: Kinds.UnionType,
+                        kind: Kinds.Types.UnionType,
                         types: union.types.map((t: any) => this.visitType(t)),
                         raw: union.getText(),
                     };
@@ -156,7 +156,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const intersection = node as ts.IntersectionTypeNode;
 
                     return {
-                        kind: Kinds.IntersectionType,
+                        kind: Kinds.Types.IntersectionType,
                         types: intersection.types.map((t: any) => this.visitType(t)),
                         raw: intersection.getText(),
                     };
@@ -167,7 +167,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const fn = node as ts.FunctionTypeNode;
 
                     return {
-                        kind: Kinds.FunctionType,
+                        kind: Kinds.Types.FunctionType,
 
                         parameters: fn.parameters.map((param: any) => ({
                             name: param.name.getText(),
@@ -186,7 +186,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const op = node as ts.TypeOperatorNode;
 
                     return {
-                        kind: Kinds.TypeOperator,
+                        kind: Kinds.Types.TypeOperator,
                         operator: ts.tokenToString(op.operator),
                         target: this.visitType(op.type),
                         raw: op.getText(),
@@ -198,7 +198,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const query = node as ts.TypeQueryNode;
 
                     return {
-                        kind: Kinds.TypeQuery,
+                        kind: Kinds.Types.TypeQuery,
                         exprName: query.exprName.getText(),
                         raw: query.getText(),
                     };
@@ -210,7 +210,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const optional = node as ts.OptionalTypeNode;
 
                     return {
-                        kind: Kinds.OptionalType,
+                        kind: Kinds.Types.OptionalType,
                         target: this.visitType(optional.type),
                         raw: optional.getText(),
                     };
@@ -225,12 +225,12 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const literal = node as ts.TypeLiteralNode;
 
                     return {
-                        kind: Kinds.TypeLiteral,
+                        kind: Kinds.Types.TypeLiteral,
 
                         members: literal.members.map((member: ts.TypeElement) => {
                             if (ts.isPropertySignature(member)) {
                                 return {
-                                    kind: Kinds.PropertySignature,
+                                    kind: Kinds.Types.PropertySignature,
                                     name: member.name.getText(),
                                     optional: !!member.questionToken,
                                     type: this.visitType(member.type),
@@ -242,7 +242,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                             }
 
                             return {
-                                kind: Kinds.UnknownMember,
+                                kind: Kinds.Types.UnknownMember,
                                 raw: member.getText(),
                             };
                         }),
@@ -256,7 +256,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const indexed = node as ts.IndexedAccessTypeNode;
 
                     return {
-                        kind: Kinds.IndexedAccessType,
+                        kind: Kinds.Types.IndexedAccessType,
                         objectType: this.visitType(indexed.objectType),
                         indexType: this.visitType(indexed.indexType),
                         raw: indexed.getText(),
@@ -268,7 +268,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const conditional = node as ts.ConditionalTypeNode;
 
                     return {
-                        kind: Kinds.ConditionalType,
+                        kind: Kinds.Types.ConditionalType,
                         checkType: this.visitType(conditional.checkType),
                         extendsType: this.visitType(conditional.extendsType),
                         trueType: this.visitType(conditional.trueType),
@@ -282,7 +282,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const infer = node as ts.InferTypeNode;
 
                     return {
-                        kind: Kinds.InferType,
+                        kind: Kinds.Types.InferType,
                         name: infer.typeParameter.name.getText(),
                         raw: infer.getText(),
                     };
@@ -297,7 +297,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
 
                 default:
                     return {
-                        kind: Kinds.UnknownType,
+                        kind: Kinds.Types.UnknownType,
                         syntaxKind: ts.SyntaxKind[node.kind],
                         raw: node.getText(),
                     };

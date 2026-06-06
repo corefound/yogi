@@ -14,7 +14,7 @@ export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(base: 
 
             const dictionaryAst = this.visitDictionaryLiteral(init);
             return {
-                kind: Kinds.DictionaryDeclaration,
+                kind: Kinds.Collections.DictionaryDeclaration,
                 name,
                 type: declaration.type?.getText() ?? "dictionary",
                 properties: dictionaryAst.properties,
@@ -29,7 +29,7 @@ export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(base: 
                 if (!ts.isPropertyAssignment(prop)) return [];
 
                 return [{
-                    kind: Kinds.DictionaryProperty,
+                    kind: Kinds.Collections.DictionaryProperty,
                     key: this.getDictionaryKey(prop.name),
                     type: this.visitType(prop.initializer),
                     value: this.visitNode(prop.initializer),
@@ -39,7 +39,7 @@ export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(base: 
             });
 
             return {
-                kind: Kinds.DictionaryExpression,
+                kind: Kinds.Collections.DictionaryExpression,
                 type: this.visitType(node),
                 properties,
                 source: node.getText(),

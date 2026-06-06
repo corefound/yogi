@@ -18,7 +18,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             ) ?? false;
 
             return {
-                kind: Kinds.DeclarationStatement,
+                kind: Kinds.Statements.VariableDeclaration,
                 flag,
                 export: isExported,
                 declarations: declarationList.declarations.map(
@@ -36,7 +36,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             // this.handleErrors(declaration);
             if (!init) {
                 return {
-                    kind: Kinds.VariableDeclaration,
+                    kind: Kinds.Statements.VariableDeclaration,
                     name,
                     type: this.visitType(declaration.type),
                     value: null as any,
@@ -50,7 +50,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             // -----------------------------------
             if (ts.isObjectLiteralExpression(init)) {
                 return {
-                    kind: Kinds.DictionaryDeclaration,
+                    kind: Kinds.Collections.DictionaryDeclaration,
                     name,
                     type: this.visitType(declaration.type),
                     source: declaration.getText(),
@@ -59,7 +59,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                         if (!ts.isPropertyAssignment(prop)) return [];
 
                         return [{
-                            kind: Kinds.DictionaryProperty,
+                            kind: Kinds.Collections.DictionaryProperty,
                             key: prop.name.getText(),
                             value: this.visitNode(prop.initializer)
                         }];
@@ -84,7 +84,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             // -----------------------------------
             if (ts.isStringLiteral(init) || ts.isNumericLiteral(init) || init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword || init.kind === ts.SyntaxKind.NullKeyword) {
                 return {
-                    kind: Kinds.VariableDeclaration,
+                    kind: Kinds.Statements.VariableDeclaration,
                     name,
                     source: declaration.getText(),
                     position: this.getNodePosistion(declaration),
@@ -110,7 +110,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
 
         visitAssignment(node: ts.BinaryExpression) {
             return {
-                kind: Kinds.VariableReassignment,
+                kind: Kinds.Statements.VariableReassignment,
                 name: node.left.getText(),
                 value: this.visitNode(node.right),
                 source: node.getText(),

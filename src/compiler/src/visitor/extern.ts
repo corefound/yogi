@@ -22,7 +22,7 @@ export function ExternsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
         visitExternDeclaration(node: ts.ExternDeclaration) {
             // const resolvePath = path.resolve(path.dirname(this.filePath), node.moduleSpecifier.getText().replaceAll("\"", ""));
             return {
-                kind: Kinds.ExternDeclarations,
+                kind: Kinds.Externs.ExternDeclarations,
                 name: node.name.getText(),
                 path: this.filePathOf(node.fileSpecifier),
                 members: node.members.map((member: ts.Node) => this.visitNode(member)),

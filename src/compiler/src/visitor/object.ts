@@ -6,14 +6,14 @@ export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
     return class extends Base {
         visitDictionary(node: ts.ObjectLiteralExpression) {
             return {
-                kind: Kinds.DictionaryDeclaration,
+                kind: Kinds.Collections.DictionaryDeclaration,
                 properties: node.properties.map(property => {
                     if (!ts.isPropertyAssignment(property)) {
                         return null;
                     }
 
                     return {
-                        kind: Kinds.DictionaryProperty,
+                        kind: Kinds.Collections.DictionaryProperty,
                         key: property.name.getText(),
                         value: this.visitNode(property.initializer),
                         source: node.getText(),

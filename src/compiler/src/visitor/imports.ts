@@ -8,7 +8,7 @@ export function ImportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
         visitImports(node: ts.ImportDeclaration) {
             const modulePath = path.resolve(path.dirname(this.filePath), (node.moduleSpecifier as ts.StringLiteral).text) + ".ts";
             const result: any = {
-                kind: Kinds.ImportCall,
+                kind: Kinds.Modules.ImportCall,
                 module: modulePath,
                 defaultImport: null,
                 namespaceImport: null,

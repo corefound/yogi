@@ -20,7 +20,7 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
 
             const modulePath = moduleSpecifier ? path.resolve(path.dirname(this.filePath), moduleSpecifier) + ".ts" : null;
             const result: any = {
-                kind: Kinds.ExportCall,
+                kind: Kinds.Modules.ExportCall,
                 module: modulePath,
 
                 // export * from "x"

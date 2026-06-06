@@ -32,31 +32,6 @@ export class BaseVisitor {
         );
     }
 
-    public checkDiagnostics(diagnostics: readonly ts.Diagnostic[]) {
-        if (!diagnostics.length) return;
-
-        diagnostics.forEach(d => {
-            const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
-            const position = d.file?.getLineAndCharacterOfPosition(d.start!)!;
-            Loggers.error(message, position, d.file!.text, this.filePath);
-
-            const diagnostics = ZodSchemas.DiagnosticsSchema.safeParse({
-                kind: d.code,
-                category: d.category,
-                message,
-                position,
-                source: d.source,
-                fileName: this.filePath
-            })
-
-            if (diagnostics.success) {
-                this.diagnostics.push(diagnostics.data);
-            } else {
-                process.stderr.write(JSON.stringify(diagnostics.error));
-            }
-        });
-    }
-
     // =========================
     // ONLY DISPATCHER
     // =========================
@@ -80,7 +55,7 @@ export class BaseVisitor {
 
                 default:
                     return {
-                        kind: Kinds.Unknown,
+                        kind: Kinds.Miscellaneous.Unknown,
                         text: node.getText(),
                         type: ts.SyntaxKind[node.kind],
                     };
@@ -103,7 +78,7 @@ export class BaseVisitor {
         if (ts.isBlock(node)) return node.statements.map((s: ts.Statement) => this.visitNode(s));
         if (ts.isReturnStatement(node)) {
             return {
-                kind: Kinds.ReturnStatement,
+                kind: Kinds.Statements.ReturnStatement,
                 value: node.expression ? this.visitNode(node.expression) : null
             };
         }

@@ -24,7 +24,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
 
         visitWhileStatement(node: ts.WhileStatement) {
             return {
-                kind: Kinds.WhileStatement,
+                kind: Kinds.ControlFlow.WhileStatement,
                 condition: this.visitNode(node.expression),
                 body: this.visitLoopBody(node.statement),
                 source: node.getText(),
@@ -34,7 +34,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
 
         visitForStatement(node: ts.ForStatement) {
             return {
-                kind: Kinds.ForStatement,
+                kind: Kinds.ControlFlow.ForStatement,
                 initializer: node.initializer
                     ? this.visitForInitializer(node.initializer)
                     : null,
@@ -53,7 +53,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
         visitForInitializer(initializer: ts.ForInitializer) {
             if (ts.isVariableDeclarationList(initializer)) {
                 return {
-                    kind: Kinds.DeclarationStatement,
+                    kind: Kinds.Statements.DeclarationStatement,
                     flag: initializer.flags & ts.NodeFlags.Const
                         ? "const"
                         : initializer.flags & ts.NodeFlags.Let
@@ -77,7 +77,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
             }
 
             return {
-                kind: Kinds.BlockStatement,
+                kind: Kinds.Statements.BlockStatement,
                 statements: [this.visitNode(statement)],
                 source: statement.getText(),
                 position: this.getNodePosistion(statement),
@@ -86,7 +86,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
 
         visitBlockStatement(block: ts.Block) {
             return {
-                kind: Kinds.BlockStatement,
+                kind: Kinds.Statements.BlockStatement,
                 statements: block.statements.map(statement => this.visitNode(statement)),
                 source: block.getText(),
                 position: this.getNodePosistion(block),
@@ -95,7 +95,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
 
         visitBreakStatement(node: ts.BreakStatement) {
             return {
-                kind: Kinds.BreakStatement,
+                kind: Kinds.ControlFlow.BreakStatement,
                 source: node.getText(),
                 position: this.getNodePosistion(node),
             };
@@ -103,7 +103,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
 
         visitContinueStatement(node: ts.ContinueStatement) {
             return {
-                kind: Kinds.ContinueStatement,
+                kind: Kinds.ControlFlow.ContinueStatement,
                 source: node.getText(),
                 position: this.getNodePosistion(node),
             };

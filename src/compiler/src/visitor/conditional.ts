@@ -21,7 +21,7 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
 
         visitIfStatement(node: ts.IfStatement) {
             return {
-                kind: Kinds.IfStatement,
+                kind: Kinds.ControlFlow.IfStatement,
                 condition: this.visitNode(node.expression),
                 then: this.visitConditionalStatement(node.thenStatement),
                 else: node.elseStatement
@@ -38,7 +38,7 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
             }
 
             return {
-                kind: Kinds.BlockStatement,
+                kind: Kinds.Statements.BlockStatement,
                 statements: [
                     this.visitNode(statement)
                 ],
@@ -49,7 +49,7 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
 
         visitBlockStatement(block: ts.Block) {
             return {
-                kind: Kinds.BlockStatement,
+                kind: Kinds.Statements.BlockStatement,
                 statements: block.statements.map(statement => this.visitNode(statement)),
                 source: block.getText(),
                 position: this.getNodePosistion(block),
@@ -58,7 +58,7 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
 
         visitSwitchStatement(node: ts.SwitchStatement) {
             return {
-                kind: Kinds.SwitchStatement,
+                kind: Kinds.ControlFlow.SwitchStatement,
                 expression: this.visitNode(node.expression),
                 cases: node.caseBlock.clauses.map(clause => this.visitSwitchClause(clause)),
                 source: node.getText(),
@@ -69,7 +69,7 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
         visitSwitchClause(clause: ts.CaseOrDefaultClause) {
             if (ts.isCaseClause(clause)) {
                 return {
-                    kind: Kinds.CaseClause,
+                    kind: Kinds.ControlFlow.CaseClause,
                     expression: this.visitNode(clause.expression),
                     statements: clause.statements.map(statement => this.visitNode(statement)),
                     source: clause.getText(),
@@ -78,7 +78,7 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
             }
 
             return {
-                kind: Kinds.DefaultClause,
+                kind: Kinds.ControlFlow.DefaultClause,
                 statements: clause.statements.map(statement => this.visitNode(statement)),
                 source: clause.getText(),
                 position: this.getNodePosistion(clause)
@@ -87,7 +87,7 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
 
         visitBreakStatement(node: ts.BreakStatement) {
             return {
-                kind: Kinds.BreakStatement,
+                kind: Kinds.ControlFlow.BreakStatement,
                 source: node.getText(),
                 position: this.getNodePosistion(node)
             };

@@ -1,131 +1,3 @@
-
-export enum Kinds {
-    Program = "Program",
-
-    // --------------------------
-    // Loops
-    // --------------------------
-    Block = "Block",
-    WhileStatement = "WhileStatement",
-    ForStatement = "ForStatement",
-    ContinueStatement = "ContinueStatement",
-
-    // --------------------------   
-    // Conditional
-    // --------------------------
-    IfStatement = "IfStatement",
-    SwitchStatement = "SwitchStatement",
-    CaseClause = "CaseClause",
-    DefaultClause = "DefaultClause",
-    BreakStatement = "BreakStatement",
-
-    // --------------------------
-    // Dictionaries
-    // --------------------------
-    DictionaryExpression = "DictionaryExpression",
-
-    // --------------------------
-    // Arrays
-    // --------------------------
-    ArrayExpression = "ArrayExpression",
-    ArrayDeclaration = "ArrayDeclaration",
-
-    // --------------------------
-    // Types
-    // --------------------------
-    UnTyped = "UnTyped",
-    AnyType = "AnyType",
-    NumberType = "NumberType",
-    StringType = "StringType",
-    BooleanType = "BooleanType",
-    VoidType = "VoidType",
-    TypeReference = "TypeReference",
-    ArrayType = "ArrayType",
-    UnionType = "UnionType",
-    UnknownType = "UnknownType",
-    OptionalType = "OptionalType",
-    TypeLiteral = "TypeLiteral",
-    PropertySignature = "PropertySignature",
-    UnknownMember = "UnknownMember",
-    IndexedAccessType = "IndexedAccessType",
-    ConditionalType = "ConditionalType",
-    InferType = "InferType",
-    TypeQuery = "TypeQuery",
-    TypeOperator = "TypeOperator",
-    FunctionType = "FunctionType",
-    IntersectionType = "IntersectionType",
-    TupleType = "TupleType",
-    LiteralType = "LiteralType",
-    UndefinedType = "UndefinedType",
-    NullType = "NullType",
-    NeverType = "NeverType",
-
-    // --------------------------
-    // Externs
-    // --------------------------
-    ExternDeclarations = "ExternDeclarations",
-    ExternMember = "ExternMember",
-    ExternProperty = "ExternProperty",
-    ExternMethod = "ExternMethod",
-
-    // --------------------------
-    // Exports and imports
-    // --------------------------
-    ImportDeclarations = "ImportDeclarations",
-    ExportVariableStatement = "ExportVariableStatement",
-
-    BinaryExpression = "BinaryExpression",
-
-    DictionaryDeclaration = "DictionaryDeclaration",
-    DictionaryProperty = "DictionaryProperty",
-
-    BlockStatement = "BlockStatement",
-    ExpressionBody = "ExpressionBody",
-
-    // --------------------------
-    // FunctionDeclaration
-    // --------------------------
-    FunctionDeclaration = "FunctionDeclaration",
-    FunctionExpression = "FunctionExpression",
-    FunctionParameter = "FunctionParameter",
-    FunctionBody = "FunctionBody",
-    FunctionCall = "FunctionCall",
-    FunctionReturn = "FunctionReturn",
-
-
-    // ----------------------------
-    // Expressions
-    // ----------------------------
-    UnaryExpression = "UnaryExpression",
-    ExpressionStatement = "ExpressionStatement",
-    DeclarationStatement = "DeclarationStatement",
-    VariableDeclaration = "VariableDeclaration",
-    VariableReassignment = "VariableReassignment",
-    AssignmentExpression = "AssignmentExpression",
-    PropertyAccessExpression = "PropertyAccessExpression",
-    CallExpression = "CallExpression",
-
-    Identifier = "Identifier",
-    UndefinedLiteral = "UndefinedLiteral",
-    NaNLiteral = "NaNLiteral",
-    InfinityLiteral = "InfinityLiteral",
-
-    NumberLiteral = "NumberLiteral",
-    BooleanLiteral = "BooleanLiteral",
-    StringLiteral = "StringLiteral",
-    NullLiteral = "NullLiteral",
-    ImportCall = "ImportCall",
-    ExportCall = "ExportCall",
-    ExportVariable = "ExportVariable",
-
-    ReturnStatement = "ReturnStatement",
-    Unknown = "Unknown",
-}
-
-
-
-
-
 export namespace Types {
     export type Ast = {
         module: string;
@@ -138,4 +10,177 @@ export namespace Types {
         graph: Map<string, string[]>;
         ast: Ast[];
     };
+
+    export type Diagnostics = {
+        kind: Kinds.Diagnostics;
+        message: string;
+        position: {
+            line: number;
+            character: number;
+        };
+        source: string;
+        fileName: string;
+    }
+
+    export type SymbolInfo = {
+        id: number;
+        name: string;
+        kind: Kinds.ScopeSymbols;
+        type: any;
+        mutable: boolean;
+        scopeId: number;
+        escapes: boolean;
+        storage: Kinds.Storage;
+    };
+}
+
+
+export namespace Kinds {
+    export enum Root {
+        Program = "Program",
+    }
+
+    export enum Statements {
+        BlockStatement = "BlockStatement",
+        ExpressionStatement = "ExpressionStatement",
+        DeclarationStatement = "DeclarationStatement",
+        ReturnStatement = "ReturnStatement",
+        ExportVariableStatement = "ExportVariableStatement",
+
+        VariableDeclaration = "VariableDeclaration",
+        VariableReassignment = "VariableReassignment",
+    }
+
+    export enum Functions {
+        FunctionDeclaration = "FunctionDeclaration",
+        FunctionExpression = "FunctionExpression",
+        FunctionParameter = "FunctionParameter",
+        FunctionBody = "FunctionBody",
+        FunctionCall = "FunctionCall",
+        FunctionReturn = "FunctionReturn",
+    }
+
+    export enum Expressions {
+        UnaryExpression = "UnaryExpression",
+        BinaryExpression = "BinaryExpression",
+        AssignmentExpression = "AssignmentExpression",
+        PropertyAccessExpression = "PropertyAccessExpression",
+        CallExpression = "CallExpression",
+
+        IdentifierExpression = "IdentifierExpression",
+        BodyExpression = "BodyExpression",
+    }
+
+    export enum Literals {
+        NumberLiteral = "NumberLiteral",
+        StringLiteral = "StringLiteral",
+        BooleanLiteral = "BooleanLiteral",
+
+        NullLiteral = "NullLiteral",
+        UndefinedLiteral = "UndefinedLiteral",
+
+        NaNLiteral = "NaNLiteral",
+        InfinityLiteral = "InfinityLiteral",
+    }
+
+    export enum Collections {
+        DictionaryExpression = "DictionaryExpression",
+        DictionaryDeclaration = "DictionaryDeclaration",
+        DictionaryProperty = "DictionaryProperty",
+
+        ArrayExpression = "ArrayExpression",
+        ArrayDeclaration = "ArrayDeclaration",
+    }
+
+    export enum ControlFlow {
+        IfStatement = "IfStatement",
+
+        SwitchStatement = "SwitchStatement",
+        CaseClause = "CaseClause",
+        DefaultClause = "DefaultClause",
+
+        WhileStatement = "WhileStatement",
+        ForStatement = "ForStatement",
+
+        BreakStatement = "BreakStatement",
+        ContinueStatement = "ContinueStatement",
+    }
+
+    export enum Modules {
+        ImportDeclarations = "ImportDeclarations",
+        ImportCall = "ImportCall",
+
+        ExportCall = "ExportCall",
+        ExportVariable = "ExportVariable",
+    }
+
+    export enum Externs {
+        ExternDeclarations = "ExternDeclarations",
+        ExternMember = "ExternMember",
+        ExternProperty = "ExternProperty",
+        ExternMethod = "ExternMethod",
+    }
+
+    export enum Types {
+        UnTyped = "UnTyped",
+
+        AnyType = "AnyType",
+        UnknownType = "UnknownType",
+        NeverType = "NeverType",
+
+        VoidType = "VoidType",
+
+        NumberType = "NumberType",
+        StringType = "StringType",
+        BooleanType = "BooleanType",
+
+        NullType = "NullType",
+        UndefinedType = "UndefinedType",
+
+        OptionalType = "OptionalType",
+
+        TypeReference = "TypeReference",
+        TypeLiteral = "TypeLiteral",
+        PropertySignature = "PropertySignature",
+
+        ArrayType = "ArrayType",
+        TupleType = "TupleType",
+
+        UnionType = "UnionType",
+        IntersectionType = "IntersectionType",
+
+        FunctionType = "FunctionType",
+
+        LiteralType = "LiteralType",
+
+        IndexedAccessType = "IndexedAccessType",
+        ConditionalType = "ConditionalType",
+
+        InferType = "InferType",
+        TypeQuery = "TypeQuery",
+        TypeOperator = "TypeOperator",
+
+        UnknownMember = "UnknownMember",
+    }
+
+    export enum ScopeSymbols {
+        function = "function",
+        variable = "variable",
+        parameter = "parameter",
+        extern = "extern",
+    }
+
+    export enum Diagnostics {
+        Error = "Error",
+        Warning = "Warning",
+    }
+
+    export enum Storage {
+        stack = "stack",
+        heap = "heap",
+    }
+
+    export enum Miscellaneous {
+        Unknown = "Unknown",
+    }
 }
