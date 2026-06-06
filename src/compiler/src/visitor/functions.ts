@@ -5,6 +5,12 @@ import { Kinds, Types } from "../helpers/types";
 export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
 
+        visitFunctions(node: ts.Node) {
+            if (ts.isFunctionDeclaration(node)) return this.visitFunctionDeclaration(node);
+            if (ts.isArrowFunction(node)) return this.visitArrowFunction(node);
+            if (ts.isReturnStatement(node)) return this.visitReturnStatement(node);
+        }
+
         // -----------------------------------
         // REGULAR FUNCTION DECLARATION
         // function sum(a: number): number {}

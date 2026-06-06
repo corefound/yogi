@@ -7,6 +7,30 @@ import * as Nodes from "../nodes";
 
 export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TBase) {
     return class extends Base {
+        visitLiterals(node: ts.Node) {
+            const literal = this.visitLiteral(node);
+            if (literal) return literal;
+
+            if (ts.isIdentifier(node)) {
+                return {
+                    kind: Kinds.Identifier,
+                    name: node.text,
+                    source: node.getFullText(),
+                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                };
+            }
+
+            if (node.kind === ts.SyntaxKind.FalseKeyword || node.kind === ts.SyntaxKind.TrueKeyword) {
+                return {
+                    kind: Kinds.BooleanLiteral,
+                    value: node.kind === ts.SyntaxKind.TrueKeyword ? 1 : 0,
+                    source: node.getFullText(),
+                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                };
+            }
+
+        }
+
         visitLiteral(node: ts.Node) {
             if (ts.isBinaryExpression(node)) {
                 return {

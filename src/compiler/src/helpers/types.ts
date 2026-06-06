@@ -88,13 +88,14 @@ export enum Kinds {
     VariableDeclaration = "VariableDeclaration",
     VariableReassignment = "VariableReassignment",
     AssignmentExpression = "AssignmentExpression",
+    PropertyAccessExpression = "PropertyAccessExpression",
+    CallExpression = "CallExpression",
 
     Identifier = "Identifier",
     UndefinedLiteral = "UndefinedLiteral",
     NaNLiteral = "NaNLiteral",
     InfinityLiteral = "InfinityLiteral",
 
-    CallExpression = "CallExpression",
     NumberLiteral = "NumberLiteral",
     BooleanLiteral = "BooleanLiteral",
     StringLiteral = "StringLiteral",

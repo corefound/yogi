@@ -109,66 +109,54 @@ export class BaseVisitor {
         }
 
         // functions
-        if (ts.isFunctionDeclaration(node)) return this.visitFunctionDeclaration(node);
-        if (ts.isArrowFunction(node)) return this.visitArrowFunction(node);
-        if (ts.isReturnStatement(node)) return this.visitReturnStatement(node);
+        const functions = this.visitFunctions(node);
+        if (functions) return functions;
 
         // expressions
-        if (ts.isBinaryExpression(node)) return this.visitBinaryExpression(node);
-        if (ts.isPrefixUnaryExpression(node)) return this.visitUnaryExpression(node);
+        const expressions = this.visitExpressions(node);
+        if (expressions) return expressions;
 
-        const literal = this.visitLiteral(node);
+
+        // literals
+        const literal = this.visitLiterals(node);
         if (literal) return literal;
-
-        if (ts.isIdentifier(node)) {
-            return {
-                kind: Kinds.Identifier,
-                name: node.text,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
-            };
-        }
-
-        if (node.kind === ts.SyntaxKind.FalseKeyword || node.kind === ts.SyntaxKind.TrueKeyword) {
-            return {
-                kind: Kinds.BooleanLiteral,
-                value: node.kind === ts.SyntaxKind.TrueKeyword ? 1 : 0,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
-            };
-        }
 
         return null;
     }
 
+    visitExpressions(_: ts.Node): any { }
+    visitFunctions(_: ts.Node): any { }
+
     // Functions
     transformFunctionDeclaration(_: ts.Node): any { }
     visitFunctionDeclaration(_: ts.Node): any { }
-    visitDictionaryDeclaration(_: ts.VariableDeclaration): any { }
-    visitReturnStatement(_: ts.ReturnStatement): any { }
+    visitDictionaryDeclaration(_: ts.Node): any { }
+    visitReturnStatement(_: ts.Node): any { }
 
     // Type Aliases
-    visitTypeAliasDeclaration(_: ts.TypeAliasDeclaration): any { }
+    visitTypeAliasDeclaration(_: ts.Node): any { }
     visitArrayDeclaration(_: ts.Node): any { }
-    visitArrayLiteral(_: ts.ArrayLiteralExpression): any { }
+    visitArrayLiteral(_: ts.Node): any { }
     visitType(_?: ts.Node): any { }
 
     // Type Elements
-    visitMethodSignature(_: ts.MethodSignature): any { }
-    visitPropertySignature(_: ts.PropertySignature): any { }
+    visitMethodSignature(_: ts.Node): any { }
+    visitPropertySignature(_: ts.Node): any { }
 
     // Imports and Exports
-    visitImports(_: ts.ImportDeclaration): any { }
-    visitExports(_: ts.ExportDeclaration): any { }
+    visitImports(_: ts.Node): any { }
+    visitExports(_: ts.Node): any { }
 
     // placeholders (implemented in mixins)
-    visitExternDeclaration(_: ts.ExternDeclaration): any { }
-    visitVariableDeclaration(_: ts.VariableStatement): any { }
-    visitExpression(_: ts.ExpressionStatement): any { }
-    visitIfStatement(_: ts.IfStatement): any { }
-    visitArrowFunction(_: ts.ArrowFunction): any { }
-    visitBinaryExpression(_: ts.BinaryExpression): any { }
-    visitUnaryExpression(_: ts.PrefixUnaryExpression): any { }
-    visitLiteral(_: ts.Node): any { }
-    visitIdentifier(_: ts.Identifier): any { }
+    visitCallExpression(_: ts.Node): any { }
+    visitExternDeclaration(_: ts.Node): any { }
+    visitVariableDeclaration(_: ts.Node): any { }
+    visitExpression(_: ts.Node): any { }
+    visitIfStatement(_: ts.Node): any { }
+    visitArrowFunction(_: ts.Node): any { }
+    visitBinaryExpression(_: ts.Node): any { }
+    visitUnaryExpression(_: ts.Node): any { }
+    visitIdentifier(_: ts.Node): any { }
+
+    visitLiterals(_: ts.Node): any { }
 }
