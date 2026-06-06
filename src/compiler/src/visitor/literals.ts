@@ -12,8 +12,8 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
                 return {
                     kind: Kinds.Identifier,
                     name: node.text,
-                    source: node.getFullText(),
-                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                    source: node.getText(),
+                    position: this.getNodePosistion(node)
                 };
             }
 
@@ -21,8 +21,8 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
                 return {
                     kind: Kinds.BooleanLiteral,
                     value: node.kind === ts.SyntaxKind.TrueKeyword ? 1 : 0,
-                    source: node.getFullText(),
-                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                    source: node.getText(),
+                    position: this.getNodePosistion(node)
                 };
             }
 
@@ -35,8 +35,8 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
                     operator: node.operatorToken.getText(),
                     left: this.visitNode(node.left),
                     right: this.visitNode(node.right),
-                    source: node.getFullText(),
-                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                    source: node.getText(),
+                    position: this.getNodePosistion(node)
                 };
             }
 
@@ -44,8 +44,8 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
                 return {
                     kind: Kinds.NumberLiteral,
                     value: Number(node.text),
-                    source: node.getFullText(),
-                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                    source: node.getText(),
+                    position: this.getNodePosistion(node)
                 };
             }
 
@@ -53,16 +53,16 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
                 return {
                     kind: Kinds.StringLiteral,
                     value: node.text,
-                    source: node.getFullText(),
-                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                    source: node.getText(),
+                    position: this.getNodePosistion(node)
                 };
             }
 
             if (node.kind === ts.SyntaxKind.NullKeyword) {
                 return {
                     kind: Kinds.NullLiteral,
-                    source: node.getFullText(),
-                    position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                    source: node.getText(),
+                    position: this.getNodePosistion(node),
                     value: null
                 };
             }

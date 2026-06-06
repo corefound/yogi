@@ -19,7 +19,6 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
                 : null;
 
             const modulePath = moduleSpecifier ? path.resolve(path.dirname(this.filePath), moduleSpecifier) + ".ts" : null;
-
             const result: any = {
                 kind: Kinds.ExportCall,
                 module: modulePath,
@@ -33,8 +32,8 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
                 namedImports: [],
                 defaultImport: null,
                 sideEffectOnly: !node.exportClause && !!moduleSpecifier,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
 
             // Handle: export { a, b } from "x"
@@ -42,8 +41,8 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
                 result.namedImports = node.exportClause.elements.map((el) => ({
                     name: el.name.text,
                     alias: el.propertyName ? el.propertyName.text : null,
-                    source: el.getFullText(),
-                    position: el.getSourceFile().getLineAndCharacterOfPosition(el.pos),
+                    source: el.getText(),
+                    position: this.getNodePosistion(el)
                 }));
             }
 

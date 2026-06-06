@@ -23,8 +23,8 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
                 left: this.visitNode(node.left),
                 operator: node.operatorToken.getText(),
                 right: this.visitNode(node.right),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node),
             };
         }
 
@@ -34,8 +34,8 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
                 operator: ts.tokenToString(node.operator) ?? node.getText()[0],
                 prefix: true,
                 operand: this.visitNode(node.operand),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node),
             };
         }
 
@@ -45,8 +45,8 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
                 operator: ts.tokenToString(node.operator) ?? node.getText().slice(-2),
                 prefix: false,
                 operand: this.visitNode(node.operand),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node),
             };
         }
 
@@ -55,8 +55,8 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
                 kind: Kinds.CallExpression,
                 callee: this.visitNode(node.expression),
                 arguments: node.arguments.map(arg => this.visitNode(arg)),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
 
@@ -65,8 +65,8 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
                 kind: Kinds.PropertyAccessExpression,
                 object: this.visitNode(node.expression),
                 property: node.name.getText(),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
     };

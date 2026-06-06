@@ -11,12 +11,14 @@ export function ExternsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
         textOf(node: ts.Expression, sourceFile?: ts.SourceFile) {
             return node && node.getText(sourceFile);
         }
+
         filePathOf(fileSpecifier: ts.Expression) {
             if (ts.isStringLiteralLike(fileSpecifier)) {
                 return path.resolve(path.dirname(this.filePath), fileSpecifier.text);
             }
             return this.textOf(fileSpecifier);
         }
+
         visitExternDeclaration(node: ts.ExternDeclaration) {
             // const resolvePath = path.resolve(path.dirname(this.filePath), node.moduleSpecifier.getText().replaceAll("\"", ""));
             return {
@@ -24,6 +26,7 @@ export function ExternsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
                 name: node.name.getText(),
                 path: this.filePathOf(node.fileSpecifier),
                 members: node.members.map((member: ts.Node) => this.visitNode(member)),
+                position: this.getNodePosistion(node)
             };
         }
     };

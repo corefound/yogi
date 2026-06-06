@@ -27,8 +27,8 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
                 else: node.elseStatement
                     ? this.visitConditionalStatement(node.elseStatement)
                     : null,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
 
@@ -42,8 +42,8 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
                 statements: [
                     this.visitNode(statement)
                 ],
-                source: statement.getFullText(),
-                position: statement.getSourceFile().getLineAndCharacterOfPosition(statement.pos),
+                source: statement.getText(),
+                position: this.getNodePosistion(statement)
             };
         }
 
@@ -51,8 +51,8 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
             return {
                 kind: Kinds.BlockStatement,
                 statements: block.statements.map(statement => this.visitNode(statement)),
-                source: block.getFullText(),
-                position: block.getSourceFile().getLineAndCharacterOfPosition(block.pos),
+                source: block.getText(),
+                position: this.getNodePosistion(block),
             };
         }
 
@@ -61,8 +61,8 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
                 kind: Kinds.SwitchStatement,
                 expression: this.visitNode(node.expression),
                 cases: node.caseBlock.clauses.map(clause => this.visitSwitchClause(clause)),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
 
@@ -72,24 +72,24 @@ export function ConditionalVisitor<TBase extends Constructor<BaseVisitor>>(base:
                     kind: Kinds.CaseClause,
                     expression: this.visitNode(clause.expression),
                     statements: clause.statements.map(statement => this.visitNode(statement)),
-                    source: clause.getFullText(),
-                    position: clause.getSourceFile().getLineAndCharacterOfPosition(clause.pos),
+                    source: clause.getText(),
+                    position: this.getNodePosistion(clause)
                 };
             }
 
             return {
                 kind: Kinds.DefaultClause,
                 statements: clause.statements.map(statement => this.visitNode(statement)),
-                source: clause.getFullText(),
-                position: clause.getSourceFile().getLineAndCharacterOfPosition(clause.pos),
+                source: clause.getText(),
+                position: this.getNodePosistion(clause)
             };
         }
 
         visitBreakStatement(node: ts.BreakStatement) {
             return {
                 kind: Kinds.BreakStatement,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
     };

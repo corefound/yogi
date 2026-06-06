@@ -24,8 +24,8 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 body: node.body
                     ? this.visitFunctionBlock(node.body)
                     : null,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
 
@@ -44,19 +44,15 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             return this.visitArrowFunctionDeclaration(name, init, declaration);
         }
 
-        visitArrowFunctionDeclaration(
-            name: string,
-            node: ts.ArrowFunction,
-            declaration: ts.VariableDeclaration
-        ) {
+        visitArrowFunctionDeclaration(name: string, node: ts.ArrowFunction, declaration: ts.VariableDeclaration) {
             return {
                 kind: Kinds.FunctionDeclaration,
                 name,
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),
                 returnType: this.visitType(node.type),
                 body: this.visitFunctionBody(node.body),
-                source: declaration.getFullText(),
-                position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
+                source: declaration.getText(),
+                position: this.getNodePosistion(declaration)
             };
         }
 
@@ -68,8 +64,8 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 kind: Kinds.FunctionParameter,
                 name: param.name.getText(),
                 type: this.visitType(param.type),
-                source: param.getFullText(),
-                position: param.getSourceFile().getLineAndCharacterOfPosition(param.pos),
+                source: param.getText(),
+                position: this.getNodePosistion(param)
             };
         }
 
@@ -80,8 +76,8 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             return {
                 kind: Kinds.BlockStatement,
                 statements: body.statements.map(statement => this.visitNode(statement)),
-                source: body.getFullText(),
-                position: body.getSourceFile().getLineAndCharacterOfPosition(body.pos),
+                source: body.getText(),
+                position: this.getNodePosistion(body)
             };
         }
 
@@ -103,12 +99,12 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                         kind: Kinds.ReturnStatement,
                         implicit: true,
                         value: this.visitNode(body),
-                        source: body.getFullText(),
+                        source: body.getText(),
                         position: body.getSourceFile().getLineAndCharacterOfPosition(body.pos),
                     }
                 ],
-                source: body.getFullText(),
-                position: body.getSourceFile().getLineAndCharacterOfPosition(body.pos),
+                source: body.getText(),
+                position: this.getNodePosistion(body)
             };
         }
 
@@ -120,8 +116,8 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             return {
                 kind: Kinds.ReturnStatement,
                 value: node.expression ? this.visitNode(node.expression) : null,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
     };

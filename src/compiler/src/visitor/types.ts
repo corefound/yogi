@@ -14,7 +14,9 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     type: this.visitType(param.type),
                     optional: !!param.questionToken,
                     defaultValue: this.visitNode(param.initializer),
-                }))
+                    position: this.getNodePosistion(param.initializer)
+                })),
+                position: this.getNodePosistion(node),
             };
         }
 

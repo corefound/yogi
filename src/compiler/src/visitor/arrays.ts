@@ -21,8 +21,8 @@ export function ArrayVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                 name,
                 type: this.visitType(declaration.type),
                 value: arrayAst.elements,
-                source: declaration.getFullText(),
-                position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
+                source: declaration.getText(),
+                position: this.getNodePosistion(declaration),
             };
         }
 
@@ -31,8 +31,8 @@ export function ArrayVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
             return {
                 kind: Kinds.ArrayExpression,
                 elements,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
     };

@@ -13,14 +13,13 @@ export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(base: 
             }
 
             const dictionaryAst = this.visitDictionaryLiteral(init);
-
             return {
                 kind: Kinds.DictionaryDeclaration,
                 name,
                 type: declaration.type?.getText() ?? "dictionary",
                 properties: dictionaryAst.properties,
-                source: declaration.getFullText(),
-                position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
+                source: declaration.getText(),
+                position: this.getNodePosistion(declaration)
             };
         }
 
@@ -34,19 +33,17 @@ export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(base: 
                     key: this.getDictionaryKey(prop.name),
                     type: this.visitType(prop.initializer),
                     value: this.visitNode(prop.initializer),
-                    source: prop.getFullText(),
-                    position: prop.getSourceFile().getLineAndCharacterOfPosition(prop.pos),
+                    source: prop.getText(),
+                    position: this.getNodePosistion(prop)
                 }];
             });
 
             return {
                 kind: Kinds.DictionaryExpression,
-                // type: "dictionary",
                 type: this.visitType(node),
-
                 properties,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
 

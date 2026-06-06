@@ -27,8 +27,8 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                 kind: Kinds.WhileStatement,
                 condition: this.visitNode(node.expression),
                 body: this.visitLoopBody(node.statement),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
 
@@ -45,8 +45,8 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                     ? this.visitNode(node.incrementor)
                     : null,
                 body: this.visitLoopBody(node.statement),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
             };
         }
 
@@ -63,8 +63,8 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                     declarations: initializer.declarations.map(decl =>
                         this.transformDeclaration(decl)
                     ),
-                    source: initializer.getFullText(),
-                    position: initializer.getSourceFile().getLineAndCharacterOfPosition(initializer.pos),
+                    source: initializer.getText(),
+                    position: this.getNodePosistion(initializer),
                 };
             }
 
@@ -79,8 +79,8 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
             return {
                 kind: Kinds.BlockStatement,
                 statements: [this.visitNode(statement)],
-                source: statement.getFullText(),
-                position: statement.getSourceFile().getLineAndCharacterOfPosition(statement.pos),
+                source: statement.getText(),
+                position: this.getNodePosistion(statement),
             };
         }
 
@@ -88,24 +88,24 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
             return {
                 kind: Kinds.BlockStatement,
                 statements: block.statements.map(statement => this.visitNode(statement)),
-                source: block.getFullText(),
-                position: block.getSourceFile().getLineAndCharacterOfPosition(block.pos),
+                source: block.getText(),
+                position: this.getNodePosistion(block),
             };
         }
 
         visitBreakStatement(node: ts.BreakStatement) {
             return {
                 kind: Kinds.BreakStatement,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node),
             };
         }
 
         visitContinueStatement(node: ts.ContinueStatement) {
             return {
                 kind: Kinds.ContinueStatement,
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node),
             };
         }
     };

@@ -24,8 +24,8 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 declarations: declarationList.declarations.map(
                     decl => this.transformDeclaration(decl)
                 ),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node),
             };
         }
 
@@ -40,10 +40,10 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     name,
                     type: this.visitType(declaration.type),
                     value: null as any,
-                    source: declaration.getFullText(),
-                    position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
+                    source: declaration.getText(),
+                    position: this.getNodePosistion(declaration),
                 };
-            }        
+            }
 
             // -----------------------------------
             // DICTIONARY (OBJECT LITERAL)
@@ -53,8 +53,8 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     kind: Kinds.DictionaryDeclaration,
                     name,
                     type: this.visitType(declaration.type),
-                    source: declaration.getFullText(),
-                    position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
+                    source: declaration.getText(),
+                    position: this.getNodePosistion(declaration),
                     properties: init.properties.flatMap(prop => {
                         if (!ts.isPropertyAssignment(prop)) return [];
 
@@ -86,8 +86,8 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 return {
                     kind: Kinds.VariableDeclaration,
                     name,
-                    source: declaration.getFullText(),
-                    position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
+                    source: declaration.getText(),
+                    position: this.getNodePosistion(declaration),
                     type: this.visitType(declaration.type),
                     value: this.visitNode(init)
                 };
@@ -113,8 +113,8 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 kind: Kinds.VariableReassignment,
                 name: node.left.getText(),
                 value: this.visitNode(node.right),
-                source: node.getFullText(),
-                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+                source: node.getText(),
+                position: this.getNodePosistion(node),
             };
         }
     };

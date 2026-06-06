@@ -14,6 +14,7 @@ export function ImportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
                 namespaceImport: null,
                 namedImports: [],
                 sideEffectOnly: false,
+                position: this.getNodePosistion(node)
             };
 
             // import "module";

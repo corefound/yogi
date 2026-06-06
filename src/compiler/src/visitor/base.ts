@@ -170,4 +170,17 @@ export class BaseVisitor {
     visitConditionals(_: ts.Node): any { }
     transformDeclaration(_: ts.Node): any { }
     visitLoops(_: ts.Node): any { }
+
+    getNodePosistion(node: ts.Node) {
+        const text = node.getFullText();
+        const match = text.match(/^\n+/);
+        const leadingLines = match ? match[0].length : 0;
+
+        const position = node.getSourceFile().getLineAndCharacterOfPosition(node.pos);
+
+        return {
+            line: position.line + 1 + leadingLines,
+            character: node.getText().length
+        }
+    }
 }
