@@ -9,6 +9,7 @@ import { ExternsVisitor } from "./extern";
 import { TypesVisitor } from "./types";
 import { ArrayVisitor } from "./arrays";
 import { DictionaryVisitor } from "./dictionary";
+import { FunctionVisitor } from "./functions";
 
 export class Visitor extends applyMixins(
     BaseVisitor,
@@ -20,7 +21,8 @@ export class Visitor extends applyMixins(
     ExternsVisitor,
     TypesVisitor,
     ArrayVisitor,
-    DictionaryVisitor
+    DictionaryVisitor,
+    FunctionVisitor
 ) {
     constructor(filePath: string, options?: ts.CompilerOptions) {
         super(filePath, options || {});

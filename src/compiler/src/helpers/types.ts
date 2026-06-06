@@ -66,11 +66,19 @@ export enum Kinds {
     DictionaryDeclaration = "DictionaryDeclaration",
     DictionaryProperty = "DictionaryProperty",
 
+    BlockStatement = "BlockStatement",
+    ExpressionBody = "ExpressionBody",
+
     // --------------------------
     // FunctionDeclaration
     // --------------------------
     FunctionDeclaration = "FunctionDeclaration",
     FunctionExpression = "FunctionExpression",
+    FunctionParameter = "FunctionParameter",
+    FunctionBody = "FunctionBody",
+    FunctionCall = "FunctionCall",
+    FunctionReturn = "FunctionReturn",
+
 
     // ----------------------------
     // Expressions
@@ -95,6 +103,7 @@ export enum Kinds {
     ExportCall = "ExportCall",
     ExportVariable = "ExportVariable",
 
+    ReturnStatement = "ReturnStatement",
     Unknown = "Unknown",
 }
 

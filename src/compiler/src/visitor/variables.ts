@@ -43,7 +43,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     source: declaration.getFullText(),
                     position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
                 };
-            }
+            }        
 
             // -----------------------------------
             // DICTIONARY (OBJECT LITERAL)
@@ -71,22 +71,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             // ARROW FUNCTION
             // -----------------------------------
             if (ts.isArrowFunction(init)) {
-                return {
-                    kind: Kinds.FunctionDeclaration,
-                    name,
-                    type: this.visitType(declaration.type), // TODO: Add return type
-                    source: declaration.getFullText(),
-                    position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
-                    params: init.parameters.map(p => ({
-                        name: p.name.getText(),
-                        type: this.visitType(declaration.type),
-                        source: p.getFullText(),
-                        position: p.getSourceFile().getLineAndCharacterOfPosition(p.pos),
-                    })),
-                    body: ts.isBlock(init.body)
-                        ? init.body.statements.map(s => this.visitNode(s))
-                        : this.visitNode(init.body)
-                };
+                return this.transformFunctionDeclaration(declaration);
             }
 
             // Binary Expression

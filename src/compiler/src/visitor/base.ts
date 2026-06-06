@@ -99,7 +99,6 @@ export class BaseVisitor {
         // statements
         if (ts.isVariableStatement(node)) return this.visitVariableDeclaration(node);
         if (ts.isExpressionStatement(node)) return this.visitExpression(node);
-        if (ts.isFunctionDeclaration(node)) return this.visitFunctionDeclaration(node);
         if (ts.isIfStatement(node)) return this.visitIfStatement(node);
         if (ts.isBlock(node)) return node.statements.map((s: ts.Statement) => this.visitNode(s));
         if (ts.isReturnStatement(node)) {
@@ -109,8 +108,12 @@ export class BaseVisitor {
             };
         }
 
-        // expressions
+        // functions
+        if (ts.isFunctionDeclaration(node)) return this.visitFunctionDeclaration(node);
         if (ts.isArrowFunction(node)) return this.visitArrowFunction(node);
+        if (ts.isReturnStatement(node)) return this.visitReturnStatement(node);
+
+        // expressions
         if (ts.isBinaryExpression(node)) return this.visitBinaryExpression(node);
         if (ts.isPrefixUnaryExpression(node)) return this.visitUnaryExpression(node);
 
@@ -138,7 +141,11 @@ export class BaseVisitor {
         return null;
     }
 
+    // Functions
+    transformFunctionDeclaration(_: ts.Node): any { }
+    visitFunctionDeclaration(_: ts.Node): any { }
     visitDictionaryDeclaration(_: ts.VariableDeclaration): any { }
+    visitReturnStatement(_: ts.ReturnStatement): any { }
 
     // Type Aliases
     visitTypeAliasDeclaration(_: ts.TypeAliasDeclaration): any { }
@@ -158,7 +165,6 @@ export class BaseVisitor {
     visitExternDeclaration(_: ts.ExternDeclaration): any { }
     visitVariableDeclaration(_: ts.VariableStatement): any { }
     visitExpression(_: ts.ExpressionStatement): any { }
-    visitFunctionDeclaration(_: ts.FunctionDeclaration): any { }
     visitIfStatement(_: ts.IfStatement): any { }
     visitArrowFunction(_: ts.ArrowFunction): any { }
     visitBinaryExpression(_: ts.BinaryExpression): any { }

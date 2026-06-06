@@ -1,6 +1,3 @@
-const user = {
-    name: "Brayhan",
-    age: 25,
-    active: true,
-    tags: ["dev", "typescript"]
-}, age = 20;
+function sum(a: number, b: number): number {
+    return a + b;
+}
