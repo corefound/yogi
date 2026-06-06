@@ -6,6 +6,17 @@ export enum Types {
 export enum Kinds {
     Program = "Program",
 
+    // --------------------------
+    // Loops
+    // --------------------------
+    Block = "Block",
+    WhileStatement = "WhileStatement",
+    ForStatement = "ForStatement",
+    ContinueStatement = "ContinueStatement",
+
+    // --------------------------   
+    // Conditional
+    // --------------------------
     IfStatement = "IfStatement",
     SwitchStatement = "SwitchStatement",
     CaseClause = "CaseClause",
@@ -89,6 +100,7 @@ export enum Kinds {
     // ----------------------------
     // Expressions
     // ----------------------------
+    UnaryExpression = "UnaryExpression",
     ExpressionStatement = "ExpressionStatement",
     DeclarationStatement = "DeclarationStatement",
     VariableDeclaration = "VariableDeclaration",

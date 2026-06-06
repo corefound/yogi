@@ -11,6 +11,7 @@ import { ArrayVisitor } from "./arrays";
 import { DictionaryVisitor } from "./dictionary";
 import { FunctionVisitor } from "./functions";
 import { ConditionalVisitor } from "./conditional";
+import { LoopVisitor } from "./loops";
 
 export class Visitor extends applyMixins(
     BaseVisitor,
@@ -24,7 +25,8 @@ export class Visitor extends applyMixins(
     ArrayVisitor,
     DictionaryVisitor,
     FunctionVisitor,
-    ConditionalVisitor
+    ConditionalVisitor,
+    LoopVisitor
 ) {
     constructor(filePath: string, options?: ts.CompilerOptions) {
         super(filePath, options || {});

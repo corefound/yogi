@@ -1,9 +1,7 @@
-switch (status) {
-    case "active":
-        break;
+while (i < 10) {
+    i = i + 1;
+}
 
-    case "inactive":
-        return false;
-    default:
-        return null;
+for (let i = 0; i < 10; i++) {
+    continue;
 }

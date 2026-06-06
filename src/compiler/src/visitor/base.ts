@@ -96,19 +96,6 @@ export class BaseVisitor {
         if (ts.isExportDeclaration(node)) return this.visitExports(node);
         if (ts.isImportDeclaration(node)) return this.visitImports(node);
 
-        // if (ts.isIfStatement(node)) return this.visitIfStatement(node);
-        // if (ts.isIfStatement(node)) {
-        //     return this.visitIfStatement(node);
-        // }
-
-        // if (ts.isSwitchStatement(node)) {
-        //     return this.visitSwitchStatement(node);
-        // }
-
-        // if (ts.isBreakStatement(node)) {
-        //     return this.visitBreakStatement(node);
-        // }
-
 
         // statements
         if (ts.isVariableStatement(node)) return this.visitVariableDeclaration(node);
@@ -120,6 +107,10 @@ export class BaseVisitor {
                 value: node.expression ? this.visitNode(node.expression) : null
             };
         }
+
+        // loops
+        const loops = this.visitLoops(node);
+        if (loops) return loops;
 
         // functions
         const functions = this.visitFunctions(node);
@@ -177,4 +168,6 @@ export class BaseVisitor {
 
     visitLiterals(_: ts.Node): any { }
     visitConditionals(_: ts.Node): any { }
+    transformDeclaration(_: ts.Node): any { }
+    visitLoops(_: ts.Node): any { }
 }

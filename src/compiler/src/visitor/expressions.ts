@@ -7,7 +7,8 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
         visitExpressions(node: ts.Node): any {
             if (ts.isCallExpression(node)) return this.visitCallExpression(node);
             if (ts.isBinaryExpression(node)) return this.visitBinaryExpression(node);
-            if (ts.isPrefixUnaryExpression(node)) return this.visitUnaryExpression(node);
+            if (ts.isPrefixUnaryExpression(node)) return this.visitPrefixUnaryExpression(node);
+            if (ts.isPostfixUnaryExpression(node)) return this.visitPostfixUnaryExpression(node);
             if (ts.isExpressionStatement(node)) return this.visitExpression(node);
             if (ts.isPropertyAccessExpression(node)) return this.visitPropertyAccessExpression(node);
         }
@@ -22,6 +23,28 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
                 left: this.visitNode(node.left),
                 operator: node.operatorToken.getText(),
                 right: this.visitNode(node.right),
+                source: node.getFullText(),
+                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+            };
+        }
+
+        visitPrefixUnaryExpression(node: ts.PrefixUnaryExpression) {
+            return {
+                kind: Kinds.UnaryExpression,
+                operator: ts.tokenToString(node.operator) ?? node.getText()[0],
+                prefix: true,
+                operand: this.visitNode(node.operand),
+                source: node.getFullText(),
+                position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
+            };
+        }
+
+        visitPostfixUnaryExpression(node: ts.PostfixUnaryExpression) {
+            return {
+                kind: Kinds.UnaryExpression,
+                operator: ts.tokenToString(node.operator) ?? node.getText().slice(-2),
+                prefix: false,
+                operand: this.visitNode(node.operand),
                 source: node.getFullText(),
                 position: node.getSourceFile().getLineAndCharacterOfPosition(node.pos),
             };
