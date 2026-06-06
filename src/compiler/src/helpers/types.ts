@@ -7,13 +7,53 @@ export enum Kinds {
     Program = "Program",
 
     // --------------------------
+    // Dictionaries
+    // --------------------------
+    DictionaryExpression = "DictionaryExpression",
+
+    // --------------------------
+    // Arrays
+    // --------------------------
+    ArrayExpression = "ArrayExpression",
+    ArrayDeclaration = "ArrayDeclaration",
+
+    // --------------------------
+    // Types
+    // --------------------------
+    AnyType = "AnyType",
+    NumberType = "NumberType",
+    StringType = "StringType",
+    BooleanType = "BooleanType",
+    VoidType = "VoidType",
+    TypeReference = "TypeReference",
+    ArrayType = "ArrayType",
+    UnionType = "UnionType",
+    UnknownType = "UnknownType",
+    OptionalType = "OptionalType",
+    TypeLiteral = "TypeLiteral",
+    PropertySignature = "PropertySignature",
+    UnknownMember = "UnknownMember",
+    IndexedAccessType = "IndexedAccessType",
+    ConditionalType = "ConditionalType",
+    InferType = "InferType",
+    TypeQuery = "TypeQuery",
+    TypeOperator = "TypeOperator",
+    FunctionType = "FunctionType",
+    IntersectionType = "IntersectionType",
+    TupleType = "TupleType",
+    LiteralType = "LiteralType",
+    UndefinedType = "UndefinedType",
+    NullType = "NullType",
+    NeverType = "NeverType",
+
+    // --------------------------
     // Externs
     // --------------------------
     ExternDeclarations = "ExternDeclarations",
     ExternMember = "ExternMember",
     ExternProperty = "ExternProperty",
     ExternMethod = "ExternMethod",
-    
+
     // --------------------------
     // Exports and imports
     // --------------------------

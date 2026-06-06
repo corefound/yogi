@@ -109,6 +109,20 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     value: this.visitNode(init)
                 };
             }
+
+            // -----------------------------------
+            // ARRAY LITERAL
+            // -----------------------------------
+            if (ts.isArrayLiteralExpression(init)) {
+                return this.visitArrayDeclaration(declaration);
+            }
+
+            // -----------------------------------
+            // DICTIONARY / OBJECT LITERAL
+            // -----------------------------------
+            if (ts.isObjectLiteralExpression(init)) {
+                return this.visitDictionaryDeclaration(declaration);
+            }
         }
 
         visitAssignment(node: ts.BinaryExpression) {

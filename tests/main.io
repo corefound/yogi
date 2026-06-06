@@ -1,4 +1,6 @@
-extern fs from "./fs.o" {
-    age: number
-    readFile(path: string): string;
-}
+const user = {
+    name: "Brayhan",
+    age: 25,
+    active: true,
+    tags: ["dev", "typescript"]
+};

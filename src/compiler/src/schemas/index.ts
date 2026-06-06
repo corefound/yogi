@@ -14,4 +14,17 @@ export class ZodSchemas {
         source: z.string().optional(),
         fileName: z.string(),
     });
+
+    static LiteralTypeSchema = z.object({
+        kind: z.string(),
+        value: z.string(),
+        source: z.string(),
+        position: z.object({
+            line: z.number(),
+            character: z.number(),
+        }),
+    })
+
 }
+
+
