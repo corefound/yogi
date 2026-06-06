@@ -1,5 +1,17 @@
-const i = 0;
+function main() {
+    const users: string[] = ["a", "b"];
 
-while (i < 10) {
-    i = i + 1;
+    for (let i = 0; i < 10; i++) {
+        if (i > 5) {
+            break;
+        }
+    }
+
+    return 0;
+}
+
+extern ffmpeg from "./ffmpeg.o" {
+    function toMP3 (input: string, output: string): void
+    function toMP4(input: string, output: string): void
+    function getDuration(): number
 }

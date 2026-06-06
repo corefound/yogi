@@ -12,8 +12,9 @@ import { DictionaryVisitor } from "./dictionary";
 import { FunctionVisitor } from "./functions";
 import { ConditionalVisitor } from "./conditional";
 import { LoopVisitor } from "./loops";
+import { Types } from "../helpers/types";
 
-export class Visitor extends applyMixins(
+class MixinsVisitor extends applyMixins(
     BaseVisitor,
     ExpressionVisitor,
     VariableVisitor,
@@ -37,5 +38,29 @@ export class Visitor extends applyMixins(
             module: this.filePath,
             body: this.sourceFile.statements.map((s: ts.Statement) => this.visitNode(s))
         };
+    }
+}
+
+export class Visitor {
+    public readonly options: ts.CompilerOptions
+    public readonly graph: Map<string, string[]>
+    public ast: Types.Ast[]
+
+    constructor(graph: Map<string, string[]>, options: ts.CompilerOptions) {
+        this.options = options
+        this.graph = graph
+    }
+
+    public visit() {
+        const modules: Types.Ast[] = []
+        this.graph.forEach((_: string[], modulePath: string) => {
+            const visitor = new MixinsVisitor(modulePath, this.options);
+            const ast = visitor.visit();
+            
+            modules.push(ast);
+        })
+
+        this.ast = modules
+        return modules
     }
 }

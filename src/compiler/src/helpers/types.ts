@@ -1,7 +1,3 @@
-export enum Types {
-    Any = "anyy",
-}
-
 
 export enum Kinds {
     Program = "Program",
@@ -127,14 +123,19 @@ export enum Kinds {
 }
 
 
-export type Module = {
-    module: string;
-    body: any[];
-}
 
-export type Program = {
-    entry: string;
-    dag: string[]
-    graph: Map<string, string[]>;
-    modules: Module[];
-};
+
+
+export namespace Types {
+    export type Ast = {
+        module: string;
+        body: any[];
+    }
+
+    export type Program = {
+        entry: string;
+        dag: string[]
+        graph: Map<string, string[]>;
+        ast: Ast[];
+    };
+}
