@@ -1,5 +1,5 @@
 export enum Types {
-    Any = "any",
+    Any = "anyy",
 }
 
 
@@ -20,6 +20,7 @@ export enum Kinds {
     // --------------------------
     // Types
     // --------------------------
+    UnTyped = "UnTyped",
     AnyType = "AnyType",
     NumberType = "NumberType",
     StringType = "StringType",

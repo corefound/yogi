@@ -4,8 +4,6 @@ import { Kinds, Types } from "../helpers/types";
 
 export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
-
-
         visitDictionaryDeclaration(declaration: ts.VariableDeclaration) {
             const name = declaration.name.getText();
             const init = declaration.initializer;

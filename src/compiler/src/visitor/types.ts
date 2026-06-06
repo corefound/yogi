@@ -29,8 +29,8 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
         visitType(node?: ts.TypeNode): any {
             if (!node) {
                 return {
-                    kind: Kinds.AnyType,
-                    raw: "any"
+                    kind: Kinds.UnTyped,
+                    raw: null
                 };
             }
 

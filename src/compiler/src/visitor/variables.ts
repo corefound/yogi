@@ -1,7 +1,6 @@
 import ts from "../ts";
 import { BaseVisitor, Constructor } from "../visitor/base";
-import { Kinds, Types } from "../helpers/types";
-import { Errors } from "../loggers/error";
+import { Kinds } from "../helpers/types";
 
 export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
@@ -30,7 +29,6 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             };
         }
 
-
         transformDeclaration(declaration: ts.VariableDeclaration) {
             const name = declaration.name.getText();
             const init = declaration.initializer;
@@ -40,7 +38,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 return {
                     kind: Kinds.VariableDeclaration,
                     name,
-                    type: declaration.type?.getText() || "any",
+                    type: this.visitType(declaration.type),
                     value: null as any,
                     source: declaration.getFullText(),
                     position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
@@ -54,7 +52,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 return {
                     kind: Kinds.DictionaryDeclaration,
                     name,
-                    type: "dictionary",
+                    type: this.visitType(declaration.type),
                     source: declaration.getFullText(),
                     position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
                     properties: init.properties.flatMap(prop => {
@@ -76,12 +74,12 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 return {
                     kind: Kinds.FunctionDeclaration,
                     name,
-                    type: "function",
+                    type: this.visitType(declaration.type), // TODO: Add return type
                     source: declaration.getFullText(),
                     position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
                     params: init.parameters.map(p => ({
                         name: p.name.getText(),
-                        type: p.type?.getText() ?? "any",
+                        type: this.visitType(declaration.type),
                         source: p.getFullText(),
                         position: p.getSourceFile().getLineAndCharacterOfPosition(p.pos),
                     })),
@@ -105,7 +103,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     name,
                     source: declaration.getFullText(),
                     position: declaration.getSourceFile().getLineAndCharacterOfPosition(declaration.pos),
-                    type: declaration.type?.getText() ?? Types.Any,
+                    type: this.visitType(declaration.type),
                     value: this.visitNode(init)
                 };
             }
