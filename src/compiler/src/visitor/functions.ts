@@ -98,8 +98,16 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             }
 
             return {
-                kind: Kinds.ExpressionBody,
-                expression: this.visitNode(body),
+                kind: Kinds.BlockStatement,
+                statements: [
+                    {
+                        kind: Kinds.ReturnStatement,
+                        implicit: true,
+                        value: this.visitNode(body),
+                        source: body.getFullText(),
+                        position: body.getSourceFile().getLineAndCharacterOfPosition(body.pos),
+                    }
+                ],
                 source: body.getFullText(),
                 position: body.getSourceFile().getLineAndCharacterOfPosition(body.pos),
             };

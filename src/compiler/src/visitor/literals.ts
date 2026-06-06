@@ -1,9 +1,6 @@
 import ts from "../ts";
 import { BaseVisitor, Constructor } from "../visitor/base";
 import { Kinds } from "../helpers/types";
-import * as Nodes from "../nodes";
-
-
 
 export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TBase) {
     return class extends Base {

@@ -121,7 +121,7 @@ export class BaseVisitor {
         const literal = this.visitLiterals(node);
         if (literal) return literal;
 
-        return null;
+        throw new Error(`Unsupported node type: ${ts.SyntaxKind[node.kind]}`);
     }
 
     visitExpressions(_: ts.Node): any { }

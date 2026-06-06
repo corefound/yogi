@@ -1,2 +1,1 @@
-
-user.sayHello("Brayhan").lower(true);
+const sum = (a, b) => {a + b};
