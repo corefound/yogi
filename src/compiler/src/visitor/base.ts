@@ -1,7 +1,6 @@
 import fs from "fs"
 import ts from "../ts";
 import { Kinds } from "../helpers/types";
-import { z } from "zod";
 import { Nodes } from "@/nodes";
 
 export type Constructor<T = {}> = new (...args: any[]) => T;
@@ -17,6 +16,7 @@ export class BaseVisitor {
     public program: ts.Program;
     public sourceFile: ts.SourceFile;
     public diagnostics: Nodes.Diagnostics[] = [];
+    public exports: Map<string, any> = new Map<string, any>();
 
     constructor(filePath: string) {
         this.filePath = filePath;

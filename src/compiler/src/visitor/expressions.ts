@@ -5,7 +5,7 @@ import { Nodes } from "../nodes";
 
 export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: TBase) {
     return class extends Base {
-        visitExpressions(node: ts.Node): any {
+        visitExpressions(node: ts.Node) {
             if (ts.isCallExpression(node)) return this.visitCallExpression(node);
             if (ts.isBinaryExpression(node)) return this.visitBinaryExpression(node);
             if (ts.isPrefixUnaryExpression(node)) return this.visitPrefixUnaryExpression(node);
@@ -14,7 +14,7 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(Base: 
             if (ts.isPropertyAccessExpression(node)) return this.visitPropertyAccessExpression(node);
         }
 
-        visitExpression(node: ts.ExpressionStatement): Nodes.BinaryExpression {
+        visitExpression(node: ts.ExpressionStatement) {
             return this.visitNode(node.expression);
         }
 

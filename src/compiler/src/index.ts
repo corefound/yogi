@@ -9,7 +9,7 @@ import { Semantic } from "./semantic";
 
 const scanner = new ModuleScanner(Helpers.resolveModule, Helpers.parseFile);
 const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
-const dag = scanner.topoSort(graph);
+const scc = scanner.sortModules(graph);
 
 const tsConfig = {
     target: ts.ScriptTarget.ESNext,
@@ -28,19 +28,16 @@ const ast = visitor.visit();
 const semantic = new Semantic(ast);
 const sir = semantic.analyze();
 
-console.log(util.inspect({ sir }, false, null, true));
-
-
+console.log(util.inspect({ scc, graph, ast }, false, null, true));
 
 // Program
-const program: Types.Program = {
-    entry: path.resolve(process.cwd(), process.argv[2]),
-    graph,
-    dag,
-    ast
-}
+// const program: Types.Program = {
+//     entry: path.resolve(process.cwd(), process.argv[2]),
+//     graph,
+//     dag,
+//     ast
+// }
 
 // console.log(util.inspect(program, false, null, true));
-
-process.stdout.write(JSON.stringify({ ok: true, program }, null, 0).toString());
-process.exit(0);
+// process.stdout.write(JSON.stringify({ ok: true, program }, null, 0).toString());
+// process.exit(0);

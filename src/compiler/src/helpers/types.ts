@@ -4,6 +4,11 @@ export namespace Types {
         body: any[];
     }
 
+    export type ExportedSymbols = {
+        kind: any;   
+        node: any;
+    }
+
     export type Program = {
         entry: string;
         dag: string[]
@@ -207,5 +212,6 @@ export namespace Kinds {
 
     export enum Miscellaneous {
         Unknown = "Unknown",
+        ExportedSymbols = "ExportedSymbols",
     }
 }

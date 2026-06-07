@@ -1,1 +1,3 @@
-10 + 10
+export const a: string = (): void => {
+    return b;
+};

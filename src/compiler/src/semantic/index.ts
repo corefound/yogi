@@ -10,6 +10,9 @@ export class Semantic {
 
     public analyze() {
         return this.ast.map((ast: Types.Ast) => {
+            ast.body.map((statement: any) => {
+                
+            })
             return {
                 ...ast,
                 module: this.visitNode(ast.module),

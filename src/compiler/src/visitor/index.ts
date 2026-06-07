@@ -31,12 +31,14 @@ class MixinsVisitor extends applyMixins(
 ) {
     constructor(filePath: string, options?: ts.CompilerOptions) {
         super(filePath, options || {});
+
     }
 
     public visit() {
         return {
             module: this.filePath,
-            body: this.sourceFile.statements.map((s: ts.Statement) => this.visitNode(s))
+            body: this.sourceFile.statements.map((s: ts.Statement) => this.visitNode(s)),
+            exports: this.exports,
         };
     }
 }
@@ -56,7 +58,7 @@ export class Visitor {
         this.graph.forEach((_: string[], modulePath: string) => {
             const visitor = new MixinsVisitor(modulePath, this.options);
             const ast = visitor.visit();
-            
+
             modules.push(ast);
         })
 

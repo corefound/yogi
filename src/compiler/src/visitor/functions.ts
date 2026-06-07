@@ -20,6 +20,7 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 kind: Kinds.Functions.FunctionDeclaration,
                 name: node.name?.getText() ?? "anonymous",
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),
+                type: this.visitType(node),
                 returnType: this.visitType(node.type),
                 body: node.body
                     ? this.visitFunctionBlock(node.body)
@@ -49,6 +50,7 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 kind: Kinds.Functions.FunctionDeclaration,
                 name,
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),
+                type: this.visitType(declaration.type),
                 returnType: this.visitType(node.type),
                 body: this.visitFunctionBody(node.body),
                 source: declaration.getText(),

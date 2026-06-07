@@ -13,17 +13,23 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     ? "let"
                     : "var";
 
-            const isExported = node.modifiers?.some(
-                m => m.kind === ts.SyntaxKind.ExportKeyword
-            ) ?? false;
+            const isExported = node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+            const declarations = declarationList.declarations.map((d) => {
+                const declaration = this.transformDeclaration(d);
+                if (isExported && declaration)
+                    this.exports.set(d.name.getText(), {
+                        kind: declaration.kind,
+                        type: declaration.kind === Kinds.Statements.VariableDeclaration ? declaration.type : declaration.returnType,
+                    });
+
+                return declaration;
+            })
 
             return {
                 kind: Kinds.Statements.VariableDeclaration,
                 flag,
                 export: isExported,
-                declarations: declarationList.declarations.map(
-                    decl => this.transformDeclaration(decl)
-                ),
+                declarations,
                 source: node.getText(),
                 position: this.getNodePosistion(node),
             };
@@ -42,6 +48,21 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                     value: null as any,
                     source: declaration.getText(),
                     position: this.getNodePosistion(declaration),
+                };
+            }
+
+            // -----------------------------------
+            // IDENTIFIER REFERENCE
+            // const a = b
+            // -----------------------------------
+            if (ts.isIdentifier(init)) {
+                return {
+                    kind: Kinds.Statements.VariableDeclaration,
+                    name,
+                    source: declaration.getText(),
+                    position: this.getNodePosistion(declaration),
+                    type: this.visitType(declaration.type),
+                    value: this.visitNode(init),
                 };
             }
 
@@ -106,6 +127,15 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             if (ts.isObjectLiteralExpression(init)) {
                 return this.visitDictionaryDeclaration(declaration);
             }
+
+            return {
+                kind: Kinds.Statements.VariableDeclaration,
+                name,
+                source: declaration.getText(),
+                position: this.getNodePosistion(declaration),
+                type: this.visitType(declaration.type),
+                value: this.visitNode(init),
+            };
         }
 
         visitAssignment(node: ts.BinaryExpression) {
