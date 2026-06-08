@@ -14,6 +14,7 @@ export function DeclarationsSemantic<TBase extends Constructor<BaseSemantic>>(ba
                     export: node.export,
                     source: node.source,
                     position: node.position,
+                    type: declaration.type
                 })
             );
         }
@@ -29,7 +30,7 @@ export function DeclarationsSemantic<TBase extends Constructor<BaseSemantic>>(ba
         }
         public visitVariableDeclarations(node: any, context: Types.DeclarationContext) {
             const value = node.value ? this.visitNode(node.value) : null;
-            const type = this.resolveVariableType(node.type, value);
+            const type = this.resolveVariableType(context, node);
 
             const symbol = this.defineSymbol({
                 name: node.name,
@@ -65,19 +66,11 @@ export function DeclarationsSemantic<TBase extends Constructor<BaseSemantic>>(ba
                 declarationPosition: context.position,
             };
         }
-        public resolveVariableType(declaredType: any, value: any) {
-            if (declaredType && declaredType.kind !== Kinds.Types.UnTyped) {
-                return declaredType;
+        public resolveVariableType(context: Types.DeclarationContext, node: any) {
+            if (context.type.kind === Kinds.Types.UnTyped) {        
+                this.typeError(Kinds.ErrrorsMessage.MissingType, node.position, context.source);
             }
 
-            if (value?.type) {
-                return value.type;
-            }
-
-            return {
-                kind: Kinds.Types.UnTyped,
-                raw: null,
-            };
         }
     };
 }

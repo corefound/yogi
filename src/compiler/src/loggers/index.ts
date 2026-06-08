@@ -30,3 +30,10 @@ export class Loggers {
         process.exit(1);
     }
 }
+
+export namespace Sir {
+    export class Loggers {
+        
+    }
+
+}

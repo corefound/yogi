@@ -8,6 +8,10 @@ export namespace Types {
         flag: "const" | "let";
         export: boolean;
         source: string;
+        type: {
+            kind: Kinds.Types;
+            raw: any;
+        };
         position: any;
     };
 
@@ -54,6 +58,10 @@ export namespace Types {
 export namespace Kinds {
     export enum Root {
         Program = "Program",
+    }
+
+    export enum ErrrorsMessage {
+        MissingType = "Missing explicit type annotation",
     }
 
     export enum Operators {

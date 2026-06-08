@@ -1,5 +1,6 @@
 
-import { Types } from "../helpers/types";
+import ts from "typescript";
+import { Kinds, Types } from "../helpers/types";
 
 import { Scope } from "./scope";
 export type Constructor<T = {}> = new (...args: any[]) => T;
@@ -11,6 +12,7 @@ export function applySemanticMixins<TBase extends Constructor>(Base: TBase, ...m
 }
 
 export class BaseSemantic {
+    public modulePath = "";
     public symbolId = 0;
     public nextScopeId = 1;
 
@@ -88,4 +90,7 @@ export class BaseSemantic {
     visitDeclarationStatement(_: any): any { }
     visitVariableLikeDeclarations(_: any, __: Types.DeclarationContext): any { }
     visitVariableDeclarations(_: any, __: Types.DeclarationContext): any { }
+
+    // Logger
+    typeError(kind: Kinds.ErrrorsMessage, position: any, sourceText: string): any { }
 }

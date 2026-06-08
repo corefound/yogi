@@ -2,12 +2,14 @@ import { Types } from "../helpers/types";
 import { BaseSemantic, applySemanticMixins } from "./base";
 import { ConstantsSemantic } from "./constants";
 import { DeclarationsSemantic } from "./declarations";
+import { LoggerSemantic } from "./loggers";
 
 
 export class Semantic extends applySemanticMixins(
     BaseSemantic,
+    LoggerSemantic,
     ConstantsSemantic,
-    DeclarationsSemantic
+    DeclarationsSemantic,
 ) {
     public sir: Types.Sir[] = [];
 
@@ -17,9 +19,11 @@ export class Semantic extends applySemanticMixins(
 
     public analyze() {
         return this.ast.map((ast: Types.Ast) => {
-            return ast.body.map((statement: any) => {
-                return this.visitNode(statement);
-            })
+            this.modulePath = ast.module
+            return {
+                module: ast.module,
+                sir: ast.body.map((statement: any) => this.visitNode(statement)).flat(Infinity)
+            }
         }).flat(100);
     }
 
