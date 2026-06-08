@@ -4,8 +4,19 @@ export namespace Types {
         body: any[];
     }
 
+    export type DeclarationContext = {
+        flag: "const" | "let";
+        export: boolean;
+        source: string;
+        position: any;
+    };
+
+    export type Sir = {
+
+    }
+
     export type ExportedSymbols = {
-        kind: any;   
+        kind: any;
         node: any;
     }
 
@@ -102,8 +113,12 @@ export namespace Kinds {
     }
 
     export enum Literals {
+        BigIntLiteral = "BigIntLiteral",
         NumberLiteral = "NumberLiteral",
+
         StringLiteral = "StringLiteral",
+        TemplateStringLiteral = "TemplateStringLiteral",
+
         BooleanLiteral = "BooleanLiteral",
 
         NullLiteral = "NullLiteral",
@@ -111,6 +126,8 @@ export namespace Kinds {
 
         NaNLiteral = "NaNLiteral",
         InfinityLiteral = "InfinityLiteral",
+
+        RegularExpressionLiteral = "RegularExpressionLiteral",
     }
 
     export enum Collections {
@@ -153,6 +170,9 @@ export namespace Kinds {
 
     export enum Types {
         UnTyped = "UnTyped",
+
+        RegExpType = "RegExpType",
+        BigIntType = "BigIntType",
 
         AnyType = "AnyType",
         UnknownType = "UnknownType",
@@ -213,5 +233,18 @@ export namespace Kinds {
     export enum Miscellaneous {
         Unknown = "Unknown",
         ExportedSymbols = "ExportedSymbols",
+    }
+
+    export enum Sir {
+        NumberConstant = "NumberConstant",
+        StringConstant = "StringConstant",
+        BooleanConstant = "BooleanConstant",
+        NullConstant = "NullConstant",
+        UndefinedConstant = "UndefinedConstant",
+        NaNConstant = "NaNConstant",
+        InfinityConstant = "InfinityConstant",
+        BigIntConstant = "BigIntConstant",
+        RegExpConstant = "RegExpConstant",
+        TemplateStringConstant = "TemplateStringConstant",
     }
 }

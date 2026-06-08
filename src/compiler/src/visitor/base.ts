@@ -129,7 +129,6 @@ export class BaseVisitor {
     visitImports(_: ts.Node): any { }
     visitExports(_: ts.Node): any { }
 
-    // placeholders (implemented in mixins)
     visitCallExpression(_: ts.Node): any { }
     visitExternDeclaration(_: ts.Node): any { }
     visitVariableDeclaration(_: ts.Node): any { }
@@ -154,7 +153,7 @@ export class BaseVisitor {
 
         return {
             line: position.line + 1 + leadingLines,
-            character: node.getText().length
+            character: position.character
         }
     }
 }

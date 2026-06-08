@@ -26,7 +26,7 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             })
 
             return {
-                kind: Kinds.Statements.VariableDeclaration,
+                kind: Kinds.Statements.DeclarationStatement,
                 flag,
                 export: isExported,
                 declarations,

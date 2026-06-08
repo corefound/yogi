@@ -1,3 +1,1 @@
-export const a: string = (): void => {
-    return b;
-};
+let a = 1;
