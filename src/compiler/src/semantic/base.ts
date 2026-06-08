@@ -92,5 +92,5 @@ export class BaseSemantic {
     visitVariableDeclarations(_: any, __: Types.DeclarationContext): any { }
 
     // Logger
-    typeError(kind: Kinds.ErrrorsMessage, position: any, sourceText: string): any { }
+    throwError(kind: string, position: any, sourceText: string, context?: any, endMessage?: string): any { }
 }

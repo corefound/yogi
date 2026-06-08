@@ -9,68 +9,64 @@ export function DeclarationsSemantic<TBase extends Constructor<BaseSemantic>>(ba
             }
 
             return node.declarations.map((declaration: any) =>
-                this.visitVariableLikeDeclarations(declaration, {
+                this.visitVariableLikeDeclarations(Object.assign(declaration, {
                     flag: node.flag,
                     export: node.export,
-                    source: node.source,
-                    position: node.position,
-                    type: declaration.type
-                })
+                    fullSource: node.source,
+                    source: declaration.source,
+                }))
             );
         }
 
-        public visitVariableLikeDeclarations(node: any, context: Types.DeclarationContext): any {
+        public visitVariableLikeDeclarations(node: any): any {
             switch (node.kind) {
                 case Kinds.Statements.VariableDeclaration:
-                    return this.visitVariableDeclarations(node, context);
+                    return this.visitVariableDeclarations(node);
 
                 default:
                     return this.visitNode(node);
             }
         }
-        public visitVariableDeclarations(node: any, context: Types.DeclarationContext) {
-            const value = node.value ? this.visitNode(node.value) : null;
-            const type = this.resolveVariableType(context, node);
+        public visitVariableDeclarations(node: any) {
+            this.declarationDiagnostics(node);
 
+            const value = node.value ? this.visitNode(node.value) : null;
             const symbol = this.defineSymbol({
                 name: node.name,
                 kind: Kinds.ScopeSymbols.Variable,
-                type,
-                mutable: context.flag !== "const",
+                type: node.type,
+                mutable: node.flag !== "const",
                 storage: Kinds.Storage.stack,
                 escapes: false,
             });
 
-            return {
+            return Object.assign(node, {
                 kind: Kinds.Statements.VariableDeclaration,
-
                 symbolId: symbol.id,
                 scopeId: symbol.scopeId,
 
-                name: node.name,
-
-                flag: context.flag,
-                export: context.export,
+                flag: node.flag,
+                export: node.export,
                 mutable: symbol.mutable,
-
-                type,
-                value,
+                type: node.type,
 
                 storage: symbol.storage,
                 escapes: symbol.escapes,
 
-                source: node.source,
-                position: node.position,
-
-                declarationSource: context.source,
-                declarationPosition: context.position,
-            };
+                value,
+            });
         }
-        public resolveVariableType(context: Types.DeclarationContext, node: any) {
-            if (context.type.kind === Kinds.Types.UnTyped) {        
-                this.typeError(Kinds.ErrrorsMessage.MissingType, node.position, context.source);
+
+
+        public declarationDiagnostics(context: any): void {
+            if (context.type.kind == Kinds.Types.UnTyped) {
+                this.throwError(Kinds.ErrrorsMessage.MissingType, context.position, context.fullSource, context);
             }
 
+            if (context.flag != "const" && context.flag != "let") {
+                const message = `'${context.flag}' declarations are not allowed`
+                this.throwError(message, context.position, context.fullSource, context, "  = use 'let' for mutable bindings\n  = use 'const' for immutable bindings");
+            }
         }
     };
 }

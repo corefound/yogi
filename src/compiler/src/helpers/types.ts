@@ -62,6 +62,10 @@ export namespace Kinds {
 
     export enum ErrrorsMessage {
         MissingType = "Missing explicit type annotation",
+        SyntaxError = "Invalid symbolic expression",
+        TypeError = "Type error",
+        ReferenceError = "Reference error",
+        InternalError = "Internal error",
     }
 
     export enum Operators {
