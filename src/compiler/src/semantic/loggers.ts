@@ -1,17 +1,13 @@
 import { BaseSemantic, Constructor } from "./base";
 import ts from "../ts";
 import { Kinds } from "../helpers/types";
+import { Helpers } from "../helpers";
 
 export interface Span {
     start: ts.LineAndCharacter;
     end: ts.LineAndCharacter;
 }
 
-const RESET = "\x1b[0m";
-const RED = "\x1b[31m";
-const GREEN = "\x1b[32m";
-const YELLOW = "\x1b[33m";
-const BLUE = "\x1b[34m";
 
 interface Options {
     before?: number;
@@ -73,11 +69,11 @@ export function LoggerSemantic<TBase extends Constructor<BaseSemantic>>(Base: TB
                     const marker =
                         " ".repeat(errorColumn + 1) +
                         "^".repeat(
-                            Math.max(options.name.length || 1, span.end.character - span.start.character)
+                            Math.max(options.arrowLength || 1, span.end.character - span.start.character)
                         );
 
                     process.stderr.write(
-                        `${" ".repeat(gutterWidth)} | ${RED}${marker}${RESET}\n`
+                        `${" ".repeat(gutterWidth)} | ${Helpers.RED}${marker}${Helpers.RESET}\n`
                     );
                 }
             }

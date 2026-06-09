@@ -7,11 +7,9 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
 
         visitVariableDeclaration(node: ts.VariableStatement) {
             const declarationList = node.declarationList;
-            const flag = declarationList.flags & ts.NodeFlags.Const
-                ? "const"
-                : declarationList.flags & ts.NodeFlags.Let
-                    ? "let"
-                    : "var";
+            const flag = declarationList.flags
+                & ts.NodeFlags.Const ? "const" : declarationList.flags
+                    & ts.NodeFlags.Let ? "let" : "var";
 
             const isExported = node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
             const declarations = declarationList.declarations.map((d) => {
@@ -93,11 +91,6 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             // -----------------------------------
             if (ts.isArrowFunction(init)) {
                 return this.transformFunctionDeclaration(declaration);
-            }
-
-            // Binary Expression
-            if (ts.isBinaryExpression(init)) {
-                return this.visitNode(init);
             }
 
             // -----------------------------------

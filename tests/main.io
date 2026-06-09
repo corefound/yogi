@@ -1,2 +1,1 @@
-const a: number = 1
-const bubble = false
+const b: number = 10 + 20 + 10;

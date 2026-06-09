@@ -3,6 +3,11 @@ import ts from "../ts";
 import fs from "fs";
 
 export class Helpers {
+    static RESET = "\x1b[0m";
+    static RED = "\x1b[31m";
+    static GREEN = "\x1b[32m";
+    static YELLOW = "\x1b[33m";
+    static BLUE = "\x1b[34m";
     static parseFile = (filePath: string): ts.SourceFile => {
         try {
             const code = fs.readFileSync(filePath, "utf-8");

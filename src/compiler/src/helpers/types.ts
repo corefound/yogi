@@ -51,6 +51,8 @@ export namespace Types {
         scopeId: number;
         escapes: boolean;
         storage: Kinds.Storage;
+        trusted: boolean;
+        value: any;
     };
 }
 
@@ -94,6 +96,7 @@ export namespace Kinds {
     }
 
     export enum Statements {
+        DeclarationFlag = "DeclarationFlag",
         BlockStatement = "BlockStatement",
         ExpressionStatement = "ExpressionStatement",
         DeclarationStatement = "DeclarationStatement",
@@ -230,6 +233,7 @@ export namespace Kinds {
         Variable = "variable",
         Parameter = "parameter",
         Extern = "extern",
+
     }
 
     export enum Diagnostics {

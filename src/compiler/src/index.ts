@@ -11,13 +11,13 @@ const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
 const scc = scanner.sortModules(graph);
 
 const tsConfig = {
-    target: ts.ScriptTarget.ESNext,
-    module: ts.ModuleKind.NodeNext,
-    strictNullChecks: false,
-    moduleResolution: ts.ModuleResolutionKind.NodeNext,
-    strict: false,
-    allowJs: false
-}
+  target: ts.ScriptTarget.ESNext,
+  module: ts.ModuleKind.NodeNext,
+  strictNullChecks: false,
+  moduleResolution: ts.ModuleResolutionKind.NodeNext,
+  strict: false,
+  allowJs: false,
+};
 
 // Visitor
 const visitor = new Visitor(graph, tsConfig);
