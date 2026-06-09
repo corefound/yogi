@@ -1,6 +1,6 @@
 export namespace Types {
     export type Ast = {
-        module: string;
+        module: any;
         body: any[];
     }
 
@@ -45,6 +45,8 @@ export namespace Types {
     export type SymbolInfo = {
         id: number;
         name: string;
+        linkageName: string;
+        qualifiedName: string;
         kind: Kinds.ScopeSymbols;
         type: any;
         mutable: boolean;
@@ -52,7 +54,7 @@ export namespace Types {
         escapes: boolean;
         storage: Kinds.Storage;
         trusted: boolean;
-        value: any;
+        node: any;
     };
 }
 

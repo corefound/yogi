@@ -2,7 +2,7 @@ import { BaseSemantic, Constructor } from "./base";
 import { Kinds } from "../helpers/types";
 import { Helpers } from "../helpers";
 
-export function DeclarationsSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
+export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
         public visitDeclarationStatement(node: any) {
             if (node.kind !== Kinds.Statements.DeclarationStatement) {
@@ -38,16 +38,20 @@ export function DeclarationsSemantic<TBase extends Constructor<BaseSemantic>>(ba
             const context = Object.assign(node, { value });
 
             const { trusted } = this.declarationDiagnostics(context);
+            const linkageName = this.getLinkageName(this.modulePath.relativePath, node.name);
+            const qualifiedName = this.getQualifiedName(this.modulePath.relativePath, node.name);
 
             const symbol = this.defineSymbol({
-                kind: Kinds.ScopeSymbols.Variable,
+                kind: Kinds.ScopeSymbols.Function,
                 name: node.name,
+                linkageName,
+                qualifiedName,
                 type: node.type,
                 mutable: node.flag.name !== "const",
                 storage: Kinds.Storage.stack,
                 escapes: false,
                 trusted,
-                value
+                node: value
             });
 
             return Object.assign(node, {
@@ -67,6 +71,7 @@ export function DeclarationsSemantic<TBase extends Constructor<BaseSemantic>>(ba
                 value,
             });
         }
+
 
         public declarationDiagnostics(context: any): any {
             let trusted = true;
@@ -111,6 +116,7 @@ export function DeclarationsSemantic<TBase extends Constructor<BaseSemantic>>(ba
 
             return { trusted };
         }
+
         public checkDataType(expectedType: any, value: any): boolean {
             if (!value?.type) return false;
 

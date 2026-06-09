@@ -8,6 +8,9 @@ import { Semantic } from "./semantic";
 
 const scanner = new ModuleScanner(Helpers.resolveModule, Helpers.parseFile);
 const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
+
+console.log(graph)
+const rootPath = path.resolve(process.cwd(), process.argv[2], "../");
 const scc = scanner.sortModules(graph);
 
 const tsConfig = {
@@ -20,7 +23,7 @@ const tsConfig = {
 };
 
 // Visitor
-const visitor = new Visitor(graph, tsConfig);
+const visitor = new Visitor(rootPath, graph, tsConfig);
 const ast = visitor.visit();
 
 // Semantic Analysis

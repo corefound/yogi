@@ -52,7 +52,7 @@ export function LoggerSemantic<TBase extends Constructor<BaseSemantic>>(Base: TB
             const gutterWidth = String(lastDisplayLine).length;
 
             process.stderr.write(
-                `${this.modulePath} at ${span.start.line + 1}:${errorColumn + 1} - Error: ${message}\n`
+                `${this.modulePath.absolutePath} at ${span.start.line + 1}:${errorColumn + 1} - Error: ${message}\n`
             );
 
             process.stderr.write(`${" ".repeat(gutterWidth)} |\n`);
@@ -73,7 +73,7 @@ export function LoggerSemantic<TBase extends Constructor<BaseSemantic>>(Base: TB
                         );
 
                     process.stderr.write(
-                        `${" ".repeat(gutterWidth)} | ${Helpers.RED}${marker}${Helpers.RESET}\n`
+                        `${" ".repeat(gutterWidth)} | ${Helpers.RED}${options.arrowLength > 0 ? marker : ""}${Helpers.RESET}\n`
                     );
                 }
             }

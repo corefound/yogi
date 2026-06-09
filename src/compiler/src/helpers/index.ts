@@ -1,7 +1,7 @@
 import path from "path";
 import ts from "../ts";
 import fs from "fs";
-
+import crypto from "crypto";
 export class Helpers {
     static RESET = "\x1b[0m";
     static RED = "\x1b[31m";
@@ -31,6 +31,30 @@ export class Helpers {
         // fallback for now (node_modules etc.)
         return specifier;
     };
+
+    static normalizePath = (path: string): string => {
+        return path.replace(/\\/g, "/");
+    };
+
+    static hash = (str: string): string => {
+        return crypto.createHash("sha256").update(str).digest("hex");
+    };
+
+    static mangleExport(modulePath: string, symbol: any): string {
+        const moduleKey = Helpers.normalizePath(modulePath);
+        const moduleHash = Helpers.hash(moduleKey).slice(0, 10);
+
+        const signature = [
+            symbol.kind,
+            symbol.name,
+            ...(symbol.params ?? []).map((p: any) => p.type.raw),
+            symbol.returnType?.raw ?? symbol.type?.raw ?? "void",
+        ].join(":");
+
+        const signatureHash = Helpers.hash(signature).slice(0, 10);
+
+        return `_yogi_${moduleHash}_${symbol.name}_${signatureHash}`;
+    }
 }
 
 

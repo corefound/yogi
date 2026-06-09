@@ -1,1 +1,5 @@
-const b: number = 10 + 20 + 10;
+
+
+const _myFunction: Function = (): void => {
+    const a: number = 1;
+}

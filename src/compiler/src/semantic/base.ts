@@ -12,7 +12,7 @@ export function applySemanticMixins<TBase extends Constructor>(Base: TBase, ...m
 }
 
 export class BaseSemantic {
-    public modulePath = "";
+    public modulePath: any = {};
     public symbolId = 0;
     public nextScopeId = 1;
 
@@ -63,6 +63,14 @@ export class BaseSemantic {
 
     public resolveSymbol(name: string) {
         return this.currentScope.resolve(name);
+    }
+
+    public getLinkageName(modulePath: string, symbolName: string): string {
+        return `_yogi_${modulePath.replace(/[\\/]/g, "_").replace(/\./g, "_")}__${symbolName}`;
+    }
+
+    public getQualifiedName(modulePath: string, symbolName: string): string {
+        return `${modulePath.replace(/[\\/]/g, ":")}:${symbolName}`;
     }
 
     public visitNode(node: any): any {

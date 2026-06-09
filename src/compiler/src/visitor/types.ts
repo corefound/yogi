@@ -32,7 +32,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
             if (!node) {
                 return {
                     kind: Kinds.Types.UnTyped,
-                    raw: null
+                    raw: null,
                 };
             }
 
@@ -42,54 +42,63 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     return {
                         kind: Kinds.Types.AnyType,
                         raw: "any",
+                        position: this.getNodePosistion(node),
                     };
 
                 case ts.SyntaxKind.UnknownKeyword:
                     return {
                         kind: Kinds.Types.UnknownType,
                         raw: "unknown",
+                        position: this.getNodePosistion(node),
                     };
 
                 case ts.SyntaxKind.NeverKeyword:
                     return {
                         kind: Kinds.Types.NeverType,
                         raw: "never",
+                        position: this.getNodePosistion(node),
                     };
 
                 case ts.SyntaxKind.NumberKeyword:
                     return {
                         kind: Kinds.Types.NumberType,
                         raw: "number",
+                        position: this.getNodePosistion(node),
                     };
 
                 case ts.SyntaxKind.StringKeyword:
                     return {
                         kind: Kinds.Types.StringType,
                         raw: "string",
+                        position: this.getNodePosistion(node),
                     };
 
                 case ts.SyntaxKind.BooleanKeyword:
                     return {
                         kind: Kinds.Types.BooleanType,
                         raw: "boolean",
+                        position: this.getNodePosistion(node),
                     };
 
                 case ts.SyntaxKind.VoidKeyword:
                     return {
                         kind: Kinds.Types.VoidType,
                         raw: "void",
+                        position: this.getNodePosistion(node),
                     };
 
                 case ts.SyntaxKind.NullKeyword:
                     return {
                         kind: Kinds.Types.NullType,
                         raw: "null",
+                        position: this.getNodePosistion(node),
                     };
 
                 case ts.SyntaxKind.UndefinedKeyword:
                     return {
                         kind: Kinds.Types.UndefinedType,
                         raw: "undefined",
+                        position: this.getNodePosistion(node),
                     };
 
                 // literal types
@@ -100,6 +109,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.LiteralType,
                         literal: literal.literal.getText(),
                         raw: literal.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -115,6 +125,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         typeArguments:
                             ref.typeArguments?.map((arg: any) => this.visitType(arg)) ?? [],
                         raw: ref.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -126,6 +137,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.ArrayType,
                         elementType: this.visitType(arr.elementType),
                         raw: arr.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -137,6 +149,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.TupleType,
                         elements: tuple.elements.map((el: any) => this.visitType(el)),
                         raw: tuple.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -148,6 +161,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.UnionType,
                         types: union.types.map((t: any) => this.visitType(t)),
                         raw: union.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -159,6 +173,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.IntersectionType,
                         types: intersection.types.map((t: any) => this.visitType(t)),
                         raw: intersection.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -176,8 +191,8 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         })),
 
                         returnType: this.visitType(fn.type),
-
                         raw: fn.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -190,6 +205,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         operator: ts.tokenToString(op.operator),
                         target: this.visitType(op.type),
                         raw: op.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -201,6 +217,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.TypeQuery,
                         exprName: query.exprName.getText(),
                         raw: query.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -213,6 +230,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.OptionalType,
                         target: this.visitType(optional.type),
                         raw: optional.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -244,6 +262,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                             return {
                                 kind: Kinds.Types.UnknownMember,
                                 raw: member.getText(),
+                                position: this.getNodePosistion(node),
                             };
                         }),
 
@@ -260,6 +279,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         objectType: this.visitType(indexed.objectType),
                         indexType: this.visitType(indexed.indexType),
                         raw: indexed.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -274,6 +294,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         trueType: this.visitType(conditional.trueType),
                         falseType: this.visitType(conditional.falseType),
                         raw: conditional.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -285,6 +306,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.InferType,
                         name: infer.typeParameter.name.getText(),
                         raw: infer.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
@@ -300,6 +322,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.UnknownType,
                         syntaxKind: ts.SyntaxKind[node.kind],
                         raw: node.getText(),
+                        position: this.getNodePosistion(node),
                     };
             }
         }
