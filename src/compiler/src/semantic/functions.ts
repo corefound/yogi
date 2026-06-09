@@ -4,21 +4,6 @@ import { Helpers } from "../helpers";
 
 export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
-        public visitDeclarationStatement(node: any) {
-            if (node.kind !== Kinds.Statements.DeclarationStatement) {
-                return null;
-            }
-
-            return node.declarations.map((declaration: any) => this.visitFunctionLikeDeclarations(Object.assign(declaration, {
-                flag: {
-                    name: node.flag,
-                    position: node.position,
-                },
-                export: node.export,
-                fullSource: node.source,
-                source: declaration.source,
-            })));
-        }
 
         public visitFunctionLikeDeclarations(node: any): any {
             switch (node.kind) {
@@ -31,11 +16,11 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
         }
 
         public visitFunctionDeclarations(node: any) {
-            const value = node.value ? this.visitNode(node.value) : null;
-            const context = Object.assign(node, { value });
+            const context = node;
 
-            const { trusted } = this.declarationDiagnostics(context);
-            const linkageName = this.getLinkageName(this.modulePath.relativePath, node.name);
+            const { trusted } = this.declarationFunctionDiagnostics(context);
+
+            const linkageName = node.export ? this.getLinkageName(this.modulePath.relativePath, node.name) : null;
             const qualifiedName = this.getQualifiedName(this.modulePath.relativePath, node.name);
 
             const symbol = this.defineSymbol({
@@ -45,35 +30,34 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 qualifiedName,
                 type: node.type,
                 mutable: node.flag.name !== "const",
-                storage: Kinds.Storage.stack,
-                escapes: false,
                 trusted,
-                node
+                node,
             });
 
+            this.enterScope();
+
             const body = node.body ? this.visitNode(node.body) : null;
-            return Object.assign(node, {
-                kind: Kinds.Functions.FunctionDeclaration,
+
+            this.exitScope();
+
+            return Object.assign({}, node, {
                 linkageName,
                 qualifiedName,
+
                 symbolId: symbol.id,
                 scopeId: symbol.scopeId,
+                mutable: symbol.mutable,
 
                 flag: node.flag,
                 export: node.export,
-                mutable: symbol.mutable,
                 type: node.type,
-
-                storage: symbol.storage,
-                escapes: symbol.escapes,
                 trusted,
 
-                body
+                body,
             });
         }
 
-        public declarationDiagnostics(context: any): any {
-            console.log(this.modulePath.relativePath)
+        public declarationFunctionDiagnostics(context: any): any {
             let trusted = true;
 
             if (context.type.kind == Kinds.Types.UnTyped) {
@@ -110,26 +94,55 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
-            const scopeSymbol = this.resolveSymbol(context.name);
+            const scopeSymbol = this.resolveLocalSymbol(context.name);
             if (scopeSymbol) {
                 const message = `the name ${Helpers.RED}'${context.name}'${Helpers.RESET} is defined multiple times`;
                 context.arrowLength = context.name.length;
                 this.throwError(message, context.position, context.fullSource, context);
             }
 
-            // if (!this.checkDataType(context.type.kind, value)) {
-            //     const message = `name ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only initialize values of type ${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET}`;
-            //     context.arrowLength = context.name.length + 1;
-            //     this.throwError(message, context.position, context.fullSource, context);
-            // }
+            if (!this.checkFunctionDataType(context.type, context)) {
+                const message =
+                    `name ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only initialize values of type ` +
+                    `${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET}`;
+
+                context.arrowLength = context.name.length + 1;
+                this.throwError(message, context.position, context.fullSource, context);
+            }
 
             return { trusted };
         }
 
-        public checkDataType(expectedType: any, value: any): boolean {
-            if (!value?.type) return false;
+        public checkFunctionDataType(expectedType: any, value: any): boolean {
+            if (!expectedType || !value) return false;
 
-            return expectedType === value.type.kind;
+            const isExpectedFunction =
+                expectedType.kind === Kinds.Types.FunctionType ||
+                (
+                    expectedType.kind === Kinds.Types.TypeReference &&
+                    expectedType.name === "Function"
+                );
+
+            const isValueFunction =
+                value.kind === Kinds.Functions.FunctionDeclaration ||
+                value.type?.kind === Kinds.Types.FunctionType ||
+                (
+                    value.type?.kind === Kinds.Types.TypeReference &&
+                    value.type?.name === "Function"
+                );
+
+            if (!isExpectedFunction || !isValueFunction) {
+                return false;
+            }
+
+            const expectedReturnType = expectedType.returnType;
+            const actualReturnType = value.returnType;
+
+            if (!expectedReturnType || !actualReturnType) {
+                return true;
+            }
+
+            return expectedReturnType.kind === actualReturnType.kind;
         }
     };
 }

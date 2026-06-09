@@ -4,26 +4,6 @@ import { Helpers } from "../helpers";
 
 export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
-        public visitDeclarationStatement(node: any) {
-            if (node.kind !== Kinds.Statements.DeclarationStatement) {
-                return null;
-            }
-
-            return node.declarations.map((declaration: any) =>
-                this.visitVariableLikeDeclarations(
-                    Object.assign(declaration, {
-                        flag: {
-                            name: node.flag,
-                            position: node.position,
-                        },
-                        export: node.export,
-                        fullSource: node.source,
-                        source: declaration.source,
-                    }),
-                ),
-            );
-        }
-
         public visitVariableLikeDeclarations(node: any): any {
             switch (node.kind) {
                 case Kinds.Statements.VariableDeclaration:
@@ -33,16 +13,17 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     return this.visitNode(node);
             }
         }
+
         public visitVariableDeclarations(node: any) {
             const value = node.value ? this.visitNode(node.value) : null;
             const context = Object.assign(node, { value });
 
-            const { trusted } = this.declarationDiagnostics(context);
-            const linkageName = this.getLinkageName(this.modulePath.relativePath, node.name);
+            const { trusted } = this.declarationVariableDiagnostics(context);
+            const linkageName = node.export ? this.getLinkageName(this.modulePath.relativePath, node.name) : null;
             const qualifiedName = this.getQualifiedName(this.modulePath.relativePath, node.name);
 
             const symbol = this.defineSymbol({
-                kind: Kinds.ScopeSymbols.Function,
+                kind: Kinds.ScopeSymbols.Variable,
                 name: node.name,
                 linkageName,
                 qualifiedName,
@@ -58,22 +39,24 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 kind: Kinds.Statements.VariableDeclaration,
                 symbolId: symbol.id,
                 scopeId: symbol.scopeId,
+                mutable: symbol.mutable,
+                storage: symbol.storage,
+                escapes: symbol.escapes,
+
+                linkageName,
+                qualifiedName,
 
                 flag: node.flag,
                 export: node.export,
-                mutable: symbol.mutable,
                 type: node.type,
 
-                storage: symbol.storage,
-                escapes: symbol.escapes,
                 trusted,
-
                 value,
             });
         }
 
 
-        public declarationDiagnostics(context: any): any {
+        public declarationVariableDiagnostics(context: any): any {
             let trusted = true;
             let value = context.value;
             if (context.value.kind == Kinds.Expressions.BinaryExpression) {
@@ -101,7 +84,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
-            const scopeSymbol = this.resolveSymbol(context.name);
+            const scopeSymbol = this.resolveLocalSymbol(context.name);
             if (scopeSymbol) {
                 const message = `the name ${Helpers.RED}'${context.name}'${Helpers.RESET} is defined multiple times`;
                 context.arrowLength = context.name.length;

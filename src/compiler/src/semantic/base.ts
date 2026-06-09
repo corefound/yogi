@@ -65,6 +65,10 @@ export class BaseSemantic {
         return this.currentScope.resolve(name);
     }
 
+    public resolveLocalSymbol(name: string) {
+        return this.currentScope.resolveLocal(name);
+    }
+
     public getLinkageName(modulePath: string, symbolName: string): string {
         return `_yogi_${modulePath.replace(/[\\/]/g, "_").replace(/\./g, "_")}__${symbolName}`;
     }
@@ -83,21 +87,59 @@ export class BaseSemantic {
             });
         }
 
+
         const constants = this.visitConstants(node);
         if (constants) return constants;
 
-        const declarations = this.visitDeclarationStatement(node);
-        if (declarations) return declarations;
+        const declaration = this.visitDeclarationStatement(node);
+        if (declaration) return declaration;
 
         return this.visitChildren(node);
     }
 
+
+    public visitDeclarationStatement(node: any) {
+        if (node.kind !== Kinds.Statements.DeclarationStatement) {
+            return null;
+        }
+
+        return node.declarations.map((declaration: any) => {
+            if (declaration.kind === Kinds.Functions.FunctionDeclaration) {
+                return this.visitFunctionLikeDeclarations(Object.assign(declaration, {
+                    flag: {
+                        name: node.flag,
+                        position: node.position,
+                    },
+                    export: node.export,
+                    fullSource: node.source,
+                    source: declaration.source,
+                }))
+            }
+
+            if (declaration.kind === Kinds.Statements.VariableDeclaration) {
+                return this.visitVariableLikeDeclarations(
+                    Object.assign(declaration, {
+                        flag: {
+                            name: node.flag,
+                            position: node.position,
+                        },
+                        export: node.export,
+                        fullSource: node.source,
+                        source: declaration.source,
+                    })
+                )
+            }
+
+            return this.visitNode(declaration);
+        });
+    }
+
+
     visitConstants(_: any): any { }
     visitChildren(_: any): any { }
 
-    visitDeclarationStatement(_: any): any { }
-    visitVariableLikeDeclarations(_: any, __: Types.DeclarationContext): any { }
-    visitVariableDeclarations(_: any, __: Types.DeclarationContext): any { }
+    visitFunctionLikeDeclarations(_: any): any { }
+    visitVariableLikeDeclarations(_: any): any { }
 
     // Logger
     throwError(kind: string, position: any, sourceText: string, context?: any, endMessage?: string): any { }

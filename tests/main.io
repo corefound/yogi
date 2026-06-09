@@ -1,5 +1,1 @@
-
-
-const _myFunction: Function = (): void => {
-    const a: number = 1;
-}
+const fn: Function = (): void => {};

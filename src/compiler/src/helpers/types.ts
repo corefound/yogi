@@ -45,14 +45,14 @@ export namespace Types {
     export type SymbolInfo = {
         id: number;
         name: string;
-        linkageName: string;
+        linkageName?: string;
         qualifiedName: string;
         kind: Kinds.ScopeSymbols;
         type: any;
         mutable: boolean;
         scopeId: number;
-        escapes: boolean;
-        storage: Kinds.Storage;
+        escapes?: boolean;
+        storage?: Kinds.Storage;
         trusted: boolean;
         node: any;
     };
@@ -246,6 +246,8 @@ export namespace Kinds {
     export enum Storage {
         stack = "stack",
         heap = "heap",
+        global = "global",
+        local = "local",
     }
 
     export enum Miscellaneous {

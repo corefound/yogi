@@ -3,9 +3,7 @@ import { Types } from "../helpers/types";
 export class Scope {
     symbols = new Map<string, Types.SymbolInfo>();
 
-    constructor(public id: number, public parent: Scope | null) {
-
-    }
+    constructor(public id: number, public parent: Scope | null) { }
 
     define(symbol: Types.SymbolInfo) {
         if (this.symbols.has(symbol.name)) {
@@ -17,5 +15,13 @@ export class Scope {
 
     resolve(name: string): Types.SymbolInfo | null {
         return this.symbols.get(name) ?? this.parent?.resolve(name) ?? null;
+    }
+
+    resolveLocal(name: string): Types.SymbolInfo | null {
+        return this.symbols.get(name) ?? null;
+    }
+
+    hasLocal(name: string): boolean {
+        return this.symbols.has(name);
     }
 }
