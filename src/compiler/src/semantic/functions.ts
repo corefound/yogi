@@ -110,6 +110,15 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 this.throwError(message, context.position, context.fullSource, context);
             }
 
+            if (!this.checkFunctionReturnType(context)) {
+                const message =
+                    `function ${Helpers.BLUE}'${context.name}'${Helpers.RESET} must return a value of type ` +
+                    `${Helpers.BLUE}'${context.returnType.raw}'${Helpers.RESET}`;
+
+                context.arrowLength = context.name.length;
+                this.throwError(message, context.position, context.fullSource, context);
+            }
+
             return { trusted };
         }
 
@@ -143,6 +152,52 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             }
 
             return expectedReturnType.kind === actualReturnType.kind;
+        }
+
+        public checkFunctionReturnType(functionNode: any): boolean {
+            const expectedReturnType = functionNode.returnType;
+
+            if (!expectedReturnType || expectedReturnType.kind === Kinds.Types.UnTyped) {
+                return false;
+            }
+
+            const returnStatements = this.findFunctionReturnStatements(functionNode.body);
+
+            if (expectedReturnType.kind === Kinds.Types.VoidType) {
+                return returnStatements.length === 0;
+            }
+
+            if (returnStatements.length === 0) {
+                return false;
+            }
+
+            return returnStatements.every((returnStatement: any) => {
+                const value = returnStatement.value ? this.visitNode(returnStatement.value) : null;
+
+                if (!value?.type) {
+                    return false;
+                }
+
+                return value.type.kind === expectedReturnType.kind;
+            });
+        }
+
+        public findFunctionReturnStatements(node: any): any[] {
+            if (!node) return [];
+
+            if (Array.isArray(node)) {
+                return node.flatMap(child => this.findFunctionReturnStatements(child));
+            }
+
+            if (node.kind === Kinds.Statements.ReturnStatement) {
+                return [node];
+            }
+
+            if (node.kind === Kinds.Statements.BlockStatement) {
+                return this.findFunctionReturnStatements(node.statements);
+            }
+
+            return [];
         }
     };
 }

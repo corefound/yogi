@@ -1,1 +1,1 @@
-const fn: Function = (): void => {};
+const fn: Function = (): string =>  "hello world";
