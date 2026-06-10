@@ -82,6 +82,9 @@ export class BaseVisitor {
             };
         }
 
+        const types = this.visitTypes(node);
+        if (types) return types;
+
         // loops
         const loops = this.visitLoops(node);
         if (loops) return loops;
@@ -119,6 +122,8 @@ export class BaseVisitor {
     visitTypeAliasDeclaration(_: ts.Node): any { }
     visitArrayDeclaration(_: ts.Node): any { }
     visitArrayLiteral(_: ts.Node): any { }
+
+    visitTypes(_?: ts.Node): any { }
     visitType(_?: ts.Node): any { }
 
     // Type Elements

@@ -53,7 +53,7 @@ export namespace Types {
         scopeId: number;
         escapes?: boolean;
         storage?: Kinds.Storage;
-        trusted: boolean;
+        trusted?: boolean;
         node: any;
     };
 }
@@ -104,6 +104,7 @@ export namespace Kinds {
         DeclarationStatement = "DeclarationStatement",
         ReturnStatement = "ReturnStatement",
         ExportVariableStatement = "ExportVariableStatement",
+        ArrayDeclaration = "ArrayDeclaration",
 
         IfStatement = "IfStatement",
         SwitchStatement = "SwitchStatement",
@@ -196,6 +197,12 @@ export namespace Kinds {
     export enum Types {
         UnTyped = "UnTyped",
 
+        TypeDeclaration = "TypeDeclaration",
+        InterfaceDeclaration = "InterfaceDeclaration",
+        TypeMember = "TypeMember",
+
+        MethodSignature = "MethodSignature",
+
         RegExpType = "RegExpType",
         BigIntType = "BigIntType",
 
@@ -243,6 +250,8 @@ export namespace Kinds {
         Variable = "variable",
         Parameter = "parameter",
         Extern = "extern",
+        Type = "type",
+        Interface = "interface",
 
     }
 

@@ -4,28 +4,16 @@ import { Kinds } from "../helpers/types";
 
 export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
-        visitMethodSignature(node: ts.MethodSignature) {
-            return {
-                kind: Kinds.Externs.ExternMethod,
-                name: node.name.getText(),
-                returnType: this.visitType(node.type),
-                parameters: node.parameters.map((param: any) => ({
-                    name: param.name.getText(),
-                    type: this.visitType(param.type),
-                    optional: !!param.questionToken,
-                    defaultValue: this.visitNode(param.initializer),
-                    position: this.getNodePosistion(param.initializer)
-                })),
-                position: this.getNodePosistion(node),
-            };
-        }
+        visitTypes(node: ts.Node) {
+            if (ts.isTypeAliasDeclaration(node)) {
+                return this.visitTypeAliasDeclaration(node);
+            }
 
-        visitPropertySignature(node: ts.PropertySignature) {
-            return {
-                kind: Kinds.Externs.ExternProperty,
-                name: node.name.getText(),
-                type: this.visitType(node.type)
-            };
+            if (ts.isInterfaceDeclaration(node)) {
+                return this.visitInterfaceDeclaration(node);
+            }
+            return null;
+
         }
 
         visitType(node?: ts.TypeNode): any {
@@ -37,7 +25,6 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
             }
 
             switch (node.kind) {
-                // primitives
                 case ts.SyntaxKind.AnyKeyword:
                     return {
                         kind: Kinds.Types.AnyType,
@@ -101,7 +88,6 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         position: this.getNodePosistion(node),
                     };
 
-                // literal types
                 case ts.SyntaxKind.LiteralType: {
                     const literal = node as ts.LiteralTypeNode;
 
@@ -113,9 +99,6 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
-                // T
-                // Promise<T>
-                // User<string>
                 case ts.SyntaxKind.TypeReference: {
                     const ref = node as ts.TypeReferenceNode;
 
@@ -123,13 +106,14 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         kind: Kinds.Types.TypeReference,
                         name: ref.typeName.getText(),
                         typeArguments:
-                            ref.typeArguments?.map((arg: any) => this.visitType(arg)) ?? [],
+                            ref.typeArguments?.map((arg: ts.TypeNode) =>
+                                this.visitType(arg)
+                            ) ?? [],
                         raw: ref.getText(),
                         position: this.getNodePosistion(node),
                     };
                 }
 
-                // T[]
                 case ts.SyntaxKind.ArrayType: {
                     const arr = node as ts.ArrayTypeNode;
 
@@ -141,62 +125,65 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
-                // [string, number]
                 case ts.SyntaxKind.TupleType: {
                     const tuple = node as ts.TupleTypeNode;
 
                     return {
                         kind: Kinds.Types.TupleType,
-                        elements: tuple.elements.map((el: any) => this.visitType(el)),
+                        elements: tuple.elements.map((el: ts.TypeNode) =>
+                            this.visitType(el)
+                        ),
                         raw: tuple.getText(),
                         position: this.getNodePosistion(node),
                     };
                 }
 
-                // A | B
                 case ts.SyntaxKind.UnionType: {
                     const union = node as ts.UnionTypeNode;
 
                     return {
                         kind: Kinds.Types.UnionType,
-                        types: union.types.map((t: any) => this.visitType(t)),
+                        types: union.types.map((t: ts.TypeNode) =>
+                            this.visitType(t)
+                        ),
                         raw: union.getText(),
                         position: this.getNodePosistion(node),
                     };
                 }
 
-                // A & B
                 case ts.SyntaxKind.IntersectionType: {
                     const intersection = node as ts.IntersectionTypeNode;
 
                     return {
                         kind: Kinds.Types.IntersectionType,
-                        types: intersection.types.map((t: any) => this.visitType(t)),
+                        types: intersection.types.map((t: ts.TypeNode) =>
+                            this.visitType(t)
+                        ),
                         raw: intersection.getText(),
                         position: this.getNodePosistion(node),
                     };
                 }
 
-                // (a: string) => number
                 case ts.SyntaxKind.FunctionType: {
                     const fn = node as ts.FunctionTypeNode;
 
                     return {
                         kind: Kinds.Types.FunctionType,
-
-                        parameters: fn.parameters.map((param: any) => ({
+                        parameters: fn.parameters.map((param: ts.ParameterDeclaration) => ({
                             name: param.name.getText(),
                             type: this.visitType(param.type),
                             optional: !!param.questionToken,
+                            defaultValue: param.initializer
+                                ? this.visitNode(param.initializer)
+                                : null,
+                            position: this.getNodePosistion(param),
                         })),
-
                         returnType: this.visitType(fn.type),
                         raw: fn.getText(),
                         position: this.getNodePosistion(node),
                     };
                 }
 
-                // keyof T
                 case ts.SyntaxKind.TypeOperator: {
                     const op = node as ts.TypeOperatorNode;
 
@@ -209,7 +196,6 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
-                // typeof X
                 case ts.SyntaxKind.TypeQuery: {
                     const query = node as ts.TypeQueryNode;
 
@@ -221,8 +207,6 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
-                // string?
-                // only appears internally in some transforms
                 case ts.SyntaxKind.OptionalType: {
                     const optional = node as ts.OptionalTypeNode;
 
@@ -234,17 +218,11 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
-                // readonly T[]
-                case ts.SyntaxKind.TypeOperator:
-                    break;
-
-                // { a: string }
                 case ts.SyntaxKind.TypeLiteral: {
                     const literal = node as ts.TypeLiteralNode;
 
                     return {
                         kind: Kinds.Types.TypeLiteral,
-
                         members: literal.members.map((member: ts.TypeElement) => {
                             if (ts.isPropertySignature(member)) {
                                 return {
@@ -252,6 +230,8 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                                     name: member.name.getText(),
                                     optional: !!member.questionToken,
                                     type: this.visitType(member.type),
+                                    raw: member.getText(),
+                                    position: this.getNodePosistion(member),
                                 };
                             }
 
@@ -262,15 +242,14 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                             return {
                                 kind: Kinds.Types.UnknownMember,
                                 raw: member.getText(),
-                                position: this.getNodePosistion(node),
+                                position: this.getNodePosistion(member),
                             };
                         }),
-
                         raw: literal.getText(),
+                        position: this.getNodePosistion(node),
                     };
                 }
 
-                // string[number]
                 case ts.SyntaxKind.IndexedAccessType: {
                     const indexed = node as ts.IndexedAccessTypeNode;
 
@@ -283,7 +262,6 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
-                // T extends U ? X : Y
                 case ts.SyntaxKind.ConditionalType: {
                     const conditional = node as ts.ConditionalTypeNode;
 
@@ -298,7 +276,6 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
-                // infer T
                 case ts.SyntaxKind.InferType: {
                     const infer = node as ts.InferTypeNode;
 
@@ -310,7 +287,6 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
-                // parenthesized type
                 case ts.SyntaxKind.ParenthesizedType: {
                     const paren = node as ts.ParenthesizedTypeNode;
 
@@ -325,6 +301,103 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         position: this.getNodePosistion(node),
                     };
             }
+        }
+
+        visitTypeAliasDeclaration(node: ts.TypeAliasDeclaration) {
+            return {
+                kind: Kinds.Types.TypeDeclaration,
+                name: node.name.getText(),
+                typeParameters: node.typeParameters?.map((param: ts.TypeParameterDeclaration) => ({
+                    kind: Kinds.Types.TypeMember,
+                    name: param.name.getText(),
+                    constraint: param.constraint ? this.visitType(param.constraint) : null,
+                    defaultType: param.default ? this.visitType(param.default) : null,
+                    raw: param.getText(),
+                    position: this.getNodePosistion(param),
+                })) ?? [],
+
+                type: this.visitType(node.type),
+                raw: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        visitInterfaceDeclaration(node: ts.InterfaceDeclaration) {
+            return {
+                kind: Kinds.Types.InterfaceDeclaration,
+                name: node.name.getText(),
+
+                typeParameters: node.typeParameters?.map((param: ts.TypeParameterDeclaration) => ({
+                    kind: Kinds.Types.TypeMember,
+                    name: param.name.getText(),
+                    constraint: param.constraint ? this.visitType(param.constraint) : null,
+                    defaultType: param.default ? this.visitType(param.default) : null,
+                    raw: param.getText(),
+                    position: this.getNodePosistion(param),
+                })) ?? [],
+
+                extends: node.heritageClauses?.flatMap((clause) =>
+                    clause.types.map((type) => ({
+                        kind: Kinds.Types.TypeReference,
+                        name: type.expression.getText(),
+                        typeArguments: type.typeArguments?.map((arg) => this.visitType(arg)) ?? [],
+                        raw: type.getText(),
+                        position: this.getNodePosistion(type),
+                    }))
+                ) ?? [],
+
+                type: {
+                    kind: Kinds.Types.TypeLiteral,
+                    members: node.members.map((member: ts.TypeElement) => {
+                        if (ts.isPropertySignature(member)) {
+                            return this.visitPropertySignature(member);
+                        }
+
+                        if (ts.isMethodSignature(member)) {
+                            return this.visitMethodSignature(member);
+                        }
+
+                        return {
+                            kind: Kinds.Types.UnknownMember,
+                            raw: member.getText(),
+                            position: this.getNodePosistion(member),
+                        };
+                    }),
+                    raw: node.members.map((member) => member.getText()).join("\n"),
+                    position: this.getNodePosistion(node),
+                },
+
+                raw: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        visitMethodSignature(node: ts.MethodSignature) {
+            return {
+                kind: Kinds.Types.MethodSignature,
+                name: node.name.getText(),
+                returnType: this.visitType(node.type),
+                parameters: node.parameters.map((param: ts.ParameterDeclaration) => ({
+                    name: param.name.getText(),
+                    type: this.visitType(param.type),
+                    optional: !!param.questionToken,
+                    defaultValue: param.initializer ? this.visitNode(param.initializer) : null,
+                    position: this.getNodePosistion(param),
+                })),
+                raw: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        visitPropertySignature(node: ts.PropertySignature) {
+            return {
+                kind: Kinds.Types.PropertySignature,
+                name: node.name.getText(),
+                type: this.visitType(node.type),
+                optional: !!node.questionToken,
+                raw: node.getText(),
+                position: this.getNodePosistion(node),
+            };
         }
     };
 }

@@ -81,7 +81,7 @@ export class BaseSemantic {
         if (!node) return node;
 
         if (Array.isArray(node)) {
-            return node.flatMap(child => {
+            return node.flatMap((child) => {
                 const result = this.visitNode(child);
                 return Array.isArray(result) ? result : [result];
             });
@@ -94,19 +94,22 @@ export class BaseSemantic {
                     fullSource: node.fullSource ?? node.source,
                     value: node,
                 });
-
-            default:
-                break;
         }
 
-        if (node.kind == Kinds.Expressions.IdentifierExpression) return this.visitIdentifierExpression(node)
-
+        
+        if (node.kind === Kinds.Expressions.IdentifierExpression) {
+            return this.visitIdentifierExpression(node);
+        }
+        
+        
+        const types = this.visitAliasTypes(node);
+        if (types !== null) return types;
 
         const constants = this.visitConstants(node);
-        if (constants) return constants;
+        if (constants !== null && constants !== undefined) return constants;
 
         const declaration = this.visitDeclarationStatement(node);
-        if (declaration) return declaration;
+        if (declaration !== null && declaration !== undefined) return declaration;
 
         return this.visitChildren(node);
     }
@@ -158,6 +161,19 @@ export class BaseSemantic {
                     })
                 }
 
+                if (declaration.kind === Kinds.Statements.ArrayDeclaration) {
+                    return this.visitArrayLikeDeclarations({
+                        ...declaration,
+                        flag: {
+                            name: node.flag,
+                            position: node.position,
+                        },
+                        export: node.export,
+                        fullSource: node.source,
+                        source: declaration.source,
+                    });
+                }
+
                 return this.visitNode(declaration);
             });
         }
@@ -175,15 +191,20 @@ export class BaseSemantic {
             })
         }
 
+
+
         return null;
     }
 
+    visitAliasTypes(_: any): any { }
 
     visitConstants(_: any): any { }
     visitChildren(_: any): any { }
 
     visitFunctionLikeDeclarations(_: any): any { }
     visitVariableLikeDeclarations(_: any): any { }
+    visitArrayLikeDeclarations(_: any): any { }
+
     visitBinaryExpression(_: any): any { }
 
     // Logger
