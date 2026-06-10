@@ -5,3 +5,7 @@ interface User {
 interface User {
     age: number;
 }
+
+interface User {
+    age: string;
+}
