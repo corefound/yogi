@@ -1,4 +1,2 @@
-function test(): number {
-    const a: number = 1;
-    return a + 1 + "2";
-}
+const a: number = 10;
+a = 10 + 10

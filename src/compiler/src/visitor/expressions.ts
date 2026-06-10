@@ -30,6 +30,7 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
         operator: node.operatorToken.getText(),
         right: this.visitNode(node.right),
         source: node.getText(),
+        fullSource: node.getFullText(),
         position: this.getNodePosistion(node),
       };
     }

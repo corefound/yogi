@@ -4,6 +4,7 @@ import { ConstantsSemantic } from "./constants";
 import { VariablesSemantic } from "./variables";
 import { LoggerSemantic } from "./loggers";
 import { FunctionsSemantic } from "./functions";
+import { ExpressionsSemantic } from "./expressions";
 
 
 export class Semantic extends applySemanticMixins(
@@ -11,7 +12,8 @@ export class Semantic extends applySemanticMixins(
     LoggerSemantic,
     ConstantsSemantic,
     VariablesSemantic,
-    FunctionsSemantic
+    FunctionsSemantic,
+    ExpressionsSemantic
 ) {
     public sir: Types.Sir[] = [];
 

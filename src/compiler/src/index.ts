@@ -24,12 +24,14 @@ const tsConfig = {
 // Visitor
 const visitor = new Visitor(rootPath, graph, tsConfig);
 const ast = visitor.visit();
+// console.log(util.inspect({ ast }, false, null, true));
+
 
 // Semantic Analysis
 const semantic = new Semantic(ast);
 const sir = semantic.analyze();
 
-console.log(util.inspect({ sir, ast }, false, null, true));
+console.log(util.inspect({ sir }, false, null, true));
 
 // Program
 // const program: Types.Program = {

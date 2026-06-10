@@ -89,7 +89,7 @@ export class BaseSemantic {
 
         switch (node.kind) {
             case Kinds.Expressions.BinaryExpression:
-                return this.checkBinaryExpression({
+                return this.visitBinaryExpression({
                     ...node,
                     fullSource: node.fullSource ?? node.source,
                     value: node,
@@ -133,7 +133,8 @@ export class BaseSemantic {
         if (node.kind === Kinds.Statements.DeclarationStatement) {
             return node.declarations.map((declaration: any) => {
                 if (declaration.kind === Kinds.Functions.FunctionDeclaration) {
-                    return this.visitFunctionLikeDeclarations(Object.assign(declaration, {
+                    return this.visitFunctionLikeDeclarations({
+                        ...declaration,
                         flag: {
                             name: node.flag,
                             position: node.position,
@@ -141,21 +142,20 @@ export class BaseSemantic {
                         export: node.export,
                         fullSource: node.source,
                         source: declaration.source,
-                    }))
+                    })
                 }
 
                 if (declaration.kind === Kinds.Statements.VariableDeclaration) {
-                    return this.visitVariableLikeDeclarations(
-                        Object.assign(declaration, {
-                            flag: {
-                                name: node.flag,
-                                position: node.position,
-                            },
-                            export: node.export,
-                            fullSource: node.source,
-                            source: declaration.source,
-                        })
-                    )
+                    return this.visitVariableLikeDeclarations({
+                        ...declaration,
+                        flag: {
+                            name: node.flag,
+                            position: node.position,
+                        },
+                        export: node.export,
+                        fullSource: node.source,
+                        source: declaration.source,
+                    })
                 }
 
                 return this.visitNode(declaration);
@@ -163,7 +163,8 @@ export class BaseSemantic {
         }
 
         if (node.kind === Kinds.Functions.FunctionDeclaration) {
-            return this.visitFunctionLikeDeclarations(Object.assign(node, {
+            return this.visitFunctionLikeDeclarations({
+                ...node,
                 flag: {
                     name: node.flag,
                     position: node.position,
@@ -171,7 +172,7 @@ export class BaseSemantic {
                 export: node.export,
                 fullSource: node.source,
                 source: node.source,
-            }))
+            })
         }
 
         return null;
@@ -183,7 +184,7 @@ export class BaseSemantic {
 
     visitFunctionLikeDeclarations(_: any): any { }
     visitVariableLikeDeclarations(_: any): any { }
-    checkBinaryExpression(_: any): any { }
+    visitBinaryExpression(_: any): any { }
 
     // Logger
     throwError(kind: string, position: any, sourceText: string, context?: any, endMessage?: string): any { }

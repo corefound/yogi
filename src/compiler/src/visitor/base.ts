@@ -145,14 +145,10 @@ export class BaseVisitor {
     visitLoops(_: ts.Node): any { }
 
     getNodePosistion(node: ts.Node) {
-        const text = node.getFullText();
-        const match = text.match(/^\n+/);
-        const leadingLines = match ? match[0].length : 0;
-
         const position = node.getSourceFile().getLineAndCharacterOfPosition(node.pos);
 
         return {
-            line: position.line,
+            line: position.line + 1,
             character: position.character
         }
     }

@@ -27,58 +27,22 @@ export function LoggerSemantic<TBase extends Constructor<BaseSemantic>>(Base: TB
                 },
             };
 
-            this.printSpan(span, sourceText, String(kind), Object.assign(context, {
+            this.printSpan(span, sourceText, String(kind), {
+                ...context,
                 lineOffset: context.position.line
-            }));
+            });
             console.log(endMessage);
             process.exit(1);
         }
 
         public printSpan(span: Span, sourceText: string, message: string, options: any): void {
-            const lines = sourceText.split(/\r?\n/);
-
-            const lineOffset = options?.lineOffset ?? 0;
-
-            const localErrorLine = span.start.line - lineOffset;
             const errorColumn = span.start.character;
-
-            const before = options?.before ?? 10;
-            const after = options?.after ?? lines.length;
-
-            const startLine = Math.max(0, localErrorLine - before);
-            const endLine = Math.min(lines.length - 1, localErrorLine + after);
-
-            const lastDisplayLine = lineOffset + endLine + 1;
-            const gutterWidth = String(lastDisplayLine).length;
 
             process.stderr.write(
                 `${this.modulePath.absolutePath} at ${span.start.line + 1}:${errorColumn + 1} - Error: ${message}\n`
             );
 
-            process.stderr.write(`${" ".repeat(gutterWidth)} |\n`);
-
-            for (let lineIndex = startLine; lineIndex <= endLine; lineIndex++) {
-                const text = lines[lineIndex] ?? "";
-
-                const displayLine = lineOffset + lineIndex + 1;
-                const lineNumber = String(displayLine).padStart(gutterWidth);
-
-                process.stderr.write(`${lineNumber} | ${text}\n`);
-
-                if (lineIndex === localErrorLine) {
-                    const marker =
-                        " ".repeat(errorColumn + 1) +
-                        "^".repeat(
-                            Math.max(options.arrowLength || 1, span.end.character - span.start.character)
-                        );
-
-                    process.stderr.write(
-                        `${" ".repeat(gutterWidth)} | ${Helpers.RED}${options.arrowLength > 0 ? marker : ""}${Helpers.RESET}\n`
-                    );
-                }
-            }
-
-            process.stderr.write(`${" ".repeat(gutterWidth)} |\n`);
+            process.stderr.write(`${sourceText}\n`);
 
             if (options?.help) {
                 process.stderr.write(`  = ${options.help}\n`);
