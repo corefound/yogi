@@ -1,6 +1,6 @@
 
-import ts from "typescript";
 import { Kinds, Types } from "../helpers/types";
+import { Helpers } from "../helpers";
 
 import { Scope } from "./scope";
 export type Constructor<T = {}> = new (...args: any[]) => T;
@@ -87,6 +87,20 @@ export class BaseSemantic {
             });
         }
 
+        switch (node.kind) {
+            case Kinds.Expressions.BinaryExpression:
+                return this.checkBinaryExpression({
+                    ...node,
+                    fullSource: node.fullSource ?? node.source,
+                    value: node,
+                });
+
+            default:
+                break;
+        }
+
+        if (node.kind == Kinds.Expressions.IdentifierExpression) return this.visitIdentifierExpression(node)
+
 
         const constants = this.visitConstants(node);
         if (constants) return constants;
@@ -97,28 +111,29 @@ export class BaseSemantic {
         return this.visitChildren(node);
     }
 
+    public visitIdentifierExpression(node: any): any {
+        const symbol = this.resolveSymbol(node.value);
 
-    public visitDeclarationStatement(node: any) {
-        if (node.kind !== Kinds.Statements.DeclarationStatement) {
-            return null;
+        if (!symbol) {
+            const message = `cannot find name ${Helpers.RED}'${node.value}'${Helpers.RESET}`;
+            node.arrowLength = node.value.length;
+            this.throwError(message, node.position, node.fullSource, node);
         }
 
-        return node.declarations.map((declaration: any) => {
-            if (declaration.kind === Kinds.Functions.FunctionDeclaration) {
-                return this.visitFunctionLikeDeclarations(Object.assign(declaration, {
-                    flag: {
-                        name: node.flag,
-                        position: node.position,
-                    },
-                    export: node.export,
-                    fullSource: node.source,
-                    source: declaration.source,
-                }))
-            }
+        return {
+            ...node,
+            symbolId: symbol.id,
+            scopeId: symbol.scopeId,
+            type: symbol.type,
+        };
+    }
 
-            if (declaration.kind === Kinds.Statements.VariableDeclaration) {
-                return this.visitVariableLikeDeclarations(
-                    Object.assign(declaration, {
+
+    public visitDeclarationStatement(node: any) {
+        if (node.kind === Kinds.Statements.DeclarationStatement) {
+            return node.declarations.map((declaration: any) => {
+                if (declaration.kind === Kinds.Functions.FunctionDeclaration) {
+                    return this.visitFunctionLikeDeclarations(Object.assign(declaration, {
                         flag: {
                             name: node.flag,
                             position: node.position,
@@ -126,12 +141,40 @@ export class BaseSemantic {
                         export: node.export,
                         fullSource: node.source,
                         source: declaration.source,
-                    })
-                )
-            }
+                    }))
+                }
 
-            return this.visitNode(declaration);
-        });
+                if (declaration.kind === Kinds.Statements.VariableDeclaration) {
+                    return this.visitVariableLikeDeclarations(
+                        Object.assign(declaration, {
+                            flag: {
+                                name: node.flag,
+                                position: node.position,
+                            },
+                            export: node.export,
+                            fullSource: node.source,
+                            source: declaration.source,
+                        })
+                    )
+                }
+
+                return this.visitNode(declaration);
+            });
+        }
+
+        if (node.kind === Kinds.Functions.FunctionDeclaration) {
+            return this.visitFunctionLikeDeclarations(Object.assign(node, {
+                flag: {
+                    name: node.flag,
+                    position: node.position,
+                },
+                export: node.export,
+                fullSource: node.source,
+                source: node.source,
+            }))
+        }
+
+        return null;
     }
 
 
@@ -140,6 +183,7 @@ export class BaseSemantic {
 
     visitFunctionLikeDeclarations(_: any): any { }
     visitVariableLikeDeclarations(_: any): any { }
+    checkBinaryExpression(_: any): any { }
 
     // Logger
     throwError(kind: string, position: any, sourceText: string, context?: any, endMessage?: string): any { }

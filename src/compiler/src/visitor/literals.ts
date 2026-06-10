@@ -14,6 +14,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
                     type: "identifier",
                     value: node.text,
                     source: node.getText(),
+                    fullSource: node.parent.getFullText(),
                     position: this.getNodePosistion(node)
                 };
             }

@@ -18,9 +18,9 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
         visitFunctionDeclaration(node: ts.FunctionDeclaration) {
             return {
                 kind: Kinds.Functions.FunctionDeclaration,
+                regular: true,
                 name: node.name?.getText() ?? "anonymous",
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),
-                type: this.visitType(node),
                 returnType: this.visitType(node.type),
                 body: node.body
                     ? this.visitFunctionBlock(node.body)

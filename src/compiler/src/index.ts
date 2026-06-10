@@ -29,7 +29,7 @@ const ast = visitor.visit();
 const semantic = new Semantic(ast);
 const sir = semantic.analyze();
 
-console.log(util.inspect({ sir }, false, null, true));
+console.log(util.inspect({ sir, ast }, false, null, true));
 
 // Program
 // const program: Types.Program = {

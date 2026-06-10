@@ -16,7 +16,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
         public visitVariableDeclarations(node: any) {
             const value = node.value ? this.visitNode(node.value) : null;
-            const context = Object.assign(node, { value });
+            const context = { ...node, value };
 
             const { trusted } = this.declarationVariableDiagnostics(context);
             const linkageName = node.export ? this.getLinkageName(this.modulePath.relativePath, node.name) : null;
@@ -35,7 +35,8 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node: value
             });
 
-            return Object.assign(node, {
+            return {
+                ...node,
                 kind: Kinds.Statements.VariableDeclaration,
                 symbolId: symbol.id,
                 scopeId: symbol.scopeId,
@@ -52,7 +53,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
                 trusted,
                 value,
-            });
+            };
         }
 
 
@@ -116,7 +117,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         return checkBinary(node);
 
                     default:
-                        return node;
+                        return this.visitNode(node);
                 }
             };
 
@@ -127,16 +128,25 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 const leftType = left?.type;
                 const rightType = right?.type;
 
-                const isNumber = (type: any) => type?.kind === Kinds.Types.NumberType;
-                const isString = (type: any) => type?.kind === Kinds.Types.StringType;
-                const isBoolean = (type: any) => type?.kind === Kinds.Types.BooleanType;
+                const isNumber = (type: any) => {
+                    return type?.kind === Kinds.Types.NumberType;
+                };
+
+                const isString = (type: any) => {
+                    return type?.kind === Kinds.Types.StringType;
+                };
+
+                const isBoolean = (type: any) => {
+                    return type?.kind === Kinds.Types.BooleanType;
+                };
 
                 const done = (type: any) => {
-                    return Object.assign(node, {
+                    return {
+                        ...node,
                         left,
                         right,
                         type,
-                    });
+                    };
                 };
 
                 const fail = () => {
@@ -146,20 +156,33 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         `${Helpers.RED}'${rightType?.raw}'${Helpers.RESET}`;
 
                     node.arrowLength = node.source?.length ?? 1;
-                    this.throwError(message, node.position, context.fullSource, node);
+
+                    this.throwError(
+                        message,
+                        node.position,
+                        context.fullSource ?? node.fullSource ?? node.source,
+                        node,
+                    );
                 };
 
                 switch (node.operator) {
                     case "+": {
                         if (isNumber(leftType) && isNumber(rightType)) {
-                            return done({ kind: Kinds.Types.NumberType, raw: "number" });
+                            return done({
+                                kind: Kinds.Types.NumberType,
+                                raw: "number",
+                            });
                         }
 
                         if (isString(leftType) && isString(rightType)) {
-                            return done({ kind: Kinds.Types.StringType, raw: "string" });
+                            return done({
+                                kind: Kinds.Types.StringType,
+                                raw: "string",
+                            });
                         }
 
                         fail();
+                        return null;
                     }
 
                     case "-":
@@ -167,10 +190,14 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     case "/":
                     case "%": {
                         if (isNumber(leftType) && isNumber(rightType)) {
-                            return done({ kind: Kinds.Types.NumberType, raw: "number" });
+                            return done({
+                                kind: Kinds.Types.NumberType,
+                                raw: "number",
+                            });
                         }
 
                         fail();
+                        return null;
                     }
 
                     case "<":
@@ -178,10 +205,14 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     case ">":
                     case ">=": {
                         if (isNumber(leftType) && isNumber(rightType)) {
-                            return done({ kind: Kinds.Types.BooleanType, raw: "boolean" });
+                            return done({
+                                kind: Kinds.Types.BooleanType,
+                                raw: "boolean",
+                            });
                         }
 
                         fail();
+                        return null;
                     }
 
                     case "==":
@@ -189,25 +220,43 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     case "===":
                     case "!==": {
                         if (leftType?.kind === rightType?.kind) {
-                            return done({ kind: Kinds.Types.BooleanType, raw: "boolean" });
+                            return done({
+                                kind: Kinds.Types.BooleanType,
+                                raw: "boolean",
+                            });
                         }
 
                         fail();
+                        return null;
                     }
 
                     case "&&":
                     case "||": {
                         if (isBoolean(leftType) && isBoolean(rightType)) {
-                            return done({ kind: Kinds.Types.BooleanType, raw: "boolean" });
+                            return done({
+                                kind: Kinds.Types.BooleanType,
+                                raw: "boolean",
+                            });
                         }
 
                         fail();
+                        return null;
                     }
 
                     default: {
-                        const message = `unknown binary operator ${Helpers.RED}'${node.operator}'${Helpers.RESET}`;
+                        const message =
+                            `unknown binary operator ${Helpers.RED}'${node.operator}'${Helpers.RESET}`;
+
                         node.arrowLength = node.operator?.length ?? 1;
-                        this.throwError(message, node.position, context.fullSource, node);
+
+                        this.throwError(
+                            message,
+                            node.position,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            node,
+                        );
+
+                        return null;
                     }
                 }
             };
