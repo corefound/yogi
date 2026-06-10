@@ -124,6 +124,7 @@ export namespace Kinds {
         AssignmentExpression = "AssignmentExpression",
         PropertyAccessExpression = "PropertyAccessExpression",
         CallExpression = "CallExpression",
+        ParenthesizedExpression = "ParenthesizedExpression",
 
         IdentifierExpression = "IdentifierExpression",
         BodyExpression = "BodyExpression",

@@ -30,9 +30,44 @@ export function ConstantsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 case Kinds.Expressions.IdentifierExpression:
                     return this.visitBuiltinConstant(node);
 
+                case Kinds.Expressions.IdentifierExpression: {
+                    const constant = this.visitBuiltinConstant(node);
+                    if (constant) {
+                        return constant;
+                    }
+
+                    return this.visitIdentifier(node);
+                }
+
                 default:
                     return null;
             }
+        }
+
+        public visitIdentifier(node: any): any {
+            const symbol = this.resolveSymbol(node.value);
+
+            if (!symbol) {
+                const message = `cannot find name ${node.value}`;
+
+                node.arrowLength = node.value?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    node.position,
+                    node.fullSource ?? node.source,
+                    node,
+                );
+            }
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.IdentifierExpression,
+                symbolId: symbol.id,
+                scopeId: symbol.scopeId,
+                type: symbol.type,
+                mutable: symbol.mutable,
+            };
         }
 
         public visitNumber(node: any) {

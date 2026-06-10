@@ -1,7 +1,6 @@
 import { BaseSemantic, Constructor } from "./base";
 import { Kinds } from "../helpers/types";
 import { Helpers } from "../helpers";
-import util from "node:util";
 
 export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
@@ -14,9 +13,23 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     case "BinaryExpression":
                         return checkBinary(node);
 
+                    case Kinds.Expressions.ParenthesizedExpression:
+                    case "ParenthesizedExpression":
+                        return checkParenthesized(node);
+
                     default:
                         return this.visitNode(node);
                 }
+            };
+
+            const checkParenthesized = (node: any): any => {
+                const expression = checkExpression(node.expression);
+
+                return {
+                    ...node,
+                    expression,
+                    type: expression?.type,
+                };
             };
 
             const checkBinary = (node: any): any => {
@@ -36,19 +49,16 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 const fail = () => {
                     const message =
                         `operator ${Helpers.RED}'${node.operator}'${Helpers.RESET} cannot be applied to types ` +
-                        `${Helpers.RED}'${leftType?.raw}'${Helpers.RESET} and ` +
-                        `${Helpers.RED}'${rightType?.raw}'${Helpers.RESET}`;
+                        `${Helpers.RED}'${leftType?.raw ?? "unknown"}'${Helpers.RESET} and ` +
+                        `${Helpers.RED}'${rightType?.raw ?? "unknown"}'${Helpers.RESET}`;
 
-
-
-                    left.position.character = 0;
-                    left.arrowLength = left.fullSource.length;
+                    node.arrowLength = node.fullSource?.length ?? node.source?.length ?? 1;
 
                     this.throwError(
                         message,
-                        left.position,
+                        node.position,
                         context.fullSource ?? node.fullSource ?? node.source,
-                        left,
+                        node,
                     );
                 };
 
@@ -91,7 +101,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 message,
                                 left.position,
                                 left.fullSource,
-                                left
+                                left,
                             );
                         }
 
@@ -100,11 +110,9 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 `cannot assign value of type ${Helpers.RED}'${rightType?.raw}'${Helpers.RESET} to variable ` +
                                 `${Helpers.RED}'${left.value}'${Helpers.RESET} of type ${Helpers.RED}'${symbol.type?.raw}'${Helpers.RESET}`;
 
-                            node.arrowLength = node.source?.length ?? 1;
-
                             this.throwError(
                                 message,
-                                node.position,
+                                right.position,
                                 context.fullSource ?? node.fullSource ?? node.source,
                                 node,
                             );
@@ -124,6 +132,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             type: symbol.type,
                         };
                     }
+
                     case "+": {
                         if (isNumber(leftType) && isNumber(rightType)) {
                             return done({ kind: Kinds.Types.NumberType, raw: "number" });

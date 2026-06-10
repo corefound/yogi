@@ -60,6 +60,12 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
         public declarationVariableDiagnostics(context: any): any {
             let trusted = true;
             let value = context.value;
+
+            if (!context.value) {
+                const message = `${Helpers.RED}'${context.name}'${Helpers.RESET} must be initialized.`;
+                this.throwError(message, context.position, context.fullSource, context);
+            }
+
             if (context.value.kind == Kinds.Expressions.BinaryExpression) {
                 value = this.visitBinaryExpression(context);
             }
