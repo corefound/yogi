@@ -148,7 +148,7 @@ export class BaseVisitor {
         const position = node.getSourceFile().getLineAndCharacterOfPosition(node.pos);
 
         return {
-            line: position.line + 1,
+            line: position.line,
             character: position.character
         }
     }
