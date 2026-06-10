@@ -105,6 +105,13 @@ export namespace Kinds {
         ReturnStatement = "ReturnStatement",
         ExportVariableStatement = "ExportVariableStatement",
 
+        IfStatement = "IfStatement",
+        SwitchStatement = "SwitchStatement",
+        WhileStatement = "WhileStatement",
+        ForStatement = "ForStatement",
+        BreakStatement = "BreakStatement",
+        ContinueStatement = "ContinueStatement",
+
         VariableDeclaration = "VariableDeclaration",
         VariableReassignment = "VariableReassignment",
     }

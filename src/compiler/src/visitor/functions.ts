@@ -16,9 +16,12 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
         // function sum(a: number): number {}
         // -----------------------------------
         visitFunctionDeclaration(node: ts.FunctionDeclaration) {
+            const isExported = node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+
             return {
                 kind: Kinds.Functions.FunctionDeclaration,
                 regular: true,
+                exported: isExported,
                 name: node.name?.getText() ?? "anonymous",
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),
                 returnType: this.visitType(node.type),

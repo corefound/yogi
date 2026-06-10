@@ -78,7 +78,6 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
                 flag: node.flag,
                 export: node.export,
-                type: node.type,
                 trusted,
 
                 body,
