@@ -19,8 +19,21 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const context = { ...node, value };
 
             const { trusted } = this.declarationVariableDiagnostics(context);
-            const linkageName = node.export ? this.getLinkageName(this.modulePath.relativePath, node.name) : null;
-            const qualifiedName = this.getQualifiedName(this.modulePath.relativePath, node.name);
+
+            const linkageName = node.export
+                ? this.getLinkageName(this.modulePath.relativePath, node.name)
+                : null;
+
+            const qualifiedName = this.getQualifiedName(
+                this.modulePath.relativePath,
+                node.name,
+            );
+
+            const flagName = this.getDeclarationFlagName(node.flag);
+
+            const isAmbient =
+                node.declare === true ||
+                node.ambient === true;
 
             const symbol = this.defineSymbol({
                 kind: Kinds.ScopeSymbols.Variable,
@@ -28,18 +41,28 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 linkageName,
                 qualifiedName,
                 type: node.type,
-                mutable: node.flag.name !== "const",
-                storage: Kinds.Storage.stack,
+
+                mutable: flagName !== "const",
+                storage: isAmbient ? null : Kinds.Storage.stack,
+
                 escapes: false,
                 trusted,
-                node: value
+
+                declare: isAmbient,
+                ambient: isAmbient,
+                emit: !isAmbient,
+
+                node: value,
             });
 
             return {
                 ...node,
+
                 kind: Kinds.Statements.VariableDeclaration,
+
                 symbolId: symbol.id,
                 scopeId: symbol.scopeId,
+
                 mutable: symbol.mutable,
                 storage: symbol.storage,
                 escapes: symbol.escapes,
@@ -47,8 +70,13 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 linkageName,
                 qualifiedName,
 
-                flag: node.flag,
-                export: node.export,
+                flag: flagName,
+                export: node.export ?? false,
+
+                declare: isAmbient,
+                ambient: isAmbient,
+                emit: !isAmbient,
+
                 type: node.type,
 
                 trusted,
@@ -56,57 +84,125 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             };
         }
 
+        public getDeclarationFlagName(flag: any): string {
+            if (!flag) return "";
 
+            if (typeof flag === "string") {
+                return flag;
+            }
+
+            if (typeof flag.name === "string") {
+                return flag.name;
+            }
+
+            if (typeof flag.raw === "string") {
+                return flag.raw;
+            }
+
+            return String(flag);
+        }
         public declarationVariableDiagnostics(context: any): any {
             let trusted = true;
             let value = context.value;
 
-            if (!context.value) {
-                const message = `${Helpers.RED}'${context.name}'${Helpers.RESET} must be initialized.`;
-                this.throwError(message, context.position, context.fullSource, context);
-            }
+            const isAmbient =
+                context.declare === true ||
+                context.ambient === true;
 
-            if (context.value.kind == Kinds.Expressions.BinaryExpression) {
-                value = this.visitBinaryExpression(context);
-            }
+            const source =
+                context.fullSource ??
+                context.source ??
+                context.raw;
 
-            if (context.type.kind == Kinds.Types.UnTyped) {
-                this.throwError(
-                    Kinds.ErrrorsMessage.MissingType,
-                    context.position,
-                    context.fullSource,
-                    context,
-                );
-            }
+            const flagName = this.getDeclarationFlagName(context.flag);
 
-            if (context.flag.name != "const" && context.flag.name != "let") {
-                const message = `${Helpers.RED}'${context.flag.name}'${Helpers.RESET} declarations are not allowed`;
-                context.arrowLength = context.flag.name.length;
+            if (flagName !== "const" && flagName !== "let") {
+                const message =
+                    `${Helpers.RED}'${flagName}'${Helpers.RESET} declarations are not allowed`;
+
+                context.arrowLength = flagName.length || 1;
+
                 this.throwError(
                     message,
-                    context.flag.position,
-                    context.fullSource,
+                    context.position,
+                    source,
                     context,
                     "  = use 'let' for mutable bindings\n  = use 'const' for immutable bindings",
                 );
             }
 
-            const scopeSymbol = this.resolveLocalSymbol(context.name);
-            if (scopeSymbol) {
-                const message = `the name ${Helpers.RED}'${context.name}'${Helpers.RESET} is defined multiple times`;
-                context.arrowLength = context.name.length;
-                this.throwError(message, context.position, context.fullSource, context);
+            if (isAmbient && context.value) {
+                const message =
+                    `${Helpers.RED}'declare'${Helpers.RESET} declarations cannot have an initializer`;
+
+                context.arrowLength = context.name?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    context.position,
+                    source,
+                    context,
+                );
             }
 
-            if (!this.checkDataType(context.type.kind, value)) {
-                const message = `name ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only initialize values of type ${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET}`;
-                context.arrowLength = context.name.length + 1;
-                this.throwError(message, context.position, context.fullSource, context);
+            if (!context.value && !isAmbient) {
+                const message =
+                    `${Helpers.RED}'${context.name}'${Helpers.RESET} must be initialized.`;
+
+                context.arrowLength = context.name?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    context.position,
+                    source,
+                    context,
+                );
+            }
+
+            if (context.value?.kind === Kinds.Expressions.BinaryExpression) {
+                value = this.visitBinaryExpression(context);
+            }
+
+            if (!context.type || context.type.kind === Kinds.Types.UnTyped) {
+                this.throwError(
+                    Kinds.ErrrorsMessage.MissingType,
+                    context.position,
+                    source,
+                    context,
+                );
+            }
+
+            const scopeSymbol = this.resolveLocalSymbol(context.name);
+
+            if (scopeSymbol) {
+                const message =
+                    `the name ${Helpers.RED}'${context.name}'${Helpers.RESET} is defined multiple times`;
+
+                context.arrowLength = context.name?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    context.position,
+                    source,
+                    context,
+                );
+            }
+
+            if (!isAmbient && !this.checkDataType(context.type.kind, value)) {
+                const message =
+                    `name ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only initialize values of type ` +
+                    `${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET}`;
+
+                this.throwError(
+                    message,
+                    context.position,
+                    source,
+                    context,
+                );
             }
 
             return { trusted };
         }
-
         public checkDataType(expectedType: any, value: any): boolean {
             if (!value?.type) return false;
 

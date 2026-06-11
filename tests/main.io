@@ -1,7 +1,8 @@
-type Entity = {
-    id: number;
-};
+declare const ID: unique symbol;
 
-interface User extends Entity, Entity {
-    name: string;
+interface A {
+    [ID]: string;
+    [Symbol.iterator](): Iterator<string>;
 }
+
+

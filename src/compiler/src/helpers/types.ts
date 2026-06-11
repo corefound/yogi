@@ -54,6 +54,9 @@ export namespace Types {
         escapes?: boolean;
         storage?: Kinds.Storage;
         trusted?: boolean;
+        declare?: boolean;
+        ambient?: boolean;
+        emit?: boolean;
         node: any;
     };
 }
@@ -197,12 +200,12 @@ export namespace Kinds {
     export enum Types {
         TypeUsage = "TypeUsage",
         QualifiedName = "TypeUsage",
-        Parameter = "Parameter",  
-        CallSignature = "CallSignature",  
-        ConstructSignature = "ConstructSignature",  
-        IndexSignature = "IndexSignature",  
-        PropertyName = "PropertyName",  
-        UnknownBindingName = "UnknownBindingName",  
+        Parameter = "Parameter",
+        CallSignature = "CallSignature",
+        ConstructSignature = "ConstructSignature",
+        IndexSignature = "IndexSignature",
+        PropertyName = "PropertyName",
+        UnknownBindingName = "UnknownBindingName",
 
 
         UnTyped = "UnTyped",

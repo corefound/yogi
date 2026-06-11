@@ -193,6 +193,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
             return {
                 kind: Kinds.Types.MethodSignature,
                 name: this.visitPropertyName(node.name),
+                typeParameters: this.visitTypeParameters(node.typeParameters),
                 parameters: node.parameters.map((param) => this.visitParameter(param)),
                 returnType: this.visitType(node.type),
                 optional: !!node.questionToken,
@@ -204,6 +205,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
         visitCallSignature(node: ts.CallSignatureDeclaration) {
             return {
                 kind: Kinds.Types.CallSignature,
+                typeParameters: this.visitTypeParameters(node.typeParameters),
                 parameters: node.parameters.map((param) => this.visitParameter(param)),
                 returnType: this.visitType(node.type),
                 raw: node.getText(),
@@ -214,6 +216,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
         visitConstructSignature(node: ts.ConstructSignatureDeclaration) {
             return {
                 kind: Kinds.Types.ConstructSignature,
+                typeParameters: this.visitTypeParameters(node.typeParameters),
                 parameters: node.parameters.map((param) => this.visitParameter(param)),
                 returnType: this.visitType(node.type),
                 raw: node.getText(),
@@ -238,6 +241,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                 name: this.visitBindingName(param.name),
                 type: this.visitType(param.type),
                 optional: !!param.questionToken,
+                rest: !!param.dotDotDotToken,
                 defaultValue: param.initializer ? this.visitNode(param.initializer) : null,
                 raw: param.getText(),
                 position: this.getNodePosistion(param),
@@ -420,6 +424,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
 
                     return {
                         kind: Kinds.Types.FunctionType,
+                        typeParameters: this.visitTypeParameters(fn.typeParameters),
                         parameters: fn.parameters.map((param) => this.visitParameter(param)),
                         returnType: this.visitType(fn.type),
                         raw: fn.getText(),

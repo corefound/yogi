@@ -1,0 +1,25 @@
+namespace Loki.SIR;
+
+enum TypeKind : byte {
+  Unknown = 0,
+  Number = 1,
+  Boolean = 2,
+  String = 3,
+  Void = 4
+}
+
+table TypeRef {
+  kind:TypeKind;
+  raw:string;
+}
+
+table NumberConstant {
+  type:TypeRef;
+  value:double;
+}
+
+table BooleanConstant {
+  type:TypeRef;
+  value:bool;
+}
+

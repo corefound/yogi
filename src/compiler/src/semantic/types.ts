@@ -914,6 +914,7 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
                     kind: member.kind,
                     name: member.name,
                     nameText: this.getMemberNameText(member),
+                    typeParameters: member.typeParameters ?? [],
                     optional: member.optional ?? false,
                     readonly: member.readonly ?? false,
                     type: member.type,

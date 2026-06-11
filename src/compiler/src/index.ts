@@ -24,7 +24,7 @@ const tsConfig = {
 // Visitor
 const visitor = new Visitor(rootPath, graph, tsConfig);
 const ast = visitor.visit();
-// console.log(util.inspect({ ast }, false, null, true));
+console.log(util.inspect({ ast }, false, null, true));
 
 
 // Semantic Analysis

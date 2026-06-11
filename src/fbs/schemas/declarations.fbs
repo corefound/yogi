@@ -1,0 +1,11 @@
+// declarations.fbs
+
+include "types.fbs";
+
+namespace Yogi.Sir;
+
+table VariableDeclaration {
+  id:uint;
+  name:string;
+  type:TypeRef;
+}
