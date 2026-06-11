@@ -1,0 +1,206 @@
+{
+  "sir": [
+    {
+      "module": {
+        "absolutePath": "/Users/brayhandeaza/Documents/dev/projects/ts-bk/yogi/tests/main.io",
+        "relativePath": "main.io"
+      },
+      "sir": [
+        {
+          "kind": "InterfaceDeclaration",
+          "name": {
+            "kind": "IdentifierExpression",
+            "name": "User",
+            "raw": "User",
+            "position": { "line": 0, "character": 9 }
+          },
+          "parameters": [],
+          "extends": [],
+          "body": {
+            "kind": "TypeLiteral",
+            "members": [
+              {
+                "kind": "PropertySignature",
+                "name": {
+                  "kind": "IdentifierExpression",
+                  "name": "id",
+                  "raw": "id",
+                  "position": { "line": 0, "character": 16 }
+                },
+                "type": {
+                  "kind": "NumberType",
+                  "raw": "number",
+                  "position": { "line": 1, "character": 7 }
+                },
+                "optional": false,
+                "readonly": false,
+                "raw": "id: number;",
+                "position": { "line": 0, "character": 16 },
+                "nameText": "id",
+                "trusted": true
+              },
+              {
+                "kind": "PropertySignature",
+                "name": {
+                  "kind": "IdentifierExpression",
+                  "name": "name",
+                  "raw": "name",
+                  "position": { "line": 4, "character": 16 }
+                },
+                "type": {
+                  "kind": "StringType",
+                  "raw": "string",
+                  "position": { "line": 5, "character": 9 }
+                },
+                "optional": false,
+                "readonly": false,
+                "raw": "name: string;",
+                "position": { "line": 4, "character": 16 },
+                "nameText": "name",
+                "trusted": true
+              }
+            ],
+            "raw": "id: number;",
+            "position": { "line": 0, "character": 0 }
+          },
+          "raw": "interface User {\n    id: number;\n}",
+          "position": { "line": 0, "character": 0 },
+          "declarationKind": "interface",
+          "nameText": "User",
+          "type": {
+            "kind": "TypeLiteral",
+            "members": [
+              {
+                "kind": "PropertySignature",
+                "name": {
+                  "kind": "IdentifierExpression",
+                  "name": "id",
+                  "raw": "id",
+                  "position": { "line": 0, "character": 16 }
+                },
+                "type": {
+                  "kind": "NumberType",
+                  "raw": "number",
+                  "position": { "line": 1, "character": 7 }
+                },
+                "optional": false,
+                "readonly": false,
+                "raw": "id: number;",
+                "position": { "line": 0, "character": 16 },
+                "nameText": "id",
+                "trusted": true
+              },
+              {
+                "kind": "PropertySignature",
+                "name": {
+                  "kind": "IdentifierExpression",
+                  "name": "name",
+                  "raw": "name",
+                  "position": { "line": 4, "character": 16 }
+                },
+                "type": {
+                  "kind": "StringType",
+                  "raw": "string",
+                  "position": { "line": 5, "character": 9 }
+                },
+                "optional": false,
+                "readonly": false,
+                "raw": "name: string;",
+                "position": { "line": 4, "character": 16 },
+                "nameText": "name",
+                "trusted": true
+              }
+            ],
+            "raw": "id: number;",
+            "position": { "line": 0, "character": 0 }
+          },
+          "export": false,
+          "linkageName": null,
+          "qualifiedName": "main.io:User",
+          "trusted": true,
+          "merged": true,
+          "declarations": [
+            {
+              "kind": "InterfaceDeclaration",
+              "name": {
+                "kind": "IdentifierExpression",
+                "name": "User",
+                "raw": "User",
+                "position": { "line": 0, "character": 9 }
+              },
+              "nameText": "User",
+              "parameters": [],
+              "extends": [],
+              "raw": "interface User {\n    id: number;\n}",
+              "position": { "line": 0, "character": 0 },
+              "members": [
+                {
+                  "kind": "PropertySignature",
+                  "name": {
+                    "kind": "IdentifierExpression",
+                    "name": "id",
+                    "raw": "id",
+                    "position": { "line": 0, "character": 16 }
+                  },
+                  "nameText": "id",
+                  "optional": false,
+                  "readonly": false,
+                  "type": {
+                    "kind": "NumberType",
+                    "raw": "number",
+                    "position": { "line": 1, "character": 7 }
+                  },
+                  "returnType": undefined,
+                  "parameters": [],
+                  "raw": "id: number;",
+                  "position": { "line": 0, "character": 16 },
+                  "trusted": true
+                }
+              ]
+            },
+            {
+              "kind": "InterfaceDeclaration",
+              "name": {
+                "kind": "IdentifierExpression",
+                "name": "User",
+                "raw": "User",
+                "position": { "line": 4, "character": 9 }
+              },
+              "nameText": "User",
+              "parameters": [],
+              "extends": [],
+              "raw": "interface User {\n    name: string;\n}",
+              "position": { "line": 2, "character": 1 },
+              "members": [
+                {
+                  "kind": "PropertySignature",
+                  "name": {
+                    "kind": "IdentifierExpression",
+                    "name": "name",
+                    "raw": "name",
+                    "position": { "line": 4, "character": 16 }
+                  },
+                  "nameText": "name",
+                  "optional": false,
+                  "readonly": false,
+                  "type": {
+                    "kind": "StringType",
+                    "raw": "string",
+                    "position": { "line": 5, "character": 9 }
+                  },
+                  "returnType": undefined,
+                  "parameters": [],
+                  "raw": "name: string;",
+                  "position": { "line": 4, "character": 16 },
+                  "trusted": true
+                }
+              ]
+            }
+          ],
+          "symbolId": 0,
+          "scopeId": 0
+        }
+      ]
+    }
+  ]
+}

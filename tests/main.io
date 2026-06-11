@@ -1,11 +1,7 @@
-interface User {
+type Entity = {
+    id: number;
+};
+
+interface User extends Entity, Entity {
     name: string;
-}
-
-interface User {
-    age: number;
-}
-
-interface User {
-    age: string;
 }

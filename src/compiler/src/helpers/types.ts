@@ -195,11 +195,25 @@ export namespace Kinds {
     }
 
     export enum Types {
+        TypeUsage = "TypeUsage",
+        QualifiedName = "TypeUsage",
+        Parameter = "Parameter",  
+        CallSignature = "CallSignature",  
+        ConstructSignature = "ConstructSignature",  
+        IndexSignature = "IndexSignature",  
+        PropertyName = "PropertyName",  
+        UnknownBindingName = "UnknownBindingName",  
+
+
         UnTyped = "UnTyped",
 
         TypeDeclaration = "TypeDeclaration",
         InterfaceDeclaration = "InterfaceDeclaration",
         TypeMember = "TypeMember",
+        TypeParameter = "TypeParameter",
+
+        ExpressionWithTypeArguments = "ExpressionWithTypeArguments",
+        UnknownExpression = "UnknownExpression",
 
         MethodSignature = "MethodSignature",
 
@@ -252,6 +266,7 @@ export namespace Kinds {
         Extern = "extern",
         Type = "type",
         Interface = "interface",
+        Class = "class",
 
     }
 

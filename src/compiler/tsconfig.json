@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "types": ["node"],
-    "module": "nodenext",
+    "module": "CommonJS",
     "target": "esnext",
     "outDir": "build",
     "sourceMap": true,
