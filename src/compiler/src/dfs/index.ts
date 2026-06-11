@@ -1,3 +1,4 @@
+import { Helpers } from "../helpers";
 import { Errors } from "../loggers/error";
 import ts from "../ts";
 
@@ -7,10 +8,9 @@ export class ModuleScanner {
 
     public graph = new Map<string, string[]>();
 
-    constructor(
-        private resolveModule: (from: string, specifier: string) => string,
-        private parseFile: (filePath: string) => ts.SourceFile
-    ) { }
+    constructor(private resolveModule: (from: string, specifier: string) => string, private parseFile: (filePath: string) => ts.SourceFile) {
+
+    }
 
     public scan(entryFile: string) {
         this.visit(entryFile);
@@ -146,11 +146,11 @@ export class ModuleScanner {
     }
 
     private visit(file: string) {
-
         if (this.visited.has(file)) return;
+
         this.visited.add(file);
         const sourceFile = this.parseFile(file);
-        const imports: string[] = [];
+        const imports: any[] = [];
 
         const visitNode = (node: ts.Node) => {
             if (ts.isImportDeclaration(node)) {

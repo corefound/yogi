@@ -23,6 +23,18 @@ export class Helpers {
         }
     };
 
+    static getQualifiedName(modulePath: string, symbolName: string): string {
+        return `${modulePath?.replace(/[\\/]/g, ":")}:${symbolName}`;
+    }
+
+    static resolveFile = (filePath: string): string => {
+        if (!fs.existsSync(filePath)) {
+            return null;
+        }
+        
+        return filePath
+    };
+
     static resolveModule = (fromFile: string, specifier: string): string => {
         if (specifier.startsWith(".")) {
             return path.resolve(path.dirname(fromFile), specifier);

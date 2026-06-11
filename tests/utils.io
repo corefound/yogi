@@ -1,1 +1,1 @@
-export const b = 10
+export const b: number = 10

@@ -70,11 +70,11 @@ export class BaseSemantic {
     }
 
     public getLinkageName(modulePath: string, symbolName: string): string {
-        return `_yogi_${modulePath.replace(/[\\/]/g, "_").replace(/\./g, "_")}__${symbolName}`;
+        return `_yogi_${modulePath?.replace(/[\\/]/g, "_").replace(/\./g, "_")}__${symbolName}`;
     }
 
     public getQualifiedName(modulePath: string, symbolName: string): string {
-        return `${modulePath.replace(/[\\/]/g, ":")}:${symbolName}`;
+        return `${modulePath?.replace(/[\\/]/g, ":")}:${symbolName}`;
     }
 
     public visitNode(node: any): any {

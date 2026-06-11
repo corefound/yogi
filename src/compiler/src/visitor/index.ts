@@ -13,7 +13,7 @@ import { FunctionVisitor } from "./functions";
 import { ConditionalVisitor } from "./conditional";
 import { LoopVisitor } from "./loops";
 import { Types } from "../helpers/types";
-import path from "node:path";
+import { Helpers } from "../helpers";
 
 class MixinsVisitor extends applyMixins(
     BaseVisitor,
@@ -31,45 +31,39 @@ class MixinsVisitor extends applyMixins(
     LoopVisitor
 ) {
     public rootDir: string
-    constructor(filePath: string, rootDir: string, options?: ts.CompilerOptions) {
-        super(filePath, options || {});
-        this.rootDir = rootDir
+    constructor(filePath: string) {
+        const tsConfig = {
+            target: ts.ScriptTarget.ESNext,
+            module: ts.ModuleKind.NodeNext,
+            strictNullChecks: false,
+            moduleResolution: ts.ModuleResolutionKind.NodeNext,
+            strict: false,
+            allowJs: false,
+        };
+
+        super(filePath, tsConfig);
     }
 
     public visit() {
+        const ast = this.sourceFile.statements.map((s: ts.Statement) => this.visitNode(s)).flat(Infinity)
         return {
-            module: {
-                absolutePath: this.filePath,
-                relativePath: path.relative(this.rootDir, this.filePath)
-            },
-            body: this.sourceFile.statements.map((s: ts.Statement) => this.visitNode(s)),
-            exports: this.exports,
+            ast,
+            astHash: Helpers.hash(JSON.stringify(ast)),
+            sourceHash: Helpers.hash(JSON.stringify(this.sourceFile.getText()))
         };
     }
 }
 
 export class Visitor {
-    public readonly options: ts.CompilerOptions
-    public readonly graph: Map<string, string[]>
-    public ast: Types.Ast[]
-    public rootDir: string
+    constructor() {
 
-    constructor(rootDir: string, graph: Map<string, string[]>, options: ts.CompilerOptions) {
-        this.options = options
-        this.graph = graph
-        this.rootDir = rootDir
     }
 
-    public visit() {
-        const modules: Types.Ast[] = []
-        this.graph.forEach((_: string[], modulePath: string) => {
-            const visitor = new MixinsVisitor(modulePath, this.rootDir, this.options);
-            const ast = visitor.visit();
 
-            modules.push(ast);
-        })
-
-        this.ast = modules
-        return modules
+    public parse(filePath: string) {
+        const visitor = new MixinsVisitor(filePath);
+        const ast = visitor.visit();
+        return ast;
     }
+
 }

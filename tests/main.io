@@ -1,8 +1,5 @@
-declare const ID: unique symbol;
+import { b } from './utils.io';
 
-interface A {
-    [ID]: string;
-    [Symbol.iterator](): Iterator<string>;
-}
+10
 
 

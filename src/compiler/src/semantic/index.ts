@@ -7,6 +7,7 @@ import { FunctionsSemantic } from "./functions";
 import { ExpressionsSemantic } from "./expressions";
 import { ArraysSemantic } from "./arrays";
 import { TypesSemantic } from "./types";
+import { Helpers } from "../helpers";
 
 
 export class Semantic extends applySemanticMixins(
@@ -21,18 +22,17 @@ export class Semantic extends applySemanticMixins(
 ) {
     public sir: Types.Sir[] = [];
 
-    constructor(ast: Types.Ast[]) {
-        super(ast);
+    constructor(modulePath: any) {
+        super();
+        this.modulePath = modulePath
     }
 
-    public analyze() {
-        return this.ast.map((ast: Types.Ast) => {
-            this.modulePath = ast.module;
-            return {
-                module: ast.module,
-                sir: ast.body.map((statement: any) => this.visitNode(statement)).flat(Infinity)
-            }
-        }).flat(100);
+    public analyze(ast: any[]) {
+        const sir = ast.map((statement: any) => this.visitNode(statement)).flat(Infinity)
+        return {
+            sir,
+            sirHash: Helpers.hash(JSON.stringify(sir))
+        }
     }
 
     public visitChildren(node: any): any {

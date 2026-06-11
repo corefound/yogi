@@ -17,7 +17,6 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
         public visitVariableDeclarations(node: any) {
             const value = node.value ? this.visitNode(node.value) : null;
             const context = { ...node, value };
-
             const { trusted } = this.declarationVariableDiagnostics(context);
 
             const linkageName = node.export

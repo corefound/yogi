@@ -8,8 +8,8 @@
   "license": "MIT",
   "scripts": {
     "build": "rm -rf ./build && tsc -p tsconfig.json && tsc-alias -p tsconfig.json && cp -r ./src/ts/local ./build/ts/local",
-    "dev": "nodemon --exec ts-node ./src/index.ts ../../tests/main.io",
-    "pkg": "npx pkg build/index.js --targets node18-linux-x64,node18-macos-x64,node18-macos-arm64,node18-win-x64, --output ./bin/ts-parser"
+    "dev": "nodemon --watch src --ext ts --exec \"tsx ./src/index.ts ../../tests/main.io\"",
+    "pkg": "npx pkg build/index.js --targets node18-linux-x64,node18-macos-x64,node18-macos-arm64,node18-win-x64 --output ./bin/ts-parser"
   },
   "dependencies": {
     "chalk": "^5.6.2",
@@ -17,6 +17,7 @@
     "global": "^4.4.0",
     "node-addon-api": "^8.5.0",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   },
   "devDependencies": {

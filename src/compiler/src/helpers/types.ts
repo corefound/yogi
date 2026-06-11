@@ -1,6 +1,31 @@
+import { LinkKind } from "../fbs";
+
 export namespace Types {
+    export type GlobalMetaModuleInput = {
+        name: string;
+        sourcePath: string;
+        sourceHash: string;
+        astHash: string;
+        sirHash: string;
+        shouldLower: boolean;
+        isEntry: boolean;
+    };
+
+    export type GlobalMetaLinkInput = {
+        kind: LinkKind;
+        path: string;
+    };
+
+    export type GlobalMetaInput = {
+        rootPath: string;
+        cachePath: string;
+        outputPath: string;
+        modules: GlobalMetaModuleInput[];
+        links: GlobalMetaLinkInput[];
+    };
+
     export type Ast = {
-        module: any;
+        module?: any;
         body: any[];
     }
 

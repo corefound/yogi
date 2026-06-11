@@ -1,0 +1,35 @@
+// meta.fbs
+
+namespace Yogi.Meta;
+
+enum LinkKind : byte {
+  object = 0,
+  static_library = 1,
+  dynamic_library = 2,
+  system_library = 3
+}
+
+table ModuleMeta {
+  name:string;
+  source_path:string;
+  source_hash:string;
+  ast_hash:string;
+  sir_hash:string;
+  should_lower:bool = false;
+  is_entry:bool = false;
+}
+
+table LinkEntry {
+  kind:LinkKind = object;
+  path:string;
+}
+
+table Meta {
+  root_path:string;
+  cache_path:string;
+  output_path:string;
+  modules:[ModuleMeta];
+  links:[LinkEntry];
+}
+
+root_type Meta;
