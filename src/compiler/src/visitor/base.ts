@@ -150,7 +150,8 @@ export class BaseVisitor {
     visitLoops(_: ts.Node): any { }
 
     getNodePosistion(node: ts.Node) {
-        const position = node.getSourceFile().getLineAndCharacterOfPosition(node.pos);
+        const sourceFile = node.getSourceFile();
+        const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
 
         return {
             line: position.line,

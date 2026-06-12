@@ -57,6 +57,10 @@ export namespace Types {
             | {
                 kind: "UndefinedType";
                 raw: string;
+            }
+            | {
+                kind: "VoidType";
+                raw: string;
             };
 
         export type SemanticNumberConstant = {
@@ -108,7 +112,45 @@ export namespace Types {
             | SemanticNullConstant
             | SemanticUndefinedConstant;
 
-        export type SemanticNodeInput = SemanticConstantInput;
+        export type SemanticExternParameter = {
+            kind: "ExternParameter";
+            name: string;
+            type: SemanticType;
+            optional: boolean;
+            rest: boolean;
+            position: SourcePosition;
+        };
+
+        export type SemanticExternFunction = {
+            kind: "ExternFunction";
+            name: string;
+            parameters: SemanticExternParameter[];
+            returnType: SemanticType;
+            optional: boolean;
+            source: string;
+            position: SourcePosition;
+        };
+
+        export type SemanticExternVariable = {
+            kind: "ExternVariable";
+            name: string;
+            type: SemanticType;
+            readonly: boolean;
+            source: string;
+            position: SourcePosition;
+        };
+
+        export type SemanticExternDeclaration = {
+            kind: "ExternDeclaration";
+            name: string;
+            path: string;
+            functions: SemanticExternFunction[];
+            variables: SemanticExternVariable[];
+            source: string;
+            position: SourcePosition;
+        };
+
+        export type SemanticNodeInput = SemanticConstantInput | SemanticExternDeclaration;
 
         export type SemanticModuleInput = {
             sourcePath: string;
@@ -476,5 +518,9 @@ export namespace Kinds {
         BigIntConstant = "BigIntConstant",
         RegExpConstant = "RegExpConstant",
         TemplateStringConstant = "TemplateStringConstant",
+        ExternDeclaration = "ExternDeclaration",
+        ExternFunction = "ExternFunction",
+        ExternParameter = "ExternParameter",
+        ExternVariable = "ExternVariable",
     }
 }

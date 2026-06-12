@@ -24,7 +24,11 @@ export function ExternsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
             return {
                 kind: Kinds.Externs.ExternDeclarations,
                 name: node.name.getText(),
+                namePosition: this.getNodePosistion(node.name),
                 path: this.filePathOf(node.fileSpecifier),
+                pathRaw: node.fileSpecifier.getText(),
+                pathPosition: this.getNodePosistion(node.fileSpecifier),
+                source: node.getText(),
                 members: node.members.map((member: ts.Node) => this.visitNode(member)),
                 position: this.getNodePosistion(node)
             };

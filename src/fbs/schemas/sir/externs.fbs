@@ -1,0 +1,39 @@
+// sir/externs.fbs
+
+include "common.fbs";
+
+namespace Yogi.Sir;
+
+table ExternParameter {
+  name:string;
+  type:TypeRef;
+  optional:bool = false;
+  rest:bool = false;
+  position:SourcePosition;
+}
+
+table ExternFunction {
+  name:string;
+  parameters:[ExternParameter];
+  return_type:TypeRef;
+  optional:bool = false;
+  source:string;
+  position:SourcePosition;
+}
+
+table ExternVariable {
+  name:string;
+  type:TypeRef;
+  readonly:bool = false;
+  source:string;
+  position:SourcePosition;
+}
+
+table ExternDeclaration {
+  name:string;
+  path:string;
+  functions:[ExternFunction];
+  variables:[ExternVariable];
+  source:string;
+  position:SourcePosition;
+}

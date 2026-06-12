@@ -53,6 +53,18 @@ struct UndefinedConstantBuilder;
 struct Constant;
 struct ConstantBuilder;
 
+struct ExternParameter;
+struct ExternParameterBuilder;
+
+struct ExternFunction;
+struct ExternFunctionBuilder;
+
+struct ExternVariable;
+struct ExternVariableBuilder;
+
+struct ExternDeclaration;
+struct ExternDeclarationBuilder;
+
 struct SirNode;
 struct SirNodeBuilder;
 
@@ -117,37 +129,40 @@ enum TypeKind : int8_t {
   TypeKind_boolean_type = 3,
   TypeKind_null_type = 4,
   TypeKind_undefined_type = 5,
+  TypeKind_void_type = 6,
   TypeKind_MIN = TypeKind_unknown,
-  TypeKind_MAX = TypeKind_undefined_type
+  TypeKind_MAX = TypeKind_void_type
 };
 
-inline const TypeKind (&EnumValuesTypeKind())[6] {
+inline const TypeKind (&EnumValuesTypeKind())[7] {
   static const TypeKind values[] = {
     TypeKind_unknown,
     TypeKind_number_type,
     TypeKind_string_type,
     TypeKind_boolean_type,
     TypeKind_null_type,
-    TypeKind_undefined_type
+    TypeKind_undefined_type,
+    TypeKind_void_type
   };
   return values;
 }
 
 inline const char * const *EnumNamesTypeKind() {
-  static const char * const names[7] = {
+  static const char * const names[8] = {
     "unknown",
     "number_type",
     "string_type",
     "boolean_type",
     "null_type",
     "undefined_type",
+    "void_type",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameTypeKind(TypeKind e) {
-  if (::flatbuffers::IsOutRange(e, TypeKind_unknown, TypeKind_undefined_type)) return "";
+  if (::flatbuffers::IsOutRange(e, TypeKind_unknown, TypeKind_void_type)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesTypeKind()[index];
 }
@@ -226,29 +241,32 @@ bool VerifyConstantValueVector(::flatbuffers::VerifierTemplate<B> &verifier, con
 enum SirNodeValue : uint8_t {
   SirNodeValue_NONE = 0,
   SirNodeValue_Constant = 1,
+  SirNodeValue_ExternDeclaration = 2,
   SirNodeValue_MIN = SirNodeValue_NONE,
-  SirNodeValue_MAX = SirNodeValue_Constant
+  SirNodeValue_MAX = SirNodeValue_ExternDeclaration
 };
 
-inline const SirNodeValue (&EnumValuesSirNodeValue())[2] {
+inline const SirNodeValue (&EnumValuesSirNodeValue())[3] {
   static const SirNodeValue values[] = {
     SirNodeValue_NONE,
-    SirNodeValue_Constant
+    SirNodeValue_Constant,
+    SirNodeValue_ExternDeclaration
   };
   return values;
 }
 
 inline const char * const *EnumNamesSirNodeValue() {
-  static const char * const names[3] = {
+  static const char * const names[4] = {
     "NONE",
     "Constant",
+    "ExternDeclaration",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameSirNodeValue(SirNodeValue e) {
-  if (::flatbuffers::IsOutRange(e, SirNodeValue_NONE, SirNodeValue_Constant)) return "";
+  if (::flatbuffers::IsOutRange(e, SirNodeValue_NONE, SirNodeValue_ExternDeclaration)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesSirNodeValue()[index];
 }
@@ -259,6 +277,10 @@ template<typename T> struct SirNodeValueTraits {
 
 template<> struct SirNodeValueTraits<Yogi::Sir::Constant> {
   static const SirNodeValue enum_value = SirNodeValue_Constant;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::ExternDeclaration> {
+  static const SirNodeValue enum_value = SirNodeValue_ExternDeclaration;
 };
 
 template <bool B = false>
@@ -1101,6 +1123,454 @@ inline ::flatbuffers::Offset<Constant> CreateConstantDirect(
       value);
 }
 
+struct ExternParameter FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ExternParameterBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_NAME = 4,
+    VT_TYPE = 6,
+    VT_OPTIONAL = 8,
+    VT_REST = 10,
+    VT_POSITION = 12
+  };
+  const ::flatbuffers::String *name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NAME);
+  }
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  bool optional() const {
+    return GetField<uint8_t>(VT_OPTIONAL, 0) != 0;
+  }
+  bool rest() const {
+    return GetField<uint8_t>(VT_REST, 0) != 0;
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NAME) &&
+           verifier.VerifyString(name()) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyField<uint8_t>(verifier, VT_OPTIONAL, 1) &&
+           VerifyField<uint8_t>(verifier, VT_REST, 1) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ExternParameterBuilder {
+  typedef ExternParameter Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
+    fbb_.AddOffset(ExternParameter::VT_NAME, name);
+  }
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(ExternParameter::VT_TYPE, type);
+  }
+  void add_optional(bool optional) {
+    fbb_.AddElement<uint8_t>(ExternParameter::VT_OPTIONAL, static_cast<uint8_t>(optional), 0);
+  }
+  void add_rest(bool rest) {
+    fbb_.AddElement<uint8_t>(ExternParameter::VT_REST, static_cast<uint8_t>(rest), 0);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ExternParameter::VT_POSITION, position);
+  }
+  explicit ExternParameterBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ExternParameter> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ExternParameter>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ExternParameter> CreateExternParameter(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> name = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    bool optional = false,
+    bool rest = false,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ExternParameterBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_type(type);
+  builder_.add_name(name);
+  builder_.add_rest(rest);
+  builder_.add_optional(optional);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ExternParameter> CreateExternParameterDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *name = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    bool optional = false,
+    bool rest = false,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto name__ = name ? _fbb.CreateString(name) : 0;
+  return Yogi::Sir::CreateExternParameter(
+      _fbb,
+      name__,
+      type,
+      optional,
+      rest,
+      position);
+}
+
+struct ExternFunction FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ExternFunctionBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_NAME = 4,
+    VT_PARAMETERS = 6,
+    VT_RETURN_TYPE = 8,
+    VT_OPTIONAL = 10,
+    VT_SOURCE = 12,
+    VT_POSITION = 14
+  };
+  const ::flatbuffers::String *name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NAME);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternParameter>> *parameters() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternParameter>> *>(VT_PARAMETERS);
+  }
+  const Yogi::Sir::TypeRef *return_type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_RETURN_TYPE);
+  }
+  bool optional() const {
+    return GetField<uint8_t>(VT_OPTIONAL, 0) != 0;
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NAME) &&
+           verifier.VerifyString(name()) &&
+           VerifyOffset(verifier, VT_PARAMETERS) &&
+           verifier.VerifyVector(parameters()) &&
+           verifier.VerifyVectorOfTables(parameters()) &&
+           VerifyOffset(verifier, VT_RETURN_TYPE) &&
+           verifier.VerifyTable(return_type()) &&
+           VerifyField<uint8_t>(verifier, VT_OPTIONAL, 1) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ExternFunctionBuilder {
+  typedef ExternFunction Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
+    fbb_.AddOffset(ExternFunction::VT_NAME, name);
+  }
+  void add_parameters(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternParameter>>> parameters) {
+    fbb_.AddOffset(ExternFunction::VT_PARAMETERS, parameters);
+  }
+  void add_return_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> return_type) {
+    fbb_.AddOffset(ExternFunction::VT_RETURN_TYPE, return_type);
+  }
+  void add_optional(bool optional) {
+    fbb_.AddElement<uint8_t>(ExternFunction::VT_OPTIONAL, static_cast<uint8_t>(optional), 0);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(ExternFunction::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ExternFunction::VT_POSITION, position);
+  }
+  explicit ExternFunctionBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ExternFunction> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ExternFunction>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ExternFunction> CreateExternFunction(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> name = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternParameter>>> parameters = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> return_type = 0,
+    bool optional = false,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ExternFunctionBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_return_type(return_type);
+  builder_.add_parameters(parameters);
+  builder_.add_name(name);
+  builder_.add_optional(optional);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ExternFunction> CreateExternFunctionDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *name = nullptr,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::ExternParameter>> *parameters = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> return_type = 0,
+    bool optional = false,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto name__ = name ? _fbb.CreateString(name) : 0;
+  auto parameters__ = parameters ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ExternParameter>>(*parameters) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateExternFunction(
+      _fbb,
+      name__,
+      parameters__,
+      return_type,
+      optional,
+      source__,
+      position);
+}
+
+struct ExternVariable FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ExternVariableBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_NAME = 4,
+    VT_TYPE = 6,
+    VT_READONLY = 8,
+    VT_SOURCE = 10,
+    VT_POSITION = 12
+  };
+  const ::flatbuffers::String *name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NAME);
+  }
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  bool readonly() const {
+    return GetField<uint8_t>(VT_READONLY, 0) != 0;
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NAME) &&
+           verifier.VerifyString(name()) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyField<uint8_t>(verifier, VT_READONLY, 1) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ExternVariableBuilder {
+  typedef ExternVariable Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
+    fbb_.AddOffset(ExternVariable::VT_NAME, name);
+  }
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(ExternVariable::VT_TYPE, type);
+  }
+  void add_readonly(bool readonly) {
+    fbb_.AddElement<uint8_t>(ExternVariable::VT_READONLY, static_cast<uint8_t>(readonly), 0);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(ExternVariable::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ExternVariable::VT_POSITION, position);
+  }
+  explicit ExternVariableBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ExternVariable> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ExternVariable>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ExternVariable> CreateExternVariable(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> name = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    bool readonly = false,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ExternVariableBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_type(type);
+  builder_.add_name(name);
+  builder_.add_readonly(readonly);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ExternVariable> CreateExternVariableDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *name = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    bool readonly = false,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto name__ = name ? _fbb.CreateString(name) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateExternVariable(
+      _fbb,
+      name__,
+      type,
+      readonly,
+      source__,
+      position);
+}
+
+struct ExternDeclaration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ExternDeclarationBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_NAME = 4,
+    VT_PATH = 6,
+    VT_FUNCTIONS = 8,
+    VT_VARIABLES = 10,
+    VT_SOURCE = 12,
+    VT_POSITION = 14
+  };
+  const ::flatbuffers::String *name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NAME);
+  }
+  const ::flatbuffers::String *path() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_PATH);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternFunction>> *functions() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternFunction>> *>(VT_FUNCTIONS);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternVariable>> *variables() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternVariable>> *>(VT_VARIABLES);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NAME) &&
+           verifier.VerifyString(name()) &&
+           VerifyOffset(verifier, VT_PATH) &&
+           verifier.VerifyString(path()) &&
+           VerifyOffset(verifier, VT_FUNCTIONS) &&
+           verifier.VerifyVector(functions()) &&
+           verifier.VerifyVectorOfTables(functions()) &&
+           VerifyOffset(verifier, VT_VARIABLES) &&
+           verifier.VerifyVector(variables()) &&
+           verifier.VerifyVectorOfTables(variables()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ExternDeclarationBuilder {
+  typedef ExternDeclaration Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
+    fbb_.AddOffset(ExternDeclaration::VT_NAME, name);
+  }
+  void add_path(::flatbuffers::Offset<::flatbuffers::String> path) {
+    fbb_.AddOffset(ExternDeclaration::VT_PATH, path);
+  }
+  void add_functions(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternFunction>>> functions) {
+    fbb_.AddOffset(ExternDeclaration::VT_FUNCTIONS, functions);
+  }
+  void add_variables(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternVariable>>> variables) {
+    fbb_.AddOffset(ExternDeclaration::VT_VARIABLES, variables);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(ExternDeclaration::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ExternDeclaration::VT_POSITION, position);
+  }
+  explicit ExternDeclarationBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ExternDeclaration> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ExternDeclaration>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ExternDeclaration> CreateExternDeclaration(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> name = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> path = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternFunction>>> functions = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ExternVariable>>> variables = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ExternDeclarationBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_variables(variables);
+  builder_.add_functions(functions);
+  builder_.add_path(path);
+  builder_.add_name(name);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ExternDeclaration> CreateExternDeclarationDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *name = nullptr,
+    const char *path = nullptr,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::ExternFunction>> *functions = nullptr,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::ExternVariable>> *variables = nullptr,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto name__ = name ? _fbb.CreateString(name) : 0;
+  auto path__ = path ? _fbb.CreateString(path) : 0;
+  auto functions__ = functions ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ExternFunction>>(*functions) : 0;
+  auto variables__ = variables ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ExternVariable>>(*variables) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateExternDeclaration(
+      _fbb,
+      name__,
+      path__,
+      functions__,
+      variables__,
+      source__,
+      position);
+}
+
 struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef SirNodeBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
@@ -1117,6 +1587,9 @@ struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::Constant *value_as_Constant() const {
     return value_type() == Yogi::Sir::SirNodeValue_Constant ? static_cast<const Yogi::Sir::Constant *>(value()) : nullptr;
   }
+  const Yogi::Sir::ExternDeclaration *value_as_ExternDeclaration() const {
+    return value_type() == Yogi::Sir::SirNodeValue_ExternDeclaration ? static_cast<const Yogi::Sir::ExternDeclaration *>(value()) : nullptr;
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -1129,6 +1602,10 @@ struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
 
 template<> inline const Yogi::Sir::Constant *SirNode::value_as<Yogi::Sir::Constant>() const {
   return value_as_Constant();
+}
+
+template<> inline const Yogi::Sir::ExternDeclaration *SirNode::value_as<Yogi::Sir::ExternDeclaration>() const {
+  return value_as_ExternDeclaration();
 }
 
 struct SirNodeBuilder {
@@ -1354,6 +1831,10 @@ inline bool VerifySirNodeValue(::flatbuffers::VerifierTemplate<B> &verifier, con
     }
     case SirNodeValue_Constant: {
       auto ptr = reinterpret_cast<const Yogi::Sir::Constant *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case SirNodeValue_ExternDeclaration: {
+      auto ptr = reinterpret_cast<const Yogi::Sir::ExternDeclaration *>(obj);
       return verifier.VerifyTable(ptr);
     }
     default: return true;

@@ -5,6 +5,10 @@
 export { BooleanConstant } from './sir/boolean-constant.js';
 export { Constant } from './sir/constant.js';
 export { ConstantValue } from './sir/constant-value.js';
+export { ExternDeclaration } from './sir/extern-declaration.js';
+export { ExternFunction } from './sir/extern-function.js';
+export { ExternParameter } from './sir/extern-parameter.js';
+export { ExternVariable } from './sir/extern-variable.js';
 export { Module } from './sir/module.js';
 export { NullConstant } from './sir/null-constant.js';
 export { NumberConstant } from './sir/number-constant.js';

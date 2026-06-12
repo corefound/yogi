@@ -1,11 +1,13 @@
 // sir/sir.fbs
 
 include "constants.fbs";
+include "externs.fbs";
 
 namespace Yogi.Sir;
 
 union SirNodeValue {
-  Constant
+  Constant,
+  ExternDeclaration
 }
 
 table SirNode {

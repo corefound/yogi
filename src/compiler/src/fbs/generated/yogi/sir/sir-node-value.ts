@@ -3,32 +3,36 @@
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 import { Constant } from '../../yogi/sir/constant.js';
+import { ExternDeclaration } from '../../yogi/sir/extern-declaration.js';
 
 
 export enum SirNodeValue {
   NONE = 0,
-  Constant = 1
+  Constant = 1,
+  ExternDeclaration = 2
 }
 
 export function unionToSirNodeValue(
   type: SirNodeValue,
-  accessor: (obj:Constant) => Constant|null
-): Constant|null {
+  accessor: (obj:Constant|ExternDeclaration) => Constant|ExternDeclaration|null
+): Constant|ExternDeclaration|null {
   switch(SirNodeValue[type]) {
-    case 'NONE': return null; 
+    case 'NONE': return null;
     case 'Constant': return accessor(new Constant())! as Constant;
+    case 'ExternDeclaration': return accessor(new ExternDeclaration())! as ExternDeclaration;
     default: return null;
   }
 }
 
 export function unionListToSirNodeValue(
-  type: SirNodeValue, 
-  accessor: (index: number, obj:Constant) => Constant|null, 
+  type: SirNodeValue,
+  accessor: (index: number, obj:Constant|ExternDeclaration) => Constant|ExternDeclaration|null,
   index: number
-): Constant|null {
+): Constant|ExternDeclaration|null {
   switch(SirNodeValue[type]) {
-    case 'NONE': return null; 
+    case 'NONE': return null;
     case 'Constant': return accessor(index, new Constant())! as Constant;
+    case 'ExternDeclaration': return accessor(index, new ExternDeclaration())! as ExternDeclaration;
     default: return null;
   }
 }

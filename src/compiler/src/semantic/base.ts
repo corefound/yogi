@@ -13,6 +13,7 @@ export function applySemanticMixins<TBase extends Constructor>(Base: TBase, ...m
 
 export class BaseSemantic {
     public modulePath: any = {};
+    public sourceText = "";
     public symbolId = 0;
     public nextScopeId = 1;
 
@@ -96,6 +97,9 @@ export class BaseSemantic {
                 });
         }
 
+        const externs = this.visitExterns(node);
+        if (externs !== null && externs !== undefined) return externs;
+
         
         if (node.kind === Kinds.Expressions.IdentifierExpression) {
             return this.visitIdentifierExpression(node);
@@ -115,12 +119,13 @@ export class BaseSemantic {
     }
 
     public visitIdentifierExpression(node: any): any {
-        const symbol = this.resolveSymbol(node.value);
+        const identifierName = node.value ?? node.name ?? node.raw;
+        const symbol = this.resolveSymbol(identifierName);
 
         if (!symbol) {
-            const message = `cannot find name ${Helpers.RED}'${node.value}'${Helpers.RESET}`;
-            node.arrowLength = node.value.length;
-            this.throwError(message, node.position, node.fullSource, node);
+            const message = `cannot find name ${Helpers.RED}'${identifierName}'${Helpers.RESET}`;
+            node.arrowLength = identifierName?.length ?? 1;
+            this.throwError(message, node.position, node.fullSource ?? node.source ?? node.raw, node);
         }
 
         return {
@@ -204,6 +209,7 @@ export class BaseSemantic {
     visitFunctionLikeDeclarations(_: any): any { }
     visitVariableLikeDeclarations(_: any): any { }
     visitArrayLikeDeclarations(_: any): any { }
+    visitExterns(_: any): any { }
 
     visitBinaryExpression(_: any): any { }
 

@@ -17,6 +17,10 @@ import {
     SourcePosition,
     TypeRef,
     TypeKind,
+    ExternDeclaration,
+    ExternFunction,
+    ExternParameter,
+    ExternVariable,
 } from "./generated/yogi/sir";
 
 export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: TBase) {
@@ -59,6 +63,16 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
                     SirNode.startSirNode(builder);
                     SirNode.addValueType(builder, SirNodeValue.Constant);
+                    SirNode.addValue(builder, value);
+
+                    return SirNode.endSirNode(builder);
+                }
+
+                case "ExternDeclaration": {
+                    const value = this.createExternDeclaration(builder, node);
+
+                    SirNode.startSirNode(builder);
+                    SirNode.addValueType(builder, SirNodeValue.ExternDeclaration);
                     SirNode.addValue(builder, value);
 
                     return SirNode.endSirNode(builder);
@@ -190,6 +204,9 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 case "UndefinedType":
                     return TypeKind.undefined_type;
 
+                case "VoidType":
+                    return TypeKind.void_type;
+
                 default:
                     return TypeKind.unknown;
             }
@@ -239,6 +256,107 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             UndefinedConstant.startUndefinedConstant(builder);
 
             return UndefinedConstant.endUndefinedConstant(builder);
+        }
+
+        static createExternDeclaration(
+            builder: fbs.Builder,
+            declaration: Types.Sir.SemanticExternDeclaration,
+        ): fbs.Offset {
+            const name = builder.createString(declaration.name);
+            const externPath = builder.createString(declaration.path);
+            const source = builder.createString(declaration.source);
+            const position = this.createSourcePosition(builder, declaration.position);
+
+            const functionOffsets = declaration.functions.map((fn) => {
+                return this.createExternFunction(builder, fn);
+            });
+
+            const variableOffsets = declaration.variables.map((variable) => {
+                return this.createExternVariable(builder, variable);
+            });
+
+            const functionsVector = createVector(builder, functionOffsets, (length) => {
+                ExternDeclaration.startFunctionsVector(builder, length);
+            });
+
+            const variablesVector = createVector(builder, variableOffsets, (length) => {
+                ExternDeclaration.startVariablesVector(builder, length);
+            });
+
+            ExternDeclaration.startExternDeclaration(builder);
+            ExternDeclaration.addName(builder, name);
+            ExternDeclaration.addPath(builder, externPath);
+            ExternDeclaration.addFunctions(builder, functionsVector);
+            ExternDeclaration.addVariables(builder, variablesVector);
+            ExternDeclaration.addSource(builder, source);
+            ExternDeclaration.addPosition(builder, position);
+
+            return ExternDeclaration.endExternDeclaration(builder);
+        }
+
+        static createExternFunction(
+            builder: fbs.Builder,
+            fn: Types.Sir.SemanticExternFunction,
+        ): fbs.Offset {
+            const name = builder.createString(fn.name);
+            const source = builder.createString(fn.source);
+            const returnType = this.createTypeRef(builder, fn.returnType);
+            const position = this.createSourcePosition(builder, fn.position);
+
+            const parameterOffsets = fn.parameters.map((parameter) => {
+                return this.createExternParameter(builder, parameter);
+            });
+
+            const parametersVector = createVector(builder, parameterOffsets, (length) => {
+                ExternFunction.startParametersVector(builder, length);
+            });
+
+            ExternFunction.startExternFunction(builder);
+            ExternFunction.addName(builder, name);
+            ExternFunction.addParameters(builder, parametersVector);
+            ExternFunction.addReturnType(builder, returnType);
+            ExternFunction.addOptional(builder, fn.optional);
+            ExternFunction.addSource(builder, source);
+            ExternFunction.addPosition(builder, position);
+
+            return ExternFunction.endExternFunction(builder);
+        }
+
+        static createExternParameter(
+            builder: fbs.Builder,
+            parameter: Types.Sir.SemanticExternParameter,
+        ): fbs.Offset {
+            const name = builder.createString(parameter.name);
+            const type = this.createTypeRef(builder, parameter.type);
+            const position = this.createSourcePosition(builder, parameter.position);
+
+            ExternParameter.startExternParameter(builder);
+            ExternParameter.addName(builder, name);
+            ExternParameter.addType(builder, type);
+            ExternParameter.addOptional(builder, parameter.optional);
+            ExternParameter.addRest(builder, parameter.rest);
+            ExternParameter.addPosition(builder, position);
+
+            return ExternParameter.endExternParameter(builder);
+        }
+
+        static createExternVariable(
+            builder: fbs.Builder,
+            variable: Types.Sir.SemanticExternVariable,
+        ): fbs.Offset {
+            const name = builder.createString(variable.name);
+            const type = this.createTypeRef(builder, variable.type);
+            const source = builder.createString(variable.source);
+            const position = this.createSourcePosition(builder, variable.position);
+
+            ExternVariable.startExternVariable(builder);
+            ExternVariable.addName(builder, name);
+            ExternVariable.addType(builder, type);
+            ExternVariable.addReadonly(builder, variable.readonly);
+            ExternVariable.addSource(builder, source);
+            ExternVariable.addPosition(builder, position);
+
+            return ExternVariable.endExternVariable(builder);
         }
     };
 }

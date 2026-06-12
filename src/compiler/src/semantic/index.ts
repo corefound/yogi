@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { Types } from "../helpers/types";
 import { BaseSemantic, applySemanticMixins } from "./base";
 import { ConstantsSemantic } from "./constants";
@@ -7,6 +8,7 @@ import { FunctionsSemantic } from "./functions";
 import { ExpressionsSemantic } from "./expressions";
 import { ArraysSemantic } from "./arrays";
 import { TypesSemantic } from "./types";
+import { ExternsSemantic } from "./externs";
 import { Helpers } from "../helpers";
 
 
@@ -19,12 +21,14 @@ export class Semantic extends applySemanticMixins(
     ExpressionsSemantic,
     ArraysSemantic,
     TypesSemantic,
+    ExternsSemantic,
 ) {
     public sir: Types.Sir[] = [];
 
     constructor(modulePath: any) {
         super();
         this.modulePath = modulePath
+        this.sourceText = fs.readFileSync(modulePath.absolutePath, "utf8");
     }
 
     public analyze(ast: any[]) {

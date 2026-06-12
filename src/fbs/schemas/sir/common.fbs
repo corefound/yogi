@@ -13,7 +13,8 @@ enum TypeKind : byte {
   string_type = 2,
   boolean_type = 3,
   null_type = 4,
-  undefined_type = 5
+  undefined_type = 5,
+  void_type = 6
 }
 
 table TypeRef {

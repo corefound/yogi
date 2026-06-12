@@ -1,5 +1,4 @@
 import path from "path";
-import util from "node:util";
 import { Visitor } from "./visitor";
 import { ModuleScanner } from "./dfs";
 import { Helpers } from "./helpers";
@@ -36,10 +35,6 @@ const meta: Types.GlobalMetaInput = {
 graph.forEach(async (_, moduleUrl: string) => {
   try {
     const { ast, sourceHash, astHash } = visitor.parse(moduleUrl);
-
-    // print ast using utils
-    console.log(util.inspect(ast, { showHidden: false, depth: null, colors: true }));
-
     const { sir, sirHash } = semantic.analyze(ast);
 
     const relativePath = path.relative(rootPath, moduleUrl)
