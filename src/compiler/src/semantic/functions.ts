@@ -49,10 +49,15 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
             this.enterScope();
 
+            const params = (node.params ?? []).map((param: any) => {
+                return this.visitFunctionParameterDeclaration(node, param);
+            });
+
             const body = this.visitFunctionBody(node.body);
 
             const functionContext = {
                 ...node,
+                params,
                 body,
             };
 
@@ -80,7 +85,67 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 export: node.export,
                 trusted,
 
+                params,
                 body,
+            };
+        }
+
+        public visitFunctionParameterDeclaration(functionNode: any, param: any): any {
+            if (!param.type || param.type.kind === Kinds.Types.UnTyped) {
+                const message =
+                    `parameter ${Helpers.RED}'${param.name}'${Helpers.RESET} is missing explicit type annotation`;
+
+                param.arrowLength = param.name?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    param.position,
+                    functionNode.fullSource ?? functionNode.source ?? param.source,
+                    param,
+                );
+            }
+
+            const localSymbol = this.resolveLocalSymbol(param.name);
+
+            if (localSymbol) {
+                const message =
+                    `parameter ${Helpers.RED}'${param.name}'${Helpers.RESET} is defined multiple times`;
+
+                param.arrowLength = param.name?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    param.position,
+                    functionNode.fullSource ?? functionNode.source ?? param.source,
+                    param,
+                );
+            }
+
+            const qualifiedName = this.getQualifiedName(
+                this.modulePath.relativePath,
+                `${functionNode.name}:${param.name}`,
+            );
+
+            const symbol = this.defineSymbol({
+                kind: Kinds.ScopeSymbols.Parameter,
+                name: param.name,
+                linkageName: null,
+                qualifiedName,
+                type: param.type,
+                mutable: true,
+                storage: Kinds.Storage.stack,
+                escapes: false,
+                trusted: true,
+                node: param,
+            });
+
+            return {
+                ...param,
+                symbolId: symbol.id,
+                scopeId: symbol.scopeId,
+                mutable: symbol.mutable,
+                storage: symbol.storage,
+                trusted: symbol.trusted,
             };
         }
 

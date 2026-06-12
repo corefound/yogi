@@ -1,5 +1,6 @@
 import { BaseSemantic, Constructor } from "./base";
 import { Kinds } from "../helpers/types";
+import { Helpers } from "../helpers";
 
 export function ConstantsSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
@@ -19,25 +20,16 @@ export function ConstantsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     return this.visitNull(node);
 
                 case Kinds.Literals.BigIntLiteral:
-                    return this.visitBigInt(node);
+                    return this.visitUnsupportedLiteral(node, "bigint");
 
                 case Kinds.Literals.RegularExpressionLiteral:
-                    return this.visitRegularExpression(node);
+                    return this.visitUnsupportedLiteral(node, "RegExp");
 
                 case Kinds.Literals.TemplateStringLiteral:
                     return this.visitTemplateString(node);
 
                 case Kinds.Expressions.IdentifierExpression:
                     return this.visitBuiltinConstant(node);
-
-                case Kinds.Expressions.IdentifierExpression: {
-                    const constant = this.visitBuiltinConstant(node);
-                    if (constant) {
-                        return constant;
-                    }
-
-                    return this.visitIdentifier(node);
-                }
 
                 default:
                     return null;
@@ -93,11 +85,13 @@ export function ConstantsSemantic<TBase extends Constructor<BaseSemantic>>(base:
         }
 
         public visitBoolean(node: any) {
+            const value = node.value === true || node.value === "true";
+
             return {
                 kind: Kinds.Sir.BooleanConstant,
                 type: { kind: Kinds.Types.BooleanType, raw: "boolean" },
                 raw: node.raw ?? node.source,
-                value: Boolean(node.value),
+                value,
                 source: node.source,
                 position: node.position,
             };
@@ -153,7 +147,9 @@ export function ConstantsSemantic<TBase extends Constructor<BaseSemantic>>(base:
         }
 
         public visitBuiltinConstant(node: any) {
-            switch (node.value) {
+            const name = node.value ?? node.name ?? node.raw;
+
+            switch (name) {
                 case "undefined":
                     return this.visitUndefinedConstant(node);
 
@@ -172,39 +168,57 @@ export function ConstantsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             return {
                 kind: Kinds.Sir.UndefinedConstant,
                 type: { kind: Kinds.Types.UndefinedType, raw: "undefined" },
-                raw: node.source,
+                raw: node.raw ?? node.source ?? "undefined",
                 value: "undefined",
-                source: node.source,
+                source: node.source ?? "undefined",
                 position: node.position,
             };
         }
 
         public visitNaNConstant(node: any) {
             return {
-                kind: Kinds.Sir.NaNConstant,
+                kind: Kinds.Sir.NumberConstant,
                 type: {
                     kind: Kinds.Types.NumberType,
                     raw: "number"
                 },
-                raw: node.source,
+                raw: node.raw ?? node.source ?? "NaN",
                 value: Number.NaN,
-                source: node.source,
+                source: node.source ?? "NaN",
                 position: node.position,
             };
         }
 
         public visitInfinity(node: any) {
             return {
-                kind: Kinds.Sir.InfinityConstant,
+                kind: Kinds.Sir.NumberConstant,
                 type: {
                     kind: Kinds.Types.NumberType,
                     raw: "number"
                 },
-                raw: node.source,
+                raw: node.raw ?? node.source ?? "Infinity",
                 value: Infinity,
-                source: node.source,
+                source: node.source ?? "Infinity",
                 position: node.position,
             };
+        }
+
+        public visitUnsupportedLiteral(node: any, literalName: string): never {
+            const raw = node.raw ?? node.source ?? literalName;
+            const message =
+                `${Helpers.RED}'${raw}'${Helpers.RESET} cannot be lowered to SIR yet`;
+
+            node.arrowLength = raw.length || 1;
+
+            this.throwError(
+                message,
+                node.position,
+                node.fullSource ?? node.source ?? raw,
+                node,
+                `  = supported literal constants for SIR: number, string, boolean, null, undefined, NaN, Infinity`,
+            );
+
+            throw new Error(message);
         }
     };
 }

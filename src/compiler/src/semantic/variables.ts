@@ -192,11 +192,13 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     `name ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only initialize values of type ` +
                     `${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET}`;
 
+                value.arrowLength = value.source?.length ?? context.name?.length ?? 1;
+
                 this.throwError(
                     message,
-                    context.position,
+                    value.position ?? context.position,
                     source,
-                    context,
+                    value,
                 );
             }
 

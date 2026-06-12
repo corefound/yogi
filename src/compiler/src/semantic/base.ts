@@ -84,6 +84,7 @@ export class BaseSemantic {
         if (Array.isArray(node)) {
             return node.flatMap((child) => {
                 const result = this.visitNode(child);
+                if (result === null || result === undefined) return [];
                 return Array.isArray(result) ? result : [result];
             });
         }
@@ -100,17 +101,18 @@ export class BaseSemantic {
         const externs = this.visitExterns(node);
         if (externs !== null && externs !== undefined) return externs;
 
-        
-        if (node.kind === Kinds.Expressions.IdentifierExpression) {
-            return this.visitIdentifierExpression(node);
-        }
-        
-        
         const types = this.visitAliasTypes(node);
         if (types !== null) return types;
 
         const constants = this.visitConstants(node);
         if (constants !== null && constants !== undefined) return constants;
+
+        if (node.kind === Kinds.Expressions.IdentifierExpression) {
+            return this.visitIdentifierExpression(node);
+        }
+
+        const controlFlow = this.visitControlFlow(node);
+        if (controlFlow !== null && controlFlow !== undefined) return controlFlow;
 
         const declaration = this.visitDeclarationStatement(node);
         if (declaration !== null && declaration !== undefined) return declaration;
@@ -210,6 +212,7 @@ export class BaseSemantic {
     visitVariableLikeDeclarations(_: any): any { }
     visitArrayLikeDeclarations(_: any): any { }
     visitExterns(_: any): any { }
+    visitControlFlow(_: any): any { }
 
     visitBinaryExpression(_: any): any { }
 

@@ -12,6 +12,16 @@ namespace yogi::core {
 		const auto resolvedPath = std::filesystem::weakly_canonical(TS_PARSERS_PATH / utils::helpers::Helpers::getTSParserBinaryName()).string();
 		const std::string response = utils::helpers::Helpers::runCommand(resolvedPath + " " + filePath);
 
-		ast = nlohmann::json::parse(response);
+		if (response.empty()) {
+			std::cerr << "Error: TypeScript compiler did not emit JSON output." << std::endl;
+			std::exit(1);
+		}
+
+		try {
+			ast = nlohmann::json::parse(response);
+		} catch (const nlohmann::json::parse_error &error) {
+			std::cerr << "Error: TypeScript compiler emitted invalid JSON: " << error.what() << std::endl;
+			std::exit(1);
+		}
 	}
 }

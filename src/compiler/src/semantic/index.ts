@@ -9,6 +9,7 @@ import { ExpressionsSemantic } from "./expressions";
 import { ArraysSemantic } from "./arrays";
 import { TypesSemantic } from "./types";
 import { ExternsSemantic } from "./externs";
+import { IfSemantic } from "./if";
 import { Helpers } from "../helpers";
 
 
@@ -22,6 +23,7 @@ export class Semantic extends applySemanticMixins(
     ArraysSemantic,
     TypesSemantic,
     ExternsSemantic,
+    IfSemantic,
 ) {
     public sir: Types.Sir[] = [];
 
@@ -32,7 +34,11 @@ export class Semantic extends applySemanticMixins(
     }
 
     public analyze(ast: any[]) {
-        const sir = ast.map((statement: any) => this.visitNode(statement)).flat(Infinity)
+        const sir = ast
+            .map((statement: any) => this.visitNode(statement))
+            .flat(Infinity)
+            .filter((node: any) => node !== null && node !== undefined);
+
         return {
             sir,
             sirHash: Helpers.hash(JSON.stringify(sir))

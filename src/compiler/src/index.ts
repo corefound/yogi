@@ -17,10 +17,6 @@ const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
 const scc = scanner.sortModules(graph);
 
 const visitor = new Visitor();
-const semantic = new Semantic({
-  relativePath: process.argv[2],
-  absolutePath: path.resolve(process.cwd(), process.argv[2])
-});
 
 
 // Program
@@ -34,10 +30,15 @@ const meta: Types.GlobalMetaInput = {
 
 graph.forEach(async (_, moduleUrl: string) => {
   try {
+    const relativePath = path.relative(rootPath, moduleUrl)
+    const semantic = new Semantic({
+      relativePath,
+      absolutePath: moduleUrl,
+    });
+
     const { ast, sourceHash, astHash } = visitor.parse(moduleUrl);
     const { sir, sirHash } = semantic.analyze(ast);
 
-    const relativePath = path.relative(rootPath, moduleUrl)
     const qualifiedName = `${relativePath?.replace(/[\\/]/g, ":")}`
 
     const modulePath = path.join(cachePath, "modules")
