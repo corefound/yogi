@@ -4,11 +4,11 @@ import fs from "fs";
 import path from "path";
 
 import { Types } from "../helpers/types";
-import { Meta, ModuleMeta, LinkEntry } from "./generated/build";
+import { Meta, ModuleMeta, LinkEntry } from "./generated/yogi/build";
 
 export function MetaFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: TBase) {
     return class extends base {
-        static createGlobalMeta(input: Types.GlobalMetaInput): Uint8Array {
+        static createGlobalMetaBuffer(input: Types.GlobalMetaInput): Uint8Array {
             const builder = new fbs.Builder(1024);
 
             const rootPath = builder.createString(input.rootPath);

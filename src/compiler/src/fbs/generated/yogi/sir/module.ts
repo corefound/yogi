@@ -4,7 +4,7 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { VariableDeclaration } from '../sir/variable-declaration.js';
+import { SirNode } from '../../yogi/sir/sir-node.js';
 
 
 export class Module {
@@ -25,25 +25,36 @@ static getSizePrefixedRootAsModule(bb:flatbuffers.ByteBuffer, obj?:Module):Modul
   return (obj || new Module()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-variables(index: number, obj?:VariableDeclaration):VariableDeclaration|null {
+sourcePath():string|null
+sourcePath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+sourcePath(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
-  return offset ? (obj || new VariableDeclaration()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-variablesLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 4);
+nodes(index: number, obj?:SirNode):SirNode|null {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? (obj || new SirNode()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+nodesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 static startModule(builder:flatbuffers.Builder) {
-  builder.startObject(1);
+  builder.startObject(2);
 }
 
-static addVariables(builder:flatbuffers.Builder, variablesOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(0, variablesOffset, 0);
+static addSourcePath(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(0, sourcePathOffset, 0);
 }
 
-static createVariablesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+static addNodes(builder:flatbuffers.Builder, nodesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(1, nodesOffset, 0);
+}
+
+static createNodesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
   builder.startVector(4, data.length, 4);
   for (let i = data.length - 1; i >= 0; i--) {
     builder.addOffset(data[i]!);
@@ -51,7 +62,7 @@ static createVariablesVector(builder:flatbuffers.Builder, data:flatbuffers.Offse
   return builder.endVector();
 }
 
-static startVariablesVector(builder:flatbuffers.Builder, numElems:number) {
+static startNodesVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 
@@ -60,9 +71,10 @@ static endModule(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createModule(builder:flatbuffers.Builder, variablesOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createModule(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset, nodesOffset:flatbuffers.Offset):flatbuffers.Offset {
   Module.startModule(builder);
-  Module.addVariables(builder, variablesOffset);
+  Module.addSourcePath(builder, sourcePathOffset);
+  Module.addNodes(builder, nodesOffset);
   return Module.endModule(builder);
 }
 }

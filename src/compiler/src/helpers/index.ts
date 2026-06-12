@@ -31,7 +31,7 @@ export class Helpers {
         if (!fs.existsSync(filePath)) {
             return null;
         }
-        
+
         return filePath
     };
 
@@ -66,6 +66,20 @@ export class Helpers {
         const signatureHash = Helpers.hash(signature).slice(0, 10);
 
         return `_yogi_${moduleHash}_${symbol.name}_${signatureHash}`;
+    }
+
+    static writeToFile(text: string, output: string) {
+        const dir = path.dirname(output);
+
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(output, text);
+    }
+
+    static writeJsonToFileAsync<T>(data: T, output: string) {
+        const dir = path.dirname(output);
+
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(output, JSON.stringify(data, null, 2), "utf8");
     }
 }
 

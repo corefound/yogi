@@ -4,11 +4,11 @@
 
 export { BooleanConstant } from './sir/boolean-constant.js';
 export { Constant } from './sir/constant.js';
+export { ConstantValue } from './sir/constant-value.js';
 export { Module } from './sir/module.js';
 export { NullConstant } from './sir/null-constant.js';
 export { NumberConstant } from './sir/number-constant.js';
-export { PrimitiveType } from './sir/primitive-type.js';
+export { SirNode } from './sir/sir-node.js';
+export { SirNodeValue } from './sir/sir-node-value.js';
 export { StringConstant } from './sir/string-constant.js';
-export { TypeRef } from './sir/type-ref.js';
 export { UndefinedConstant } from './sir/undefined-constant.js';
-export { VariableDeclaration } from './sir/variable-declaration.js';

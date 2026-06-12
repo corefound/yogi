@@ -4,8 +4,8 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { LinkEntry } from '../build/link-entry.js';
-import { ModuleMeta } from '../build/module-meta.js';
+import { LinkEntry } from '../../yogi/build/link-entry.js';
+import { ModuleMeta } from '../../yogi/build/module-meta.js';
 
 
 export class Meta {

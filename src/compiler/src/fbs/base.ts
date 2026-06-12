@@ -1,4 +1,4 @@
-
+import { Types } from "../helpers/types";
 
 export type Constructor<T = {}> = new (...args: any[]) => T;
 export type Mixin<T extends Constructor> = <TBase extends Constructor>(Base: TBase) => T & TBase;
@@ -9,6 +9,4 @@ export function applyFlatBufferMixins<TBase extends Constructor>(Base: TBase, ..
 }
 
 
-export class BaseFlatBuffer {
-
-}
+export class BaseFlatBuffer { }

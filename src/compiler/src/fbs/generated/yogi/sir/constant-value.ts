@@ -2,14 +2,14 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
-import { BooleanConstant } from '../sir/boolean-constant.js';
-import { NullConstant } from '../sir/null-constant.js';
-import { NumberConstant } from '../sir/number-constant.js';
-import { StringConstant } from '../sir/string-constant.js';
-import { UndefinedConstant } from '../sir/undefined-constant.js';
+import { BooleanConstant } from '../../yogi/sir/boolean-constant.js';
+import { NullConstant } from '../../yogi/sir/null-constant.js';
+import { NumberConstant } from '../../yogi/sir/number-constant.js';
+import { StringConstant } from '../../yogi/sir/string-constant.js';
+import { UndefinedConstant } from '../../yogi/sir/undefined-constant.js';
 
 
-export enum Constant {
+export enum ConstantValue {
   NONE = 0,
   NumberConstant = 1,
   StringConstant = 2,
@@ -18,11 +18,11 @@ export enum Constant {
   UndefinedConstant = 5
 }
 
-export function unionToConstant(
-  type: Constant,
+export function unionToConstantValue(
+  type: ConstantValue,
   accessor: (obj:BooleanConstant|NullConstant|NumberConstant|StringConstant|UndefinedConstant) => BooleanConstant|NullConstant|NumberConstant|StringConstant|UndefinedConstant|null
 ): BooleanConstant|NullConstant|NumberConstant|StringConstant|UndefinedConstant|null {
-  switch(Constant[type]) {
+  switch(ConstantValue[type]) {
     case 'NONE': return null; 
     case 'NumberConstant': return accessor(new NumberConstant())! as NumberConstant;
     case 'StringConstant': return accessor(new StringConstant())! as StringConstant;
@@ -33,12 +33,12 @@ export function unionToConstant(
   }
 }
 
-export function unionListToConstant(
-  type: Constant, 
+export function unionListToConstantValue(
+  type: ConstantValue, 
   accessor: (index: number, obj:BooleanConstant|NullConstant|NumberConstant|StringConstant|UndefinedConstant) => BooleanConstant|NullConstant|NumberConstant|StringConstant|UndefinedConstant|null, 
   index: number
 ): BooleanConstant|NullConstant|NumberConstant|StringConstant|UndefinedConstant|null {
-  switch(Constant[type]) {
+  switch(ConstantValue[type]) {
     case 'NONE': return null; 
     case 'NumberConstant': return accessor(index, new NumberConstant())! as NumberConstant;
     case 'StringConstant': return accessor(index, new StringConstant())! as StringConstant;

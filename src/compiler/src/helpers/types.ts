@@ -1,6 +1,40 @@
 import { LinkKind } from "../fbs";
 
 export namespace Types {
+    export type AstNumberLiteralInput = {
+        kind: "number";
+        value: number;
+        raw: string;
+    };
+
+    export type AstStringLiteralInput = {
+        kind: "string";
+        value: string;
+        raw: string;
+    };
+
+    export type AstBooleanLiteralInput = {
+        kind: "boolean";
+        value: boolean;
+        raw: string;
+    };
+
+    export type AstNullLiteralInput = {
+        kind: "null";
+        raw: string;
+    };
+
+    export type AstUndefinedLiteralInput = {
+        kind: "undefined";
+        raw: string;
+    };
+
+    export type AstLiteralInput =
+        | AstNumberLiteralInput
+        | AstStringLiteralInput
+        | AstBooleanLiteralInput
+        | AstNullLiteralInput
+        | AstUndefinedLiteralInput;
     export type GlobalMetaModuleInput = {
         name: string;
         sourcePath: string;

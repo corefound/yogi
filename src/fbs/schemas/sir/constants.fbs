@@ -1,4 +1,6 @@
-namespace Sir;
+// sir/constants.fbs
+
+namespace Yogi.Sir;
 
 table NumberConstant {
   value:double;
@@ -18,10 +20,14 @@ table NullConstant {
 table UndefinedConstant {
 }
 
-union Constant {
+union ConstantValue {
   NumberConstant,
   StringConstant,
   BooleanConstant,
   NullConstant,
   UndefinedConstant
+}
+
+table Constant {
+  value:ConstantValue;
 }

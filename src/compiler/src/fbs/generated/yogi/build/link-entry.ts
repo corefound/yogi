@@ -4,7 +4,7 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { LinkKind } from '../build/link-kind.js';
+import { LinkKind } from '../../yogi/build/link-kind.js';
 
 
 export class LinkEntry {

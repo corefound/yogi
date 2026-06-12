@@ -4,9 +4,8 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { AstModule } from '../ast/ast-module.js';
-import { Meta } from '../build/meta.js';
-import { Module } from '../sir/module.js';
+import { Meta } from '../../yogi/build/meta.js';
+import { Module } from '../../yogi/sir/module.js';
 
 
 export class Root {
@@ -32,30 +31,21 @@ build(obj?:Meta):Meta|null {
   return offset ? (obj || new Meta()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
-ast(obj?:AstModule):AstModule|null {
-  const offset = this.bb!.__offset(this.bb_pos, 6);
-  return offset ? (obj || new AstModule()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
-}
-
 sir(obj?:Module):Module|null {
-  const offset = this.bb!.__offset(this.bb_pos, 8);
+  const offset = this.bb!.__offset(this.bb_pos, 6);
   return offset ? (obj || new Module()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startRoot(builder:flatbuffers.Builder) {
-  builder.startObject(3);
+  builder.startObject(2);
 }
 
 static addBuild(builder:flatbuffers.Builder, buildOffset:flatbuffers.Offset) {
   builder.addFieldOffset(0, buildOffset, 0);
 }
 
-static addAst(builder:flatbuffers.Builder, astOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, astOffset, 0);
-}
-
 static addSir(builder:flatbuffers.Builder, sirOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(2, sirOffset, 0);
+  builder.addFieldOffset(1, sirOffset, 0);
 }
 
 static endRoot(builder:flatbuffers.Builder):flatbuffers.Offset {

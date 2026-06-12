@@ -14,9 +14,9 @@ run:
 # Flatbuffers
 fbs-build:
 	@cd $(CURDIR)/src/fbs && flatc --cpp --ts --gen-all -o ./generated ./schemas/main.fbs
-	@cd $(CURDIR)/src/compiler/src/fbs && rm -rf generated
-	@mv $(CURDIR)/src/fbs/generated $(CURDIR)/src/compiler/src/fbs/generated
-
+	@cd $(CURDIR)/src/compiler/src/fbs && rm -rf generated && mkdir generated
+	@mv $(CURDIR)/src/fbs/generated/yogi $(CURDIR)/src/compiler/src/fbs/generated/yogi
+#  src/fbs/generated/yogi
 # TypeScript
 ts-dev:
 	@cd $(CURDIR)/src/compiler && npm run dev

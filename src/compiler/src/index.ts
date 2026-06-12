@@ -40,13 +40,13 @@ graph.forEach(async (_, moduleUrl: string) => {
   const qualifiedName = `${relativePath?.replace(/[\\/]/g, ":")}`
 
   const modulePath = path.join(cachePath, "modules")
-  const astPath = path.join(modulePath, qualifiedName, "/ast.fb")
+  const astPath = path.join(modulePath, qualifiedName, "/ast.json")
   const objectPath = path.join(modulePath, qualifiedName, path.basename(path.join(modulePath, relativePath)).split(".")[0] + ".o");
   const sirPath = path.join(modulePath, qualifiedName, "/sir.fb");
 
   const module = {
     isEntry: moduleUrl === path.resolve(process.cwd(), process.argv[2]),
-
+    rootPath: rootPath,
     name: qualifiedName,
     shouldLower: true,
     sourcePath: relativePath,
@@ -59,12 +59,17 @@ graph.forEach(async (_, moduleUrl: string) => {
     sirHash
   }
 
+  // safe ast to json file
+
+  console.log(util.inspect({ astPath }, false, null, true));
+  // Helpers.writeJsonToFileAsync(ast, path.join(rootPath, astPath));
+
   meta.modules.push(module);
-  console.log(util.inspect({ module, ast, sir }, false, null, true));
 
 });
 
-const buffer = FlatBuffer.createGlobalMeta(meta);
+
+const buffer = FlatBuffer.createGlobalMetaBuffer(meta);
 FlatBuffer.writeBufferToFile(buffer, globalMetaPath);
 
 // console.log(JSON.stringify({ ok: true, meta }, null, 4));
