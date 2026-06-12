@@ -1,4 +1,5 @@
 import { applyFlatBufferMixins, BaseFlatBuffer } from "./base";
+import { AstFlatBuffer } from "./ast";
 import { MetaFlatBuffer } from "./meta";
 import { SirFlatBuffer } from "./sir";
 
@@ -8,6 +9,7 @@ import { writeBufferToFile, writeBufferToFileAsync } from "./base";
 const FlatBufferMixins = applyFlatBufferMixins(
     BaseFlatBuffer,
     MetaFlatBuffer,
+    AstFlatBuffer,
     SirFlatBuffer,
 );
 

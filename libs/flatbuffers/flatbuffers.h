@@ -56,6 +56,30 @@ namespace yogi::libs::fbs {
 				return read_sir_module(storage);
 			}
 
+			static const Yogi::Ast::Module *read_ast_module(
+				const std::vector<std::uint8_t> &buffer
+			) {
+				if (buffer.empty()) {
+					throw std::runtime_error("empty AST flatbuffer");
+				}
+
+				flatbuffers::Verifier verifier(buffer.data(), buffer.size());
+
+				if (!verifier.VerifyBuffer<Yogi::Ast::Module>(nullptr)) {
+					throw std::runtime_error("invalid AST flatbuffer");
+				}
+
+				return flatbuffers::GetRoot<Yogi::Ast::Module>(buffer.data());
+			}
+
+			static const Yogi::Ast::Module *read_ast_module_from_file(
+				const std::string &path,
+				std::vector<std::uint8_t> &storage
+			) {
+				storage = read_file(path);
+				return read_ast_module(storage);
+			}
+
 			static const Yogi::Build::Meta *read_build_meta(
 				const std::vector<std::uint8_t> &buffer
 			) {

@@ -1,0 +1,57 @@
+// ast/ast.fbs
+
+namespace Yogi.Ast;
+
+table SourcePosition {
+  line:int;
+  character:int;
+}
+
+table AstString {
+  value:string;
+}
+
+table AstNumber {
+  value:double;
+}
+
+table AstBoolean {
+  value:bool;
+}
+
+table AstNull {
+}
+
+table AstValue {
+  kind:string;
+  node:AstNode;
+  array:AstArray;
+  string_value:string;
+  number_value:double;
+  bool_value:bool;
+  is_null:bool = false;
+}
+
+table AstArray {
+  values:[AstValue];
+}
+
+table AstField {
+  name:string;
+  value:AstValue;
+}
+
+table AstNode {
+  kind:string;
+  fields:[AstField];
+  source:string;
+  raw:string;
+  position:SourcePosition;
+}
+
+table Module {
+  source_path:string;
+  nodes:[AstNode];
+}
+
+root_type Module;

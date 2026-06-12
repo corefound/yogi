@@ -1,12 +1,14 @@
 // main.fbs
 
 include "build/meta.fbs";
+include "ast/ast.fbs";
 include "sir/sir.fbs";
 
 namespace Yogi.Main;
 
 table Root {
   build:Yogi.Build.Meta;
+  ast:Yogi.Ast.Module;
   sir:Yogi.Sir.Module;
 }
 

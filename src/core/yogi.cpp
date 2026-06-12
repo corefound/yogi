@@ -13,7 +13,76 @@ namespace {
 	}
 
 	std::string type_raw(const Yogi::Sir::TypeRef *type) {
-		return type ? fb_string(type->raw()) : "unknown";
+		if (!type) {
+			return "unknown";
+		}
+
+		if (type->kind() == Yogi::Sir::TypeKind_union_type && type->types()) {
+			std::string output;
+			bool first = true;
+
+			for (const auto *child: *type->types()) {
+				if (!first) {
+					output += " | ";
+				}
+
+				first = false;
+				output += type_raw(child);
+			}
+
+			return output.empty() ? fb_string(type->raw()) : output;
+		}
+
+		if (type->kind() == Yogi::Sir::TypeKind_intersection_type && type->types()) {
+			std::string output;
+			bool first = true;
+
+			for (const auto *child: *type->types()) {
+				if (!first) {
+					output += " & ";
+				}
+
+				first = false;
+				output += type_raw(child);
+			}
+
+			return output.empty() ? fb_string(type->raw()) : output;
+		}
+
+		if (type->kind() == Yogi::Sir::TypeKind_tuple_type && type->types()) {
+			std::string output = "[";
+			bool first = true;
+
+			for (const auto *child: *type->types()) {
+				if (!first) {
+					output += ", ";
+				}
+
+				first = false;
+				output += type_raw(child);
+			}
+
+			output += "]";
+			return output;
+		}
+
+		if (type->kind() == Yogi::Sir::TypeKind_array_type && type->element_type()) {
+			return type_raw(type->element_type()) + "[]";
+		}
+
+		if (type->kind() == Yogi::Sir::TypeKind_type_reference) {
+			const auto name = fb_string(type->name());
+
+			if (const auto *resolved = type->resolved()) {
+				return name.empty()
+					? type_raw(resolved)
+					: name + " (= " + type_raw(resolved) + ")";
+			}
+
+			return name.empty() ? fb_string(type->raw()) : name;
+		}
+
+		return fb_string(type->raw());
 	}
 
 	std::string constant_value(const Yogi::Sir::Constant *constant) {
@@ -194,6 +263,14 @@ int main(const int argc, const char *argv[]) {
 		std::cout << "is_entry: " << node->is_entry() << "\n";
 		std::cout << "should_lower: " << node->should_lower() << "\n";
 		std::cout << "root_path: " << node->root_path()->str() << "\n";
+
+		std::vector<std::uint8_t> ast_storage;
+		const auto ast_path = (
+			std::filesystem::path(node->root_path()->str()) /
+			std::filesystem::path(node->ast_path()->str())
+		).string();
+		const auto *ast_module = yogi::libs::fbs::FlatBuffers::read_ast_module_from_file(ast_path, ast_storage);
+		std::cout << "ast_nodes: " << (ast_module->nodes() ? ast_module->nodes()->size() : 0) << "\n";
 
 		std::vector<std::uint8_t> sir_storage;
 		const auto sir_path = (

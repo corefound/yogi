@@ -37,8 +37,35 @@ raw(optionalEncoding?:any):string|Uint8Array|null {
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
+name():string|null
+name(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+name(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+types(index: number, obj?:TypeRef):TypeRef|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? (obj || new TypeRef()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+typesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+elementType(obj?:TypeRef):TypeRef|null {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? (obj || new TypeRef()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+resolved(obj?:TypeRef):TypeRef|null {
+  const offset = this.bb!.__offset(this.bb_pos, 14);
+  return offset ? (obj || new TypeRef()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
 static startTypeRef(builder:flatbuffers.Builder) {
-  builder.startObject(2);
+  builder.startObject(6);
 }
 
 static addKind(builder:flatbuffers.Builder, kind:TypeKind) {
@@ -49,15 +76,37 @@ static addRaw(builder:flatbuffers.Builder, rawOffset:flatbuffers.Offset) {
   builder.addFieldOffset(1, rawOffset, 0);
 }
 
+static addName(builder:flatbuffers.Builder, nameOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, nameOffset, 0);
+}
+
+static addTypes(builder:flatbuffers.Builder, typesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(3, typesOffset, 0);
+}
+
+static createTypesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startTypesVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addElementType(builder:flatbuffers.Builder, elementTypeOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(4, elementTypeOffset, 0);
+}
+
+static addResolved(builder:flatbuffers.Builder, resolvedOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(5, resolvedOffset, 0);
+}
+
 static endTypeRef(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   return offset;
 }
 
-static createTypeRef(builder:flatbuffers.Builder, kind:TypeKind, rawOffset:flatbuffers.Offset):flatbuffers.Offset {
-  TypeRef.startTypeRef(builder);
-  TypeRef.addKind(builder, kind);
-  TypeRef.addRaw(builder, rawOffset);
-  return TypeRef.endTypeRef(builder);
-}
 }

@@ -9,5 +9,15 @@ export enum TypeKind {
   boolean_type = 3,
   null_type = 4,
   undefined_type = 5,
-  void_type = 6
+  void_type = 6,
+  any_type = 7,
+  unknown_type = 8,
+  never_type = 9,
+  union_type = 10,
+  intersection_type = 11,
+  type_reference = 12,
+  array_type = 13,
+  tuple_type = 14,
+  function_type = 15,
+  type_literal = 16
 }

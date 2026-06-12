@@ -240,17 +240,82 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
         static createTypeRef(builder: fbs.Builder, type: Types.Sir.SemanticType): fbs.Offset {
             const raw = builder.createString(type?.raw ?? "unknown");
+            const nameText = this.getTypeRefName(type);
+            const name = builder.createString(nameText);
             const kind = this.mapSemanticTypeKind(type?.kind);
+            const typeChildren = this.getTypeRefChildren(type);
+            const typeOffsets = typeChildren.map((child) => this.createTypeRef(builder, child));
+            const types = createVector(builder, typeOffsets, (length) => {
+                TypeRef.startTypesVector(builder, length);
+            });
+            const elementType = type?.elementType
+                ? this.createTypeRef(builder, type.elementType)
+                : 0;
+            const resolved = type?.resolved
+                ? this.createTypeRef(builder, type.resolved)
+                : 0;
 
             TypeRef.startTypeRef(builder);
             TypeRef.addKind(builder, kind);
             TypeRef.addRaw(builder, raw);
+            TypeRef.addName(builder, name);
+
+            if (typeOffsets.length) {
+                TypeRef.addTypes(builder, types);
+            }
+
+            if (elementType) {
+                TypeRef.addElementType(builder, elementType);
+            }
+
+            if (resolved) {
+                TypeRef.addResolved(builder, resolved);
+            }
 
             return TypeRef.endTypeRef(builder);
         }
 
+        static getTypeRefName(type: Types.Sir.SemanticType): string {
+            const name = (type as any)?.name ?? (type as any)?.nameText;
+
+            if (!name) return "";
+
+            if (typeof name === "string") return name;
+
+            if (Array.isArray(name.parts)) {
+                return name.parts
+                    .map((part: any) => part.name ?? part.value ?? part.raw ?? "")
+                    .join(".");
+            }
+
+            return name.name ?? name.value ?? name.raw ?? "";
+        }
+
+        static getTypeRefChildren(type: Types.Sir.SemanticType): Types.Sir.SemanticType[] {
+            if (!type) return [];
+
+            if (Array.isArray((type as any).types)) {
+                return (type as any).types;
+            }
+
+            if (Array.isArray((type as any).elements)) {
+                return (type as any).elements;
+            }
+
+            return [];
+        }
+
         static mapSemanticTypeKind(kind: Types.Sir.SemanticType["kind"]): TypeKind {
             switch (kind) {
+                case "AnyType":
+                    return TypeKind.any_type;
+
+                case "UnknownType":
+                    return TypeKind.unknown_type;
+
+                case "NeverType":
+                    return TypeKind.never_type;
+
                 case "NumberType":
                     return TypeKind.number_type;
 
@@ -268,6 +333,27 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
                 case "VoidType":
                     return TypeKind.void_type;
+
+                case "UnionType":
+                    return TypeKind.union_type;
+
+                case "IntersectionType":
+                    return TypeKind.intersection_type;
+
+                case "TypeReference":
+                    return TypeKind.type_reference;
+
+                case "ArrayType":
+                    return TypeKind.array_type;
+
+                case "TupleType":
+                    return TypeKind.tuple_type;
+
+                case "FunctionType":
+                    return TypeKind.function_type;
+
+                case "TypeLiteral":
+                    return TypeKind.type_literal;
 
                 default:
                     return TypeKind.unknown;

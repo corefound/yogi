@@ -42,7 +42,7 @@ graph.forEach(async (_, moduleUrl: string) => {
     const qualifiedName = `${relativePath?.replace(/[\\/]/g, ":")}`
 
     const modulePath = path.join(cachePath, "modules")
-    const astPath = path.join(modulePath, qualifiedName, "/ast.json")
+    const astPath = path.join(modulePath, qualifiedName, "/ast.fb")
     const objectPath = path.join(modulePath, qualifiedName, path.basename(path.join(modulePath, relativePath)).split(".")[0] + ".o");
     const sirPath = path.join(modulePath, qualifiedName, "/sir.fb");
 
@@ -60,6 +60,13 @@ graph.forEach(async (_, moduleUrl: string) => {
       astHash,
       sirHash
     }
+
+    const astOutput = path.join(rootPath, modulePath, qualifiedName, "/ast.fb");
+    const astBuffer = FlatBuffer.createAstModuleBuffer({
+      sourcePath: relativePath,
+      nodes: ast,
+    });
+    FlatBuffer.writeBufferToFile(astBuffer, astOutput);
 
     const output = path.join(rootPath, modulePath, qualifiedName, "/sir.fb");
     const buffers = FlatBuffer.createSirModuleBuffer({

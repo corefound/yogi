@@ -126,6 +126,64 @@ export class BaseSemantic {
         return this.resolveType(symbol.type ?? symbol.node?.type, seen);
     }
 
+    public toSerializableType(type: any, seen = new Set<string>()): any {
+        if (!type || typeof type !== "object") {
+            return type;
+        }
+
+        if (type.kind === Kinds.Types.TypeReference) {
+            const name = this.getTypeReferenceName(type);
+            const serialized: any = {
+                ...type,
+                nameText: name,
+            };
+
+            if (name && !seen.has(name)) {
+                const symbol = this.resolveSymbol(name);
+
+                if (
+                    symbol &&
+                    (
+                        symbol.kind === Kinds.ScopeSymbols.Type ||
+                        symbol.kind === Kinds.ScopeSymbols.Interface
+                    )
+                ) {
+                    const nextSeen = new Set(seen);
+                    nextSeen.add(name);
+                    serialized.resolved = this.toSerializableType(
+                        symbol.type ?? symbol.node?.type,
+                        nextSeen,
+                    );
+                }
+            }
+
+            return serialized;
+        }
+
+        if (Array.isArray(type.types)) {
+            return {
+                ...type,
+                types: type.types.map((child: any) => this.toSerializableType(child, seen)),
+            };
+        }
+
+        if (Array.isArray(type.elements)) {
+            return {
+                ...type,
+                elements: type.elements.map((child: any) => this.toSerializableType(child, seen)),
+            };
+        }
+
+        if (type.elementType) {
+            return {
+                ...type,
+                elementType: this.toSerializableType(type.elementType, seen),
+            };
+        }
+
+        return type;
+    }
+
     public isTypeAssignable(expectedType: any, actualType: any): boolean {
         if (!expectedType || !actualType) return false;
 

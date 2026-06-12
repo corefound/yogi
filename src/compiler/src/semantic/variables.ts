@@ -18,6 +18,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const value = node.value ? this.visitNode(node.value) : null;
             const context = { ...node, value };
             const { trusted } = this.declarationVariableDiagnostics(context);
+            const type = this.toSerializableType(node.type);
 
             const linkageName = node.export
                 ? this.getLinkageName(this.modulePath.relativePath, node.name)
@@ -39,7 +40,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 name: node.name,
                 linkageName,
                 qualifiedName,
-                type: node.type,
+                type,
 
                 mutable: flagName !== "const",
                 storage: isAmbient ? null : Kinds.Storage.stack,
@@ -76,7 +77,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 ambient: isAmbient,
                 emit: !isAmbient,
 
-                type: node.type,
+                type,
 
                 trusted,
                 value,
