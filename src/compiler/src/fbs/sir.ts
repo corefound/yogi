@@ -17,6 +17,14 @@ import {
     SourcePosition,
     TypeRef,
     TypeKind,
+    ValueRef,
+    IdentifierExpression,
+    VariableDeclaration,
+    ReturnStatement,
+    BlockStatement,
+    IfStatement,
+    FunctionDeclaration,
+    FunctionParameter,
     ExternDeclaration,
     ExternFunction,
     ExternParameter,
@@ -61,21 +69,49 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 case "UndefinedConstant": {
                     const value = this.visitSemanticConstant(builder, node);
 
-                    SirNode.startSirNode(builder);
-                    SirNode.addValueType(builder, SirNodeValue.Constant);
-                    SirNode.addValue(builder, value);
-
-                    return SirNode.endSirNode(builder);
+                    return this.createSirNode(builder, SirNodeValue.Constant, value);
                 }
 
                 case "ExternDeclaration": {
                     const value = this.createExternDeclaration(builder, node);
 
-                    SirNode.startSirNode(builder);
-                    SirNode.addValueType(builder, SirNodeValue.ExternDeclaration);
-                    SirNode.addValue(builder, value);
+                    return this.createSirNode(builder, SirNodeValue.ExternDeclaration, value);
+                }
 
-                    return SirNode.endSirNode(builder);
+                case "IdentifierExpression": {
+                    const value = this.createIdentifierExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.IdentifierExpression, value);
+                }
+
+                case "VariableDeclaration": {
+                    const value = this.createVariableDeclaration(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.VariableDeclaration, value);
+                }
+
+                case "ReturnStatement": {
+                    const value = this.createReturnStatement(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.ReturnStatement, value);
+                }
+
+                case "BlockStatement": {
+                    const value = this.createBlockStatement(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.BlockStatement, value);
+                }
+
+                case "IfStatement": {
+                    const value = this.createIfStatement(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.IfStatement, value);
+                }
+
+                case "FunctionDeclaration": {
+                    const value = this.createFunctionDeclaration(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.FunctionDeclaration, value);
                 }
 
                 default: {
@@ -84,6 +120,18 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     );
                 }
             }
+        }
+
+        static createSirNode(
+            builder: fbs.Builder,
+            valueType: SirNodeValue,
+            value: fbs.Offset,
+        ): fbs.Offset {
+            SirNode.startSirNode(builder);
+            SirNode.addValueType(builder, valueType);
+            SirNode.addValue(builder, value);
+
+            return SirNode.endSirNode(builder);
         }
 
         static visitSemanticConstant(
@@ -177,8 +225,8 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
         }
 
         static createTypeRef(builder: fbs.Builder, type: Types.Sir.SemanticType): fbs.Offset {
-            const raw = builder.createString(type.raw);
-            const kind = this.mapSemanticTypeKind(type.kind);
+            const raw = builder.createString(type?.raw ?? "unknown");
+            const kind = this.mapSemanticTypeKind(type?.kind);
 
             TypeRef.startTypeRef(builder);
             TypeRef.addKind(builder, kind);
@@ -217,8 +265,8 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             position: Types.Sir.SourcePosition,
         ): fbs.Offset {
             SourcePosition.startSourcePosition(builder);
-            SourcePosition.addLine(builder, position.line);
-            SourcePosition.addCharacter(builder, position.character);
+            SourcePosition.addLine(builder, position?.line ?? 0);
+            SourcePosition.addCharacter(builder, position?.character ?? 0);
 
             return SourcePosition.endSourcePosition(builder);
         }
@@ -256,6 +304,235 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             UndefinedConstant.startUndefinedConstant(builder);
 
             return UndefinedConstant.endUndefinedConstant(builder);
+        }
+
+        static createValueRef(builder: fbs.Builder, node: Types.Sir.SemanticValueInput | null): fbs.Offset {
+            if (!node) {
+                ValueRef.startValueRef(builder);
+
+                return ValueRef.endValueRef(builder);
+            }
+
+            const kind = builder.createString(node.kind);
+            const constant = this.isSemanticConstant(node)
+                ? this.visitSemanticConstant(builder, node)
+                : 0;
+            const identifier = node.kind === "IdentifierExpression"
+                ? this.createIdentifierExpression(builder, node)
+                : 0;
+
+            if (!constant && !identifier) {
+                throw new Error(`Unsupported semantic value kind: ${(node as { kind: string }).kind}`);
+            }
+
+            ValueRef.startValueRef(builder);
+            ValueRef.addKind(builder, kind);
+
+            if (constant) {
+                ValueRef.addConstant(builder, constant);
+            }
+
+            if (identifier) {
+                ValueRef.addIdentifier(builder, identifier);
+            }
+
+            return ValueRef.endValueRef(builder);
+        }
+
+        static isSemanticConstant(node: any): node is Types.Sir.SemanticConstantInput {
+            return (
+                node?.kind === "NumberConstant" ||
+                node?.kind === "StringConstant" ||
+                node?.kind === "BooleanConstant" ||
+                node?.kind === "NullConstant" ||
+                node?.kind === "UndefinedConstant"
+            );
+        }
+
+        static createIdentifierExpression(
+            builder: fbs.Builder,
+            node: Types.Sir.SemanticIdentifierExpression,
+        ): fbs.Offset {
+            const nameText = node.name ?? node.value ?? node.raw ?? node.source ?? "";
+            const name = builder.createString(nameText);
+            const type = this.createTypeRef(builder, node.type);
+            const source = builder.createString(node.source ?? nameText);
+            const position = this.createSourcePosition(builder, node.position);
+
+            IdentifierExpression.startIdentifierExpression(builder);
+            IdentifierExpression.addName(builder, name);
+            IdentifierExpression.addType(builder, type);
+            IdentifierExpression.addSymbolId(builder, node.symbolId ?? -1);
+            IdentifierExpression.addScopeId(builder, node.scopeId ?? -1);
+            IdentifierExpression.addSource(builder, source);
+            IdentifierExpression.addPosition(builder, position);
+
+            return IdentifierExpression.endIdentifierExpression(builder);
+        }
+
+        static createVariableDeclaration(
+            builder: fbs.Builder,
+            declaration: Types.Sir.SemanticVariableDeclaration,
+        ): fbs.Offset {
+            const name = builder.createString(declaration.name);
+            const type = this.createTypeRef(builder, declaration.type);
+            const value = this.createValueRef(builder, declaration.value);
+            const storage = builder.createString(declaration.storage ?? "");
+            const flag = builder.createString(declaration.flag ?? "");
+            const linkageName = builder.createString(declaration.linkageName ?? "");
+            const qualifiedName = builder.createString(declaration.qualifiedName ?? "");
+            const source = builder.createString(declaration.source ?? declaration.name);
+            const position = this.createSourcePosition(builder, declaration.position);
+
+            VariableDeclaration.startVariableDeclaration(builder);
+            VariableDeclaration.addName(builder, name);
+            VariableDeclaration.addType(builder, type);
+            VariableDeclaration.addValue(builder, value);
+            VariableDeclaration.addSymbolId(builder, declaration.symbolId ?? -1);
+            VariableDeclaration.addScopeId(builder, declaration.scopeId ?? -1);
+            VariableDeclaration.addMutable(builder, declaration.mutable ?? false);
+            VariableDeclaration.addStorage(builder, storage);
+            VariableDeclaration.addFlag(builder, flag);
+            VariableDeclaration.addExported(builder, declaration.export ?? false);
+            VariableDeclaration.addTrusted(builder, declaration.trusted ?? true);
+            VariableDeclaration.addLinkageName(builder, linkageName);
+            VariableDeclaration.addQualifiedName(builder, qualifiedName);
+            VariableDeclaration.addSource(builder, source);
+            VariableDeclaration.addPosition(builder, position);
+
+            return VariableDeclaration.endVariableDeclaration(builder);
+        }
+
+        static createReturnStatement(
+            builder: fbs.Builder,
+            statement: Types.Sir.SemanticReturnStatement,
+        ): fbs.Offset {
+            const value = this.createValueRef(builder, statement.value);
+            const source = builder.createString(statement.source ?? "return");
+            const position = this.createSourcePosition(builder, statement.position);
+
+            ReturnStatement.startReturnStatement(builder);
+            ReturnStatement.addValue(builder, value);
+            ReturnStatement.addSource(builder, source);
+            ReturnStatement.addPosition(builder, position);
+
+            return ReturnStatement.endReturnStatement(builder);
+        }
+
+        static createBlockStatement(
+            builder: fbs.Builder,
+            block: Types.Sir.SemanticBlockStatement,
+        ): fbs.Offset {
+            const statementOffsets = (block.statements ?? []).map((statement) => {
+                return this.visitSemanticNode(builder, statement);
+            });
+
+            const statementsVector = createVector(builder, statementOffsets, (length) => {
+                BlockStatement.startStatementsVector(builder, length);
+            });
+
+            const source = builder.createString(block.source ?? "");
+            const position = this.createSourcePosition(builder, block.position);
+
+            BlockStatement.startBlockStatement(builder);
+            BlockStatement.addStatements(builder, statementsVector);
+            BlockStatement.addSource(builder, source);
+            BlockStatement.addPosition(builder, position);
+
+            return BlockStatement.endBlockStatement(builder);
+        }
+
+        static createIfStatement(
+            builder: fbs.Builder,
+            statement: Types.Sir.SemanticIfStatement,
+        ): fbs.Offset {
+            const condition = this.createValueRef(builder, statement.condition);
+            const thenBlock = this.createBlockStatement(builder, statement.then);
+            const elseBlock = statement.else
+                ? this.createBlockStatement(builder, statement.else)
+                : 0;
+            const source = builder.createString(statement.source ?? "");
+            const position = this.createSourcePosition(builder, statement.position);
+
+            IfStatement.startIfStatement(builder);
+            IfStatement.addCondition(builder, condition);
+            IfStatement.addThenBlock(builder, thenBlock);
+
+            if (elseBlock) {
+                IfStatement.addElseBlock(builder, elseBlock);
+            }
+
+            IfStatement.addSource(builder, source);
+            IfStatement.addPosition(builder, position);
+
+            return IfStatement.endIfStatement(builder);
+        }
+
+        static createFunctionParameter(
+            builder: fbs.Builder,
+            parameter: Types.Sir.SemanticFunctionParameter,
+        ): fbs.Offset {
+            const name = builder.createString(parameter.name);
+            const type = this.createTypeRef(builder, parameter.type);
+            const storage = builder.createString(parameter.storage ?? "");
+            const source = builder.createString(parameter.source ?? parameter.name);
+            const position = this.createSourcePosition(builder, parameter.position);
+
+            FunctionParameter.startFunctionParameter(builder);
+            FunctionParameter.addName(builder, name);
+            FunctionParameter.addType(builder, type);
+            FunctionParameter.addSymbolId(builder, parameter.symbolId ?? -1);
+            FunctionParameter.addScopeId(builder, parameter.scopeId ?? -1);
+            FunctionParameter.addMutable(builder, parameter.mutable ?? true);
+            FunctionParameter.addStorage(builder, storage);
+            FunctionParameter.addTrusted(builder, parameter.trusted ?? true);
+            FunctionParameter.addSource(builder, source);
+            FunctionParameter.addPosition(builder, position);
+
+            return FunctionParameter.endFunctionParameter(builder);
+        }
+
+        static createFunctionDeclaration(
+            builder: fbs.Builder,
+            declaration: Types.Sir.SemanticFunctionDeclaration,
+        ): fbs.Offset {
+            const name = builder.createString(declaration.name);
+            const returnType = this.createTypeRef(builder, declaration.returnType);
+            const body = this.createBlockStatement(builder, declaration.body);
+            const flagName = typeof declaration.flag === "string"
+                ? declaration.flag
+                : declaration.flag?.name;
+            const flag = builder.createString(flagName ?? "");
+            const linkageName = builder.createString(declaration.linkageName ?? "");
+            const qualifiedName = builder.createString(declaration.qualifiedName ?? "");
+            const source = builder.createString(declaration.source ?? declaration.name);
+            const position = this.createSourcePosition(builder, declaration.position);
+
+            const parameterOffsets = (declaration.params ?? []).map((parameter) => {
+                return this.createFunctionParameter(builder, parameter);
+            });
+
+            const parametersVector = createVector(builder, parameterOffsets, (length) => {
+                FunctionDeclaration.startParametersVector(builder, length);
+            });
+
+            FunctionDeclaration.startFunctionDeclaration(builder);
+            FunctionDeclaration.addName(builder, name);
+            FunctionDeclaration.addParameters(builder, parametersVector);
+            FunctionDeclaration.addReturnType(builder, returnType);
+            FunctionDeclaration.addBody(builder, body);
+            FunctionDeclaration.addSymbolId(builder, declaration.symbolId ?? -1);
+            FunctionDeclaration.addScopeId(builder, declaration.scopeId ?? -1);
+            FunctionDeclaration.addMutable(builder, declaration.mutable ?? false);
+            FunctionDeclaration.addFlag(builder, flag);
+            FunctionDeclaration.addExported(builder, declaration.export ?? false);
+            FunctionDeclaration.addTrusted(builder, declaration.trusted ?? true);
+            FunctionDeclaration.addLinkageName(builder, linkageName);
+            FunctionDeclaration.addQualifiedName(builder, qualifiedName);
+            FunctionDeclaration.addSource(builder, source);
+            FunctionDeclaration.addPosition(builder, position);
+
+            return FunctionDeclaration.endFunctionDeclaration(builder);
         }
 
         static createExternDeclaration(

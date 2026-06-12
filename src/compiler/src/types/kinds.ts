@@ -1,0 +1,252 @@
+export namespace Kinds {
+    export enum Root {
+        Program = "Program",
+    }
+
+    export enum ErrrorsMessage {
+        MissingType = "Missing explicit type annotation",
+        SyntaxError = "Invalid symbolic expression",
+        TypeError = "Type error",
+        ReferenceError = "Reference error",
+        InternalError = "Internal error",
+    }
+
+    export enum Operators {
+        Add = "+",
+        Subtract = "-",
+        Multiply = "*",
+        Divide = "/",
+        Modulo = "%",
+        Exponent = "**",
+        Equals = "==",
+        NotEquals = "!=",
+        LessThan = "<",
+        LessThanOrEqual = "<=",
+        GreaterThan = ">",
+        GreaterThanOrEqual = ">=",
+        LogicalAnd = "&&",
+        LogicalOr = "||",
+        LogicalNot = "!",
+        BitwiseAnd = "&",
+        BitwiseOr = "|",
+        BitwiseXor = "^",
+        BitwiseNot = "~",
+        LeftShift = "<<",
+        RightShift = ">>",
+        RightShiftUnsigned = ">>>",
+    }
+
+    export enum Statements {
+        DeclarationFlag = "DeclarationFlag",
+        BlockStatement = "BlockStatement",
+        ExpressionStatement = "ExpressionStatement",
+        DeclarationStatement = "DeclarationStatement",
+        ReturnStatement = "ReturnStatement",
+        ExportVariableStatement = "ExportVariableStatement",
+        ArrayDeclaration = "ArrayDeclaration",
+
+        IfStatement = "IfStatement",
+        SwitchStatement = "SwitchStatement",
+        WhileStatement = "WhileStatement",
+        ForStatement = "ForStatement",
+        BreakStatement = "BreakStatement",
+        ContinueStatement = "ContinueStatement",
+
+        VariableDeclaration = "VariableDeclaration",
+        VariableReassignment = "VariableReassignment",
+    }
+
+    export enum Functions {
+        FunctionDeclaration = "FunctionDeclaration",
+        FunctionExpression = "FunctionExpression",
+        FunctionParameter = "FunctionParameter",
+        FunctionBody = "FunctionBody",
+        FunctionCall = "FunctionCall",
+        FunctionReturn = "FunctionReturn",
+    }
+
+    export enum Expressions {
+        UnaryExpression = "UnaryExpression",
+        BinaryExpression = "BinaryExpression",
+        AssignmentExpression = "AssignmentExpression",
+        PropertyAccessExpression = "PropertyAccessExpression",
+        CallExpression = "CallExpression",
+        ParenthesizedExpression = "ParenthesizedExpression",
+
+        IdentifierExpression = "IdentifierExpression",
+        BodyExpression = "BodyExpression",
+    }
+
+    export enum Literals {
+        BigIntLiteral = "BigIntLiteral",
+        NumberLiteral = "NumberLiteral",
+
+        StringLiteral = "StringLiteral",
+        TemplateStringLiteral = "TemplateStringLiteral",
+
+        BooleanLiteral = "BooleanLiteral",
+
+        NullLiteral = "NullLiteral",
+        UndefinedLiteral = "UndefinedLiteral",
+
+        NaNLiteral = "NaNLiteral",
+        InfinityLiteral = "InfinityLiteral",
+
+        RegularExpressionLiteral = "RegularExpressionLiteral",
+    }
+
+    export enum Collections {
+        DictionaryExpression = "DictionaryExpression",
+        DictionaryDeclaration = "DictionaryDeclaration",
+        DictionaryProperty = "DictionaryProperty",
+
+        ArrayExpression = "ArrayExpression",
+        ArrayDeclaration = "ArrayDeclaration",
+    }
+
+    export enum ControlFlow {
+        IfStatement = "IfStatement",
+
+        SwitchStatement = "SwitchStatement",
+        CaseClause = "CaseClause",
+        DefaultClause = "DefaultClause",
+
+        WhileStatement = "WhileStatement",
+        ForStatement = "ForStatement",
+
+        BreakStatement = "BreakStatement",
+        ContinueStatement = "ContinueStatement",
+    }
+
+    export enum Modules {
+        ImportDeclarations = "ImportDeclarations",
+        ImportCall = "ImportCall",
+
+        ExportCall = "ExportCall",
+        ExportVariable = "ExportVariable",
+    }
+
+    export enum Externs {
+        ExternDeclarations = "ExternDeclarations",
+        ExternMember = "ExternMember",
+        ExternProperty = "ExternProperty",
+        ExternMethod = "ExternMethod",
+    }
+
+    export enum Types {
+        TypeUsage = "TypeUsage",
+        QualifiedName = "TypeUsage",
+        Parameter = "Parameter",
+        CallSignature = "CallSignature",
+        ConstructSignature = "ConstructSignature",
+        IndexSignature = "IndexSignature",
+        PropertyName = "PropertyName",
+        UnknownBindingName = "UnknownBindingName",
+
+        UnTyped = "UnTyped",
+
+        TypeDeclaration = "TypeDeclaration",
+        InterfaceDeclaration = "InterfaceDeclaration",
+        TypeMember = "TypeMember",
+        TypeParameter = "TypeParameter",
+
+        ExpressionWithTypeArguments = "ExpressionWithTypeArguments",
+        UnknownExpression = "UnknownExpression",
+
+        MethodSignature = "MethodSignature",
+
+        RegExpType = "RegExpType",
+        BigIntType = "BigIntType",
+
+        AnyType = "AnyType",
+        UnknownType = "UnknownType",
+        NeverType = "NeverType",
+
+        VoidType = "VoidType",
+
+        NumberType = "NumberType",
+        StringType = "StringType",
+        BooleanType = "BooleanType",
+
+        NullType = "NullType",
+        UndefinedType = "UndefinedType",
+
+        OptionalType = "OptionalType",
+
+        TypeReference = "TypeReference",
+        TypeLiteral = "TypeLiteral",
+        PropertySignature = "PropertySignature",
+
+        ArrayType = "ArrayType",
+        TupleType = "TupleType",
+
+        UnionType = "UnionType",
+        IntersectionType = "IntersectionType",
+
+        FunctionType = "FunctionType",
+
+        LiteralType = "LiteralType",
+
+        IndexedAccessType = "IndexedAccessType",
+        ConditionalType = "ConditionalType",
+
+        InferType = "InferType",
+        TypeQuery = "TypeQuery",
+        TypeOperator = "TypeOperator",
+
+        UnknownMember = "UnknownMember",
+    }
+
+    export enum ScopeSymbols {
+        Function = "function",
+        Variable = "variable",
+        Parameter = "parameter",
+        Extern = "extern",
+        Type = "type",
+        Interface = "interface",
+        Class = "class",
+    }
+
+    export enum Diagnostics {
+        Error = "Error",
+        Warning = "Warning",
+    }
+
+    export enum Storage {
+        stack = "stack",
+        heap = "heap",
+        global = "global",
+        local = "local",
+    }
+
+    export enum Miscellaneous {
+        Unknown = "Unknown",
+        ExportedSymbols = "ExportedSymbols",
+    }
+
+    export enum Sir {
+        NumberConstant = "NumberConstant",
+        StringConstant = "StringConstant",
+        BooleanConstant = "BooleanConstant",
+        NullConstant = "NullConstant",
+        UndefinedConstant = "UndefinedConstant",
+        NaNConstant = "NaNConstant",
+        InfinityConstant = "InfinityConstant",
+        BigIntConstant = "BigIntConstant",
+        RegExpConstant = "RegExpConstant",
+        TemplateStringConstant = "TemplateStringConstant",
+
+        IdentifierExpression = "IdentifierExpression",
+        VariableDeclaration = "VariableDeclaration",
+        ReturnStatement = "ReturnStatement",
+        BlockStatement = "BlockStatement",
+        IfStatement = "IfStatement",
+        FunctionDeclaration = "FunctionDeclaration",
+        FunctionParameter = "FunctionParameter",
+
+        ExternDeclaration = "ExternDeclaration",
+        ExternFunction = "ExternFunction",
+        ExternParameter = "ExternParameter",
+        ExternVariable = "ExternVariable",
+    }
+}

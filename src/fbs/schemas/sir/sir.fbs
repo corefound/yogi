@@ -1,13 +1,101 @@
 // sir/sir.fbs
 
+include "common.fbs";
 include "constants.fbs";
 include "externs.fbs";
 
 namespace Yogi.Sir;
 
+table IdentifierExpression {
+  name:string;
+  type:TypeRef;
+  symbol_id:int = -1;
+  scope_id:int = -1;
+  source:string;
+  position:SourcePosition;
+}
+
+table ValueRef {
+  kind:string;
+  constant:Constant;
+  identifier:IdentifierExpression;
+}
+
+table VariableDeclaration {
+  name:string;
+  type:TypeRef;
+  value:ValueRef;
+  symbol_id:int = -1;
+  scope_id:int = -1;
+  mutable:bool = false;
+  storage:string;
+  flag:string;
+  exported:bool = false;
+  trusted:bool = true;
+  linkage_name:string;
+  qualified_name:string;
+  source:string;
+  position:SourcePosition;
+}
+
+table ReturnStatement {
+  value:ValueRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table BlockStatement {
+  statements:[SirNode];
+  source:string;
+  position:SourcePosition;
+}
+
+table IfStatement {
+  condition:ValueRef;
+  then_block:BlockStatement;
+  else_block:BlockStatement;
+  source:string;
+  position:SourcePosition;
+}
+
+table FunctionParameter {
+  name:string;
+  type:TypeRef;
+  symbol_id:int = -1;
+  scope_id:int = -1;
+  mutable:bool = true;
+  storage:string;
+  trusted:bool = true;
+  source:string;
+  position:SourcePosition;
+}
+
+table FunctionDeclaration {
+  name:string;
+  parameters:[FunctionParameter];
+  return_type:TypeRef;
+  body:BlockStatement;
+  symbol_id:int = -1;
+  scope_id:int = -1;
+  mutable:bool = false;
+  flag:string;
+  exported:bool = false;
+  trusted:bool = true;
+  linkage_name:string;
+  qualified_name:string;
+  source:string;
+  position:SourcePosition;
+}
+
 union SirNodeValue {
   Constant,
-  ExternDeclaration
+  ExternDeclaration,
+  IdentifierExpression,
+  VariableDeclaration,
+  ReturnStatement,
+  BlockStatement,
+  IfStatement,
+  FunctionDeclaration
 }
 
 table SirNode {

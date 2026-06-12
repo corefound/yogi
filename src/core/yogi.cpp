@@ -2,9 +2,136 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <sstream>
 #include <json.hpp>
 #include "core.h"
 #include "libs/flatbuffers/flatbuffers.h"
+
+namespace {
+	std::string fb_string(const flatbuffers::String *value) {
+		return value ? value->str() : "";
+	}
+
+	std::string type_raw(const Yogi::Sir::TypeRef *type) {
+		return type ? fb_string(type->raw()) : "unknown";
+	}
+
+	std::string constant_value(const Yogi::Sir::Constant *constant) {
+		if (!constant) {
+			return "<none>";
+		}
+
+		if (const auto *value = constant->value_as_NumberConstant()) {
+			if (constant->raw()) {
+				return fb_string(constant->raw());
+			}
+
+			std::ostringstream output;
+			output << value->value();
+			return output.str();
+		}
+
+		if (const auto *value = constant->value_as_StringConstant()) {
+			return "\"" + fb_string(value->value()) + "\"";
+		}
+
+		if (const auto *value = constant->value_as_BooleanConstant()) {
+			return value->value() ? "true" : "false";
+		}
+
+		if (constant->value_as_NullConstant()) {
+			return "null";
+		}
+
+		if (constant->value_as_UndefinedConstant()) {
+			return "undefined";
+		}
+
+		return "<unknown constant>";
+	}
+
+	std::string value_ref(const Yogi::Sir::ValueRef *value) {
+		if (!value) {
+			return "<none>";
+		}
+
+		if (const auto *constant = value->constant()) {
+			return constant_value(constant);
+		}
+
+		if (const auto *identifier = value->identifier()) {
+			return fb_string(identifier->name());
+		}
+
+		return "<unknown value>";
+	}
+
+	void dump_sir_node(const Yogi::Sir::SirNode *sir_node, int indent);
+
+	void dump_block(const Yogi::Sir::BlockStatement *block, const int indent) {
+		if (!block || !block->statements()) {
+			return;
+		}
+
+		for (const auto *statement: *block->statements()) {
+			dump_sir_node(statement, indent);
+		}
+	}
+
+	void dump_function(const Yogi::Sir::FunctionDeclaration *function, const int indent) {
+		const std::string pad(indent, ' ');
+		std::cout << pad << "fn " << fb_string(function->name()) << "(";
+
+		if (function->parameters()) {
+			bool first = true;
+
+			for (const auto *parameter: *function->parameters()) {
+				if (!first) {
+					std::cout << ", ";
+				}
+
+				first = false;
+				std::cout << fb_string(parameter->name())
+					<< ": " << type_raw(parameter->type());
+			}
+		}
+
+		std::cout << "): " << type_raw(function->return_type()) << "\n";
+		dump_block(function->body(), indent + 2);
+	}
+
+	void dump_sir_node(const Yogi::Sir::SirNode *sir_node, const int indent) {
+		const std::string pad(indent, ' ');
+
+		if (const auto *variable = sir_node->value_as_VariableDeclaration()) {
+			std::cout << pad << "var " << fb_string(variable->name())
+				<< ": " << type_raw(variable->type())
+				<< " = " << value_ref(variable->value())
+				<< " [scope " << variable->scope_id() << "]\n";
+			return;
+		}
+
+		if (const auto *statement = sir_node->value_as_IfStatement()) {
+			std::cout << pad << "if (" << value_ref(statement->condition()) << ")\n";
+			dump_block(statement->then_block(), indent + 2);
+			return;
+		}
+
+		if (const auto *function = sir_node->value_as_FunctionDeclaration()) {
+			dump_function(function, indent);
+			return;
+		}
+
+		if (const auto *statement = sir_node->value_as_ReturnStatement()) {
+			std::cout << pad << "return " << value_ref(statement->value()) << "\n";
+			return;
+		}
+
+		if (const auto *constant = sir_node->value_as_Constant()) {
+			std::cout << pad << "const " << constant_value(constant) << "\n";
+		}
+	}
+}
 
 int main(const int argc, const char *argv[]) {
 	const yogi::core::Core core(argc, argv);
@@ -66,6 +193,16 @@ int main(const int argc, const char *argv[]) {
 								<< ": " << variable->type()->raw()->str() << "\n";
 						}
 					}
+				}
+
+				if (
+					sir_node->value_as_VariableDeclaration() ||
+					sir_node->value_as_IfStatement() ||
+					sir_node->value_as_FunctionDeclaration() ||
+					sir_node->value_as_ReturnStatement() ||
+					sir_node->value_as_Constant()
+				) {
+					dump_sir_node(sir_node, 0);
 				}
 			}
 		}

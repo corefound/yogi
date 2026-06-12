@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
+export { BlockStatement } from './sir/block-statement.js';
 export { BooleanConstant } from './sir/boolean-constant.js';
 export { Constant } from './sir/constant.js';
 export { ConstantValue } from './sir/constant-value.js';
@@ -9,9 +10,14 @@ export { ExternDeclaration } from './sir/extern-declaration.js';
 export { ExternFunction } from './sir/extern-function.js';
 export { ExternParameter } from './sir/extern-parameter.js';
 export { ExternVariable } from './sir/extern-variable.js';
+export { FunctionDeclaration } from './sir/function-declaration.js';
+export { FunctionParameter } from './sir/function-parameter.js';
+export { IdentifierExpression } from './sir/identifier-expression.js';
+export { IfStatement } from './sir/if-statement.js';
 export { Module } from './sir/module.js';
 export { NullConstant } from './sir/null-constant.js';
 export { NumberConstant } from './sir/number-constant.js';
+export { ReturnStatement } from './sir/return-statement.js';
 export { SirNode } from './sir/sir-node.js';
 export { SirNodeValue } from './sir/sir-node-value.js';
 export { SourcePosition } from './sir/source-position.js';
@@ -19,3 +25,5 @@ export { StringConstant } from './sir/string-constant.js';
 export { TypeKind } from './sir/type-kind.js';
 export { TypeRef } from './sir/type-ref.js';
 export { UndefinedConstant } from './sir/undefined-constant.js';
+export { ValueRef } from './sir/value-ref.js';
+export { VariableDeclaration } from './sir/variable-declaration.js';
