@@ -1,3 +1,5 @@
-function pick(): string | number {
-    return false
+let value: string | undefined = undefined
+
+if (value === undefined) {
+    let ok: boolean = true
 }

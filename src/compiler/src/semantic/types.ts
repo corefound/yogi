@@ -129,7 +129,7 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
 
             symbol.node = semanticNode;
 
-            return semanticNode;
+            return [];
         }
 
         public resolveInterfaceExtends(node: any, ownMembers: any[]): any[] {

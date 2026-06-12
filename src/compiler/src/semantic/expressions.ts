@@ -62,9 +62,9 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     );
                 };
 
-                const isNumber = (type: any) => type?.kind === Kinds.Types.NumberType;
-                const isString = (type: any) => type?.kind === Kinds.Types.StringType;
-                const isBoolean = (type: any) => type?.kind === Kinds.Types.BooleanType;
+                const isNumber = (type: any) => this.resolveType(type)?.kind === Kinds.Types.NumberType;
+                const isString = (type: any) => this.resolveType(type)?.kind === Kinds.Types.StringType;
+                const isBoolean = (type: any) => this.resolveType(type)?.kind === Kinds.Types.BooleanType;
 
                 switch (node.operator) {
                     case "=": {
@@ -178,7 +178,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     case "!=":
                     case "===":
                     case "!==": {
-                        if (leftType?.kind === rightType?.kind) {
+                        if (this.areTypesComparable(leftType, rightType)) {
                             return done({ kind: Kinds.Types.BooleanType, raw: "boolean" });
                         }
 

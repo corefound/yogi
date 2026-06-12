@@ -78,7 +78,60 @@ export class BaseSemantic {
         return `${modulePath?.replace(/[\\/]/g, ":")}:${symbolName}`;
     }
 
+    public getTypeReferenceName(type: any): string {
+        if (!type) return "";
+
+        const name = type.name ?? type;
+
+        if (typeof name === "string") {
+            return name;
+        }
+
+        if (Array.isArray(name.parts)) {
+            return name.parts
+                .map((part: any) => part.name ?? part.value ?? part.raw ?? "")
+                .join(".");
+        }
+
+        return name.name ?? name.value ?? name.raw ?? "";
+    }
+
+    public resolveType(type: any, seen = new Set<string>()): any {
+        if (!type) return type;
+
+        if (type.kind !== Kinds.Types.TypeReference) {
+            return type;
+        }
+
+        const name = this.getTypeReferenceName(type);
+
+        if (!name || seen.has(name)) {
+            return type;
+        }
+
+        const symbol = this.resolveSymbol(name);
+
+        if (
+            !symbol ||
+            (
+                symbol.kind !== Kinds.ScopeSymbols.Type &&
+                symbol.kind !== Kinds.ScopeSymbols.Interface
+            )
+        ) {
+            return type;
+        }
+
+        seen.add(name);
+
+        return this.resolveType(symbol.type ?? symbol.node?.type, seen);
+    }
+
     public isTypeAssignable(expectedType: any, actualType: any): boolean {
+        if (!expectedType || !actualType) return false;
+
+        expectedType = this.resolveType(expectedType);
+        actualType = this.resolveType(actualType);
+
         if (!expectedType || !actualType) return false;
 
         if (
@@ -86,6 +139,13 @@ export class BaseSemantic {
             expectedType.kind === Kinds.Types.UnknownType
         ) {
             return true;
+        }
+
+        if (
+            actualType.kind === Kinds.Types.AnyType ||
+            actualType.kind === Kinds.Types.UnknownType
+        ) {
+            return false;
         }
 
         if (actualType.kind === Kinds.Types.NeverType) {
@@ -109,6 +169,38 @@ export class BaseSemantic {
         }
 
         return expectedType.kind === actualType.kind;
+    }
+
+    public areTypesComparable(leftType: any, rightType: any): boolean {
+        if (!leftType || !rightType) return false;
+
+        leftType = this.resolveType(leftType);
+        rightType = this.resolveType(rightType);
+
+        if (!leftType || !rightType) return false;
+
+        if (
+            leftType.kind === Kinds.Types.AnyType ||
+            leftType.kind === Kinds.Types.UnknownType ||
+            rightType.kind === Kinds.Types.AnyType ||
+            rightType.kind === Kinds.Types.UnknownType
+        ) {
+            return false;
+        }
+
+        if (leftType.kind === Kinds.Types.UnionType) {
+            return (leftType.types ?? []).some((type: any) => {
+                return this.areTypesComparable(type, rightType);
+            });
+        }
+
+        if (rightType.kind === Kinds.Types.UnionType) {
+            return (rightType.types ?? []).some((type: any) => {
+                return this.areTypesComparable(leftType, type);
+            });
+        }
+
+        return leftType.kind === rightType.kind;
     }
 
     public visitNode(node: any): any {
