@@ -1,14 +1,22 @@
 import { applyFlatBufferMixins, BaseFlatBuffer } from "./base";
 import { MetaFlatBuffer } from "./meta";
-import { Types } from "../helpers/types";
-export { LinkKind } from "./generated/yogi/build";
+import { SirFlatBuffer } from "./sir";
 
+export { LinkKind } from "./generated/yogi/build";
+import { writeBufferToFile, writeBufferToFileAsync } from "./base";
 
 const FlatBufferMixins = applyFlatBufferMixins(
     BaseFlatBuffer,
-    MetaFlatBuffer
-)
+    MetaFlatBuffer,
+    SirFlatBuffer,
+);
 
 export class FlatBuffer extends FlatBufferMixins {
-    public static createGlobalMetaBuffer = (_: Types.GlobalMetaInput): Uint8Array => Uint8Array.from([]);
+    static writeBufferToFile(buffer: Uint8Array, output: string): void {
+        writeBufferToFile(buffer, output);
+    }
+
+    static writeBufferToFileAsync(buffer: Uint8Array, output: string): Promise<void> {
+        return writeBufferToFileAsync(buffer, output);
+    }
 }

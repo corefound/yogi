@@ -1,7 +1,5 @@
-import { BaseFlatBuffer, Constructor } from "./base";
+import { BaseFlatBuffer, Constructor, createVector } from "./base";
 import * as fbs from "flatbuffers";
-import fs from "fs";
-import path from "path";
 
 import { Types } from "../helpers/types";
 import { Meta, ModuleMeta, LinkEntry } from "./generated/yogi/build";
@@ -19,7 +17,7 @@ export function MetaFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: 
                 return this.createModuleMeta(builder, module);
             });
 
-            const modulesVector = this.createVector(builder, moduleOffsets, (length) => {
+            const modulesVector = createVector(builder, moduleOffsets, (length) => {
                 Meta.startModulesVector(builder, length);
             });
 
@@ -27,7 +25,7 @@ export function MetaFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: 
                 return this.createLinkEntry(builder, link);
             });
 
-            const linksVector = this.createVector(builder, linkOffsets, (length) => {
+            const linksVector = createVector(builder, linkOffsets, (length) => {
                 Meta.startLinksVector(builder, length);
             });
 
@@ -45,7 +43,10 @@ export function MetaFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: 
             return builder.asUint8Array();
         }
 
-        static createModuleMeta(builder: fbs.Builder, module: Types.GlobalMetaModuleInput): fbs.Offset {
+        static createModuleMeta(
+            builder: fbs.Builder,
+            module: Types.GlobalMetaModuleInput,
+        ): fbs.Offset {
             const name = builder.createString(module.name);
             const sourcePath = builder.createString(module.sourcePath);
             const sourceHash = builder.createString(module.sourceHash);
@@ -64,7 +65,10 @@ export function MetaFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: 
             return ModuleMeta.endModuleMeta(builder);
         }
 
-        static createLinkEntry(builder: fbs.Builder, link: Types.GlobalMetaLinkInput): fbs.Offset {
+        static createLinkEntry(
+            builder: fbs.Builder,
+            link: Types.GlobalMetaLinkInput,
+        ): fbs.Offset {
             const path = builder.createString(link.path);
 
             LinkEntry.startLinkEntry(builder);
@@ -73,38 +77,5 @@ export function MetaFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: 
 
             return LinkEntry.endLinkEntry(builder);
         }
-
-        static createVector(builder: fbs.Builder, offsets: fbs.Offset[], startVector: (length: number) => void): fbs.Offset {
-            startVector(offsets.length);
-
-            for (let i = offsets.length - 1; i >= 0; i--) {
-                builder.addOffset(offsets[i]);
-            }
-
-            return builder.endVector();
-        }
-
-        static writeBufferToFileAsync(buffer: Uint8Array, output: string) {
-            const dir = path.dirname(output);
-
-            fs.mkdirSync(dir, { recursive: true });
-
-            return new Promise<void>((resolve, reject) => {
-                fs.writeFile(output, Buffer.from(buffer), (err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-        }
-
-        static writeBufferToFile(buffer: Uint8Array, output: string) {
-            const dir = path.dirname(output);
-
-            fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(output, Buffer.from(buffer));
-        }
-    }
+    };
 }

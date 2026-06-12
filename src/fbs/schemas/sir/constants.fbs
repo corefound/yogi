@@ -1,5 +1,7 @@
 // sir/constants.fbs
 
+include "common.fbs";
+
 namespace Yogi.Sir;
 
 table NumberConstant {
@@ -29,5 +31,9 @@ union ConstantValue {
 }
 
 table Constant {
+  type:TypeRef;
+  raw:string;
+  source:string;
+  position:SourcePosition;
   value:ConstantValue;
 }

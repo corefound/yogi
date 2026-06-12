@@ -39,6 +39,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         ${CORE_DIR}
         ${CMAKE_SOURCE_DIR}
         ${SOURCES_COMPILER}
+        ${CMAKE_SOURCE_DIR}/tools/flatbuffers/include
         ${LIBS_DIR}
 )
 

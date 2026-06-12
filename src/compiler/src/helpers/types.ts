@@ -1,6 +1,92 @@
 import { LinkKind } from "../fbs";
 
 export namespace Types {
+    export namespace Sir {
+        export type SourcePosition = {
+            line: number;
+            character: number;
+        };
+
+        export type SemanticType =
+            | {
+                kind: "NumberType";
+                raw: string;
+            }
+            | {
+                kind: "StringType";
+                raw: string;
+            }
+            | {
+                kind: "BooleanType";
+                raw: string;
+            }
+            | {
+                kind: "NullType";
+                raw: string;
+            }
+            | {
+                kind: "UndefinedType";
+                raw: string;
+            };
+
+        export type SemanticNumberConstant = {
+            kind: "NumberConstant";
+            type: SemanticType;
+            raw: string;
+            value: number;
+            source: string;
+            position: SourcePosition;
+        };
+
+        export type SemanticStringConstant = {
+            kind: "StringConstant";
+            type: SemanticType;
+            raw: string;
+            value: string;
+            source: string;
+            position: SourcePosition;
+        };
+
+        export type SemanticBooleanConstant = {
+            kind: "BooleanConstant";
+            type: SemanticType;
+            raw: string;
+            value: boolean;
+            source: string;
+            position: SourcePosition;
+        };
+
+        export type SemanticNullConstant = {
+            kind: "NullConstant";
+            type: SemanticType;
+            raw: string;
+            source: string;
+            position: SourcePosition;
+        };
+
+        export type SemanticUndefinedConstant = {
+            kind: "UndefinedConstant";
+            type: SemanticType;
+            raw: string;
+            source: string;
+            position: SourcePosition;
+        };
+
+        export type SemanticConstantInput = SemanticNumberConstant
+            | SemanticStringConstant
+            | SemanticBooleanConstant
+            | SemanticNullConstant
+            | SemanticUndefinedConstant;
+
+        export type SemanticNodeInput = SemanticConstantInput;
+
+        export type SemanticModuleInput = {
+            sourcePath: string;
+            nodes: SemanticNodeInput[];
+        };
+
+    }
+
     export type AstNumberLiteralInput = {
         kind: "number";
         value: number;

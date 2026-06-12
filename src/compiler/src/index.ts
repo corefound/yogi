@@ -32,39 +32,46 @@ const meta: Types.GlobalMetaInput = {
 }
 
 graph.forEach(async (_, moduleUrl: string) => {
-  const { ast, sourceHash, astHash } = visitor.parse(moduleUrl);
+  try {
+    const { ast, sourceHash, astHash } = visitor.parse(moduleUrl);
 
-  const { sir, sirHash } = semantic.analyze(ast);
+    const { sir, sirHash } = semantic.analyze(ast);
 
-  const relativePath = path.relative(rootPath, moduleUrl)
-  const qualifiedName = `${relativePath?.replace(/[\\/]/g, ":")}`
+    const relativePath = path.relative(rootPath, moduleUrl)
+    const qualifiedName = `${relativePath?.replace(/[\\/]/g, ":")}`
 
-  const modulePath = path.join(cachePath, "modules")
-  const astPath = path.join(modulePath, qualifiedName, "/ast.json")
-  const objectPath = path.join(modulePath, qualifiedName, path.basename(path.join(modulePath, relativePath)).split(".")[0] + ".o");
-  const sirPath = path.join(modulePath, qualifiedName, "/sir.fb");
+    const modulePath = path.join(cachePath, "modules")
+    const astPath = path.join(modulePath, qualifiedName, "/ast.json")
+    const objectPath = path.join(modulePath, qualifiedName, path.basename(path.join(modulePath, relativePath)).split(".")[0] + ".o");
+    const sirPath = path.join(modulePath, qualifiedName, "/sir.fb");
 
-  const module = {
-    isEntry: moduleUrl === path.resolve(process.cwd(), process.argv[2]),
-    rootPath: rootPath,
-    name: qualifiedName,
-    shouldLower: true,
-    sourcePath: relativePath,
-    astPath,
-    objectPath,
-    sirPath,
+    const module = {
+      isEntry: moduleUrl === path.resolve(process.cwd(), process.argv[2]),
+      rootPath: rootPath,
+      name: qualifiedName,
+      shouldLower: true,
+      sourcePath: relativePath,
+      astPath,
+      objectPath,
+      sirPath,
 
-    sourceHash,
-    astHash,
-    sirHash
+      sourceHash,
+      astHash,
+      sirHash
+    }
+
+    const output = path.join(rootPath, modulePath, qualifiedName, "/sir.fb");
+    const buffers = FlatBuffer.createSirModuleBuffer({
+      sourcePath: relativePath,
+      nodes: sir,
+    });
+
+    FlatBuffer.writeBufferToFile(buffers, output);
+    meta.modules.push(module);
+
+  } catch (error) {
+    console.error(error);
   }
-
-  // safe ast to json file
-
-  console.log(util.inspect({ astPath }, false, null, true));
-  // Helpers.writeJsonToFileAsync(ast, path.join(rootPath, astPath));
-
-  meta.modules.push(module);
 
 });
 
@@ -72,7 +79,7 @@ graph.forEach(async (_, moduleUrl: string) => {
 const buffer = FlatBuffer.createGlobalMetaBuffer(meta);
 FlatBuffer.writeBufferToFile(buffer, globalMetaPath);
 
-// console.log(JSON.stringify({ ok: true, meta }, null, 4));
+// // console.log(JSON.stringify({ ok: true, meta }, null, 4));
 
 process.stdout.write(JSON.stringify({ ok: true, globalMetaPath }, null, 0).toString());
 process.exit(0);

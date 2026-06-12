@@ -29,6 +29,12 @@ struct MetaBuilder;
 
 namespace Sir {
 
+struct SourcePosition;
+struct SourcePositionBuilder;
+
+struct TypeRef;
+struct TypeRefBuilder;
+
 struct NumberConstant;
 struct NumberConstantBuilder;
 
@@ -103,6 +109,48 @@ inline const char *EnumNameLinkKind(LinkKind e) {
 }  // namespace Build
 
 namespace Sir {
+
+enum TypeKind : int8_t {
+  TypeKind_unknown = 0,
+  TypeKind_number_type = 1,
+  TypeKind_string_type = 2,
+  TypeKind_boolean_type = 3,
+  TypeKind_null_type = 4,
+  TypeKind_undefined_type = 5,
+  TypeKind_MIN = TypeKind_unknown,
+  TypeKind_MAX = TypeKind_undefined_type
+};
+
+inline const TypeKind (&EnumValuesTypeKind())[6] {
+  static const TypeKind values[] = {
+    TypeKind_unknown,
+    TypeKind_number_type,
+    TypeKind_string_type,
+    TypeKind_boolean_type,
+    TypeKind_null_type,
+    TypeKind_undefined_type
+  };
+  return values;
+}
+
+inline const char * const *EnumNamesTypeKind() {
+  static const char * const names[7] = {
+    "unknown",
+    "number_type",
+    "string_type",
+    "boolean_type",
+    "null_type",
+    "undefined_type",
+    nullptr
+  };
+  return names;
+}
+
+inline const char *EnumNameTypeKind(TypeKind e) {
+  if (::flatbuffers::IsOutRange(e, TypeKind_unknown, TypeKind_undefined_type)) return "";
+  const size_t index = static_cast<size_t>(e);
+  return EnumNamesTypeKind()[index];
+}
 
 enum ConstantValue : uint8_t {
   ConstantValue_NONE = 0,
@@ -532,6 +580,122 @@ inline ::flatbuffers::Offset<Meta> CreateMetaDirect(
 
 namespace Sir {
 
+struct SourcePosition FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef SourcePositionBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_LINE = 4,
+    VT_CHARACTER = 6
+  };
+  int32_t line() const {
+    return GetField<int32_t>(VT_LINE, 0);
+  }
+  int32_t character() const {
+    return GetField<int32_t>(VT_CHARACTER, 0);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<int32_t>(verifier, VT_LINE, 4) &&
+           VerifyField<int32_t>(verifier, VT_CHARACTER, 4) &&
+           verifier.EndTable();
+  }
+};
+
+struct SourcePositionBuilder {
+  typedef SourcePosition Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_line(int32_t line) {
+    fbb_.AddElement<int32_t>(SourcePosition::VT_LINE, line, 0);
+  }
+  void add_character(int32_t character) {
+    fbb_.AddElement<int32_t>(SourcePosition::VT_CHARACTER, character, 0);
+  }
+  explicit SourcePositionBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<SourcePosition> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<SourcePosition>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<SourcePosition> CreateSourcePosition(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    int32_t line = 0,
+    int32_t character = 0) {
+  SourcePositionBuilder builder_(_fbb);
+  builder_.add_character(character);
+  builder_.add_line(line);
+  return builder_.Finish();
+}
+
+struct TypeRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef TypeRefBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_KIND = 4,
+    VT_RAW = 6
+  };
+  Yogi::Sir::TypeKind kind() const {
+    return static_cast<Yogi::Sir::TypeKind>(GetField<int8_t>(VT_KIND, 0));
+  }
+  const ::flatbuffers::String *raw() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_RAW);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<int8_t>(verifier, VT_KIND, 1) &&
+           VerifyOffset(verifier, VT_RAW) &&
+           verifier.VerifyString(raw()) &&
+           verifier.EndTable();
+  }
+};
+
+struct TypeRefBuilder {
+  typedef TypeRef Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_kind(Yogi::Sir::TypeKind kind) {
+    fbb_.AddElement<int8_t>(TypeRef::VT_KIND, static_cast<int8_t>(kind), 0);
+  }
+  void add_raw(::flatbuffers::Offset<::flatbuffers::String> raw) {
+    fbb_.AddOffset(TypeRef::VT_RAW, raw);
+  }
+  explicit TypeRefBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<TypeRef> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<TypeRef>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<TypeRef> CreateTypeRef(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    Yogi::Sir::TypeKind kind = Yogi::Sir::TypeKind_unknown,
+    ::flatbuffers::Offset<::flatbuffers::String> raw = 0) {
+  TypeRefBuilder builder_(_fbb);
+  builder_.add_raw(raw);
+  builder_.add_kind(kind);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<TypeRef> CreateTypeRefDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    Yogi::Sir::TypeKind kind = Yogi::Sir::TypeKind_unknown,
+    const char *raw = nullptr) {
+  auto raw__ = raw ? _fbb.CreateString(raw) : 0;
+  return Yogi::Sir::CreateTypeRef(
+      _fbb,
+      kind,
+      raw__);
+}
+
 struct NumberConstant FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef NumberConstantBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
@@ -731,9 +895,25 @@ inline ::flatbuffers::Offset<UndefinedConstant> CreateUndefinedConstant(
 struct Constant FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ConstantBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_VALUE_TYPE = 4,
-    VT_VALUE = 6
+    VT_TYPE = 4,
+    VT_RAW = 6,
+    VT_SOURCE = 8,
+    VT_POSITION = 10,
+    VT_VALUE_TYPE = 12,
+    VT_VALUE = 14
   };
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  const ::flatbuffers::String *raw() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_RAW);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
   Yogi::Sir::ConstantValue value_type() const {
     return static_cast<Yogi::Sir::ConstantValue>(GetField<uint8_t>(VT_VALUE_TYPE, 0));
   }
@@ -759,6 +939,14 @@ struct Constant FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyOffset(verifier, VT_RAW) &&
+           verifier.VerifyString(raw()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
            VerifyField<uint8_t>(verifier, VT_VALUE_TYPE, 1) &&
            VerifyOffset(verifier, VT_VALUE) &&
            VerifyConstantValue(verifier, value(), value_type()) &&
@@ -790,6 +978,18 @@ struct ConstantBuilder {
   typedef Constant Table;
   ::flatbuffers::FlatBufferBuilder &fbb_;
   ::flatbuffers::uoffset_t start_;
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(Constant::VT_TYPE, type);
+  }
+  void add_raw(::flatbuffers::Offset<::flatbuffers::String> raw) {
+    fbb_.AddOffset(Constant::VT_RAW, raw);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(Constant::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(Constant::VT_POSITION, position);
+  }
   void add_value_type(Yogi::Sir::ConstantValue value_type) {
     fbb_.AddElement<uint8_t>(Constant::VT_VALUE_TYPE, static_cast<uint8_t>(value_type), 0);
   }
@@ -809,12 +1009,40 @@ struct ConstantBuilder {
 
 inline ::flatbuffers::Offset<Constant> CreateConstant(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> raw = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
     Yogi::Sir::ConstantValue value_type = Yogi::Sir::ConstantValue_NONE,
     ::flatbuffers::Offset<void> value = 0) {
   ConstantBuilder builder_(_fbb);
   builder_.add_value(value);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_raw(raw);
+  builder_.add_type(type);
   builder_.add_value_type(value_type);
   return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<Constant> CreateConstantDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    const char *raw = nullptr,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    Yogi::Sir::ConstantValue value_type = Yogi::Sir::ConstantValue_NONE,
+    ::flatbuffers::Offset<void> value = 0) {
+  auto raw__ = raw ? _fbb.CreateString(raw) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateConstant(
+      _fbb,
+      type,
+      raw__,
+      source__,
+      position,
+      value_type,
+      value);
 }
 
 struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {

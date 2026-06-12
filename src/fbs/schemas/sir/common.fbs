@@ -1,0 +1,22 @@
+// sir/common.fbs
+
+namespace Yogi.Sir;
+
+table SourcePosition {
+  line:int;
+  character:int;
+}
+
+enum TypeKind : byte {
+  unknown = 0,
+  number_type = 1,
+  string_type = 2,
+  boolean_type = 3,
+  null_type = 4,
+  undefined_type = 5
+}
+
+table TypeRef {
+  kind:TypeKind = unknown;
+  raw:string;
+}

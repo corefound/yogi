@@ -10,5 +10,8 @@ export { NullConstant } from './sir/null-constant.js';
 export { NumberConstant } from './sir/number-constant.js';
 export { SirNode } from './sir/sir-node.js';
 export { SirNodeValue } from './sir/sir-node-value.js';
+export { SourcePosition } from './sir/source-position.js';
 export { StringConstant } from './sir/string-constant.js';
+export { TypeKind } from './sir/type-kind.js';
+export { TypeRef } from './sir/type-ref.js';
 export { UndefinedConstant } from './sir/undefined-constant.js';

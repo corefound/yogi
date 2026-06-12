@@ -5,6 +5,8 @@
 import * as flatbuffers from 'flatbuffers';
 
 import { ConstantValue, unionToConstantValue, unionListToConstantValue } from '../../yogi/sir/constant-value.js';
+import { SourcePosition } from '../../yogi/sir/source-position.js';
+import { TypeRef } from '../../yogi/sir/type-ref.js';
 
 
 export class Constant {
@@ -25,26 +27,66 @@ static getSizePrefixedRootAsConstant(bb:flatbuffers.ByteBuffer, obj?:Constant):C
   return (obj || new Constant()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-valueType():ConstantValue {
+type(obj?:TypeRef):TypeRef|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
+  return offset ? (obj || new TypeRef()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+raw():string|null
+raw(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+raw(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+source():string|null
+source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+source(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+position(obj?:SourcePosition):SourcePosition|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+valueType():ConstantValue {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? this.bb!.readUint8(this.bb_pos + offset) : ConstantValue.NONE;
 }
 
 value<T extends flatbuffers.Table>(obj:any):any|null {
-  const offset = this.bb!.__offset(this.bb_pos, 6);
+  const offset = this.bb!.__offset(this.bb_pos, 14);
   return offset ? this.bb!.__union(obj, this.bb_pos + offset) : null;
 }
 
 static startConstant(builder:flatbuffers.Builder) {
-  builder.startObject(2);
+  builder.startObject(6);
+}
+
+static addType(builder:flatbuffers.Builder, typeOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(0, typeOffset, 0);
+}
+
+static addRaw(builder:flatbuffers.Builder, rawOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(1, rawOffset, 0);
+}
+
+static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, sourceOffset, 0);
+}
+
+static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(3, positionOffset, 0);
 }
 
 static addValueType(builder:flatbuffers.Builder, valueType:ConstantValue) {
-  builder.addFieldInt8(0, valueType, ConstantValue.NONE);
+  builder.addFieldInt8(4, valueType, ConstantValue.NONE);
 }
 
 static addValue(builder:flatbuffers.Builder, valueOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, valueOffset, 0);
+  builder.addFieldOffset(5, valueOffset, 0);
 }
 
 static endConstant(builder:flatbuffers.Builder):flatbuffers.Offset {
@@ -52,10 +94,4 @@ static endConstant(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createConstant(builder:flatbuffers.Builder, valueType:ConstantValue, valueOffset:flatbuffers.Offset):flatbuffers.Offset {
-  Constant.startConstant(builder);
-  Constant.addValueType(builder, valueType);
-  Constant.addValue(builder, valueOffset);
-  return Constant.endConstant(builder);
-}
 }
