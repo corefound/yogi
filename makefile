@@ -36,4 +36,5 @@ ts-build:
 	@mv $(CURDIR)/tools/typescript/built/local $(CURDIR)/src/compiler/src/ts/local
 
 ts-pkg:
+	@cd $(CURDIR)/src/compiler && npm run build
 	@cd $(CURDIR)/src/compiler && npm run pkg

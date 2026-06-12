@@ -13,7 +13,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 
-#include "main_generated.h"
+#include "fbs_generated.h"
 
 namespace yogi::libs::fbs {
 
@@ -39,15 +39,13 @@ namespace yogi::libs::fbs {
 					throw std::runtime_error("empty SIR flatbuffer");
 				}
 
-				const auto *module = flatbuffers::GetRoot<Yogi::Sir::Module>(buffer.data());
-
 				flatbuffers::Verifier verifier(buffer.data(), buffer.size());
 
-				if (!module->Verify(verifier)) {
+				if (!verifier.VerifyBuffer<Yogi::Sir::Module>(nullptr)) {
 					throw std::runtime_error("invalid SIR flatbuffer");
 				}
 
-				return module;
+				return flatbuffers::GetRoot<Yogi::Sir::Module>(buffer.data());
 			}
 
 			static const Yogi::Sir::Module *read_sir_module_from_file(
@@ -65,15 +63,13 @@ namespace yogi::libs::fbs {
 					throw std::runtime_error("empty build meta flatbuffer");
 				}
 
-				const auto *meta = flatbuffers::GetRoot<Yogi::Build::Meta>(buffer.data());
-
 				flatbuffers::Verifier verifier(buffer.data(), buffer.size());
 
-				if (!meta->Verify(verifier)) {
+				if (!verifier.VerifyBuffer<Yogi::Build::Meta>(nullptr)) {
 					throw std::runtime_error("invalid build meta flatbuffer");
 				}
 
-				return meta;
+				return flatbuffers::GetRoot<Yogi::Build::Meta>(buffer.data());
 			}
 
 			static const Yogi::Build::Meta *read_build_meta_unsafe(
