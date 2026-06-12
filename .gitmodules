@@ -1,3 +1,6 @@
 [submodule "tools/typescript"]
 	path = tools/typescript
 	url = https://github.com/corefound/typescript.git
+[submodule "tools/flatbuffers"]
+	path = tools/flatbuffers
+	url = https://github.com/google/flatbuffers.git
