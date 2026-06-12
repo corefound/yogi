@@ -2,6 +2,8 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
+export { AssignmentExpression } from './sir/assignment-expression.js';
+export { BinaryExpression } from './sir/binary-expression.js';
 export { BlockStatement } from './sir/block-statement.js';
 export { BooleanConstant } from './sir/boolean-constant.js';
 export { Constant } from './sir/constant.js';

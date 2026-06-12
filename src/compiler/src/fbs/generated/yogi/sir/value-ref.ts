@@ -4,6 +4,8 @@
 
 import * as flatbuffers from 'flatbuffers';
 
+import { AssignmentExpression } from '../../yogi/sir/assignment-expression.js';
+import { BinaryExpression } from '../../yogi/sir/binary-expression.js';
 import { Constant } from '../../yogi/sir/constant.js';
 import { IdentifierExpression } from '../../yogi/sir/identifier-expression.js';
 
@@ -43,8 +45,18 @@ identifier(obj?:IdentifierExpression):IdentifierExpression|null {
   return offset ? (obj || new IdentifierExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+binary(obj?:BinaryExpression):BinaryExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? (obj || new BinaryExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+assignment(obj?:AssignmentExpression):AssignmentExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? (obj || new AssignmentExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
 static startValueRef(builder:flatbuffers.Builder) {
-  builder.startObject(3);
+  builder.startObject(5);
 }
 
 static addKind(builder:flatbuffers.Builder, kindOffset:flatbuffers.Offset) {
@@ -57,6 +69,14 @@ static addConstant(builder:flatbuffers.Builder, constantOffset:flatbuffers.Offse
 
 static addIdentifier(builder:flatbuffers.Builder, identifierOffset:flatbuffers.Offset) {
   builder.addFieldOffset(2, identifierOffset, 0);
+}
+
+static addBinary(builder:flatbuffers.Builder, binaryOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(3, binaryOffset, 0);
+}
+
+static addAssignment(builder:flatbuffers.Builder, assignmentOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(4, assignmentOffset, 0);
 }
 
 static endValueRef(builder:flatbuffers.Builder):flatbuffers.Offset {

@@ -19,6 +19,25 @@ table ValueRef {
   kind:string;
   constant:Constant;
   identifier:IdentifierExpression;
+  binary:BinaryExpression;
+  assignment:AssignmentExpression;
+}
+
+table BinaryExpression {
+  operator:string;
+  left:ValueRef;
+  right:ValueRef;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table AssignmentExpression {
+  left:IdentifierExpression;
+  right:ValueRef;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
 }
 
 table VariableDeclaration {
@@ -91,6 +110,8 @@ union SirNodeValue {
   Constant,
   ExternDeclaration,
   IdentifierExpression,
+  BinaryExpression,
+  AssignmentExpression,
   VariableDeclaration,
   ReturnStatement,
   BlockStatement,

@@ -19,6 +19,8 @@ import {
     TypeKind,
     ValueRef,
     IdentifierExpression,
+    BinaryExpression,
+    AssignmentExpression,
     VariableDeclaration,
     ReturnStatement,
     BlockStatement,
@@ -82,6 +84,18 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     const value = this.createIdentifierExpression(builder, node);
 
                     return this.createSirNode(builder, SirNodeValue.IdentifierExpression, value);
+                }
+
+                case "BinaryExpression": {
+                    const value = this.createBinaryExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.BinaryExpression, value);
+                }
+
+                case "AssignmentExpression": {
+                    const value = this.createAssignmentExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.AssignmentExpression, value);
                 }
 
                 case "VariableDeclaration": {
@@ -320,8 +334,14 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const identifier = node.kind === "IdentifierExpression"
                 ? this.createIdentifierExpression(builder, node)
                 : 0;
+            const binary = node.kind === "BinaryExpression"
+                ? this.createBinaryExpression(builder, node)
+                : 0;
+            const assignment = node.kind === "AssignmentExpression"
+                ? this.createAssignmentExpression(builder, node)
+                : 0;
 
-            if (!constant && !identifier) {
+            if (!constant && !identifier && !binary && !assignment) {
                 throw new Error(`Unsupported semantic value kind: ${(node as { kind: string }).kind}`);
             }
 
@@ -334,6 +354,14 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (identifier) {
                 ValueRef.addIdentifier(builder, identifier);
+            }
+
+            if (binary) {
+                ValueRef.addBinary(builder, binary);
+            }
+
+            if (assignment) {
+                ValueRef.addAssignment(builder, assignment);
             }
 
             return ValueRef.endValueRef(builder);
@@ -368,6 +396,48 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             IdentifierExpression.addPosition(builder, position);
 
             return IdentifierExpression.endIdentifierExpression(builder);
+        }
+
+        static createBinaryExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticBinaryExpression,
+        ): fbs.Offset {
+            const operator = builder.createString(expression.operator);
+            const left = this.createValueRef(builder, expression.left);
+            const right = this.createValueRef(builder, expression.right);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            BinaryExpression.startBinaryExpression(builder);
+            BinaryExpression.addOperator(builder, operator);
+            BinaryExpression.addLeft(builder, left);
+            BinaryExpression.addRight(builder, right);
+            BinaryExpression.addType(builder, type);
+            BinaryExpression.addSource(builder, source);
+            BinaryExpression.addPosition(builder, position);
+
+            return BinaryExpression.endBinaryExpression(builder);
+        }
+
+        static createAssignmentExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticAssignmentExpression,
+        ): fbs.Offset {
+            const left = this.createIdentifierExpression(builder, expression.left);
+            const right = this.createValueRef(builder, expression.right);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            AssignmentExpression.startAssignmentExpression(builder);
+            AssignmentExpression.addLeft(builder, left);
+            AssignmentExpression.addRight(builder, right);
+            AssignmentExpression.addType(builder, type);
+            AssignmentExpression.addSource(builder, source);
+            AssignmentExpression.addPosition(builder, position);
+
+            return AssignmentExpression.endAssignmentExpression(builder);
         }
 
         static createVariableDeclaration(

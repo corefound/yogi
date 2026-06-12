@@ -50,6 +50,9 @@ namespace {
 		return "<unknown constant>";
 	}
 
+	std::string binary_expression(const Yogi::Sir::BinaryExpression *expression);
+	std::string assignment_expression(const Yogi::Sir::AssignmentExpression *expression);
+
 	std::string value_ref(const Yogi::Sir::ValueRef *value) {
 		if (!value) {
 			return "<none>";
@@ -63,7 +66,37 @@ namespace {
 			return fb_string(identifier->name());
 		}
 
+		if (const auto *binary = value->binary()) {
+			return binary_expression(binary);
+		}
+
+		if (const auto *assignment = value->assignment()) {
+			return assignment_expression(assignment);
+		}
+
 		return "<unknown value>";
+	}
+
+	std::string binary_expression(const Yogi::Sir::BinaryExpression *expression) {
+		if (!expression) {
+			return "<none>";
+		}
+
+		return value_ref(expression->left()) + " " +
+			fb_string(expression->operator_()) + " " +
+			value_ref(expression->right());
+	}
+
+	std::string assignment_expression(const Yogi::Sir::AssignmentExpression *expression) {
+		if (!expression) {
+			return "<none>";
+		}
+
+		const auto left = expression->left()
+			? fb_string(expression->left()->name())
+			: "<missing>";
+
+		return left + " = " + value_ref(expression->right());
 	}
 
 	void dump_sir_node(const Yogi::Sir::SirNode *sir_node, int indent);
@@ -124,6 +157,16 @@ namespace {
 
 		if (const auto *statement = sir_node->value_as_ReturnStatement()) {
 			std::cout << pad << "return " << value_ref(statement->value()) << "\n";
+			return;
+		}
+
+		if (const auto *assignment = sir_node->value_as_AssignmentExpression()) {
+			std::cout << pad << assignment_expression(assignment) << "\n";
+			return;
+		}
+
+		if (const auto *binary = sir_node->value_as_BinaryExpression()) {
+			std::cout << pad << binary_expression(binary) << "\n";
 			return;
 		}
 
@@ -200,6 +243,8 @@ int main(const int argc, const char *argv[]) {
 					sir_node->value_as_IfStatement() ||
 					sir_node->value_as_FunctionDeclaration() ||
 					sir_node->value_as_ReturnStatement() ||
+					sir_node->value_as_AssignmentExpression() ||
+					sir_node->value_as_BinaryExpression() ||
 					sir_node->value_as_Constant()
 				) {
 					dump_sir_node(sir_node, 0);

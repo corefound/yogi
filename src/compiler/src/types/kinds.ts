@@ -237,6 +237,8 @@ export namespace Kinds {
         TemplateStringConstant = "TemplateStringConstant",
 
         IdentifierExpression = "IdentifierExpression",
+        BinaryExpression = "BinaryExpression",
+        AssignmentExpression = "AssignmentExpression",
         VariableDeclaration = "VariableDeclaration",
         ReturnStatement = "ReturnStatement",
         BlockStatement = "BlockStatement",

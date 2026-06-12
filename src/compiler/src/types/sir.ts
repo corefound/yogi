@@ -104,7 +104,30 @@ export type SemanticIdentifierExpression = {
     position?: SourcePosition;
 };
 
-export type SemanticValueInput = SemanticConstantInput | SemanticIdentifierExpression;
+export type SemanticBinaryExpression = {
+    kind: "BinaryExpression";
+    operator: string;
+    left: SemanticValueInput;
+    right: SemanticValueInput;
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticAssignmentExpression = {
+    kind: "AssignmentExpression";
+    left: SemanticIdentifierExpression;
+    right: SemanticValueInput;
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticValueInput =
+    | SemanticConstantInput
+    | SemanticIdentifierExpression
+    | SemanticBinaryExpression
+    | SemanticAssignmentExpression;
 
 export type SemanticVariableDeclaration = {
     kind: "VariableDeclaration";
@@ -219,6 +242,8 @@ export type SemanticExternDeclaration = {
 export type SemanticNodeInput =
     | SemanticConstantInput
     | SemanticIdentifierExpression
+    | SemanticBinaryExpression
+    | SemanticAssignmentExpression
     | SemanticVariableDeclaration
     | SemanticReturnStatement
     | SemanticBlockStatement

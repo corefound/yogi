@@ -17,6 +17,8 @@ export namespace Types {
         export type SemanticUndefinedConstant = SirTypes.SemanticUndefinedConstant;
         export type SemanticConstantInput = SirTypes.SemanticConstantInput;
         export type SemanticIdentifierExpression = SirTypes.SemanticIdentifierExpression;
+        export type SemanticBinaryExpression = SirTypes.SemanticBinaryExpression;
+        export type SemanticAssignmentExpression = SirTypes.SemanticAssignmentExpression;
         export type SemanticValueInput = SirTypes.SemanticValueInput;
         export type SemanticVariableDeclaration = SirTypes.SemanticVariableDeclaration;
         export type SemanticReturnStatement = SirTypes.SemanticReturnStatement;
