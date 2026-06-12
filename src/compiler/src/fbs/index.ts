@@ -3,9 +3,9 @@ import fs from "fs";
 import path from "path";
 
 import { Types } from "../helpers/types";
-import { Meta, ModuleMeta, LinkEntry } from "./yogi/build";
+import { Meta, ModuleMeta, LinkEntry } from "./generated/build";
 
-export { LinkKind } from "./yogi/build";
+export { LinkKind } from "./generated/build";
 
 
 export class FlatBuffer {
@@ -74,7 +74,6 @@ export class FlatBuffer {
 
         return LinkEntry.endLinkEntry(builder);
     }
-
 
     private static createVector(builder: fbs.Builder, offsets: fbs.Offset[], startVector: (length: number) => void): fbs.Offset {
         startVector(offsets.length);

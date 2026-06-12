@@ -1,6 +1,6 @@
 // ast/literals.fbs
 
-namespace Yogi.Ast;
+namespace Ast;
 
 table NumberLiteral {
   value:double;

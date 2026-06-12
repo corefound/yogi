@@ -2,7 +2,7 @@
 
 include "literals.fbs";
 
-namespace Yogi.Ast;
+namespace Ast;
 
 table Identifier {
   name:string;

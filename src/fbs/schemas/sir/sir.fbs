@@ -1,6 +1,6 @@
 include "constants.fbs";
 
-namespace Yogi.Sir;
+namespace Sir;
 
 enum PrimitiveType : byte {
   unknown = 0,

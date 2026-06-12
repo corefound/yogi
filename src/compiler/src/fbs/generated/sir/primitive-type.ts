@@ -2,4 +2,12 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
-export { Root } from './main/root.js';
+export enum PrimitiveType {
+  unknown = 0,
+  number = 1,
+  string = 2,
+  boolean = 3,
+  null_type = 4,
+  undefined_type = 5,
+  void_type = 6
+}

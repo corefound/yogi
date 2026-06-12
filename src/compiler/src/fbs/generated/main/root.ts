@@ -4,9 +4,9 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { AstModule } from '../../yogi/ast/ast-module.js';
-import { Meta } from '../../yogi/build/meta.js';
-import { Module } from '../../yogi/sir/module.js';
+import { AstModule } from '../ast/ast-module.js';
+import { Meta } from '../build/meta.js';
+import { Module } from '../sir/module.js';
 
 
 export class Root {

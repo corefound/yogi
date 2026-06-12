@@ -2,4 +2,9 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
-export { Root } from './main/root.js';
+export enum LinkKind {
+  object = 0,
+  static_library = 1,
+  dynamic_library = 2,
+  system_library = 3
+}
