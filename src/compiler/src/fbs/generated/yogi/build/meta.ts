@@ -33,16 +33,16 @@ rootPath(optionalEncoding?:any):string|Uint8Array|null {
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-cachePath():string|null
-cachePath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-cachePath(optionalEncoding?:any):string|Uint8Array|null {
+outputPath():string|null
+outputPath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+outputPath(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-outputPath():string|null
-outputPath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-outputPath(optionalEncoding?:any):string|Uint8Array|null {
+cachePath():string|null
+cachePath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+cachePath(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
@@ -75,12 +75,12 @@ static addRootPath(builder:flatbuffers.Builder, rootPathOffset:flatbuffers.Offse
   builder.addFieldOffset(0, rootPathOffset, 0);
 }
 
-static addCachePath(builder:flatbuffers.Builder, cachePathOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, cachePathOffset, 0);
+static addOutputPath(builder:flatbuffers.Builder, outputPathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(1, outputPathOffset, 0);
 }
 
-static addOutputPath(builder:flatbuffers.Builder, outputPathOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(2, outputPathOffset, 0);
+static addCachePath(builder:flatbuffers.Builder, cachePathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, cachePathOffset, 0);
 }
 
 static addModules(builder:flatbuffers.Builder, modulesOffset:flatbuffers.Offset) {
@@ -120,11 +120,11 @@ static endMeta(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createMeta(builder:flatbuffers.Builder, rootPathOffset:flatbuffers.Offset, cachePathOffset:flatbuffers.Offset, outputPathOffset:flatbuffers.Offset, modulesOffset:flatbuffers.Offset, linksOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createMeta(builder:flatbuffers.Builder, rootPathOffset:flatbuffers.Offset, outputPathOffset:flatbuffers.Offset, cachePathOffset:flatbuffers.Offset, modulesOffset:flatbuffers.Offset, linksOffset:flatbuffers.Offset):flatbuffers.Offset {
   Meta.startMeta(builder);
   Meta.addRootPath(builder, rootPathOffset);
-  Meta.addCachePath(builder, cachePathOffset);
   Meta.addOutputPath(builder, outputPathOffset);
+  Meta.addCachePath(builder, cachePathOffset);
   Meta.addModules(builder, modulesOffset);
   Meta.addLinks(builder, linksOffset);
   return Meta.endMeta(builder);

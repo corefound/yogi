@@ -6,6 +6,8 @@ import { Helpers } from "./helpers";
 import { Semantic } from "./semantic";
 import { FlatBuffer } from "./fbs";
 import { Types } from "./helpers/types";
+import { ByteBuffer } from "flatbuffers";
+import { Meta } from "./fbs/generated/yogi/build";
 
 const rootPath = path.resolve(process.cwd(), process.argv[2], "../");
 const cachePath = path.relative(rootPath, path.resolve(process.cwd(), process.argv[2], "../", "packages/.cache"));
@@ -76,10 +78,9 @@ graph.forEach(async (_, moduleUrl: string) => {
 });
 
 
-const buffer = FlatBuffer.createGlobalMetaBuffer(meta);
-FlatBuffer.writeBufferToFile(buffer, globalMetaPath);
+const metaBuffer = FlatBuffer.createGlobalMetaBuffer(meta);
+FlatBuffer.writeBufferToFile(metaBuffer, globalMetaPath);
 
-// // console.log(JSON.stringify({ ok: true, meta }, null, 4));
-
+// Output: this will be read by c++ by using stdout
 process.stdout.write(JSON.stringify({ ok: true, globalMetaPath }, null, 0).toString());
 process.exit(0);

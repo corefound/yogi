@@ -2,6 +2,36 @@ import { LinkKind } from "../fbs";
 
 export namespace Types {
     export namespace Sir {
+        export type GlobalMetaModuleInput = {
+            isEntry: boolean;
+            rootPath: string;
+            name: string;
+            shouldLower: boolean;
+
+            sourcePath: string;
+            astPath: string;
+            objectPath: string;
+            sirPath: string;
+
+            sourceHash: string;
+            astHash: string;
+            sirHash: string;
+        };
+
+        export type GlobalMetaInput = {
+            rootPath: string;
+            outputPath: string;
+            cachePath: string;
+            modules: GlobalMetaModuleInput[];
+            links: GlobalMetaLinkInput[];
+        };
+
+
+        export type GlobalMetaLinkInput = {
+            kind: LinkKind;
+            path: string;
+        };
+
         export type SourcePosition = {
             line: number;
             character: number;

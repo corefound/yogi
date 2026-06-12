@@ -1,5 +1,3 @@
-// meta.fbs
-
 namespace Yogi.Build;
 
 enum LinkKind : byte {
@@ -10,26 +8,32 @@ enum LinkKind : byte {
 }
 
 table ModuleMeta {
-  name:string;
-  source_path:string;
-  source_hash:string;
-  ast_hash:string;
-  sir_hash:string;
-  should_lower:bool = false;
-  is_entry:bool = false;
+  is_entry:bool = false (id: 0);
+  root_path:string (id: 1);
+  name:string (id: 2);
+  should_lower:bool = false (id: 3);
+
+  source_path:string (id: 4);
+  ast_path:string (id: 5);
+  object_path:string (id: 6);
+  sir_path:string (id: 7);
+
+  source_hash:string (id: 8);
+  ast_hash:string (id: 9);
+  sir_hash:string (id: 10);
 }
 
 table LinkEntry {
-  kind:LinkKind = object;
-  path:string;
+  kind:LinkKind = object (id: 0);
+  path:string (id: 1);
 }
 
 table Meta {
-  root_path:string;
-  cache_path:string;
-  output_path:string;
-  modules:[ModuleMeta];
-  links:[LinkEntry];
+  root_path:string (id: 0);
+  output_path:string (id: 1);
+  cache_path:string (id: 2);
+  modules:[ModuleMeta] (id: 3);
+  links:[LinkEntry] (id: 4);
 }
 
 root_type Meta;

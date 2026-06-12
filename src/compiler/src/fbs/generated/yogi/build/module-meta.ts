@@ -22,81 +22,125 @@ static getSizePrefixedRootAsModuleMeta(bb:flatbuffers.ByteBuffer, obj?:ModuleMet
   return (obj || new ModuleMeta()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
+isEntry():boolean {
+  const offset = this.bb!.__offset(this.bb_pos, 4);
+  return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
+}
+
+rootPath():string|null
+rootPath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+rootPath(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
 name():string|null
 name(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 name(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 4);
+  const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+shouldLower():boolean {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
 }
 
 sourcePath():string|null
 sourcePath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 sourcePath(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 6);
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+astPath():string|null
+astPath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+astPath(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 14);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+objectPath():string|null
+objectPath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+objectPath(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+sirPath():string|null
+sirPath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+sirPath(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 sourceHash():string|null
 sourceHash(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 sourceHash(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 8);
+  const offset = this.bb!.__offset(this.bb_pos, 20);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 astHash():string|null
 astHash(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 astHash(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 10);
+  const offset = this.bb!.__offset(this.bb_pos, 22);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 sirHash():string|null
 sirHash(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 sirHash(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 12);
+  const offset = this.bb!.__offset(this.bb_pos, 24);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-shouldLower():boolean {
-  const offset = this.bb!.__offset(this.bb_pos, 14);
-  return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
-}
-
-isEntry():boolean {
-  const offset = this.bb!.__offset(this.bb_pos, 16);
-  return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
-}
-
 static startModuleMeta(builder:flatbuffers.Builder) {
-  builder.startObject(7);
-}
-
-static addName(builder:flatbuffers.Builder, nameOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(0, nameOffset, 0);
-}
-
-static addSourcePath(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, sourcePathOffset, 0);
-}
-
-static addSourceHash(builder:flatbuffers.Builder, sourceHashOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(2, sourceHashOffset, 0);
-}
-
-static addAstHash(builder:flatbuffers.Builder, astHashOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(3, astHashOffset, 0);
-}
-
-static addSirHash(builder:flatbuffers.Builder, sirHashOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(4, sirHashOffset, 0);
-}
-
-static addShouldLower(builder:flatbuffers.Builder, shouldLower:boolean) {
-  builder.addFieldInt8(5, +shouldLower, +false);
+  builder.startObject(11);
 }
 
 static addIsEntry(builder:flatbuffers.Builder, isEntry:boolean) {
-  builder.addFieldInt8(6, +isEntry, +false);
+  builder.addFieldInt8(0, +isEntry, +false);
+}
+
+static addRootPath(builder:flatbuffers.Builder, rootPathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(1, rootPathOffset, 0);
+}
+
+static addName(builder:flatbuffers.Builder, nameOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, nameOffset, 0);
+}
+
+static addShouldLower(builder:flatbuffers.Builder, shouldLower:boolean) {
+  builder.addFieldInt8(3, +shouldLower, +false);
+}
+
+static addSourcePath(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(4, sourcePathOffset, 0);
+}
+
+static addAstPath(builder:flatbuffers.Builder, astPathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(5, astPathOffset, 0);
+}
+
+static addObjectPath(builder:flatbuffers.Builder, objectPathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(6, objectPathOffset, 0);
+}
+
+static addSirPath(builder:flatbuffers.Builder, sirPathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(7, sirPathOffset, 0);
+}
+
+static addSourceHash(builder:flatbuffers.Builder, sourceHashOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(8, sourceHashOffset, 0);
+}
+
+static addAstHash(builder:flatbuffers.Builder, astHashOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(9, astHashOffset, 0);
+}
+
+static addSirHash(builder:flatbuffers.Builder, sirHashOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(10, sirHashOffset, 0);
 }
 
 static endModuleMeta(builder:flatbuffers.Builder):flatbuffers.Offset {
@@ -104,15 +148,19 @@ static endModuleMeta(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createModuleMeta(builder:flatbuffers.Builder, nameOffset:flatbuffers.Offset, sourcePathOffset:flatbuffers.Offset, sourceHashOffset:flatbuffers.Offset, astHashOffset:flatbuffers.Offset, sirHashOffset:flatbuffers.Offset, shouldLower:boolean, isEntry:boolean):flatbuffers.Offset {
+static createModuleMeta(builder:flatbuffers.Builder, isEntry:boolean, rootPathOffset:flatbuffers.Offset, nameOffset:flatbuffers.Offset, shouldLower:boolean, sourcePathOffset:flatbuffers.Offset, astPathOffset:flatbuffers.Offset, objectPathOffset:flatbuffers.Offset, sirPathOffset:flatbuffers.Offset, sourceHashOffset:flatbuffers.Offset, astHashOffset:flatbuffers.Offset, sirHashOffset:flatbuffers.Offset):flatbuffers.Offset {
   ModuleMeta.startModuleMeta(builder);
+  ModuleMeta.addIsEntry(builder, isEntry);
+  ModuleMeta.addRootPath(builder, rootPathOffset);
   ModuleMeta.addName(builder, nameOffset);
+  ModuleMeta.addShouldLower(builder, shouldLower);
   ModuleMeta.addSourcePath(builder, sourcePathOffset);
+  ModuleMeta.addAstPath(builder, astPathOffset);
+  ModuleMeta.addObjectPath(builder, objectPathOffset);
+  ModuleMeta.addSirPath(builder, sirPathOffset);
   ModuleMeta.addSourceHash(builder, sourceHashOffset);
   ModuleMeta.addAstHash(builder, astHashOffset);
   ModuleMeta.addSirHash(builder, sirHashOffset);
-  ModuleMeta.addShouldLower(builder, shouldLower);
-  ModuleMeta.addIsEntry(builder, isEntry);
   return ModuleMeta.endModuleMeta(builder);
 }
 }

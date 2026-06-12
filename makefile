@@ -1,5 +1,5 @@
 # variable
-.PHONY: compile ts-build build run fbs-build start
+.PHONY: run build start fbs-build ts-dev ts-run ts-build ts-pkg
 
 
 run: build start
