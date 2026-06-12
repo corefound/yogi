@@ -78,6 +78,39 @@ export class BaseSemantic {
         return `${modulePath?.replace(/[\\/]/g, ":")}:${symbolName}`;
     }
 
+    public isTypeAssignable(expectedType: any, actualType: any): boolean {
+        if (!expectedType || !actualType) return false;
+
+        if (
+            expectedType.kind === Kinds.Types.AnyType ||
+            expectedType.kind === Kinds.Types.UnknownType
+        ) {
+            return true;
+        }
+
+        if (actualType.kind === Kinds.Types.NeverType) {
+            return true;
+        }
+
+        if (expectedType.kind === Kinds.Types.UnionType) {
+            return (expectedType.types ?? []).some((type: any) => {
+                return this.isTypeAssignable(type, actualType);
+            });
+        }
+
+        if (actualType.kind === Kinds.Types.UnionType) {
+            return (actualType.types ?? []).every((type: any) => {
+                return this.isTypeAssignable(expectedType, type);
+            });
+        }
+
+        if (expectedType.kind === Kinds.Types.LiteralType) {
+            return expectedType.raw === actualType.raw;
+        }
+
+        return expectedType.kind === actualType.kind;
+    }
+
     public visitNode(node: any): any {
         if (!node) return node;
 

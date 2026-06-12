@@ -70,7 +70,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     case "=": {
                         if (left.kind !== Kinds.Expressions.IdentifierExpression) {
                             const message = `left side of assignment must be a variable`;
-                            node.arrowLength = node.left?.source?.length ?? 1;
+                            node.arrowLength = node.left?.source?.length ?? node.left?.raw?.length ?? 1;
 
                             this.throwError(
                                 message,
@@ -80,41 +80,45 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
-                        const symbol = this.resolveSymbol(left.value);
+                        const identifierName = left.value ?? left.name ?? left.raw;
+                        const symbol = this.resolveSymbol(identifierName);
 
                         if (!symbol) {
-                            const message = `cannot find name ${Helpers.RED}'${left.value}'${Helpers.RESET}`;
-                            left.arrowLength = left.value.length;
+                            const message = `cannot find name ${Helpers.RED}'${identifierName}'${Helpers.RESET}`;
+                            left.arrowLength = identifierName?.length ?? 1;
 
                             this.throwError(
                                 message,
                                 left.position,
-                                left.fullSource,
+                                left.fullSource ?? left.source ?? identifierName,
                                 left,
                             );
                         }
 
                         if (symbol.mutable !== true) {
-                            const message = `cannot assign to ${Helpers.RED}'${left.value}'${Helpers.RESET} because it was declared as a ${Helpers.BLUE}'const'${Helpers.RESET}`;
+                            const message = `cannot assign to ${Helpers.RED}'${identifierName}'${Helpers.RESET} because it was declared as a ${Helpers.BLUE}'const'${Helpers.RESET}`;
+                            left.arrowLength = identifierName?.length ?? 1;
 
                             this.throwError(
                                 message,
                                 left.position,
-                                left.fullSource,
+                                context.fullSource ?? node.fullSource ?? left.fullSource ?? left.source,
                                 left,
                             );
                         }
 
-                        if (symbol.type?.kind !== rightType?.kind) {
+                        if (!this.isTypeAssignable(symbol.type, rightType)) {
                             const message =
                                 `cannot assign value of type ${Helpers.RED}'${rightType?.raw}'${Helpers.RESET} to variable ` +
-                                `${Helpers.RED}'${left.value}'${Helpers.RESET} of type ${Helpers.RED}'${symbol.type?.raw}'${Helpers.RESET}`;
+                                `${Helpers.RED}'${identifierName}'${Helpers.RESET} of type ${Helpers.RED}'${symbol.type?.raw}'${Helpers.RESET}`;
+
+                            right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
 
                             this.throwError(
                                 message,
                                 right.position,
                                 context.fullSource ?? node.fullSource ?? node.source,
-                                node,
+                                right,
                             );
                         }
 

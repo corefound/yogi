@@ -78,7 +78,9 @@ export class BaseVisitor {
         if (ts.isReturnStatement(node)) {
             return {
                 kind: Kinds.Statements.ReturnStatement,
-                value: node.expression ? this.visitNode(node.expression) : null
+                value: node.expression ? this.visitNode(node.expression) : null,
+                source: node.getText(),
+                position: this.getNodePosistion(node),
             };
         }
 

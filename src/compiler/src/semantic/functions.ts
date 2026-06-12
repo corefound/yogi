@@ -61,14 +61,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 body,
             };
 
-            if (!this.checkFunctionReturnType(functionContext)) {
-                const message =
-                    `function ${Helpers.BLUE}'${node.name}'${Helpers.RESET} must return a value of type ` +
-                    `${Helpers.BLUE}'${node.returnType.raw}'${Helpers.RESET}`;
-
-                node.arrowLength = node.name.length;
-                this.throwError(message, node.position, node.fullSource, node);
-            }
+            this.validateFunctionReturnType(functionContext);
 
             this.exitScope();
 
@@ -254,32 +247,74 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             return expectedReturnType.kind === actualReturnType.kind;
         }
 
-        public checkFunctionReturnType(functionNode: any): boolean {
+        public validateFunctionReturnType(functionNode: any): void {
             const expectedReturnType = functionNode.returnType;
 
             if (!expectedReturnType || expectedReturnType.kind === Kinds.Types.UnTyped) {
-                return false;
+                return;
             }
 
             const returnStatements = this.findFunctionReturnStatements(functionNode.body);
 
             if (expectedReturnType.kind === Kinds.Types.VoidType) {
-                return returnStatements.every((returnStatement: any) => {
-                    return !returnStatement.value;
+                const invalidReturn = returnStatements.find((returnStatement: any) => {
+                    return returnStatement.value;
                 });
+
+                if (invalidReturn) {
+                    this.throwInvalidFunctionReturnError(functionNode, invalidReturn);
+                }
+
+                return;
             }
 
             if (returnStatements.length === 0) {
-                return false;
+                const message =
+                    `function ${Helpers.BLUE}'${functionNode.name}'${Helpers.RESET} must return a value of type ` +
+                    `${Helpers.BLUE}'${expectedReturnType.raw}'${Helpers.RESET}`;
+
+                functionNode.arrowLength = functionNode.name?.length ?? 1;
+                this.throwError(
+                    message,
+                    functionNode.position,
+                    functionNode.fullSource ?? functionNode.source,
+                    functionNode,
+                );
             }
 
-            return returnStatements.every((returnStatement: any) => {
+            for (const returnStatement of returnStatements) {
                 const actualType = this.getExpressionType(returnStatement.value);
 
-                if (!actualType) return false;
+                if (!actualType || !this.isTypeAssignable(expectedReturnType, actualType)) {
+                    this.throwInvalidFunctionReturnError(functionNode, returnStatement);
+                }
+            }
+        }
 
-                return actualType.kind === expectedReturnType.kind;
-            });
+        public throwInvalidFunctionReturnError(functionNode: any, returnStatement: any): never {
+            const expectedReturnType = functionNode.returnType;
+            const actualType = this.getExpressionType(returnStatement.value);
+            const valueNode = returnStatement.value ?? returnStatement;
+            const valueText =
+                valueNode.source ??
+                valueNode.raw ??
+                returnStatement.source ??
+                "return";
+            const message =
+                `function ${Helpers.BLUE}'${functionNode.name}'${Helpers.RESET} must return a value of type ` +
+                `${Helpers.BLUE}'${expectedReturnType.raw}'${Helpers.RESET}` +
+                (actualType?.raw ? `, got ${Helpers.RED}'${actualType.raw}'${Helpers.RESET}` : "");
+
+            valueNode.arrowLength = valueText.length || 1;
+
+            this.throwError(
+                message,
+                valueNode.position ?? returnStatement.position ?? functionNode.position,
+                functionNode.fullSource ?? functionNode.source ?? returnStatement.source ?? valueText,
+                valueNode,
+            );
+
+            throw new Error(message);
         }
 
         public getExpressionType(node: any): any {

@@ -118,14 +118,17 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             if (flagName !== "const" && flagName !== "let") {
                 const message =
                     `${Helpers.RED}'${flagName}'${Helpers.RESET} declarations are not allowed`;
-
-                context.arrowLength = flagName.length || 1;
+                const flagContext = {
+                    ...context,
+                    position: context.flag?.position ?? context.position,
+                    arrowLength: flagName.length || 1,
+                };
 
                 this.throwError(
                     message,
-                    context.position,
+                    flagContext.position,
                     source,
-                    context,
+                    flagContext,
                     "  = use 'let' for mutable bindings\n  = use 'const' for immutable bindings",
                 );
             }
@@ -187,7 +190,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
-            if (!isAmbient && !this.checkDataType(context.type.kind, value)) {
+            if (!isAmbient && !this.checkDataType(context.type, value)) {
                 const message =
                     `name ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only initialize values of type ` +
                     `${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET}`;
@@ -207,7 +210,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
         public checkDataType(expectedType: any, value: any): boolean {
             if (!value?.type) return false;
 
-            return expectedType === value.type.kind;
+            return this.isTypeAssignable(expectedType, value.type);
         }
     };
 }
