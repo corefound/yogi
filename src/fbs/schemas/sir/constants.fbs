@@ -1,0 +1,27 @@
+namespace Yogi.Sir;
+
+table NumberConstant {
+  value:double;
+}
+
+table StringConstant {
+  value:string;
+}
+
+table BooleanConstant {
+  value:bool;
+}
+
+table NullConstant {
+}
+
+table UndefinedConstant {
+}
+
+union Constant {
+  NumberConstant,
+  StringConstant,
+  BooleanConstant,
+  NullConstant,
+  UndefinedConstant
+}

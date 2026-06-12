@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
-// export { LinkEntry } from './meta/link-entry.ts';
-// export { LinkKind } from './meta/link-kind.ts';
-// export { Meta } from './meta/meta.ts';
-// export { ModuleMeta } from './meta/module-meta.ts';
+export { LinkEntry } from './build/link-entry.js';
+export { LinkKind } from './build/link-kind.js';
+export { Meta } from './build/meta.js';
+export { ModuleMeta } from './build/module-meta.js';

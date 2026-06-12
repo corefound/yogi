@@ -1,0 +1,15 @@
+include "build/meta.fbs";
+include "ast/ast.fbs";
+include "sir/sir.fbs";
+
+namespace Yogi.Main;
+
+table Root {
+  build:Yogi.Build.Meta;
+  ast:Yogi.Ast.AstModule;
+  sir:Yogi.Sir.Module;
+}
+
+root_type Root;
+
+// flatc --ts --gen-all -I schemas -o generated schemas/main.fbs

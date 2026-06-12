@@ -2,12 +2,10 @@ import * as fbs from "flatbuffers";
 import fs from "fs";
 import path from "path";
 
-import { Meta } from "./yogi/meta/meta";
-import { ModuleMeta } from "./yogi/meta/module-meta";
-import { LinkEntry } from "./yogi/meta/link-entry";
 import { Types } from "../helpers/types";
+import { Meta, ModuleMeta, LinkEntry } from "./yogi/build";
 
-export { LinkKind } from "./yogi/meta/link-kind";
+export { LinkKind } from "./yogi/build";
 
 
 export class FlatBuffer {
@@ -86,6 +84,22 @@ export class FlatBuffer {
         }
 
         return builder.endVector();
+    }
+
+    static writeBufferToFileAsync(buffer: Uint8Array, output: string) {
+        const dir = path.dirname(output);
+
+        fs.mkdirSync(dir, { recursive: true });
+
+        return new Promise<void>((resolve, reject) => {
+            fs.writeFile(output, Buffer.from(buffer), (err) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve();
+                }
+            });
+        });
     }
 
     static writeBufferToFile(buffer: Uint8Array, output: string) {

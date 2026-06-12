@@ -1,6 +1,6 @@
 // meta.fbs
 
-namespace Yogi.Meta;
+namespace Yogi.Build;
 
 enum LinkKind : byte {
   object = 0,

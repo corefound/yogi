@@ -7,11 +7,12 @@ import { Semantic } from "./semantic";
 import { FlatBuffer } from "./fbs";
 import { Types } from "./helpers/types";
 
-const scanner = new ModuleScanner(Helpers.resolveModule, Helpers.parseFile);
-const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
-
 const rootPath = path.resolve(process.cwd(), process.argv[2], "../");
 const cachePath = path.relative(rootPath, path.resolve(process.cwd(), process.argv[2], "../", "packages/.cache"));
+const globalMetaPath = path.join(path.join(rootPath, cachePath), "meta.fb");
+
+const scanner = new ModuleScanner(Helpers.resolveModule, Helpers.parseFile);
+const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
 const scc = scanner.sortModules(graph);
 
 const visitor = new Visitor();
@@ -30,12 +31,13 @@ const meta: Types.GlobalMetaInput = {
   links: []
 }
 
-graph.forEach((_, moduleUrl: string) => {
+graph.forEach(async (_, moduleUrl: string) => {
   const { ast, sourceHash, astHash } = visitor.parse(moduleUrl);
+
   const { sir, sirHash } = semantic.analyze(ast);
 
   const relativePath = path.relative(rootPath, moduleUrl)
-  const qualifiedName = `${relativePath?.replace(/[\\/]/g, "_").replace(/\./g, "_")}`
+  const qualifiedName = `${relativePath?.replace(/[\\/]/g, ":")}`
 
   const modulePath = path.join(cachePath, "modules")
   const astPath = path.join(modulePath, qualifiedName, "/ast.fb")
@@ -58,14 +60,14 @@ graph.forEach((_, moduleUrl: string) => {
   }
 
   meta.modules.push(module);
+  console.log(util.inspect({ module, ast, sir }, false, null, true));
 
 });
 
 const buffer = FlatBuffer.createGlobalMeta(meta);
-FlatBuffer.writeBufferToFile(buffer, path.join(cachePath, "meta.fb"));
-
-console.log(util.inspect({ meta }, false, null, true));
+FlatBuffer.writeBufferToFile(buffer, globalMetaPath);
 
 // console.log(JSON.stringify({ ok: true, meta }, null, 4));
-// process.stdout.write(JSON.stringify({ ok: true, meta }, null, 0).toString());
-// process.exit(0);
+
+process.stdout.write(JSON.stringify({ ok: true, globalMetaPath }, null, 0).toString());
+process.exit(0);
