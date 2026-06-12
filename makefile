@@ -1,5 +1,8 @@
 # variable
-.PHONY: compile ts-build build run
+.PHONY: compile ts-build build run fbs-build start
+
+
+run: build start
 
 
 build:
@@ -8,7 +11,7 @@ build:
 	@echo
 	@echo Build complete
 
-run:
+start:
 	@./build/yogi ./tests/main.io
 
 # Flatbuffers
