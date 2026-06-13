@@ -470,6 +470,8 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const nameText = node.name ?? node.value ?? node.raw ?? node.source ?? "";
             const name = builder.createString(nameText);
             const type = this.createTypeRef(builder, node.type);
+            const linkageName = builder.createString(node.linkageName ?? "");
+            const qualifiedName = builder.createString(node.qualifiedName ?? "");
             const source = builder.createString(node.source ?? nameText);
             const position = this.createSourcePosition(builder, node.position);
 
@@ -478,6 +480,8 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             IdentifierExpression.addType(builder, type);
             IdentifierExpression.addSymbolId(builder, node.symbolId ?? -1);
             IdentifierExpression.addScopeId(builder, node.scopeId ?? -1);
+            IdentifierExpression.addLinkageName(builder, linkageName);
+            IdentifierExpression.addQualifiedName(builder, qualifiedName);
             IdentifierExpression.addSource(builder, source);
             IdentifierExpression.addPosition(builder, position);
 

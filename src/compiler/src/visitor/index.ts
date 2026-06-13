@@ -31,7 +31,7 @@ class MixinsVisitor extends applyMixins(
     LoopVisitor
 ) {
     public rootDir: string
-    constructor(filePath: string) {
+    constructor(filePath: string, sourceFile?: ts.SourceFile) {
         const tsConfig = {
             target: ts.ScriptTarget.ESNext,
             module: ts.ModuleKind.NodeNext,
@@ -41,7 +41,7 @@ class MixinsVisitor extends applyMixins(
             allowJs: false,
         };
 
-        super(filePath, tsConfig);
+        super(filePath, sourceFile);
     }
 
     public visit() {
@@ -60,8 +60,8 @@ export class Visitor {
     }
 
 
-    public parse(filePath: string) {
-        const visitor = new MixinsVisitor(filePath);
+    public parse(filePath: string, sourceFile?: ts.SourceFile) {
+        const visitor = new MixinsVisitor(filePath, sourceFile);
         const ast = visitor.visit();
         return ast;
     }

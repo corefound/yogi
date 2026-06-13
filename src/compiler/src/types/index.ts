@@ -50,4 +50,6 @@ export namespace Types {
     export type Program = CompilerTypes.Program;
     export type Diagnostics = CompilerTypes.Diagnostics;
     export type SymbolInfo = CompilerTypes.SymbolInfo;
+    export type SemanticModuleSymbol = CompilerTypes.SemanticModuleSymbol;
+    export type SemanticModuleInfo = CompilerTypes.SemanticModuleInfo;
 }

@@ -55,6 +55,10 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node: value,
             });
 
+            if (node.export) {
+                this.exportSymbol(symbol);
+            }
+
             return {
                 ...node,
 

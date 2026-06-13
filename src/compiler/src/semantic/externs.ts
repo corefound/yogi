@@ -2,6 +2,7 @@ import path from "node:path";
 import { BaseSemantic, Constructor } from "./base";
 import { Helpers } from "../helpers";
 import { Kinds } from "../helpers/types";
+import { LinkKind } from "../fbs";
 
 const SUPPORTED_EXTERN_EXTENSIONS = new Set([".a", ".dylib", ".o", ".asm"]);
 
@@ -22,6 +23,10 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             const members = node.members ?? [];
 
             this.externDeclarationDiagnostics(node, name, externPath, members, source);
+            this.registerExternalLink({
+                kind: this.getExternLinkKind(externPath),
+                path: externPath,
+            });
 
             const functions = members
                 .filter((member: any) => member.kind === Kinds.Types.MethodSignature)
@@ -378,6 +383,23 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
 
         public isSupportedExternPath(externPath: string): boolean {
             return SUPPORTED_EXTERN_EXTENSIONS.has(this.getExternPathExtension(externPath));
+        }
+
+        public getExternLinkKind(externPath: string): LinkKind {
+            switch (this.getExternPathExtension(externPath)) {
+                case ".a":
+                    return LinkKind.static_library;
+
+                case ".dylib":
+                    return LinkKind.dynamic_library;
+
+                case ".o":
+                case ".asm":
+                    return LinkKind.object;
+
+                default:
+                    return LinkKind.system_library;
+            }
         }
 
         public getExternPathExtension(externPath: string): string {

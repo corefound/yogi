@@ -21,6 +21,7 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             return {
                 kind: Kinds.Functions.FunctionDeclaration,
                 regular: true,
+                export: isExported,
                 exported: isExported,
                 name: node.name?.getText() ?? "anonymous",
                 params: node.parameters.map(param => this.visitFunctionParameter(param)),

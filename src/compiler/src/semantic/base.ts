@@ -22,6 +22,9 @@ export class BaseSemantic {
 
     public ast: Types.Ast[];
     public diagnostics: Types.Diagnostics[] = [];
+    public modules: Map<string, Types.SemanticModuleInfo> = new Map();
+    public exportedSymbols: Map<string, Types.SemanticModuleSymbol> = new Map();
+    public externalLinks: Map<string, Types.Sir.GlobalMetaLinkInput> = new Map();
 
     constructor(ast: Types.Ast[]) {
         this.ast = ast;
@@ -60,6 +63,22 @@ export class BaseSemantic {
         this.currentScope.define(fullSymbol);
 
         return fullSymbol;
+    }
+
+    public exportSymbol(symbol: Types.SymbolInfo) {
+        this.exportedSymbols.set(symbol.name, {
+            name: symbol.name,
+            kind: symbol.kind,
+            type: symbol.type,
+            mutable: symbol.mutable,
+            linkageName: symbol.linkageName ?? null,
+            qualifiedName: symbol.qualifiedName,
+            sourcePath: this.modulePath.relativePath,
+        });
+    }
+
+    public registerExternalLink(link: Types.Sir.GlobalMetaLinkInput) {
+        this.externalLinks.set(`${link.kind}:${link.path}`, link);
     }
 
     public resolveSymbol(name: string) {
@@ -284,6 +303,9 @@ export class BaseSemantic {
         const externs = this.visitExterns(node);
         if (externs !== null && externs !== undefined) return externs;
 
+        const moduleStatement = this.visitModuleStatement(node);
+        if (moduleStatement !== null && moduleStatement !== undefined) return moduleStatement;
+
         const types = this.visitAliasTypes(node);
         if (types !== null) return types;
 
@@ -318,6 +340,8 @@ export class BaseSemantic {
             symbolId: symbol.id,
             scopeId: symbol.scopeId,
             type: symbol.type,
+            linkageName: symbol.linkageName ?? null,
+            qualifiedName: symbol.qualifiedName,
         };
     }
 
@@ -395,6 +419,7 @@ export class BaseSemantic {
     visitVariableLikeDeclarations(_: any): any { }
     visitArrayLikeDeclarations(_: any): any { }
     visitExterns(_: any): any { }
+    visitModuleStatement(_: any): any { }
     visitControlFlow(_: any): any { }
 
     visitBinaryExpression(_: any): any { }

@@ -100,6 +100,8 @@ export type SemanticIdentifierExpression = {
     type: SemanticType;
     symbolId?: number;
     scopeId?: number;
+    linkageName?: string | null;
+    qualifiedName?: string;
     source?: string;
     position?: SourcePosition;
 };

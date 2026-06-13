@@ -11,6 +11,7 @@ import { TypesSemantic } from "./types";
 import { ExternsSemantic } from "./externs";
 import { IfSemantic } from "./if";
 import { Helpers } from "../helpers";
+import { ModulesSemantic } from "./modules";
 
 
 export class Semantic extends applySemanticMixins(
@@ -23,6 +24,7 @@ export class Semantic extends applySemanticMixins(
     ArraysSemantic,
     TypesSemantic,
     ExternsSemantic,
+    ModulesSemantic,
     IfSemantic,
 ) {
     public sir: Types.Sir[] = [];
@@ -30,6 +32,7 @@ export class Semantic extends applySemanticMixins(
     constructor(modulePath: any) {
         super();
         this.modulePath = modulePath
+        this.modules = modulePath.modules ?? new Map();
         this.sourceText = fs.readFileSync(modulePath.absolutePath, "utf8");
     }
 
@@ -41,7 +44,9 @@ export class Semantic extends applySemanticMixins(
 
         return {
             sir,
-            sirHash: Helpers.hash(JSON.stringify(sir))
+            sirHash: Helpers.hash(JSON.stringify(sir)),
+            exports: this.exportedSymbols,
+            links: [...this.externalLinks.values()],
         }
     }
 

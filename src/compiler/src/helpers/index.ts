@@ -37,7 +37,22 @@ export class Helpers {
 
     static resolveModule = (fromFile: string, specifier: string): string => {
         if (specifier.startsWith(".")) {
-            return path.resolve(path.dirname(fromFile), specifier);
+            const base = path.resolve(path.dirname(fromFile), specifier);
+            const candidates = [
+                base,
+                `${base}.io`,
+                `${base}.ts`,
+                path.join(base, "index.io"),
+                path.join(base, "index.ts"),
+            ];
+
+            const resolved = candidates.find((candidate) => fs.existsSync(candidate));
+
+            if (resolved) {
+                return path.resolve(resolved);
+            }
+
+            return base;
         }
 
         // fallback for now (node_modules etc.)
@@ -82,5 +97,4 @@ export class Helpers {
         fs.writeFileSync(output, JSON.stringify(data, null, 2), "utf8");
     }
 }
-
 

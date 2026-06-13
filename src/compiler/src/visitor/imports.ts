@@ -1,15 +1,17 @@
 import ts from "../ts";
 import { BaseVisitor, Constructor } from "../visitor/base";
 import { Kinds } from "../helpers/types";
-import path from "path";
+import { Helpers } from "../helpers";
 
 export function ImportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
         visitImports(node: ts.ImportDeclaration) {
-            const modulePath = path.resolve(path.dirname(this.filePath), (node.moduleSpecifier as ts.StringLiteral).text) + ".ts";
+            const specifier = (node.moduleSpecifier as ts.StringLiteral).text;
+            const modulePath = Helpers.resolveModule(this.filePath, specifier);
             const result: any = {
                 kind: Kinds.Modules.ImportCall,
                 module: modulePath,
+                specifier,
                 defaultImport: null,
                 namespaceImport: null,
                 namedImports: [],

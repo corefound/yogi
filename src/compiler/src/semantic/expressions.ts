@@ -131,6 +131,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 scopeId: symbol.scopeId,
                                 type: symbol.type,
                                 mutable: symbol.mutable,
+                                linkageName: symbol.linkageName ?? null,
+                                qualifiedName: symbol.qualifiedName,
                             },
                             right,
                             type: symbol.type,

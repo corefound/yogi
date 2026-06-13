@@ -47,6 +47,10 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node,
             });
 
+            if (node.export) {
+                this.exportSymbol(symbol);
+            }
+
             this.enterScope();
 
             const params = (node.params ?? []).map((param: any) => {

@@ -48,20 +48,34 @@ scopeId():number {
   return offset ? this.bb!.readInt32(this.bb_pos + offset) : -1;
 }
 
-source():string|null
-source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-source(optionalEncoding?:any):string|Uint8Array|null {
+linkageName():string|null
+linkageName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+linkageName(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-position(obj?:SourcePosition):SourcePosition|null {
+qualifiedName():string|null
+qualifiedName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+qualifiedName(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 14);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+source():string|null
+source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+source(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+position(obj?:SourcePosition):SourcePosition|null {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startIdentifierExpression(builder:flatbuffers.Builder) {
-  builder.startObject(6);
+  builder.startObject(8);
 }
 
 static addName(builder:flatbuffers.Builder, nameOffset:flatbuffers.Offset) {
@@ -80,12 +94,20 @@ static addScopeId(builder:flatbuffers.Builder, scopeId:number) {
   builder.addFieldInt32(3, scopeId, -1);
 }
 
+static addLinkageName(builder:flatbuffers.Builder, linkageNameOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(4, linkageNameOffset, 0);
+}
+
+static addQualifiedName(builder:flatbuffers.Builder, qualifiedNameOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(5, qualifiedNameOffset, 0);
+}
+
 static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(4, sourceOffset, 0);
+  builder.addFieldOffset(6, sourceOffset, 0);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(5, positionOffset, 0);
+  builder.addFieldOffset(7, positionOffset, 0);
 }
 
 static endIdentifierExpression(builder:flatbuffers.Builder):flatbuffers.Offset {

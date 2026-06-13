@@ -129,6 +129,10 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
 
             symbol.node = semanticNode;
 
+            if (node.export) {
+                this.exportSymbol(symbol);
+            }
+
             return [];
         }
 

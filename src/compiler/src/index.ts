@@ -5,8 +5,6 @@ import { Helpers } from "./helpers";
 import { Semantic } from "./semantic";
 import { FlatBuffer } from "./fbs";
 import { Types } from "./helpers/types";
-import { ByteBuffer } from "flatbuffers";
-import { Meta } from "./fbs/generated/yogi/build";
 
 const rootPath = path.resolve(process.cwd(), process.argv[2], "../");
 const cachePath = path.relative(rootPath, path.resolve(process.cwd(), process.argv[2], "../", "packages/.cache"));
@@ -17,27 +15,40 @@ const graph = scanner.scan(path.resolve(process.cwd(), process.argv[2]));
 const scc = scanner.sortModules(graph);
 
 const visitor = new Visitor();
-
+const semanticModules = new Map<string, Types.SemanticModuleInfo>();
+const entryPath = path.resolve(process.cwd(), process.argv[2]);
 
 // Program
 const meta: Types.GlobalMetaInput = {
   rootPath,
-  outputPath: "",
+  outputPath: path.join(cachePath, "yogi"),
   cachePath,
   modules: [],
   links: []
 }
 
-graph.forEach(async (_, moduleUrl: string) => {
+for (const component of scc) {
+  if (component.length > 1) {
+    throw new Error(
+      `Circular dependency detected in module component: ${component
+        .map((moduleUrl) => path.relative(rootPath, moduleUrl))
+        .join(" -> ")}`
+    );
+  }
+
+  const moduleUrl = component[0];
+
   try {
     const relativePath = path.relative(rootPath, moduleUrl)
     const semantic = new Semantic({
       relativePath,
       absolutePath: moduleUrl,
+      modules: semanticModules,
     });
 
-    const { ast, sourceHash, astHash } = visitor.parse(moduleUrl);
-    const { sir, sirHash } = semantic.analyze(ast);
+    const sourceFile = scanner.takeSourceFile(moduleUrl);
+    const { ast, sourceHash, astHash } = visitor.parse(moduleUrl, sourceFile);
+    const { sir, sirHash, exports, links } = semantic.analyze(ast);
 
     const qualifiedName = `${relativePath?.replace(/[\\/]/g, ":")}`
 
@@ -47,7 +58,7 @@ graph.forEach(async (_, moduleUrl: string) => {
     const sirPath = path.join(modulePath, qualifiedName, "/sir.fb");
 
     const module = {
-      isEntry: moduleUrl === path.resolve(process.cwd(), process.argv[2]),
+      isEntry: moduleUrl === entryPath,
       rootPath: rootPath,
       name: qualifiedName,
       shouldLower: true,
@@ -77,11 +88,24 @@ graph.forEach(async (_, moduleUrl: string) => {
     FlatBuffer.writeBufferToFile(buffers, output);
     meta.modules.push(module);
 
+    for (const link of links) {
+      if (!meta.links.some((current) => current.kind === link.kind && current.path === link.path)) {
+        meta.links.push(link);
+      }
+    }
+
+    semanticModules.set(moduleUrl, {
+      absolutePath: moduleUrl,
+      relativePath,
+      exports,
+    });
+
   } catch (error) {
     console.error(error);
+    process.exit(1);
   }
 
-});
+}
 
 
 const metaBuffer = FlatBuffer.createGlobalMetaBuffer(meta);

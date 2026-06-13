@@ -18,17 +18,22 @@ export class BaseVisitor {
     public diagnostics: Nodes.Diagnostics[] = [];
     public exports: Map<string, any> = new Map<string, any>();
 
-    constructor(filePath: string) {
+    constructor(filePath: string, sourceFile?: ts.SourceFile) {
         this.filePath = filePath;
-        const code = fs.readFileSync(filePath, "utf8");
 
-        this.sourceFile = ts.createSourceFile(
-            filePath,
-            code,
-            ts.ScriptTarget.Latest,
-            true,
-            ts.ScriptKind.TS,
-        );
+        if (sourceFile) {
+            this.sourceFile = sourceFile;
+        } else {
+            const code = fs.readFileSync(filePath, "utf8");
+
+            this.sourceFile = ts.createSourceFile(
+                filePath,
+                code,
+                ts.ScriptTarget.Latest,
+                true,
+                ts.ScriptKind.TS,
+            );
+        }
     }
 
     // =========================

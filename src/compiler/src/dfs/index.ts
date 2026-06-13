@@ -5,6 +5,7 @@ import ts from "../ts";
 
 export class ModuleScanner {
     private visited = new Set<string>();
+    private sourceFiles = new Map<string, ts.SourceFile>();
 
     public graph = new Map<string, string[]>();
 
@@ -15,6 +16,12 @@ export class ModuleScanner {
     public scan(entryFile: string) {
         this.visit(entryFile);
         return this.graph;
+    }
+
+    public takeSourceFile(file: string): ts.SourceFile {
+        const sourceFile = this.sourceFiles.get(file) ?? this.parseFile(file);
+        this.sourceFiles.delete(file);
+        return sourceFile;
     }
     public topoSort(graph: Map<string, string[]>): string[] {
         const inDegree = new Map<string, number>();
@@ -139,10 +146,64 @@ export class ModuleScanner {
 
     public sortModules(graph: Map<string, string[]>): string[][] {
         const sccs = this.getStronglyConnectedComponents(graph);
+        const componentByNode = new Map<string, number>();
+        const inDegree = new Map<number, number>();
+        const edges = new Map<number, Set<number>>();
 
-        // Aquí luego haces topo sort entre grupos,
-        // no entre archivos individuales.
-        return sccs;
+        sccs.forEach((component, index) => {
+            inDegree.set(index, 0);
+            edges.set(index, new Set());
+
+            for (const node of component) {
+                componentByNode.set(node, index);
+            }
+        });
+
+        for (const [from, deps] of graph.entries()) {
+            const fromComponent = componentByNode.get(from);
+
+            if (fromComponent === undefined) continue;
+
+            for (const dep of deps) {
+                const depComponent = componentByNode.get(dep);
+
+                if (depComponent === undefined || depComponent === fromComponent) {
+                    continue;
+                }
+
+                const outgoing = edges.get(depComponent)!;
+
+                if (!outgoing.has(fromComponent)) {
+                    outgoing.add(fromComponent);
+                    inDegree.set(fromComponent, (inDegree.get(fromComponent) ?? 0) + 1);
+                }
+            }
+        }
+
+        const queue = [...inDegree.entries()]
+            .filter(([, degree]) => degree === 0)
+            .map(([component]) => component);
+
+        const ordered: string[][] = [];
+
+        while (queue.length) {
+            const component = queue.shift()!;
+            ordered.push(sccs[component]);
+
+            for (const next of edges.get(component) ?? []) {
+                inDegree.set(next, inDegree.get(next)! - 1);
+
+                if (inDegree.get(next) === 0) {
+                    queue.push(next);
+                }
+            }
+        }
+
+        if (ordered.length !== sccs.length) {
+            throw new Error("Circular dependency detected between module components");
+        }
+
+        return ordered;
     }
 
     private visit(file: string) {
@@ -150,6 +211,7 @@ export class ModuleScanner {
 
         this.visited.add(file);
         const sourceFile = this.parseFile(file);
+        this.sourceFiles.set(file, sourceFile);
         const imports: any[] = [];
 
         const visitNode = (node: ts.Node) => {

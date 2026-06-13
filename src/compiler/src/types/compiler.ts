@@ -117,3 +117,19 @@ export type SymbolInfo = {
     emit?: boolean;
     node: any;
 };
+
+export type SemanticModuleSymbol = {
+    name: string;
+    kind: Kinds.ScopeSymbols;
+    type: any;
+    mutable: boolean;
+    linkageName?: string | null;
+    qualifiedName?: string;
+    sourcePath: string;
+};
+
+export type SemanticModuleInfo = {
+    absolutePath: string;
+    relativePath: string;
+    exports: Map<string, SemanticModuleSymbol>;
+};

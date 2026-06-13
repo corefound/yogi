@@ -1,7 +1,7 @@
 import ts from "../ts";
-import path from "path";
 import { BaseVisitor, Constructor } from "../visitor/base";
 import { Kinds } from "../helpers/types";
+import { Helpers } from "../helpers";
 
 export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
@@ -18,10 +18,11 @@ export function ExportsVisitor<TBase extends Constructor<BaseVisitor>>(base: TBa
                 ? (node.moduleSpecifier as ts.StringLiteral).text
                 : null;
 
-            const modulePath = moduleSpecifier ? path.resolve(path.dirname(this.filePath), moduleSpecifier) + ".ts" : null;
+            const modulePath = moduleSpecifier ? Helpers.resolveModule(this.filePath, moduleSpecifier) : null;
             const result: any = {
                 kind: Kinds.Modules.ExportCall,
                 module: modulePath,
+                specifier: moduleSpecifier,
 
                 // export * from "x"
                 namespaceImport: node.exportClause && ts.isNamespaceExport(node.exportClause)

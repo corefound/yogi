@@ -11,6 +11,8 @@ table IdentifierExpression {
   type:TypeRef;
   symbol_id:int = -1;
   scope_id:int = -1;
+  linkage_name:string;
+  qualified_name:string;
   source:string;
   position:SourcePosition;
 }

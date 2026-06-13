@@ -2426,8 +2426,10 @@ struct IdentifierExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Tab
     VT_TYPE = 6,
     VT_SYMBOL_ID = 8,
     VT_SCOPE_ID = 10,
-    VT_SOURCE = 12,
-    VT_POSITION = 14
+    VT_LINKAGE_NAME = 12,
+    VT_QUALIFIED_NAME = 14,
+    VT_SOURCE = 16,
+    VT_POSITION = 18
   };
   const ::flatbuffers::String *name() const {
     return GetPointer<const ::flatbuffers::String *>(VT_NAME);
@@ -2440,6 +2442,12 @@ struct IdentifierExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Tab
   }
   int32_t scope_id() const {
     return GetField<int32_t>(VT_SCOPE_ID, -1);
+  }
+  const ::flatbuffers::String *linkage_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_LINKAGE_NAME);
+  }
+  const ::flatbuffers::String *qualified_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_QUALIFIED_NAME);
   }
   const ::flatbuffers::String *source() const {
     return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
@@ -2456,6 +2464,10 @@ struct IdentifierExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Tab
            verifier.VerifyTable(type()) &&
            VerifyField<int32_t>(verifier, VT_SYMBOL_ID, 4) &&
            VerifyField<int32_t>(verifier, VT_SCOPE_ID, 4) &&
+           VerifyOffset(verifier, VT_LINKAGE_NAME) &&
+           verifier.VerifyString(linkage_name()) &&
+           VerifyOffset(verifier, VT_QUALIFIED_NAME) &&
+           verifier.VerifyString(qualified_name()) &&
            VerifyOffset(verifier, VT_SOURCE) &&
            verifier.VerifyString(source()) &&
            VerifyOffset(verifier, VT_POSITION) &&
@@ -2480,6 +2492,12 @@ struct IdentifierExpressionBuilder {
   void add_scope_id(int32_t scope_id) {
     fbb_.AddElement<int32_t>(IdentifierExpression::VT_SCOPE_ID, scope_id, -1);
   }
+  void add_linkage_name(::flatbuffers::Offset<::flatbuffers::String> linkage_name) {
+    fbb_.AddOffset(IdentifierExpression::VT_LINKAGE_NAME, linkage_name);
+  }
+  void add_qualified_name(::flatbuffers::Offset<::flatbuffers::String> qualified_name) {
+    fbb_.AddOffset(IdentifierExpression::VT_QUALIFIED_NAME, qualified_name);
+  }
   void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
     fbb_.AddOffset(IdentifierExpression::VT_SOURCE, source);
   }
@@ -2503,11 +2521,15 @@ inline ::flatbuffers::Offset<IdentifierExpression> CreateIdentifierExpression(
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     int32_t symbol_id = -1,
     int32_t scope_id = -1,
+    ::flatbuffers::Offset<::flatbuffers::String> linkage_name = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> qualified_name = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source = 0,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
   IdentifierExpressionBuilder builder_(_fbb);
   builder_.add_position(position);
   builder_.add_source(source);
+  builder_.add_qualified_name(qualified_name);
+  builder_.add_linkage_name(linkage_name);
   builder_.add_scope_id(scope_id);
   builder_.add_symbol_id(symbol_id);
   builder_.add_type(type);
@@ -2521,9 +2543,13 @@ inline ::flatbuffers::Offset<IdentifierExpression> CreateIdentifierExpressionDir
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     int32_t symbol_id = -1,
     int32_t scope_id = -1,
+    const char *linkage_name = nullptr,
+    const char *qualified_name = nullptr,
     const char *source = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
   auto name__ = name ? _fbb.CreateString(name) : 0;
+  auto linkage_name__ = linkage_name ? _fbb.CreateString(linkage_name) : 0;
+  auto qualified_name__ = qualified_name ? _fbb.CreateString(qualified_name) : 0;
   auto source__ = source ? _fbb.CreateString(source) : 0;
   return Yogi::Sir::CreateIdentifierExpression(
       _fbb,
@@ -2531,6 +2557,8 @@ inline ::flatbuffers::Offset<IdentifierExpression> CreateIdentifierExpressionDir
       type,
       symbol_id,
       scope_id,
+      linkage_name__,
+      qualified_name__,
       source__,
       position);
 }
