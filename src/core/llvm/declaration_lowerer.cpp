@@ -135,7 +135,7 @@ namespace yogi::core::llvm::internal {
 
 		statements_->lower_block(function->body());
 
-		if (!context_.builder.GetInsertBlock()->getTerminator()) {
+		if (!context_.builder.GetInsertBlock()->hasTerminator()) {
 			if (return_type->isVoidTy()) {
 				context_.builder.CreateRetVoid();
 			} else {

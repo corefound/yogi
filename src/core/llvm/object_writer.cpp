@@ -2,15 +2,16 @@
 
 #if YOGI_HAS_LLVM
 #include <iostream>
+#include <optional>
 #include <system_error>
 
-#include <llvm/ADT/Optional.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/FileSystem.h>
-#include <llvm/Support/Host.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/TargetParser/Host.h>
+#include <llvm/TargetParser/Triple.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 
@@ -40,7 +41,7 @@ namespace yogi::core::llvm::internal {
 		::llvm::InitializeNativeTargetAsmParser();
 		::llvm::InitializeNativeTargetAsmPrinter();
 
-		const auto target_triple = ::llvm::sys::getDefaultTargetTriple();
+		::llvm::Triple target_triple(::llvm::sys::getDefaultTargetTriple());
 		std::string error;
 		const auto *target = ::llvm::TargetRegistry::lookupTarget(target_triple, error);
 
@@ -50,7 +51,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		::llvm::TargetOptions options;
-		::llvm::Optional<::llvm::Reloc::Model> reloc_model;
+		std::optional<::llvm::Reloc::Model> reloc_model;
 		std::unique_ptr<::llvm::TargetMachine> target_machine(
 			target->createTargetMachine(target_triple, "generic", "", options, reloc_model)
 		);
@@ -81,7 +82,7 @@ namespace yogi::core::llvm::internal {
 			pass_manager,
 			destination,
 			nullptr,
-			::llvm::CGFT_ObjectFile
+			::llvm::CodeGenFileType::ObjectFile
 		)) {
 			std::cerr << "LLVM target machine cannot emit object files\n";
 			return false;

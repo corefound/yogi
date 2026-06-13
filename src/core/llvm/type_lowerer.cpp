@@ -7,12 +7,18 @@
 
 namespace yogi::core::llvm::internal {
 
+	namespace {
+		::llvm::PointerType *opaque_pointer(::llvm::LLVMContext &context) {
+			return ::llvm::PointerType::get(context, 0);
+		}
+	}
+
 	TypeLowerer::TypeLowerer(ModuleLoweringContext &context)
 		: context_(context) {}
 
 	::llvm::Type *TypeLowerer::lower(const Yogi::Sir::TypeRef *type) {
 		if (!type) {
-			return ::llvm::Type::getInt8PtrTy(context_.llvm_context);
+			return opaque_pointer(context_.llvm_context);
 		}
 
 		switch (type->kind()) {
@@ -32,10 +38,10 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_union_type:
 			case Yogi::Sir::TypeKind_unknown_type:
 			case Yogi::Sir::TypeKind_type_reference:
-				return ::llvm::Type::getInt8PtrTy(context_.llvm_context);
+				return opaque_pointer(context_.llvm_context);
 
 			default:
-				return ::llvm::Type::getInt8PtrTy(context_.llvm_context);
+				return opaque_pointer(context_.llvm_context);
 		}
 	}
 

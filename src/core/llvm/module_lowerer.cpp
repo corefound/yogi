@@ -5,7 +5,8 @@
 #include <utility>
 
 #include <llvm/IR/Verifier.h>
-#include <llvm/Support/Host.h>
+#include <llvm/TargetParser/Host.h>
+#include <llvm/TargetParser/Triple.h>
 
 namespace yogi::core::llvm::internal {
 
@@ -30,7 +31,7 @@ namespace yogi::core::llvm::internal {
 			return false;
 		}
 
-		context_.module->setTargetTriple(::llvm::sys::getDefaultTargetTriple());
+		context_.module->setTargetTriple(::llvm::Triple(::llvm::sys::getDefaultTargetTriple()));
 		variables_.predeclare_globals();
 		functions_.lower_functions();
 		statements_.lower_module_initializer();

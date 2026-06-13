@@ -6,6 +6,7 @@
 /tools/typescript/
 /tools/flatbuffers/
 /tools/llvm-project/
+/libs/llvm-project/
 
 /cmake-build-debug/
 libs/uni-algo/

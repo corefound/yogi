@@ -44,7 +44,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (const auto *string = constant->value_as_StringConstant()) {
-			return context_.builder.CreateGlobalStringPtr(fb_string(string->value()));
+			return context_.builder.CreateGlobalString(fb_string(string->value()));
 		}
 
 		if (const auto *boolean = constant->value_as_BooleanConstant()) {

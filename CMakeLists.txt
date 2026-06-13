@@ -12,12 +12,26 @@ set(CMAKE_C_STANDARD 11)
 set(LIBS_DIR "${CMAKE_SOURCE_DIR}/libs")
 set(CORE_DIR "${CMAKE_SOURCE_DIR}/src/core")
 set(TS_PARSER_DIR "${CMAKE_SOURCE_DIR}/src/core")
-set(LLVM_ROOT "${LIBS_DIR}/llvm-project/build/llvm-custom" CACHE PATH "Path to a custom LLVM installation")
-set(YOGI_ENABLE_LLVM "AUTO" CACHE STRING "Enable LLVM support: AUTO, ON, or OFF")
-set_property(CACHE YOGI_ENABLE_LLVM PROPERTY STRINGS AUTO ON OFF)
+set(LLVM_ROOT "${LIBS_DIR}/llvm-project/build/llvm-custom" CACHE PATH "Path to the vendored LLVM installation")
+set(YOGI_ENABLE_LLVM "ON" CACHE STRING "Enable LLVM support: ON or OFF")
+set_property(CACHE YOGI_ENABLE_LLVM PROPERTY STRINGS ON OFF)
+
+unset(ENV{LLVM_CONFIG})
+unset(ENV{LLVM_DIR})
 
 cmake_policy(SET CMP0075 NEW)
 cmake_policy(SET CMP0074 NEW)
+
+foreach(_YOGI_LINKER_FLAGS_VAR
+                CMAKE_EXE_LINKER_FLAGS
+                CMAKE_SHARED_LINKER_FLAGS
+                CMAKE_MODULE_LINKER_FLAGS)
+        if(DEFINED ${_YOGI_LINKER_FLAGS_VAR} AND NOT "${${_YOGI_LINKER_FLAGS_VAR}}" STREQUAL "")
+                string(REGEX REPLACE "(^| )-L/[^ ]*/llvm(@[^ /]+)?/lib" " " ${_YOGI_LINKER_FLAGS_VAR} "${${_YOGI_LINKER_FLAGS_VAR}}")
+                string(STRIP "${${_YOGI_LINKER_FLAGS_VAR}}" ${_YOGI_LINKER_FLAGS_VAR})
+                set(${_YOGI_LINKER_FLAGS_VAR} "${${_YOGI_LINKER_FLAGS_VAR}}" CACHE STRING "" FORCE)
+        endif()
+endforeach()
 
 # ============================================================
 #                       LLVM
@@ -27,14 +41,10 @@ set(llvm_libs "")
 
 if(NOT YOGI_ENABLE_LLVM STREQUAL "OFF")
         if(EXISTS "${LLVM_ROOT}/lib/cmake/llvm/LLVMConfig.cmake")
-                list(APPEND CMAKE_PREFIX_PATH "${LLVM_ROOT}")
-
                 find_package(LLVM QUIET CONFIG
                         PATHS "${LLVM_ROOT}/lib/cmake/llvm"
                         NO_DEFAULT_PATH
                 )
-        else()
-                find_package(LLVM QUIET CONFIG)
         endif()
 
         if(LLVM_FOUND)
@@ -130,10 +140,11 @@ if(NOT YOGI_ENABLE_LLVM STREQUAL "OFF")
                 endif()
 
                 find_package(OpenSSL QUIET)
-        elseif(YOGI_ENABLE_LLVM STREQUAL "ON")
-                message(FATAL_ERROR "YOGI_ENABLE_LLVM is ON, but LLVM was not found. Set LLVM_ROOT or CMAKE_PREFIX_PATH.")
         else()
-                message(STATUS "LLVM not found; building without LLVM support")
+                message(FATAL_ERROR
+                        "YOGI_ENABLE_LLVM is ON, but vendored LLVM was not found at ${LLVM_ROOT}. "
+                        "Build it from tools/llvm-project and install it into libs/llvm-project/build/llvm-custom."
+                )
         endif()
 endif()
 

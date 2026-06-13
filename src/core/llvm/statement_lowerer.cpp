@@ -37,7 +37,7 @@ namespace yogi::core::llvm::internal {
 			}
 		}
 
-		if (!context_.builder.GetInsertBlock()->getTerminator()) {
+		if (!context_.builder.GetInsertBlock()->hasTerminator()) {
 			context_.builder.CreateRetVoid();
 		}
 
@@ -85,7 +85,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		for (const auto *statement: *block->statements()) {
-			if (context_.builder.GetInsertBlock()->getTerminator()) {
+			if (context_.builder.GetInsertBlock()->hasTerminator()) {
 				return;
 			}
 
@@ -144,14 +144,14 @@ namespace yogi::core::llvm::internal {
 
 		context_.builder.SetInsertPoint(then_block);
 		lower_block(statement->then_block());
-		if (!context_.builder.GetInsertBlock()->getTerminator()) {
+		if (!context_.builder.GetInsertBlock()->hasTerminator()) {
 			context_.builder.CreateBr(merge_block);
 		}
 
 		if (else_block) {
 			context_.builder.SetInsertPoint(else_block);
 			lower_block(statement->else_block());
-			if (!context_.builder.GetInsertBlock()->getTerminator()) {
+			if (!context_.builder.GetInsertBlock()->hasTerminator()) {
 				context_.builder.CreateBr(merge_block);
 			}
 		}
