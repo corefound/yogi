@@ -5,3 +5,9 @@
 [submodule "tools/flatbuffers"]
 	path = tools/flatbuffers
 	url = https://github.com/google/flatbuffers.git
+
+[submodule "tools/llvm-project"]
+	path = tools/llvm-project
+	url = https://github.com/llvm/llvm-project.git
+
+
