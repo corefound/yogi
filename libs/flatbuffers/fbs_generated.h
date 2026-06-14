@@ -111,6 +111,9 @@ struct BinaryExpressionBuilder;
 struct AssignmentExpression;
 struct AssignmentExpressionBuilder;
 
+struct ConditionalExpression;
+struct ConditionalExpressionBuilder;
+
 struct VariableDeclaration;
 struct VariableDeclarationBuilder;
 
@@ -339,16 +342,17 @@ enum SirNodeValue : uint8_t {
   SirNodeValue_IdentifierExpression = 3,
   SirNodeValue_BinaryExpression = 4,
   SirNodeValue_AssignmentExpression = 5,
-  SirNodeValue_VariableDeclaration = 6,
-  SirNodeValue_ReturnStatement = 7,
-  SirNodeValue_BlockStatement = 8,
-  SirNodeValue_IfStatement = 9,
-  SirNodeValue_FunctionDeclaration = 10,
+  SirNodeValue_ConditionalExpression = 6,
+  SirNodeValue_VariableDeclaration = 7,
+  SirNodeValue_ReturnStatement = 8,
+  SirNodeValue_BlockStatement = 9,
+  SirNodeValue_IfStatement = 10,
+  SirNodeValue_FunctionDeclaration = 11,
   SirNodeValue_MIN = SirNodeValue_NONE,
   SirNodeValue_MAX = SirNodeValue_FunctionDeclaration
 };
 
-inline const SirNodeValue (&EnumValuesSirNodeValue())[11] {
+inline const SirNodeValue (&EnumValuesSirNodeValue())[12] {
   static const SirNodeValue values[] = {
     SirNodeValue_NONE,
     SirNodeValue_Constant,
@@ -356,6 +360,7 @@ inline const SirNodeValue (&EnumValuesSirNodeValue())[11] {
     SirNodeValue_IdentifierExpression,
     SirNodeValue_BinaryExpression,
     SirNodeValue_AssignmentExpression,
+    SirNodeValue_ConditionalExpression,
     SirNodeValue_VariableDeclaration,
     SirNodeValue_ReturnStatement,
     SirNodeValue_BlockStatement,
@@ -366,13 +371,14 @@ inline const SirNodeValue (&EnumValuesSirNodeValue())[11] {
 }
 
 inline const char * const *EnumNamesSirNodeValue() {
-  static const char * const names[12] = {
+  static const char * const names[13] = {
     "NONE",
     "Constant",
     "ExternDeclaration",
     "IdentifierExpression",
     "BinaryExpression",
     "AssignmentExpression",
+    "ConditionalExpression",
     "VariableDeclaration",
     "ReturnStatement",
     "BlockStatement",
@@ -411,6 +417,10 @@ template<> struct SirNodeValueTraits<Yogi::Sir::BinaryExpression> {
 
 template<> struct SirNodeValueTraits<Yogi::Sir::AssignmentExpression> {
   static const SirNodeValue enum_value = SirNodeValue_AssignmentExpression;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::ConditionalExpression> {
+  static const SirNodeValue enum_value = SirNodeValue_ConditionalExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::VariableDeclaration> {
@@ -2570,7 +2580,8 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_CONSTANT = 6,
     VT_IDENTIFIER = 8,
     VT_BINARY = 10,
-    VT_ASSIGNMENT = 12
+    VT_ASSIGNMENT = 12,
+    VT_CONDITIONAL = 14
   };
   const ::flatbuffers::String *kind() const {
     return GetPointer<const ::flatbuffers::String *>(VT_KIND);
@@ -2587,6 +2598,9 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::AssignmentExpression *assignment() const {
     return GetPointer<const Yogi::Sir::AssignmentExpression *>(VT_ASSIGNMENT);
   }
+  const Yogi::Sir::ConditionalExpression *conditional() const {
+    return GetPointer<const Yogi::Sir::ConditionalExpression *>(VT_CONDITIONAL);
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -2600,6 +2614,8 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyTable(binary()) &&
            VerifyOffset(verifier, VT_ASSIGNMENT) &&
            verifier.VerifyTable(assignment()) &&
+           VerifyOffset(verifier, VT_CONDITIONAL) &&
+           verifier.VerifyTable(conditional()) &&
            verifier.EndTable();
   }
 };
@@ -2623,6 +2639,9 @@ struct ValueRefBuilder {
   void add_assignment(::flatbuffers::Offset<Yogi::Sir::AssignmentExpression> assignment) {
     fbb_.AddOffset(ValueRef::VT_ASSIGNMENT, assignment);
   }
+  void add_conditional(::flatbuffers::Offset<Yogi::Sir::ConditionalExpression> conditional) {
+    fbb_.AddOffset(ValueRef::VT_CONDITIONAL, conditional);
+  }
   explicit ValueRefBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -2640,8 +2659,10 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRef(
     ::flatbuffers::Offset<Yogi::Sir::Constant> constant = 0,
     ::flatbuffers::Offset<Yogi::Sir::IdentifierExpression> identifier = 0,
     ::flatbuffers::Offset<Yogi::Sir::BinaryExpression> binary = 0,
-    ::flatbuffers::Offset<Yogi::Sir::AssignmentExpression> assignment = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::AssignmentExpression> assignment = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ConditionalExpression> conditional = 0) {
   ValueRefBuilder builder_(_fbb);
+  builder_.add_conditional(conditional);
   builder_.add_assignment(assignment);
   builder_.add_binary(binary);
   builder_.add_identifier(identifier);
@@ -2656,7 +2677,8 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
     ::flatbuffers::Offset<Yogi::Sir::Constant> constant = 0,
     ::flatbuffers::Offset<Yogi::Sir::IdentifierExpression> identifier = 0,
     ::flatbuffers::Offset<Yogi::Sir::BinaryExpression> binary = 0,
-    ::flatbuffers::Offset<Yogi::Sir::AssignmentExpression> assignment = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::AssignmentExpression> assignment = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ConditionalExpression> conditional = 0) {
   auto kind__ = kind ? _fbb.CreateString(kind) : 0;
   return Yogi::Sir::CreateValueRef(
       _fbb,
@@ -2664,7 +2686,8 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
       constant,
       identifier,
       binary,
-      assignment);
+      assignment,
+      conditional);
 }
 
 struct BinaryExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
@@ -2884,6 +2907,123 @@ inline ::flatbuffers::Offset<AssignmentExpression> CreateAssignmentExpressionDir
       _fbb,
       left,
       right,
+      type,
+      source__,
+      position);
+}
+
+struct ConditionalExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ConditionalExpressionBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_CONDITION = 4,
+    VT_WHEN_TRUE = 6,
+    VT_WHEN_FALSE = 8,
+    VT_TYPE = 10,
+    VT_SOURCE = 12,
+    VT_POSITION = 14
+  };
+  const Yogi::Sir::ValueRef *condition() const {
+    return GetPointer<const Yogi::Sir::ValueRef *>(VT_CONDITION);
+  }
+  const Yogi::Sir::ValueRef *when_true() const {
+    return GetPointer<const Yogi::Sir::ValueRef *>(VT_WHEN_TRUE);
+  }
+  const Yogi::Sir::ValueRef *when_false() const {
+    return GetPointer<const Yogi::Sir::ValueRef *>(VT_WHEN_FALSE);
+  }
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_CONDITION) &&
+           verifier.VerifyTable(condition()) &&
+           VerifyOffset(verifier, VT_WHEN_TRUE) &&
+           verifier.VerifyTable(when_true()) &&
+           VerifyOffset(verifier, VT_WHEN_FALSE) &&
+           verifier.VerifyTable(when_false()) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ConditionalExpressionBuilder {
+  typedef ConditionalExpression Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_condition(::flatbuffers::Offset<Yogi::Sir::ValueRef> condition) {
+    fbb_.AddOffset(ConditionalExpression::VT_CONDITION, condition);
+  }
+  void add_when_true(::flatbuffers::Offset<Yogi::Sir::ValueRef> when_true) {
+    fbb_.AddOffset(ConditionalExpression::VT_WHEN_TRUE, when_true);
+  }
+  void add_when_false(::flatbuffers::Offset<Yogi::Sir::ValueRef> when_false) {
+    fbb_.AddOffset(ConditionalExpression::VT_WHEN_FALSE, when_false);
+  }
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(ConditionalExpression::VT_TYPE, type);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(ConditionalExpression::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ConditionalExpression::VT_POSITION, position);
+  }
+  explicit ConditionalExpressionBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ConditionalExpression> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ConditionalExpression>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ConditionalExpression> CreateConditionalExpression(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> condition = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> when_true = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> when_false = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ConditionalExpressionBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_type(type);
+  builder_.add_when_false(when_false);
+  builder_.add_when_true(when_true);
+  builder_.add_condition(condition);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ConditionalExpression> CreateConditionalExpressionDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> condition = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> when_true = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> when_false = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateConditionalExpression(
+      _fbb,
+      condition,
+      when_true,
+      when_false,
       type,
       source__,
       position);
@@ -3776,6 +3916,9 @@ struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::AssignmentExpression *value_as_AssignmentExpression() const {
     return value_type() == Yogi::Sir::SirNodeValue_AssignmentExpression ? static_cast<const Yogi::Sir::AssignmentExpression *>(value()) : nullptr;
   }
+  const Yogi::Sir::ConditionalExpression *value_as_ConditionalExpression() const {
+    return value_type() == Yogi::Sir::SirNodeValue_ConditionalExpression ? static_cast<const Yogi::Sir::ConditionalExpression *>(value()) : nullptr;
+  }
   const Yogi::Sir::VariableDeclaration *value_as_VariableDeclaration() const {
     return value_type() == Yogi::Sir::SirNodeValue_VariableDeclaration ? static_cast<const Yogi::Sir::VariableDeclaration *>(value()) : nullptr;
   }
@@ -3819,6 +3962,10 @@ template<> inline const Yogi::Sir::BinaryExpression *SirNode::value_as<Yogi::Sir
 
 template<> inline const Yogi::Sir::AssignmentExpression *SirNode::value_as<Yogi::Sir::AssignmentExpression>() const {
   return value_as_AssignmentExpression();
+}
+
+template<> inline const Yogi::Sir::ConditionalExpression *SirNode::value_as<Yogi::Sir::ConditionalExpression>() const {
+  return value_as_ConditionalExpression();
 }
 
 template<> inline const Yogi::Sir::VariableDeclaration *SirNode::value_as<Yogi::Sir::VariableDeclaration>() const {
@@ -4095,6 +4242,10 @@ inline bool VerifySirNodeValue(::flatbuffers::VerifierTemplate<B> &verifier, con
     }
     case SirNodeValue_AssignmentExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::AssignmentExpression *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case SirNodeValue_ConditionalExpression: {
+      auto ptr = reinterpret_cast<const Yogi::Sir::ConditionalExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
     case SirNodeValue_VariableDeclaration: {

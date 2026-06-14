@@ -9,17 +9,64 @@ namespace yogi::core::llvm::internal {
 		public:
 			ValueLowerer(ModuleLoweringContext &context, TypeLowerer &types);
 
-			::llvm::Value *lower(const Yogi::Sir::ValueRef *value, ::llvm::Type *expected_type);
-			::llvm::Value *lower_assignment(const Yogi::Sir::AssignmentExpression *assignment);
-			::llvm::Value *lower_binary(const Yogi::Sir::BinaryExpression *binary, ::llvm::Type *expected_type);
-			::llvm::Value *cast(::llvm::Value *value, ::llvm::Type *target_type);
-			::llvm::Value *to_number(::llvm::Value *value);
-			::llvm::Value *to_boolean(::llvm::Value *value);
+			::llvm::Value *lower(
+				const Yogi::Sir::ValueRef *value,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType = nullptr
+			);
+			::llvm::Value *lowerAssignment(const Yogi::Sir::AssignmentExpression *assignment);
+			::llvm::Value *lowerBinary(
+				const Yogi::Sir::BinaryExpression *binary,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType = nullptr
+			);
+			::llvm::Value *lowerConditional(
+				const Yogi::Sir::ConditionalExpression *conditional,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType = nullptr
+			);
+			::llvm::Value *cast(
+				::llvm::Value *value,
+				::llvm::Type *targetType,
+				const Yogi::Sir::TypeRef *targetSemanticType = nullptr,
+				const Yogi::Sir::TypeRef *sourceSemanticType = nullptr
+			);
+			::llvm::Value *toNumber(::llvm::Value *value);
+			::llvm::Value *toBoolean(::llvm::Value *value);
 
 		private:
-			::llvm::Value *lower_constant(const Yogi::Sir::Constant *constant, ::llvm::Type *expected_type);
-			::llvm::Value *lower_identifier(const Yogi::Sir::IdentifierExpression *identifier, ::llvm::Type *expected_type);
+			::llvm::Value *lowerConstant(
+				const Yogi::Sir::Constant *constant,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
+			::llvm::Value *lowerIdentifier(
+				const Yogi::Sir::IdentifierExpression *identifier,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
 			::llvm::Value *compare(::llvm::Value *left, ::llvm::Value *right, bool equals);
+			::llvm::Value *lowerNullish(
+				const Yogi::Sir::BinaryExpression *binary,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
+			::llvm::Value *lowerNullishAssignment(
+				const Yogi::Sir::BinaryExpression *binary,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
+			::llvm::Value *isNullish(::llvm::Value *value);
+			::llvm::Value *boxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType);
+			::llvm::Value *unboxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *targetSemanticType);
+			::llvm::Value *callRuntime(
+				const std::string &name,
+				::llvm::Type *returnType,
+				const std::vector<::llvm::Value *> &arguments
+			);
+			const Yogi::Sir::TypeRef *valueSemanticType(const Yogi::Sir::ValueRef *value) const;
+			bool isAnyType(const Yogi::Sir::TypeRef *type) const;
+			::llvm::PointerType *opaquePointer() const;
 
 			ModuleLoweringContext &context_;
 			TypeLowerer &types_;

@@ -25,6 +25,10 @@
 #define YOGI_MACOS_DEPLOYMENT_TARGET "11.0"
 #endif
 
+#ifndef YOGI_RUNTIME_LIBRARY_PATH
+#define YOGI_RUNTIME_LIBRARY_PATH ""
+#endif
+
 namespace {
 	std::string quote_arg(const std::string &value) {
 		std::string quoted = "'";
@@ -95,6 +99,27 @@ namespace yogi::core::llvm {
 		std::vector<std::filesystem::path> external_links;
 		std::unordered_set<std::string> seen_paths;
 		int entry_module_count = 0;
+		const auto append_link_path = [&](
+			const std::filesystem::path &link_path,
+			const std::string &label,
+			bool must_exist
+		) -> bool {
+			const auto path_key = link_path.string();
+
+			if (seen_paths.contains(path_key)) {
+				return true;
+			}
+
+			seen_paths.insert(path_key);
+
+			if (must_exist && !std::filesystem::exists(link_path)) {
+				std::cerr << "cannot link missing " << label << ": " << link_path << "\n";
+				return false;
+			}
+
+			external_links.push_back(link_path);
+			return true;
+		};
 
 		for (const auto *module: *build_meta->modules()) {
 			if (!module->should_lower()) {
@@ -130,24 +155,20 @@ namespace yogi::core::llvm {
 		if (build_meta->links()) {
 			for (const auto *link: *build_meta->links()) {
 				const auto link_path = resolve_link_path(root_path, link->path());
-				const auto path_key = link_path.string();
-
-				if (seen_paths.contains(path_key)) {
-					continue;
-				}
-
-				seen_paths.insert(path_key);
-
-				if (
-					link->kind() != Yogi::Build::LinkKind_system_library &&
-					!std::filesystem::exists(link_path)
-				) {
-					std::cerr << "cannot link missing external library: " << link_path << "\n";
+				if (!append_link_path(
+					link_path,
+					"external library",
+					link->kind() != Yogi::Build::LinkKind_system_library
+				)) {
 					return false;
 				}
-
-				external_links.push_back(link_path);
 			}
+		}
+
+		const std::filesystem::path runtime_library_path = YOGI_RUNTIME_LIBRARY_PATH;
+
+		if (!runtime_library_path.empty() && !append_link_path(runtime_library_path, "runtime library", true)) {
+			return false;
 		}
 
 		std::filesystem::create_directories(absolute_output_path.parent_path());

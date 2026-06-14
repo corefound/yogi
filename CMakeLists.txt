@@ -153,6 +153,7 @@ endif()
 # ============================================================
 file(GLOB_RECURSE PROD_SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 file(GLOB_RECURSE LLVM_SOURCE_FILES "${CMAKE_SOURCE_DIR}/src/core/llvm/*.cpp")
+list(FILTER PROD_SOURCES EXCLUDE REGEX "^${CMAKE_SOURCE_DIR}/src/runtime/.*")
 
 set_source_files_properties(
         ${LLVM_SOURCE_FILES}
@@ -198,6 +199,7 @@ if(YOGI_LLVM_ENABLED)
                 YOGI_LD64_LLD_PATH="${YOGI_LD64_LLD_EXECUTABLE}"
                 YOGI_MACOS_SDK_PATH="${YOGI_MACOS_SDK_PATH}"
                 YOGI_MACOS_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}"
+                YOGI_RUNTIME_LIBRARY_PATH="$<TARGET_FILE:yogi_runtime>"
         )
 
         target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -233,6 +235,37 @@ target_compile_definitions(yogi PUBLIC
         TEST_PATH="${CMAKE_SOURCE_DIR}/tests/main.io"
 )
 
-target_link_libraries(
-    ${PROJECT_NAME}
-)
+target_link_libraries(${PROJECT_NAME} PRIVATE yogi_runtime)
+
+include(CTest)
+
+if(BUILD_TESTING)
+        add_executable(yogi_runtime_cast_test
+                ${CMAKE_SOURCE_DIR}/tests/runtime/runtime_cast_test.cpp
+        )
+
+        target_link_libraries(yogi_runtime_cast_test PRIVATE yogi_runtime)
+
+        add_test(
+                NAME yogi_runtime_cast_test
+                COMMAND yogi_runtime_cast_test
+        )
+
+        if(YOGI_LLVM_ENABLED)
+                add_test(
+                        NAME yogi_pipeline_runtime_any
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-runtime-any
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_runtime_any.cmake
+                )
+
+                add_test(
+                        NAME yogi_pipeline_dynamic_expressions
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-dynamic-expressions
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_dynamic_expressions.cmake
+                )
+        endif()
+endif()

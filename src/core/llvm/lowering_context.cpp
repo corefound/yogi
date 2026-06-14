@@ -66,6 +66,24 @@ namespace yogi::core::llvm::internal {
 
 		return temporary.CreateAlloca(type, nullptr, sanitize_symbol(name));
 	}
+
+	::llvm::Function *ModuleLoweringContext::runtimeFunction(
+		const std::string &name,
+		::llvm::Type *returnType,
+		const std::vector<::llvm::Type *> &parameters
+	) {
+		if (auto *function = module->getFunction(name)) {
+			return function;
+		}
+
+		auto *functionType = ::llvm::FunctionType::get(returnType, parameters, false);
+		return ::llvm::Function::Create(
+			functionType,
+			::llvm::Function::ExternalLinkage,
+			name,
+			module.get()
+		);
+	}
 #endif
 
 } // namespace yogi::core::llvm::internal

@@ -24,6 +24,9 @@ fbs-build:
 
 
 # TypeScript
+ts-test:
+	@cd $(CURDIR)/src/compiler && npm run test
+
 ts-dev:
 	@cd $(CURDIR)/src/compiler && npm run dev
 

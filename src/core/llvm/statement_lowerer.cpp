@@ -20,9 +20,9 @@ namespace yogi::core::llvm::internal {
 		  variables_(variables) {}
 
 	void StatementLowerer::lower_module_initializer() {
-		auto *function_type = ::llvm::FunctionType::get(::llvm::Type::getVoidTy(context_.llvm_context), false);
+		auto *functionType = ::llvm::FunctionType::get(::llvm::Type::getVoidTy(context_.llvm_context), false);
 		auto *function = ::llvm::Function::Create(
-			function_type,
+			functionType,
 			::llvm::Function::ExternalLinkage,
 			"_yogi_module_init_" + context_.module_name(),
 			context_.module.get()
@@ -30,6 +30,8 @@ namespace yogi::core::llvm::internal {
 		auto *entry = ::llvm::BasicBlock::Create(context_.llvm_context, "entry", function);
 		context_.builder.SetInsertPoint(entry);
 		context_.locals.clear();
+		context_.localTypes.clear();
+		context_.localTypeKinds.clear();
 
 		for (const auto *node: *context_.sir_module->nodes()) {
 			if (!node->value_as_FunctionDeclaration()) {
@@ -42,6 +44,8 @@ namespace yogi::core::llvm::internal {
 		}
 
 		context_.locals.clear();
+		context_.localTypes.clear();
+		context_.localTypeKinds.clear();
 	}
 
 	void StatementLowerer::lower_entry_point(const std::vector<std::string> &module_initializers) {
@@ -49,9 +53,9 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
-		auto *function_type = ::llvm::FunctionType::get(::llvm::Type::getInt32Ty(context_.llvm_context), false);
+		auto *functionType = ::llvm::FunctionType::get(::llvm::Type::getInt32Ty(context_.llvm_context), false);
 		auto *function = ::llvm::Function::Create(
-			function_type,
+			functionType,
 			::llvm::Function::ExternalLinkage,
 			"main",
 			context_.module.get()
@@ -100,12 +104,17 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (const auto *assignment = node->value_as_AssignmentExpression()) {
-			values_.lower_assignment(assignment);
+			values_.lowerAssignment(assignment);
 			return;
 		}
 
 		if (const auto *binary = node->value_as_BinaryExpression()) {
-			values_.lower_binary(binary, types_.lower(binary->type()));
+			values_.lowerBinary(binary, types_.lower(binary->type()));
+			return;
+		}
+
+		if (const auto *conditional = node->value_as_ConditionalExpression()) {
+			values_.lowerConditional(conditional, types_.lower(conditional->type()), conditional->type());
 			return;
 		}
 
@@ -121,19 +130,23 @@ namespace yogi::core::llvm::internal {
 
 	void StatementLowerer::lower_return(const Yogi::Sir::ReturnStatement *statement) {
 		auto *function = context_.builder.GetInsertBlock()->getParent();
-		auto *return_type = function->getReturnType();
+		auto *returnType = function->getReturnType();
 
-		if (return_type->isVoidTy()) {
+		if (returnType->isVoidTy()) {
 			context_.builder.CreateRetVoid();
 			return;
 		}
 
-		context_.builder.CreateRet(values_.cast(values_.lower(statement->value(), return_type), return_type));
+		context_.builder.CreateRet(values_.cast(
+			values_.lower(statement->value(), returnType, context_.currentReturnType),
+			returnType,
+			context_.currentReturnType
+		));
 	}
 
 	void StatementLowerer::lower_if(const Yogi::Sir::IfStatement *statement) {
 		auto *function = context_.builder.GetInsertBlock()->getParent();
-		auto *condition = values_.to_boolean(values_.lower(statement->condition(), ::llvm::Type::getInt1Ty(context_.llvm_context)));
+		auto *condition = values_.toBoolean(values_.lower(statement->condition(), ::llvm::Type::getInt1Ty(context_.llvm_context)));
 		auto *then_block = ::llvm::BasicBlock::Create(context_.llvm_context, "if.then", function);
 		auto *else_block = statement->else_block()
 			? ::llvm::BasicBlock::Create(context_.llvm_context, "if.else", function)

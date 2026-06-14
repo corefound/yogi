@@ -6,11 +6,13 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "libs/flatbuffers/flatbuffers.h"
 
 #if YOGI_HAS_LLVM
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Function.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #endif
@@ -36,6 +38,11 @@ namespace yogi::core::llvm::internal {
 				const std::string &name,
 				::llvm::Type *type
 			);
+			::llvm::Function *runtimeFunction(
+				const std::string &name,
+				::llvm::Type *returnType,
+				const std::vector<::llvm::Type *> &parameters
+			);
 
 			const Yogi::Build::ModuleMeta *module_meta;
 			const Yogi::Sir::Module *sir_module;
@@ -44,6 +51,11 @@ namespace yogi::core::llvm::internal {
 			::llvm::IRBuilder<> builder;
 			std::map<std::string, ::llvm::GlobalVariable *> globals;
 			std::map<std::string, ::llvm::AllocaInst *> locals;
+			std::map<std::string, const Yogi::Sir::TypeRef *> globalTypes;
+			std::map<std::string, const Yogi::Sir::TypeRef *> localTypes;
+			std::map<std::string, Yogi::Sir::TypeKind> globalTypeKinds;
+			std::map<std::string, Yogi::Sir::TypeKind> localTypeKinds;
+			const Yogi::Sir::TypeRef *currentReturnType = nullptr;
 	};
 #endif
 

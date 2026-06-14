@@ -32,12 +32,14 @@ namespace yogi::core::llvm::internal {
 		const auto name = fb_string(variable->qualified_name()) != ""
 			? fb_string(variable->qualified_name())
 			: fb_string(variable->name());
-		const auto symbol_name = "_yogi_" + sanitize_symbol(name);
+		const auto symbolName = "_yogi_" + sanitize_symbol(name);
 		auto *type = types_.lower(variable->type());
-		auto *global = context_.module->getGlobalVariable(symbol_name);
+		auto *global = context_.module->getGlobalVariable(symbolName);
 
 		if (global) {
 			context_.globals[fb_string(variable->name())] = global;
+			context_.globalTypes[fb_string(variable->name())] = variable->type();
+			context_.globalTypeKinds[fb_string(variable->name())] = variable->type()->kind();
 			return global;
 		}
 
@@ -49,27 +51,34 @@ namespace yogi::core::llvm::internal {
 				? ::llvm::GlobalValue::ExternalLinkage
 				: ::llvm::GlobalValue::InternalLinkage,
 			types_.zero(type),
-			symbol_name
+			symbolName
 		);
 
 		context_.globals[fb_string(variable->name())] = global;
+		context_.globalTypes[fb_string(variable->name())] = variable->type();
+		context_.globalTypeKinds[fb_string(variable->name())] = variable->type()->kind();
 
 		return global;
 	}
 
 	void VariableLowerer::lower_variable(const Yogi::Sir::VariableDeclaration *variable) {
 		auto *type = types_.lower(variable->type());
-		auto *initializer = values_.lower(variable->value(), type);
+		auto *initializer = values_.lower(variable->value(), type, variable->type());
 
 		if (context_.globals.contains(fb_string(variable->name()))) {
-			context_.builder.CreateStore(values_.cast(initializer, type), context_.globals[fb_string(variable->name())]);
+			context_.builder.CreateStore(
+				values_.cast(initializer, type, variable->type()),
+				context_.globals[fb_string(variable->name())]
+			);
 			return;
 		}
 
 		auto *function = context_.builder.GetInsertBlock()->getParent();
 		auto *slot = context_.create_entry_alloca(function, fb_string(variable->name()), type);
-		context_.builder.CreateStore(values_.cast(initializer, type), slot);
+		context_.builder.CreateStore(values_.cast(initializer, type, variable->type()), slot);
 		context_.locals[fb_string(variable->name())] = slot;
+		context_.localTypes[fb_string(variable->name())] = variable->type();
+		context_.localTypeKinds[fb_string(variable->name())] = variable->type()->kind();
 	}
 
 	FunctionLowerer::FunctionLowerer(
@@ -94,18 +103,18 @@ namespace yogi::core::llvm::internal {
 	}
 
 	void FunctionLowerer::lower_function(const Yogi::Sir::FunctionDeclaration *function) {
-		std::vector<::llvm::Type *> parameter_types;
+		std::vector<::llvm::Type *> parameterTypes;
 
 		if (function->parameters()) {
 			for (const auto *parameter: *function->parameters()) {
-				parameter_types.push_back(types_.lower(parameter->type()));
+				parameterTypes.push_back(types_.lower(parameter->type()));
 			}
 		}
 
-		auto *return_type = types_.lower(function->return_type());
-		auto *function_type = ::llvm::FunctionType::get(return_type, parameter_types, false);
+		auto *returnType = types_.lower(function->return_type());
+		auto *functionType = ::llvm::FunctionType::get(returnType, parameterTypes, false);
 		auto *llvm_function = ::llvm::Function::Create(
-			function_type,
+			functionType,
 			function->exported()
 				? ::llvm::Function::ExternalLinkage
 				: ::llvm::Function::InternalLinkage,
@@ -116,6 +125,9 @@ namespace yogi::core::llvm::internal {
 		auto *entry = ::llvm::BasicBlock::Create(context_.llvm_context, "entry", llvm_function);
 		context_.builder.SetInsertPoint(entry);
 		context_.locals.clear();
+		context_.localTypes.clear();
+		context_.localTypeKinds.clear();
+		context_.currentReturnType = function->return_type();
 
 		unsigned index = 0;
 		if (function->parameters()) {
@@ -130,20 +142,25 @@ namespace yogi::core::llvm::internal {
 				);
 				context_.builder.CreateStore(argument, slot);
 				context_.locals[fb_string(parameter->name())] = slot;
+				context_.localTypes[fb_string(parameter->name())] = parameter->type();
+				context_.localTypeKinds[fb_string(parameter->name())] = parameter->type()->kind();
 			}
 		}
 
 		statements_->lower_block(function->body());
 
 		if (!context_.builder.GetInsertBlock()->hasTerminator()) {
-			if (return_type->isVoidTy()) {
+			if (returnType->isVoidTy()) {
 				context_.builder.CreateRetVoid();
 			} else {
-				context_.builder.CreateRet(types_.zero(return_type));
+				context_.builder.CreateRet(types_.zero(returnType));
 			}
 		}
 
 		context_.locals.clear();
+		context_.localTypes.clear();
+		context_.localTypeKinds.clear();
+		context_.currentReturnType = nullptr;
 	}
 
 } // namespace yogi::core::llvm::internal
