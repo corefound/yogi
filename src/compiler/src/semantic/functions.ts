@@ -129,6 +129,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 linkageName: null,
                 qualifiedName,
                 type: param.type,
+                declaredType: param.type,
                 mutable: true,
                 storage: Kinds.Storage.stack,
                 escapes: false,

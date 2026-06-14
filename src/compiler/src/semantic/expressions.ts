@@ -4,6 +4,356 @@ import { Helpers } from "../helpers";
 
 export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
+        public visitCastExpression(node: any): any {
+            const expression = this.visitNode(node.expression);
+            const targetType = this.toSerializableType(node.type);
+
+            if (!targetType || targetType.kind === Kinds.Types.UnTyped) {
+                this.throwError(
+                    Kinds.ErrrorsMessage.MissingType,
+                    node.position,
+                    node.fullSource ?? node.source,
+                    node,
+                );
+            }
+
+            const sourceType = expression?.type;
+            const sourceAllowsCast =
+                sourceType?.kind === Kinds.Types.AnyType ||
+                sourceType?.kind === Kinds.Types.UnknownType;
+
+            const targetAllowsCast =
+                targetType.kind === Kinds.Types.AnyType ||
+                targetType.kind === Kinds.Types.UnknownType;
+
+            const structurallyRelated =
+                this.isTypeAssignable(targetType, sourceType) ||
+                this.isTypeAssignable(sourceType, targetType);
+
+            if (!sourceAllowsCast && !targetAllowsCast && !structurallyRelated) {
+                const message =
+                    `cannot cast value of type ${Helpers.RED}'${sourceType?.raw ?? "unknown"}'${Helpers.RESET} to ` +
+                    `${Helpers.RED}'${targetType.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    node.position,
+                    node.fullSource ?? node.source,
+                    node,
+                );
+            }
+
+            return {
+                ...expression,
+                type: targetType,
+                cast: {
+                    explicit: true,
+                    from: sourceType,
+                    to: targetType,
+                    source: node.source,
+                    position: node.position,
+                },
+            };
+        }
+
+        public visitSatisfiesExpression(node: any): any {
+            const expression = this.visitNode(node.expression);
+            const targetType = this.toSerializableType(node.type);
+
+            if (!this.isTypeAssignable(targetType, expression?.type)) {
+                const message =
+                    `value of type ${Helpers.RED}'${expression?.type?.raw ?? "unknown"}'${Helpers.RESET} does not satisfy ` +
+                    `${Helpers.RED}'${targetType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? 1;
+                this.throwError(message, node.position, node.fullSource ?? node.source, node);
+            }
+
+            return {
+                ...expression,
+                satisfies: {
+                    type: targetType,
+                    source: node.source,
+                    position: node.position,
+                },
+            };
+        }
+
+        public visitNonNullExpression(node: any): any {
+            const expression = this.visitNode(node.expression);
+            const type = this.removeNullishFromType(expression?.type);
+
+            return {
+                ...expression,
+                type,
+                nonNull: {
+                    source: node.source,
+                    position: node.position,
+                },
+            };
+        }
+
+        public visitConditionalExpression(node: any): any {
+            const condition = this.visitNode(node.condition);
+
+            if (condition?.type?.kind !== Kinds.Types.BooleanType) {
+                const message =
+                    `conditional expression condition must be ${Helpers.RED}'boolean'${Helpers.RESET}`;
+
+                node.arrowLength = node.condition?.source?.length ?? 1;
+                this.throwError(message, node.condition?.position ?? node.position, node.fullSource ?? node.source, node.condition ?? node);
+            }
+
+            const whenTrue = this.visitNode(node.whenTrue);
+            const whenFalse = this.visitNode(node.whenFalse);
+            const type = this.commonConditionalType(whenTrue?.type, whenFalse?.type);
+
+            if (!type) {
+                const message =
+                    `conditional branches have incompatible types ` +
+                    `${Helpers.RED}'${whenTrue?.type?.raw ?? "unknown"}'${Helpers.RESET} and ` +
+                    `${Helpers.RED}'${whenFalse?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? 1;
+                this.throwError(message, node.position, node.fullSource ?? node.source, node);
+            }
+
+            const knownCondition = this.constantBooleanValue(condition);
+
+            if (knownCondition !== null) {
+                const selected = knownCondition ? whenTrue : whenFalse;
+
+                return {
+                    ...selected,
+                    source: node.source,
+                    position: node.position,
+                    conditional: {
+                        condition,
+                        whenTrue,
+                        whenFalse,
+                    },
+                };
+            }
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.ConditionalExpression,
+                condition,
+                whenTrue,
+                whenFalse,
+                type,
+            };
+        }
+
+        public removeNullishFromType(type: any): any {
+            const resolved = this.resolveType(type);
+
+            if (resolved?.kind !== Kinds.Types.UnionType) {
+                return type;
+            }
+
+            const types = (resolved.types ?? []).filter((item: any) => {
+                const kind = this.resolveType(item)?.kind;
+                return kind !== Kinds.Types.NullType && kind !== Kinds.Types.UndefinedType;
+            });
+
+            if (types.length === 0) {
+                return { kind: Kinds.Types.NeverType, raw: "never" };
+            }
+
+            if (types.length === 1) return types[0];
+
+            return {
+                ...resolved,
+                types,
+                raw: types.map((item: any) => item.raw ?? "unknown").join(" | "),
+            };
+        }
+
+        public visitUnaryExpression(node: any): any {
+            if (node.operator !== "++" && node.operator !== "--") {
+                const operand = this.visitNode(node.operand);
+
+                if (node.operator === "!" && operand?.type?.kind === Kinds.Types.BooleanType) {
+                    return {
+                        ...node,
+                        operand,
+                        type: { kind: Kinds.Types.BooleanType, raw: "boolean" },
+                    };
+                }
+
+                const message = `unsupported unary operator ${Helpers.RED}'${node.operator}'${Helpers.RESET}`;
+                node.arrowLength = node.operator?.length ?? 1;
+                this.throwError(message, node.position, node.fullSource ?? node.source, node);
+            }
+
+            const operand = this.visitNode(node.operand);
+            const one = {
+                kind: Kinds.Sir.NumberConstant,
+                type: { kind: Kinds.Types.NumberType, raw: "number" },
+                raw: "1",
+                value: 1,
+                source: "1",
+                position: node.position,
+            };
+
+            return this.createAssignmentFromMutation(
+                node,
+                operand,
+                {
+                    kind: Kinds.Expressions.BinaryExpression,
+                    operator: node.operator === "++" ? "+" : "-",
+                    left: operand,
+                    right: one,
+                    source: node.source,
+                    fullSource: node.fullSource ?? node.source,
+                    position: node.position,
+                    type: { kind: Kinds.Types.NumberType, raw: "number" },
+                },
+                node.fullSource ?? node.source,
+            );
+        }
+
+        public visitPropertyAccessExpression(node: any): any {
+            const object = this.visitNode(node.object);
+            const accessType = object?.declaredType ?? object?.type;
+            const objectType = this.resolveOptionalAccessObjectType(accessType);
+
+            if (!this.isObjectLikeType(objectType)) {
+                const message =
+                    `property ${Helpers.RED}'${node.property}'${Helpers.RESET} does not exist on type ` +
+                    `${Helpers.RED}'${objectType?.raw ?? accessType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? 1;
+                this.throwError(message, node.position, node.fullSource ?? node.source, node);
+            }
+
+            const properties = this.objectPropertyMap(objectType);
+            const property = properties.get(node.property);
+
+            if (!property) {
+                const message =
+                    `property ${Helpers.RED}'${node.property}'${Helpers.RESET} does not exist on type ` +
+                    `${Helpers.RED}'${objectType.raw ?? "object"}'${Helpers.RESET}`;
+
+                node.arrowLength = node.property?.length ?? 1;
+                this.throwError(message, node.position, node.fullSource ?? node.source, node);
+            }
+
+            const folded = this.foldKnownPropertyAccess(object, node.property, node);
+            if (folded) return folded;
+
+            if (node.optional === true) {
+                const message =
+                    `dynamic optional property access ${Helpers.RED}'${node.source}'${Helpers.RESET} is not lowerable yet`;
+
+                node.arrowLength = node.source?.length ?? 1;
+                this.throwError(
+                    message,
+                    node.position,
+                    node.fullSource ?? node.source,
+                    node,
+                    "  = semantic validation is implemented; runtime optional access will be added with aggregate storage",
+                );
+            }
+
+            return {
+                ...node,
+                object,
+                type: property.optional === true
+                    ? this.createUnionType([property.type, { kind: Kinds.Types.UndefinedType, raw: "undefined" }])
+                    : property.type,
+                readonly: property.readonly === true,
+            };
+        }
+
+        public visitElementAccessExpression(node: any): any {
+            const object = this.visitNode(node.object);
+            const index = this.visitNode(node.index);
+            const accessType = object?.declaredType ?? object?.type;
+            const objectType = this.resolveOptionalAccessObjectType(accessType);
+            const indexValue = this.literalIndexValue(index);
+
+            if (objectType?.kind === Kinds.Types.TupleType) {
+                if (typeof indexValue !== "number" || !Number.isInteger(indexValue)) {
+                    const message = `tuple index must be a numeric literal`;
+                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                const tupleIndex = indexValue as number;
+                const elements = objectType.elements ?? [];
+
+                if (tupleIndex < 0 || tupleIndex >= elements.length) {
+                    const message =
+                        `tuple index ${Helpers.RED}'${tupleIndex}'${Helpers.RESET} is out of bounds for tuple of length ` +
+                        `${Helpers.BLUE}'${elements.length}'${Helpers.RESET}`;
+
+                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                const folded = this.foldKnownElementAccess(object, tupleIndex, node);
+                if (folded) return folded;
+
+                if (node.optional === true) {
+                    const message =
+                        `dynamic optional element access ${Helpers.RED}'${node.source}'${Helpers.RESET} is not lowerable yet`;
+
+                    node.arrowLength = node.source?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                return {
+                    ...node,
+                    object,
+                    index,
+                    type: elements[tupleIndex],
+                    readonly: objectType.readonly === true,
+                };
+            }
+
+            if (objectType?.kind === Kinds.Types.ArrayType) {
+                if (index?.type?.kind !== Kinds.Types.NumberType) {
+                    const message =
+                        `array index must be ${Helpers.BLUE}'number'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${index?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                if (typeof indexValue === "number") {
+                    const folded = this.foldKnownElementAccess(object, indexValue, node);
+                    if (folded) return folded;
+                }
+
+                if (node.optional === true) {
+                    const message =
+                        `dynamic optional element access ${Helpers.RED}'${node.source}'${Helpers.RESET} is not lowerable yet`;
+
+                    node.arrowLength = node.source?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                return {
+                    ...node,
+                    object,
+                    index,
+                    type: objectType.elementType,
+                    readonly: objectType.readonly === true,
+                };
+            }
+
+            const message =
+                `element access cannot be applied to type ${Helpers.RED}'${objectType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+            node.arrowLength = node.source?.length ?? 1;
+            this.throwError(message, node.position, node.fullSource ?? node.source, node);
+        }
+
         public visitBinaryExpression(context: any): any {
             const checkExpression = (node: any): any => {
                 if (!node) return null;
@@ -67,8 +417,142 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 const isBoolean = (type: any) => this.resolveType(type)?.kind === Kinds.Types.BooleanType;
 
                 switch (node.operator) {
+                    case "??": {
+                        const type = this.commonNullishType(leftType, rightType);
+                        const folded = this.foldKnownNullishExpression(left, right, node);
+
+                        if (folded) {
+                            return {
+                                ...folded,
+                                source: node.source,
+                                position: node.position,
+                                nullish: {
+                                    left,
+                                    right,
+                                },
+                            };
+                        }
+
+                        return {
+                            ...node,
+                            left,
+                            right,
+                            type,
+                        };
+                    }
+
+                    case "??=": {
+                        const assignmentType = this.removeNullishFromType(leftType);
+
+                        if (!this.isTypeAssignable(assignmentType, rightType)) {
+                            const message =
+                                `cannot assign value of type ${Helpers.RED}'${rightType?.raw ?? "unknown"}'${Helpers.RESET} through ` +
+                                `${Helpers.RED}'??='${Helpers.RESET} to type ${Helpers.RED}'${assignmentType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                            right.arrowLength = right.source?.length ?? 1;
+                            this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
+                        }
+
+                        const folded = this.foldKnownNullishExpression(left, right, node);
+                        if (folded === right) {
+                            return this.createAssignmentFromMutation(
+                                node,
+                                left,
+                                right,
+                                context.fullSource ?? node.fullSource ?? node.source,
+                            );
+                        }
+
+                        if (folded) return null;
+
+                        const assignment = this.createAssignmentFromMutation(
+                            {
+                                ...node,
+                                operator: "=",
+                            },
+                            left,
+                            right,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                        );
+
+                        return {
+                            ...node,
+                            left: assignment.left,
+                            right,
+                            type: assignmentType,
+                        };
+                    }
+
+                    case "+=":
+                    case "-=":
+                    case "*=":
+                    case "/=":
+                    case "%=": {
+                        const operator = node.operator.slice(0, -1);
+                        const binary = checkBinary({
+                            ...node,
+                            operator,
+                            left,
+                            right,
+                            source: node.source,
+                            fullSource: node.fullSource,
+                        });
+
+                        return this.createAssignmentFromMutation(
+                            node,
+                            left,
+                            binary,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                        );
+                    }
+
+                    case "&&=":
+                    case "||=": {
+                        const operator = node.operator.slice(0, -1);
+                        const binary = checkBinary({
+                            ...node,
+                            operator,
+                            left,
+                            right,
+                            source: node.source,
+                            fullSource: node.fullSource,
+                        });
+
+                        return this.createAssignmentFromMutation(
+                            node,
+                            left,
+                            binary,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                        );
+                    }
+
                     case "=": {
                         if (left.kind !== Kinds.Expressions.IdentifierExpression) {
+                            if (
+                                left.access?.kind === Kinds.Expressions.PropertyAccessExpression ||
+                                left.access?.kind === Kinds.Expressions.ElementAccessExpression
+                            ) {
+                                return checkAggregateAssignment(
+                                    node,
+                                    {
+                                        ...left.access,
+                                        type: left.type,
+                                        readonly: left.readonly,
+                                        source: left.source,
+                                        position: left.position,
+                                    },
+                                    right,
+                                    context,
+                                );
+                            }
+
+                            if (
+                                left.kind === Kinds.Expressions.PropertyAccessExpression ||
+                                left.kind === Kinds.Expressions.ElementAccessExpression
+                            ) {
+                                return checkAggregateAssignment(node, left, right, context);
+                            }
+
                             const message = `left side of assignment must be a variable`;
                             node.arrowLength = node.left?.source?.length ?? node.left?.raw?.length ?? 1;
 
@@ -107,10 +591,12 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
-                        if (!this.isTypeAssignable(symbol.type, rightType)) {
+                        const assignmentType = symbol.declaredType ?? symbol.type;
+
+                        if (!this.isTypeAssignable(assignmentType, rightType)) {
                             const message =
                                 `cannot assign value of type ${Helpers.RED}'${rightType?.raw}'${Helpers.RESET} to variable ` +
-                                `${Helpers.RED}'${identifierName}'${Helpers.RESET} of type ${Helpers.RED}'${symbol.type?.raw}'${Helpers.RESET}`;
+                                `${Helpers.RED}'${identifierName}'${Helpers.RESET} of type ${Helpers.RED}'${assignmentType?.raw}'${Helpers.RESET}`;
 
                             right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
 
@@ -130,12 +616,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 symbolId: symbol.id,
                                 scopeId: symbol.scopeId,
                                 type: symbol.type,
+                                declaredType: assignmentType,
                                 mutable: symbol.mutable,
                                 linkageName: symbol.linkageName ?? null,
                                 qualifiedName: symbol.qualifiedName,
                             },
                             right,
-                            type: symbol.type,
+                            type: assignmentType,
                         };
                     }
 
@@ -216,7 +703,401 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
             };
 
+            const checkAggregateAssignment = (node: any, left: any, right: any, context: any): any => {
+                const root = this.getAggregateRootIdentifier(left.object);
+                const symbol = root ? this.resolveSymbol(root) : null;
+
+                if (!symbol) {
+                    const message = `left side of assignment must start from a known variable`;
+                    left.arrowLength = left.source?.length ?? 1;
+                    this.throwError(message, left.position, context.fullSource ?? node.fullSource ?? node.source, left);
+                }
+
+                if (symbol.mutable !== true) {
+                    const message =
+                        `cannot mutate ${Helpers.RED}'${root}'${Helpers.RESET} because it was declared as a ` +
+                        `${Helpers.BLUE}'const'${Helpers.RESET}`;
+
+                    left.arrowLength = left.source?.length ?? 1;
+                    this.throwError(message, left.position, context.fullSource ?? node.fullSource ?? node.source, left);
+                }
+
+                if (left.readonly === true || this.isReadonlyType(left.object?.type)) {
+                    const message =
+                        `cannot assign to ${Helpers.RED}'${left.source ?? "readonly member"}'${Helpers.RESET} because it is readonly`;
+
+                    left.arrowLength = left.source?.length ?? 1;
+                    this.throwError(message, left.position, context.fullSource ?? node.fullSource ?? node.source, left);
+                }
+
+                if (!this.isTypeAssignable(left.type, right.type)) {
+                    const message =
+                        `cannot assign value of type ${Helpers.RED}'${right.type?.raw ?? "unknown"}'${Helpers.RESET} to ` +
+                        `${Helpers.RED}'${left.source ?? "member"}'${Helpers.RESET} of type ` +
+                        `${Helpers.BLUE}'${left.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    right.arrowLength = right.source?.length ?? 1;
+                    this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
+                }
+
+                const message =
+                    `assignment to aggregate member ${Helpers.RED}'${left.source ?? "member"}'${Helpers.RESET} is not lowerable yet`;
+
+                left.arrowLength = left.source?.length ?? 1;
+                this.throwError(
+                    message,
+                    left.position,
+                    context.fullSource ?? node.fullSource ?? node.source,
+                    left,
+                    "  = semantic validation is implemented; runtime aggregate storage will be added with memory management",
+                );
+            };
+
             return checkExpression(context.value);
+        }
+
+        public createAssignmentFromMutation(node: any, left: any, right: any, source: string): any {
+            if (left.kind !== Kinds.Expressions.IdentifierExpression) {
+                if (
+                    left.access?.kind === Kinds.Expressions.PropertyAccessExpression ||
+                    left.access?.kind === Kinds.Expressions.ElementAccessExpression
+                ) {
+                    left = {
+                        ...left.access,
+                        type: left.type,
+                        readonly: left.readonly,
+                        source: left.source,
+                        position: left.position,
+                    };
+                }
+
+                if (
+                    left.kind === Kinds.Expressions.PropertyAccessExpression ||
+                    left.kind === Kinds.Expressions.ElementAccessExpression
+                ) {
+                    const root = this.getAggregateRootIdentifier(left.object);
+                    const symbol = root ? this.resolveSymbol(root) : null;
+
+                    if (!symbol || symbol.mutable !== true) {
+                        const message =
+                            `cannot mutate ${Helpers.RED}'${root ?? left.source}'${Helpers.RESET} because it is immutable`;
+
+                        left.arrowLength = left.source?.length ?? 1;
+                        this.throwError(message, left.position, source, left);
+                    }
+
+                    if (left.readonly === true || this.isReadonlyType(left.object?.type)) {
+                        const message =
+                            `cannot assign to ${Helpers.RED}'${left.source ?? "readonly member"}'${Helpers.RESET} because it is readonly`;
+
+                        left.arrowLength = left.source?.length ?? 1;
+                        this.throwError(message, left.position, source, left);
+                    }
+
+                    const message =
+                        `assignment to aggregate member ${Helpers.RED}'${left.source ?? "member"}'${Helpers.RESET} is not lowerable yet`;
+
+                    left.arrowLength = left.source?.length ?? 1;
+                    this.throwError(
+                        message,
+                        left.position,
+                        source,
+                        left,
+                        "  = semantic validation is implemented; runtime aggregate storage will be added with memory management",
+                    );
+                }
+
+                const message = `left side of assignment must be a variable`;
+                left.arrowLength = left.source?.length ?? 1;
+                this.throwError(message, left.position ?? node.position, source, left);
+            }
+
+            const identifierName = left.value ?? left.name ?? left.raw;
+            const symbol = this.resolveSymbol(identifierName);
+
+            if (!symbol) {
+                const message = `cannot find name ${Helpers.RED}'${identifierName}'${Helpers.RESET}`;
+                left.arrowLength = identifierName?.length ?? 1;
+                this.throwError(message, left.position, source, left);
+            }
+
+            if (symbol.mutable !== true) {
+                const message =
+                    `cannot assign to ${Helpers.RED}'${identifierName}'${Helpers.RESET} because it was declared as a ` +
+                    `${Helpers.BLUE}'const'${Helpers.RESET}`;
+
+                left.arrowLength = identifierName?.length ?? 1;
+                this.throwError(message, left.position, source, left);
+            }
+
+            const assignmentType = symbol.declaredType ?? symbol.type;
+
+            if (!this.isTypeAssignable(assignmentType, right.type)) {
+                const message =
+                    `cannot assign value of type ${Helpers.RED}'${right.type?.raw ?? "unknown"}'${Helpers.RESET} to variable ` +
+                    `${Helpers.RED}'${identifierName}'${Helpers.RESET} of type ${Helpers.RED}'${assignmentType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                right.arrowLength = right.source?.length ?? 1;
+                this.throwError(message, right.position ?? node.position, source, right);
+            }
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.AssignmentExpression,
+                left: {
+                    ...left,
+                    symbolId: symbol.id,
+                    scopeId: symbol.scopeId,
+                    type: symbol.type,
+                    declaredType: assignmentType,
+                    mutable: symbol.mutable,
+                    linkageName: symbol.linkageName ?? null,
+                    qualifiedName: symbol.qualifiedName,
+                },
+                right,
+                type: assignmentType,
+            };
+        }
+
+        public resolveOptionalAccessObjectType(type: any): any {
+            const resolved = this.resolveType(type);
+
+            if (resolved?.kind !== Kinds.Types.UnionType) {
+                return resolved;
+            }
+
+            const nonNullish = (resolved.types ?? []).filter((item: any) => {
+                const kind = this.resolveType(item)?.kind;
+                return kind !== Kinds.Types.NullType && kind !== Kinds.Types.UndefinedType;
+            });
+
+            if (nonNullish.length === 1) {
+                return this.resolveType(nonNullish[0]);
+            }
+
+            return {
+                ...resolved,
+                types: nonNullish,
+                raw: nonNullish.map((item: any) => item.raw ?? "unknown").join(" | "),
+            };
+        }
+
+        public createUnionType(types: any[]): any {
+            const flattened = types.flatMap((type: any) => {
+                const resolved = this.resolveType(type);
+                return resolved?.kind === Kinds.Types.UnionType ? resolved.types ?? [] : [type];
+            });
+
+            const unique = new Map<string, any>();
+
+            for (const type of flattened) {
+                if (!type || type.kind === Kinds.Types.NeverType) continue;
+                unique.set(`${type.kind}:${type.raw ?? ""}`, type);
+            }
+
+            const values = [...unique.values()];
+
+            if (values.length === 0) {
+                return { kind: Kinds.Types.NeverType, raw: "never" };
+            }
+
+            if (values.length === 1) {
+                return values[0];
+            }
+
+            return {
+                kind: Kinds.Types.UnionType,
+                raw: values.map((type: any) => type.raw ?? "unknown").join(" | "),
+                types: values,
+            };
+        }
+
+        public commonConditionalType(whenTrueType: any, whenFalseType: any): any {
+            if (this.isTypeAssignable(whenTrueType, whenFalseType)) {
+                return whenTrueType;
+            }
+
+            if (this.isTypeAssignable(whenFalseType, whenTrueType)) {
+                return whenFalseType;
+            }
+
+            return this.createUnionType([whenTrueType, whenFalseType]);
+        }
+
+        public commonNullishType(leftType: any, rightType: any): any {
+            return this.createUnionType([this.removeNullishFromType(leftType), rightType]);
+        }
+
+        public isNullishConstant(value: any): boolean {
+            return (
+                value?.kind === Kinds.Sir.NullConstant ||
+                value?.kind === Kinds.Sir.UndefinedConstant
+            );
+        }
+
+        public isKnownNonNullishConstant(value: any): boolean {
+            return (
+                value?.kind === Kinds.Sir.NumberConstant ||
+                value?.kind === Kinds.Sir.StringConstant ||
+                value?.kind === Kinds.Sir.BooleanConstant
+            );
+        }
+
+        public constantBooleanValue(value: any): boolean | null {
+            const knownValue = this.knownValueForExpression(value) ?? value;
+
+            if (knownValue?.kind !== Kinds.Sir.BooleanConstant) {
+                return null;
+            }
+
+            return knownValue.value === true;
+        }
+
+        public foldKnownNullishExpression(left: any, right: any, node: any): any {
+            const knownLeft = this.knownValueForExpression(left);
+
+            if (knownLeft && this.isNullishConstant(knownLeft)) {
+                return right;
+            }
+
+            if (knownLeft && this.isKnownNonNullishConstant(knownLeft)) {
+                return {
+                    ...knownLeft,
+                    source: node.source ?? knownLeft.source,
+                    position: node.position ?? knownLeft.position,
+                };
+            }
+
+            if (this.isNullishConstant(left)) {
+                return right;
+            }
+
+            if (this.isKnownNonNullishConstant(left)) {
+                return left;
+            }
+
+            const resolvedLeft = this.resolveType(left?.type);
+
+            if (
+                resolvedLeft &&
+                resolvedLeft.kind !== Kinds.Types.UnionType &&
+                resolvedLeft.kind !== Kinds.Types.NullType &&
+                resolvedLeft.kind !== Kinds.Types.UndefinedType
+            ) {
+                return left;
+            }
+
+            return null;
+        }
+
+        public knownValueForExpression(expression: any): any {
+            if (this.isNullishConstant(expression) || this.isKnownNonNullishConstant(expression)) {
+                return expression;
+            }
+
+            if (expression?.kind !== Kinds.Expressions.IdentifierExpression) {
+                return null;
+            }
+
+            const name = expression.value ?? expression.name ?? expression.raw;
+            const symbol = name ? this.resolveSymbol(name) : null;
+
+            return symbol?.node ?? null;
+        }
+
+        public getAggregateRootIdentifier(node: any): string | null {
+            if (!node) return null;
+
+            if (node.kind === Kinds.Expressions.IdentifierExpression) {
+                return node.value ?? node.name ?? node.raw;
+            }
+
+            if (
+                node.kind === Kinds.Expressions.PropertyAccessExpression ||
+                node.kind === Kinds.Expressions.ElementAccessExpression
+            ) {
+                return this.getAggregateRootIdentifier(node.object);
+            }
+
+            return null;
+        }
+
+        public foldKnownPropertyAccess(object: any, propertyName: string, node: any): any {
+            const rootName = this.getAggregateRootIdentifier(object);
+            const symbol = rootName ? this.resolveSymbol(rootName) : null;
+            const objectType = this.resolveType(object?.declaredType ?? object?.type);
+            const declaredProperty = this.isObjectLikeType(objectType)
+                ? this.objectPropertyMap(objectType).get(propertyName)
+                : null;
+            const aggregate = symbol?.node?.kind === Kinds.Collections.DictionaryExpression
+                ? symbol.node
+                : object?.kind === Kinds.Collections.DictionaryExpression
+                    ? object
+                    : null;
+
+            if (!aggregate) return null;
+
+            const property = (aggregate.properties ?? []).find((item: any) => item.key === propertyName || item.name === propertyName);
+            if (!property?.value && declaredProperty?.optional === true) {
+                return {
+                    kind: Kinds.Sir.UndefinedConstant,
+                    type: { kind: Kinds.Types.UndefinedType, raw: "undefined" },
+                    raw: "undefined",
+                    value: "undefined",
+                    source: node.source,
+                    position: node.position,
+                    readonly: declaredProperty?.readonly === true,
+                    access: {
+                        kind: Kinds.Expressions.PropertyAccessExpression,
+                        property: propertyName,
+                        object,
+                        readonly: declaredProperty?.readonly === true,
+                    },
+                };
+            }
+
+            if (!property?.value) return null;
+
+            return {
+                ...property.value,
+                source: node.source,
+                position: node.position,
+                readonly: declaredProperty?.readonly === true,
+                access: {
+                    kind: Kinds.Expressions.PropertyAccessExpression,
+                    property: propertyName,
+                    object,
+                    readonly: declaredProperty?.readonly === true,
+                },
+            };
+        }
+
+        public foldKnownElementAccess(object: any, index: number, node: any): any {
+            const rootName = this.getAggregateRootIdentifier(object);
+            const symbol = rootName ? this.resolveSymbol(rootName) : null;
+            const aggregate = symbol?.node?.kind === Kinds.Collections.ArrayExpression
+                ? symbol.node
+                : object?.kind === Kinds.Collections.ArrayExpression
+                    ? object
+                    : null;
+
+            if (!aggregate) return null;
+
+            const element = aggregate.elements?.[index];
+            if (!element) return null;
+
+            return {
+                ...element,
+                source: node.source,
+                position: node.position,
+                readonly: this.resolveType(object?.declaredType ?? object?.type)?.readonly === true,
+                access: {
+                    kind: Kinds.Expressions.ElementAccessExpression,
+                    index,
+                    object,
+                    readonly: this.resolveType(object?.declaredType ?? object?.type)?.readonly === true,
+                },
+            };
         }
     };
 }

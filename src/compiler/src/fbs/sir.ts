@@ -21,6 +21,7 @@ import {
     IdentifierExpression,
     BinaryExpression,
     AssignmentExpression,
+    ConditionalExpression,
     VariableDeclaration,
     ReturnStatement,
     BlockStatement,
@@ -96,6 +97,12 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     const value = this.createAssignmentExpression(builder, node);
 
                     return this.createSirNode(builder, SirNodeValue.AssignmentExpression, value);
+                }
+
+                case "ConditionalExpression": {
+                    const value = this.createConditionalExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.ConditionalExpression, value);
                 }
 
                 case "VariableDeclaration": {
@@ -426,8 +433,11 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const assignment = node.kind === "AssignmentExpression"
                 ? this.createAssignmentExpression(builder, node)
                 : 0;
+            const conditional = node.kind === "ConditionalExpression"
+                ? this.createConditionalExpression(builder, node)
+                : 0;
 
-            if (!constant && !identifier && !binary && !assignment) {
+            if (!constant && !identifier && !binary && !assignment && !conditional) {
                 throw new Error(`Unsupported semantic value kind: ${(node as { kind: string }).kind}`);
             }
 
@@ -448,6 +458,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (assignment) {
                 ValueRef.addAssignment(builder, assignment);
+            }
+
+            if (conditional) {
+                ValueRef.addConditional(builder, conditional);
             }
 
             return ValueRef.endValueRef(builder);
@@ -528,6 +542,28 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             AssignmentExpression.addPosition(builder, position);
 
             return AssignmentExpression.endAssignmentExpression(builder);
+        }
+
+        static createConditionalExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticConditionalExpression,
+        ): fbs.Offset {
+            const condition = this.createValueRef(builder, expression.condition);
+            const whenTrue = this.createValueRef(builder, expression.whenTrue);
+            const whenFalse = this.createValueRef(builder, expression.whenFalse);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            ConditionalExpression.startConditionalExpression(builder);
+            ConditionalExpression.addCondition(builder, condition);
+            ConditionalExpression.addWhenTrue(builder, whenTrue);
+            ConditionalExpression.addWhenFalse(builder, whenFalse);
+            ConditionalExpression.addType(builder, type);
+            ConditionalExpression.addSource(builder, source);
+            ConditionalExpression.addPosition(builder, position);
+
+            return ConditionalExpression.endConditionalExpression(builder);
         }
 
         static createVariableDeclaration(

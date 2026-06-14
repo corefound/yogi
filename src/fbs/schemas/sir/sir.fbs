@@ -23,6 +23,7 @@ table ValueRef {
   identifier:IdentifierExpression;
   binary:BinaryExpression;
   assignment:AssignmentExpression;
+  conditional:ConditionalExpression;
 }
 
 table BinaryExpression {
@@ -37,6 +38,15 @@ table BinaryExpression {
 table AssignmentExpression {
   left:IdentifierExpression;
   right:ValueRef;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table ConditionalExpression {
+  condition:ValueRef;
+  when_true:ValueRef;
+  when_false:ValueRef;
   type:TypeRef;
   source:string;
   position:SourcePosition;
@@ -114,6 +124,7 @@ union SirNodeValue {
   IdentifierExpression,
   BinaryExpression,
   AssignmentExpression,
+  ConditionalExpression,
   VariableDeclaration,
   ReturnStatement,
   BlockStatement,

@@ -19,6 +19,7 @@ export namespace Types {
         export type SemanticIdentifierExpression = SirTypes.SemanticIdentifierExpression;
         export type SemanticBinaryExpression = SirTypes.SemanticBinaryExpression;
         export type SemanticAssignmentExpression = SirTypes.SemanticAssignmentExpression;
+        export type SemanticConditionalExpression = SirTypes.SemanticConditionalExpression;
         export type SemanticValueInput = SirTypes.SemanticValueInput;
         export type SemanticVariableDeclaration = SirTypes.SemanticVariableDeclaration;
         export type SemanticReturnStatement = SirTypes.SemanticReturnStatement;

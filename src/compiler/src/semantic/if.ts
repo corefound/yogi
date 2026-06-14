@@ -38,10 +38,18 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 );
             }
 
-            const thenBlock = this.visitIfBlockStatement(node.then);
+            const { thenNarrowings, elseNarrowings } = this.getEqualityNarrowings(condition);
+
+            const thenBlock = this.withTemporaryNarrowings(
+                thenNarrowings,
+                () => this.visitIfBlockStatement(node.then),
+            );
 
             const elseBlock = node.else
-                ? this.visitIfBlockStatement(node.else)
+                ? this.withTemporaryNarrowings(
+                    elseNarrowings,
+                    () => this.visitIfBlockStatement(node.else),
+                )
                 : null;
 
             return {
@@ -147,6 +155,111 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 type.raw === "boolean" ||
                 type === "boolean"
             );
+        }
+
+        public getEqualityNarrowings(condition: any): any {
+            const empty = { thenNarrowings: new Map<string, any>(), elseNarrowings: new Map<string, any>() };
+
+            if (!condition || condition.kind !== Kinds.Expressions.BinaryExpression) {
+                return empty;
+            }
+
+            if (!["==", "===", "!=", "!=="].includes(condition.operator)) {
+                return empty;
+            }
+
+            const left = condition.left;
+            const right = condition.right;
+            const positive = condition.operator === "==" || condition.operator === "===";
+
+            const pair = this.getIdentifierComparablePair(left, right) ??
+                this.getIdentifierComparablePair(right, left);
+
+            if (!pair) {
+                return empty;
+            }
+
+            const symbol = this.resolveSymbol(pair.name);
+            if (!symbol) {
+                return empty;
+            }
+
+            const narrowed = this.narrowTypeTo(symbol.type, pair.type, false);
+            const excluded = this.narrowTypeTo(symbol.type, pair.type, true);
+
+            return {
+                thenNarrowings: positive
+                    ? new Map([[pair.name, narrowed]])
+                    : new Map([[pair.name, excluded]]),
+                elseNarrowings: positive
+                    ? new Map([[pair.name, excluded]])
+                    : new Map([[pair.name, narrowed]]),
+            };
+        }
+
+        public getIdentifierComparablePair(left: any, right: any): any {
+            if (left?.kind !== Kinds.Expressions.IdentifierExpression) {
+                return null;
+            }
+
+            if (!right?.type) {
+                return null;
+            }
+
+            return {
+                name: left.value ?? left.name ?? left.raw,
+                type: right.type,
+            };
+        }
+
+        public narrowTypeTo(sourceType: any, targetType: any, exclude: boolean): any {
+            const resolved = this.resolveType(sourceType);
+
+            if (!resolved || resolved.kind !== Kinds.Types.UnionType) {
+                return exclude ? sourceType : targetType;
+            }
+
+            const types = (resolved.types ?? []).filter((type: any) => {
+                const comparable = this.areTypesComparable(type, targetType) ||
+                    this.isTypeAssignable(type, targetType) ||
+                    this.isTypeAssignable(targetType, type);
+
+                return exclude ? !comparable : comparable;
+            });
+
+            if (types.length === 0) {
+                return { kind: Kinds.Types.NeverType, raw: "never" };
+            }
+
+            if (types.length === 1) {
+                return types[0];
+            }
+
+            return {
+                ...resolved,
+                types,
+                raw: types.map((type: any) => type.raw ?? "unknown").join(" | "),
+            };
+        }
+
+        public withTemporaryNarrowings<T>(narrowings: Map<string, any>, callback: () => T): T {
+            const previous: Array<{ symbol: any; type: any }> = [];
+
+            for (const [name, type] of narrowings) {
+                const symbol = this.resolveSymbol(name);
+                if (!symbol) continue;
+
+                previous.push({ symbol, type: symbol.type });
+                symbol.type = type;
+            }
+
+            try {
+                return callback();
+            } finally {
+                for (const item of previous) {
+                    item.symbol.type = item.type;
+                }
+            }
         }
     };
 }

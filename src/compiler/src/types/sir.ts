@@ -125,11 +125,22 @@ export type SemanticAssignmentExpression = {
     position?: SourcePosition;
 };
 
+export type SemanticConditionalExpression = {
+    kind: "ConditionalExpression";
+    condition: SemanticValueInput;
+    whenTrue: SemanticValueInput;
+    whenFalse: SemanticValueInput;
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
 export type SemanticValueInput =
     | SemanticConstantInput
     | SemanticIdentifierExpression
     | SemanticBinaryExpression
-    | SemanticAssignmentExpression;
+    | SemanticAssignmentExpression
+    | SemanticConditionalExpression;
 
 export type SemanticVariableDeclaration = {
     kind: "VariableDeclaration";
@@ -246,6 +257,7 @@ export type SemanticNodeInput =
     | SemanticIdentifierExpression
     | SemanticBinaryExpression
     | SemanticAssignmentExpression
+    | SemanticConditionalExpression
     | SemanticVariableDeclaration
     | SemanticReturnStatement
     | SemanticBlockStatement

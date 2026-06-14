@@ -19,6 +19,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const context = { ...node, value };
             const { trusted } = this.declarationVariableDiagnostics(context);
             const type = this.toSerializableType(node.type);
+            const runtimeValue = this.createRuntimeInitializerValue(value, type);
 
             const linkageName = node.export
                 ? this.getLinkageName(this.modulePath.relativePath, node.name)
@@ -41,6 +42,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 linkageName,
                 qualifiedName,
                 type,
+                declaredType: type,
 
                 mutable: flagName !== "const",
                 storage: isAmbient ? null : Kinds.Storage.stack,
@@ -84,7 +86,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 type,
 
                 trusted,
-                value,
+                value: runtimeValue,
             };
         }
 
@@ -152,6 +154,21 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
+            if (context.definiteAssignment === true) {
+                const message =
+                    `${Helpers.RED}'${context.name}'${Helpers.RESET} cannot use a definite assignment assertion`;
+
+                context.arrowLength = context.name?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    context.position,
+                    source,
+                    context,
+                    "  = variables in this language must be initialized immediately",
+                );
+            }
+
             if (!context.value && !isAmbient) {
                 const message =
                     `${Helpers.RED}'${context.name}'${Helpers.RESET} must be initialized.`;
@@ -195,9 +212,16 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
+            if (!isAmbient) {
+                this.validateAggregateAssignment(context.type, value, context, source);
+            }
+
             if (!isAmbient && !this.checkDataType(context.type, value)) {
-                const message =
-                    `name ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only initialize values of type ` +
+                const actualType = value?.type;
+                const message = actualType?.kind === Kinds.Types.AnyType
+                    ? `cannot initialize ${Helpers.BLUE}'${context.name}'${Helpers.RESET} of type ` +
+                    `${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET} from ${Helpers.RED}'any'${Helpers.RESET} without an explicit cast`
+                    : `name ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only initialize values of type ` +
                     `${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET}`;
 
                 value.arrowLength = value.source?.length ?? context.name?.length ?? 1;
@@ -207,6 +231,9 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     value.position ?? context.position,
                     source,
                     value,
+                    actualType?.kind === Kinds.Types.AnyType
+                        ? `  = write '${value.source ?? context.name} as ${context.type.raw}' when the cast is intentional`
+                        : undefined,
                 );
             }
 
@@ -216,6 +243,27 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             if (!value?.type) return false;
 
             return this.isTypeAssignable(expectedType, value.type);
+        }
+
+        public createRuntimeInitializerValue(value: any, expectedType: any): any {
+            if (!value) return value;
+
+            if (
+                value.kind === Kinds.Collections.ArrayExpression ||
+                value.kind === Kinds.Collections.DictionaryExpression
+            ) {
+                return {
+                    kind: Kinds.Sir.NullConstant,
+                    type: this.toSerializableType(expectedType),
+                    raw: "null",
+                    value: null,
+                    source: value.source ?? "null",
+                    position: value.position,
+                    aggregate: value,
+                };
+            }
+
+            return value;
         }
     };
 }

@@ -193,6 +193,23 @@ export class BaseSemantic {
             };
         }
 
+        if (Array.isArray(type.members)) {
+            return {
+                ...type,
+                members: type.members.map((member: any) => ({
+                    ...member,
+                    type: member.type ? this.toSerializableType(member.type, seen) : member.type,
+                    returnType: member.returnType ? this.toSerializableType(member.returnType, seen) : member.returnType,
+                    parameters: Array.isArray(member.parameters)
+                        ? member.parameters.map((parameter: any) => ({
+                            ...parameter,
+                            type: parameter.type ? this.toSerializableType(parameter.type, seen) : parameter.type,
+                        }))
+                        : member.parameters,
+                })),
+            };
+        }
+
         if (type.elementType) {
             return {
                 ...type,
@@ -241,11 +258,336 @@ export class BaseSemantic {
             });
         }
 
+        if (expectedType.kind === Kinds.Types.IntersectionType) {
+            return (expectedType.types ?? []).every((type: any) => {
+                return this.isTypeAssignable(type, actualType);
+            });
+        }
+
+        if (actualType.kind === Kinds.Types.IntersectionType) {
+            return (actualType.types ?? []).some((type: any) => {
+                return this.isTypeAssignable(expectedType, type);
+            });
+        }
+
+        if (expectedType.kind === Kinds.Types.ArrayType) {
+            if (actualType.kind === Kinds.Types.ArrayType) {
+                return this.isTypeAssignable(expectedType.elementType, actualType.elementType);
+            }
+
+            if (actualType.kind === Kinds.Types.TupleType) {
+                return (actualType.elements ?? []).every((element: any) => {
+                    return this.isTypeAssignable(expectedType.elementType, element);
+                });
+            }
+
+            return false;
+        }
+
+        if (expectedType.kind === Kinds.Types.TupleType) {
+            if (actualType.kind !== Kinds.Types.TupleType) return false;
+
+            const expectedElements = expectedType.elements ?? [];
+            const actualElements = actualType.elements ?? [];
+
+            if (expectedElements.length !== actualElements.length) return false;
+
+            return expectedElements.every((type: any, index: number) => {
+                return this.isTypeAssignable(type, actualElements[index]);
+            });
+        }
+
+        if (this.isObjectLikeType(expectedType)) {
+            return this.isObjectLikeAssignable(expectedType, actualType);
+        }
+
         if (expectedType.kind === Kinds.Types.LiteralType) {
-            return expectedType.raw === actualType.raw;
+            return this.isLiteralAssignable(expectedType, actualType);
+        }
+
+        if (actualType.kind === Kinds.Types.LiteralType) {
+            return this.isTypeAssignable(expectedType, this.literalTypeBase(actualType));
         }
 
         return expectedType.kind === actualType.kind;
+    }
+
+    public isLiteralAssignable(expectedType: any, actualType: any): boolean {
+        const expectedLiteral = expectedType.literal ?? expectedType.raw;
+        const actualLiteral = actualType.literal ?? actualType.raw;
+
+        if (actualType.kind === Kinds.Types.LiteralType) {
+            return expectedLiteral === actualLiteral;
+        }
+
+        return expectedLiteral === actualType.value || expectedLiteral === actualType.raw;
+    }
+
+    public literalTypeBase(type: any): any {
+        const literal = String(type.literal ?? type.raw ?? "");
+
+        if (literal === "true" || literal === "false") {
+            return { kind: Kinds.Types.BooleanType, raw: "boolean" };
+        }
+
+        if (literal === "null") {
+            return { kind: Kinds.Types.NullType, raw: "null" };
+        }
+
+        if (literal === "undefined") {
+            return { kind: Kinds.Types.UndefinedType, raw: "undefined" };
+        }
+
+        if (/^['"`]/.test(literal)) {
+            return { kind: Kinds.Types.StringType, raw: "string" };
+        }
+
+        if (!Number.isNaN(Number(literal))) {
+            return { kind: Kinds.Types.NumberType, raw: "number" };
+        }
+
+        return { kind: Kinds.Types.UnknownType, raw: "unknown" };
+    }
+
+    public isObjectLikeType(type: any): boolean {
+        const resolved = this.resolveType(type);
+        return (
+            resolved?.kind === Kinds.Types.TypeLiteral ||
+            resolved?.kind === Kinds.Types.InterfaceDeclaration
+        );
+    }
+
+    public objectMembers(type: any): any[] {
+        const resolved = this.resolveType(type);
+        return resolved?.members ?? resolved?.body?.members ?? [];
+    }
+
+    public getMemberNameText(member: any): string | null {
+        const name = member?.name ?? member?.key;
+
+        if (!name) return null;
+
+        if (typeof name === "string") return name;
+        if (typeof name.name === "string") return name.name;
+        if (typeof name.value === "string") return name.value;
+        if (typeof name.raw === "string") return name.raw.replace(/^['"`]|['"`]$/g, "");
+
+        return null;
+    }
+
+    public objectPropertyMap(type: any): Map<string, any> {
+        const members = this.objectMembers(type)
+            .filter((member: any) => member.kind === Kinds.Types.PropertySignature);
+        const map = new Map<string, any>();
+
+        for (const member of members) {
+            const name = this.getMemberNameText(member);
+            if (name) map.set(name, member);
+        }
+
+        return map;
+    }
+
+    public isObjectLikeAssignable(expectedType: any, actualType: any): boolean {
+        if (!this.isObjectLikeType(actualType)) return false;
+
+        const expectedMembers = this.objectMembers(expectedType)
+            .filter((member: any) => member.kind === Kinds.Types.PropertySignature);
+        const actualMembers = new Map<string, any>();
+
+        for (const member of this.objectMembers(actualType)) {
+            if (member.kind !== Kinds.Types.PropertySignature) continue;
+            const name = this.getMemberNameText(member);
+            if (name) actualMembers.set(name, member);
+        }
+
+        for (const expectedMember of expectedMembers) {
+            const name = this.getMemberNameText(expectedMember);
+            if (!name) continue;
+
+            const actualMember = actualMembers.get(name);
+            if (!actualMember) {
+                if (expectedMember.optional) continue;
+                return false;
+            }
+
+            if (!this.isTypeAssignable(expectedMember.type, actualMember.type)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public validateAggregateAssignment(expectedType: any, value: any, context: any, source: string): void {
+        const resolvedType = this.resolveType(expectedType);
+
+        if (!resolvedType || !value) return;
+
+        if (value.kind === Kinds.Collections.DictionaryExpression && this.isObjectLikeType(resolvedType)) {
+            this.validateObjectLiteralAssignment(resolvedType, value, context, source);
+            return;
+        }
+
+        if (value.kind === Kinds.Collections.ArrayExpression) {
+            if (resolvedType.kind === Kinds.Types.TupleType) {
+                this.validateTupleLiteralAssignment(resolvedType, value, context, source);
+                return;
+            }
+
+            if (resolvedType.kind === Kinds.Types.ArrayType) {
+                this.validateArrayLiteralAssignment(resolvedType, value, context, source);
+            }
+        }
+    }
+
+    public validateObjectLiteralAssignment(expectedType: any, value: any, context: any, source: string): void {
+        const expectedProperties = this.objectPropertyMap(expectedType);
+        const actualProperties = new Map<string, any>();
+
+        for (const property of value.properties ?? []) {
+            const name = property.key ?? property.name;
+            if (!name) continue;
+
+            if (!expectedProperties.has(name)) {
+                const message =
+                    `object for ${Helpers.BLUE}'${context.name ?? "value"}'${Helpers.RESET} has unknown property ` +
+                    `${Helpers.RED}'${name}'${Helpers.RESET}`;
+
+                property.arrowLength = property.source?.length ?? String(name).length;
+
+                this.throwError(
+                    message,
+                    property.position ?? value.position ?? context.position,
+                    source,
+                    property,
+                    `  = declare '${name}' in the object type or remove it from the initializer`,
+                );
+            }
+
+            actualProperties.set(name, property);
+        }
+
+        for (const [name, expectedProperty] of expectedProperties.entries()) {
+            const actualProperty = actualProperties.get(name);
+
+            if (!actualProperty) {
+                if (expectedProperty.optional) continue;
+
+                const message =
+                    `object for ${Helpers.BLUE}'${context.name ?? "value"}'${Helpers.RESET} is missing required property ` +
+                    `${Helpers.RED}'${name}'${Helpers.RESET}`;
+
+                value.arrowLength = value.source?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    value.position ?? context.position,
+                    source,
+                    value,
+                    `  = add '${name}: ${expectedProperty.type?.raw ?? "unknown"}' to the initializer`,
+                );
+            }
+
+            if (!this.isTypeAssignable(expectedProperty.type, actualProperty.type)) {
+                const message =
+                    `property ${Helpers.RED}'${name}'${Helpers.RESET} must be ` +
+                    `${Helpers.BLUE}'${expectedProperty.type?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                    `${Helpers.RED}'${actualProperty.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                actualProperty.arrowLength = actualProperty.source?.length ?? String(name).length;
+
+                this.throwError(
+                    message,
+                    actualProperty.position ?? value.position ?? context.position,
+                    source,
+                    actualProperty,
+                );
+            }
+        }
+    }
+
+    public validateArrayLiteralAssignment(expectedType: any, value: any, context: any, source: string): void {
+        if (!Array.isArray(value.elements)) {
+            const message =
+                `${Helpers.BLUE}'${context.name ?? "value"}'${Helpers.RESET} must be initialized with an array literal`;
+
+            this.throwError(message, value.position ?? context.position, source, value);
+        }
+
+        for (const element of value.elements) {
+            if (!this.isTypeAssignable(expectedType.elementType, element.type)) {
+                const message =
+                    `array ${Helpers.BLUE}'${context.name ?? "value"}'${Helpers.RESET} can only contain ` +
+                    `${Helpers.BLUE}'${expectedType.elementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                    `${Helpers.RED}'${element.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                element.arrowLength = element.source?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    element.position ?? value.position ?? context.position,
+                    source,
+                    element,
+                );
+            }
+        }
+    }
+
+    public validateTupleLiteralAssignment(expectedType: any, value: any, context: any, source: string): void {
+        const expectedElements = expectedType.elements ?? [];
+        const actualElements = value.elements ?? [];
+
+        if (expectedElements.length !== actualElements.length) {
+            const message =
+                `tuple ${Helpers.BLUE}'${context.name ?? "value"}'${Helpers.RESET} requires ` +
+                `${Helpers.BLUE}'${expectedElements.length}'${Helpers.RESET} element(s), got ` +
+                `${Helpers.RED}'${actualElements.length}'${Helpers.RESET}`;
+
+            value.arrowLength = value.source?.length ?? 1;
+
+            this.throwError(
+                message,
+                value.position ?? context.position,
+                source,
+                value,
+            );
+        }
+
+        expectedElements.forEach((expectedElement: any, index: number) => {
+            const actualElement = actualElements[index];
+
+            if (!this.isTypeAssignable(expectedElement, actualElement?.type)) {
+                const message =
+                    `tuple index ${Helpers.BLUE}'${index}'${Helpers.RESET} must be ` +
+                    `${Helpers.BLUE}'${expectedElement?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                    `${Helpers.RED}'${actualElement?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                actualElement.arrowLength = actualElement.source?.length ?? 1;
+
+                this.throwError(
+                    message,
+                    actualElement?.position ?? value.position ?? context.position,
+                    source,
+                    actualElement ?? value,
+                );
+            }
+        });
+    }
+
+    public isReadonlyType(type: any): boolean {
+        const resolved = this.resolveType(type);
+        return resolved?.readonly === true;
+    }
+
+    public literalIndexValue(index: any): number | string | null {
+        if (!index) return null;
+
+        if (index.kind === Kinds.Sir.NumberConstant) return index.value;
+        if (index.kind === Kinds.Sir.StringConstant) return index.value;
+        if (typeof index.value === "number" || typeof index.value === "string") return index.value;
+
+        return null;
     }
 
     public areTypesComparable(leftType: any, rightType: any): boolean {
@@ -298,6 +640,33 @@ export class BaseSemantic {
                     fullSource: node.fullSource ?? node.source,
                     value: node,
                 });
+
+            case Kinds.Expressions.CastExpression:
+                return this.visitCastExpression(node);
+
+            case Kinds.Expressions.SatisfiesExpression:
+                return this.visitSatisfiesExpression(node);
+
+            case Kinds.Expressions.NonNullExpression:
+                return this.visitNonNullExpression(node);
+
+            case Kinds.Expressions.ConditionalExpression:
+                return this.visitConditionalExpression(node);
+
+            case Kinds.Expressions.UnaryExpression:
+                return this.visitUnaryExpression(node);
+
+            case Kinds.Expressions.PropertyAccessExpression:
+                return this.visitPropertyAccessExpression(node);
+
+            case Kinds.Expressions.ElementAccessExpression:
+                return this.visitElementAccessExpression(node);
+
+            case Kinds.Collections.ArrayExpression:
+                return this.visitArrayExpression(node);
+
+            case Kinds.Collections.DictionaryExpression:
+                return this.visitDictionaryExpression(node);
         }
 
         const externs = this.visitExterns(node);
@@ -418,12 +787,20 @@ export class BaseSemantic {
     visitFunctionLikeDeclarations(_: any): any { }
     visitVariableLikeDeclarations(_: any): any { }
     visitArrayLikeDeclarations(_: any): any { }
+    visitArrayExpression(_: any): any { }
+    visitDictionaryExpression(_: any): any { }
     visitExterns(_: any): any { }
     visitModuleStatement(_: any): any { }
     visitControlFlow(_: any): any { }
 
     visitBinaryExpression(_: any): any { }
-
+    visitCastExpression(_: any): any { }
+    visitSatisfiesExpression(_: any): any { }
+    visitNonNullExpression(_: any): any { }
+    visitConditionalExpression(_: any): any { }
+    visitUnaryExpression(_: any): any { }
+    visitPropertyAccessExpression(_: any): any { }
+    visitElementAccessExpression(_: any): any { }
     // Logger
     throwError(kind: string, position: any, sourceText: string, context?: any, endMessage?: string): any { }
 }

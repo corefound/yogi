@@ -107,6 +107,7 @@ export type SymbolInfo = {
     qualifiedName: string;
     kind: Kinds.ScopeSymbols;
     type: any;
+    declaredType?: any;
     mutable: boolean;
     scopeId: number;
     escapes?: boolean;

@@ -6,6 +6,7 @@ import * as flatbuffers from 'flatbuffers';
 
 import { AssignmentExpression } from '../../yogi/sir/assignment-expression.js';
 import { BinaryExpression } from '../../yogi/sir/binary-expression.js';
+import { ConditionalExpression } from '../../yogi/sir/conditional-expression.js';
 import { Constant } from '../../yogi/sir/constant.js';
 import { IdentifierExpression } from '../../yogi/sir/identifier-expression.js';
 
@@ -55,8 +56,13 @@ assignment(obj?:AssignmentExpression):AssignmentExpression|null {
   return offset ? (obj || new AssignmentExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+conditional(obj?:ConditionalExpression):ConditionalExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 14);
+  return offset ? (obj || new ConditionalExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
 static startValueRef(builder:flatbuffers.Builder) {
-  builder.startObject(5);
+  builder.startObject(6);
 }
 
 static addKind(builder:flatbuffers.Builder, kindOffset:flatbuffers.Offset) {
@@ -77,6 +83,10 @@ static addBinary(builder:flatbuffers.Builder, binaryOffset:flatbuffers.Offset) {
 
 static addAssignment(builder:flatbuffers.Builder, assignmentOffset:flatbuffers.Offset) {
   builder.addFieldOffset(4, assignmentOffset, 0);
+}
+
+static addConditional(builder:flatbuffers.Builder, conditionalOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(5, conditionalOffset, 0);
 }
 
 static endValueRef(builder:flatbuffers.Builder):flatbuffers.Offset {

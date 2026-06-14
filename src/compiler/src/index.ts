@@ -107,8 +107,6 @@ for (const component of scc) {
 
 }
 
-console.log(JSON.stringify({ meta }, null, 3));
-
 const metaBuffer = FlatBuffer.createGlobalMetaBuffer(meta);
 FlatBuffer.writeBufferToFile(metaBuffer, globalMetaPath);
 

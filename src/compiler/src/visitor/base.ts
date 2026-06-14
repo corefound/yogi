@@ -49,6 +49,10 @@ export class BaseVisitor {
             return this.visitArrayLiteral(node);
         }
 
+        if (ts.isObjectLiteralExpression(node)) {
+            return this.visitDictionaryLiteral(node);
+        }
+
         if (ts.isTypeElement(node)) {
             switch (node.kind) {
                 case ts.SyntaxKind.PropertySignature:
@@ -123,6 +127,7 @@ export class BaseVisitor {
     transformFunctionDeclaration(_: ts.Node): any { }
     visitFunctionDeclaration(_: ts.Node): any { }
     visitDictionaryDeclaration(_: ts.Node): any { }
+    visitDictionaryLiteral(_: ts.Node): any { }
     visitReturnStatement(_: ts.Node): any { }
 
     // Type Aliases
@@ -142,6 +147,10 @@ export class BaseVisitor {
     visitExports(_: ts.Node): any { }
 
     visitCallExpression(_: ts.Node): any { }
+    visitElementAccessExpression(_: ts.Node): any { }
+    visitConditionalExpression(_: ts.Node): any { }
+    visitNonNullExpression(_: ts.Node): any { }
+    visitSatisfiesExpression(_: ts.Node): any { }
     visitExternDeclaration(_: ts.Node): any { }
     visitVariableDeclaration(_: ts.Node): any { }
     visitExpression(_: ts.Node): any { }

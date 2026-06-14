@@ -354,6 +354,17 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
 
                 case ts.SyntaxKind.TypeReference: {
                     const ref = node as ts.TypeReferenceNode;
+                    const nameText = ref.typeName.getText();
+
+                    if (nameText === "ReadonlyArray" && ref.typeArguments?.length === 1) {
+                        return {
+                            kind: Kinds.Types.ArrayType,
+                            elementType: this.visitType(ref.typeArguments[0]),
+                            readonly: true,
+                            raw: ref.getText(),
+                            position: this.getNodePosistion(node),
+                        };
+                    }
 
                     return {
                         kind: Kinds.Types.TypeReference,
@@ -381,6 +392,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     return {
                         kind: Kinds.Types.ArrayType,
                         elementType: this.visitType(arr.elementType),
+                        readonly: false,
                         raw: arr.getText(),
                         position: this.getNodePosistion(node),
                     };
@@ -392,6 +404,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     return {
                         kind: Kinds.Types.TupleType,
                         elements: tuple.elements.map((el) => this.visitType(el)),
+                        readonly: false,
                         raw: tuple.getText(),
                         position: this.getNodePosistion(node),
                     };
@@ -446,6 +459,22 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                 case ts.SyntaxKind.ParenthesizedType: {
                     const paren = node as ts.ParenthesizedTypeNode;
                     return this.visitType(paren.type);
+                }
+
+                case ts.SyntaxKind.TypeOperator: {
+                    const operator = node as ts.TypeOperatorNode;
+                    const type = this.visitType(operator.type);
+
+                    if (operator.operator === ts.SyntaxKind.ReadonlyKeyword) {
+                        return {
+                            ...type,
+                            readonly: true,
+                            raw: operator.getText(),
+                            position: this.getNodePosistion(node),
+                        };
+                    }
+
+                    return type;
                 }
 
                 default:

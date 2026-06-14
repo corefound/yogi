@@ -6,6 +6,7 @@ export { AssignmentExpression } from './sir/assignment-expression.js';
 export { BinaryExpression } from './sir/binary-expression.js';
 export { BlockStatement } from './sir/block-statement.js';
 export { BooleanConstant } from './sir/boolean-constant.js';
+export { ConditionalExpression } from './sir/conditional-expression.js';
 export { Constant } from './sir/constant.js';
 export { ConstantValue } from './sir/constant-value.js';
 export { ExternDeclaration } from './sir/extern-declaration.js';

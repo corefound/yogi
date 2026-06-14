@@ -69,7 +69,12 @@ export namespace Kinds {
         UnaryExpression = "UnaryExpression",
         BinaryExpression = "BinaryExpression",
         AssignmentExpression = "AssignmentExpression",
+        CastExpression = "CastExpression",
+        SatisfiesExpression = "SatisfiesExpression",
+        NonNullExpression = "NonNullExpression",
+        ConditionalExpression = "ConditionalExpression",
         PropertyAccessExpression = "PropertyAccessExpression",
+        ElementAccessExpression = "ElementAccessExpression",
         CallExpression = "CallExpression",
         ParenthesizedExpression = "ParenthesizedExpression",
 

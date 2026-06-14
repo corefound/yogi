@@ -38,6 +38,7 @@ export function ArraysSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                 linkageName,
                 qualifiedName,
                 type: node.type,
+                declaredType: node.type,
                 mutable: node.flag.name !== "const",
                 storage: Kinds.Storage.stack,
                 escapes: false,
@@ -154,7 +155,7 @@ export function ArraysSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
             }
 
             for (const element of context.value) {
-                if (!this.checkArrayElementType(context.type.elementType.kind, element)) {
+                if (!this.checkArrayElementType(context.type.elementType, element)) {
                     const message =
                         `array ${Helpers.BLUE}'${context.name}'${Helpers.RESET} can only contain values of type ${Helpers.BLUE}'${context.type.elementType.raw}'${Helpers.RESET}`;
 
@@ -175,7 +176,56 @@ export function ArraysSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
         public checkArrayElementType(expectedType: any, value: any): boolean {
             if (!value?.type) return false;
 
-            return expectedType === value.type.kind;
+            return this.isTypeAssignable(expectedType, value.type);
+        }
+
+        public visitArrayExpression(node: any): any {
+            const elements = (node.elements ?? []).map((element: any) => this.visitNode(element));
+
+            return {
+                ...node,
+                kind: Kinds.Collections.ArrayExpression,
+                elements,
+                type: {
+                    kind: Kinds.Types.TupleType,
+                    raw: `[${elements.map((element: any) => element.type?.raw ?? "unknown").join(", ")}]`,
+                    elements: elements.map((element: any) => element.type),
+                },
+            };
+        }
+
+        public visitDictionaryExpression(node: any): any {
+            const properties = (node.properties ?? []).map((property: any) => {
+                const value = this.visitNode(property.value);
+
+                return {
+                    ...property,
+                    value,
+                    type: value?.type,
+                    name: property.key,
+                    optional: false,
+                    readonly: false,
+                };
+            });
+
+            return {
+                ...node,
+                kind: Kinds.Collections.DictionaryExpression,
+                properties,
+                type: {
+                    kind: Kinds.Types.TypeLiteral,
+                    raw: node.source ?? "{ }",
+                    members: properties.map((property: any) => ({
+                        kind: Kinds.Types.PropertySignature,
+                        name: property.key,
+                        type: property.type,
+                        optional: false,
+                        readonly: false,
+                        raw: property.source,
+                        position: property.position,
+                    })),
+                },
+            };
         }
     };
 }

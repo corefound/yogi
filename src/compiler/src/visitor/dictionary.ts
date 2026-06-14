@@ -31,7 +31,6 @@ export function DictionaryVisitor<TBase extends Constructor<BaseVisitor>>(base: 
                 return [{
                     kind: Kinds.Collections.DictionaryProperty,
                     key: this.getDictionaryKey(prop.name),
-                    type: this.visitType(prop.initializer),
                     value: this.visitNode(prop.initializer),
                     source: prop.getText(),
                     position: this.getNodePosistion(prop)

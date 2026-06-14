@@ -11,6 +11,20 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 			if (ts.isParenthesizedExpression(node))
 				return this.visitParenthesizedExpression(node);
 
+			if (ts.isAsExpression(node)) return this.visitCastExpression(node);
+
+			if (ts.isTypeAssertionExpression(node))
+				return this.visitTypeAssertionExpression(node);
+
+			if (ts.isNonNullExpression(node))
+				return this.visitNonNullExpression(node);
+
+			if (ts.isSatisfiesExpression(node))
+				return this.visitSatisfiesExpression(node);
+
+			if (ts.isConditionalExpression(node))
+				return this.visitConditionalExpression(node);
+
 			if (ts.isCallExpression(node)) return this.visitCallExpression(node);
 
 			if (ts.isBinaryExpression(node)) return this.visitBinaryExpression(node);
@@ -25,6 +39,9 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 
 			if (ts.isPropertyAccessExpression(node))
 				return this.visitPropertyAccessExpression(node);
+
+			if (ts.isElementAccessExpression(node))
+				return this.visitElementAccessExpression(node);
 		}
 
 		visitExpression(node: ts.ExpressionStatement) {
@@ -35,6 +52,61 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 			return {
 				kind: Kinds.Expressions.ParenthesizedExpression,
 				expression: this.visitNode(node.expression),
+				source: node.getText(),
+				fullSource: node.getFullText(),
+				position: this.getNodePosistion(node),
+			};
+		}
+
+		visitCastExpression(node: ts.AsExpression) {
+			return {
+				kind: Kinds.Expressions.CastExpression,
+				expression: this.visitNode(node.expression),
+				type: this.visitType(node.type),
+				source: node.getText(),
+				fullSource: node.getFullText(),
+				position: this.getNodePosistion(node),
+			};
+		}
+
+		visitTypeAssertionExpression(node: ts.TypeAssertion) {
+			return {
+				kind: Kinds.Expressions.CastExpression,
+				expression: this.visitNode(node.expression),
+				type: this.visitType(node.type),
+				source: node.getText(),
+				fullSource: node.getFullText(),
+				position: this.getNodePosistion(node),
+			};
+		}
+
+		visitNonNullExpression(node: ts.NonNullExpression) {
+			return {
+				kind: Kinds.Expressions.NonNullExpression,
+				expression: this.visitNode(node.expression),
+				source: node.getText(),
+				fullSource: node.getFullText(),
+				position: this.getNodePosistion(node),
+			};
+		}
+
+		visitSatisfiesExpression(node: ts.SatisfiesExpression) {
+			return {
+				kind: Kinds.Expressions.SatisfiesExpression,
+				expression: this.visitNode(node.expression),
+				type: this.visitType(node.type),
+				source: node.getText(),
+				fullSource: node.getFullText(),
+				position: this.getNodePosistion(node),
+			};
+		}
+
+		visitConditionalExpression(node: ts.ConditionalExpression) {
+			return {
+				kind: Kinds.Expressions.ConditionalExpression,
+				condition: this.visitNode(node.condition),
+				whenTrue: this.visitNode(node.whenTrue),
+				whenFalse: this.visitNode(node.whenFalse),
 				source: node.getText(),
 				fullSource: node.getFullText(),
 				position: this.getNodePosistion(node),
@@ -90,6 +162,18 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 				kind: Kinds.Expressions.PropertyAccessExpression,
 				object: this.visitNode(node.expression),
 				property: node.name.getText(),
+				optional: (node as any).questionDotToken !== undefined,
+				source: node.getText(),
+				position: this.getNodePosistion(node),
+			};
+		}
+
+		visitElementAccessExpression(node: ts.ElementAccessExpression) {
+			return {
+				kind: Kinds.Expressions.ElementAccessExpression,
+				object: this.visitNode(node.expression),
+				index: this.visitNode(node.argumentExpression),
+				optional: (node as any).questionDotToken !== undefined,
 				source: node.getText(),
 				position: this.getNodePosistion(node),
 			};
