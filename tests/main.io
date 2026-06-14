@@ -10,13 +10,24 @@ function createAuditWeight(input: number, weight: number): number {
 let retryCount: number = 0
 let externalPayload: any = 10
 let status: Status = undefined
+let cachedOwner: string | undefined = undefined
+let owner: string = cachedOwner ?? "platform"
+cachedOwner ??= "release-team"
+
+let releaseName: string = hasEnoughScore ? "stable" : "candidate"
+let auditTarget: { name: string, retries?: number } = { name: owner }
+let targetRetries: number | undefined = auditTarget.retries
+let auditOwner: string = auditTarget?.name
+
+let { name = "fallback" }: { name?: string } = { }
+let [priority = 1]: [number | undefined] = [undefined]
 
 let hasRetries: boolean = retryCount < maxRetries
 let canDeploy: boolean = hasEnoughScore && hasRetries
 
 if (canDeploy) {
     status = "release-candidate"
-    retryCount = retryCount + 1
+    retryCount = retryCount + priority
 
     let auditLabel: Status = "automated-check"
 
