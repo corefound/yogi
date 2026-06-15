@@ -181,6 +181,23 @@ The runtime can be configured for:
 - jemalloc
 - system malloc fallback
 
+## Runtime Debug Ownership
+
+The runtime now has an ownership debug mode for tooling and tests. It tracks raw
+allocations, stack aggregate descriptors, heap aggregate descriptors, drops,
+destroys, and frees.
+
+It can detect:
+
+- Double free.
+- Invalid free.
+- Double drop/destroy.
+- Use after aggregate destroy/drop.
+- Explicit leak reports.
+
+See [Runtime Debug Ownership](runtime-debug.md) for the current debug ABI and
+examples.
+
 ## Limitations
 
 This escape pass does not yet model:
