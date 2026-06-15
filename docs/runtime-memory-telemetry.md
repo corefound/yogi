@@ -28,11 +28,21 @@ extern "C" void yogi_memory_push_context(const char *moduleName, const char *fun
 extern "C" void yogi_memory_pop_context(void);
 extern "C" const char *yogi_memory_current_module(void);
 extern "C" const char *yogi_memory_current_function(void);
+extern "C" void yogi_memory_push_source_location(const char *sourcePath, unsigned long long line, unsigned long long column);
+extern "C" void yogi_memory_pop_source_location(void);
+extern "C" const char *yogi_memory_current_source_path(void);
+extern "C" unsigned long long yogi_memory_current_source_line(void);
+extern "C" unsigned long long yogi_memory_current_source_column(void);
 extern "C" unsigned long long yogi_memory_attributed_live_bytes(const char *moduleName, const char *functionName);
 extern "C" unsigned long long yogi_memory_attributed_live_allocations(const char *moduleName, const char *functionName);
 extern "C" unsigned long long yogi_memory_attributed_total_allocated_bytes(const char *moduleName, const char *functionName);
 extern "C" unsigned long long yogi_memory_attributed_total_freed_bytes(const char *moduleName, const char *functionName);
 extern "C" unsigned long long yogi_memory_attributed_peak_bytes(const char *moduleName, const char *functionName);
+extern "C" unsigned long long yogi_memory_attributed_location_live_bytes(const char *sourcePath, unsigned long long line, unsigned long long column);
+extern "C" unsigned long long yogi_memory_attributed_location_live_allocations(const char *sourcePath, unsigned long long line, unsigned long long column);
+extern "C" unsigned long long yogi_memory_attributed_location_total_allocated_bytes(const char *sourcePath, unsigned long long line, unsigned long long column);
+extern "C" unsigned long long yogi_memory_attributed_location_total_freed_bytes(const char *sourcePath, unsigned long long line, unsigned long long column);
+extern "C" unsigned long long yogi_memory_attributed_location_peak_bytes(const char *sourcePath, unsigned long long line, unsigned long long column);
 extern "C" void yogi_memory_debug_report(void);
 ```
 
@@ -141,6 +151,71 @@ yogi_memory_attributed_live_bytes("main_io", "main_io_makeScores");
 yogi_memory_attributed_total_allocated_bytes("main_io", "main_io_makeScores");
 ```
 
+## Source Location Attribution
+
+This lot adds source location attribution on top of module/function attribution.
+It is not required for the memory model to be correct, but it is useful before
+the next RAII lots because destructor scheduling, ownership moves, and escaping
+aggregates are much easier to debug when an allocation can be traced back to the
+line that created it.
+
+The backend emits source-location scope calls around source constructs that can
+allocate through the runtime:
+
+```text
+variable initializer:
+  push source path, line, column
+  lower initializer
+  pop source location
+
+array/object literal:
+  push source path, literal line, literal column
+  create/init/populate aggregate
+  pop source location
+
+return expression:
+  push source path, return line, return column
+  lower return value
+  pop source location
+```
+
+Example source:
+
+```ts
+function makeScores(): number[] {
+    let scores: number[] = [1, 2, 3]
+    return scores
+}
+```
+
+The array creation happens while both stacks are active:
+
+```text
+context stack:
+  module: main_io
+  function: main_io_makeScores
+
+source stack:
+  source: main.io
+  line: 2
+  column: 28
+```
+
+Telemetry records the current module, function, runtime allocation type, source
+path, line, and column when `yogi_alloc` or `yogi_realloc` succeeds. Lines and
+columns are exposed as one-based values, matching compiler diagnostics. The
+location can be queried directly:
+
+```c
+yogi_memory_attributed_location_live_bytes("main.io", 2, 28);
+yogi_memory_attributed_location_total_allocated_bytes("main.io", 2, 28);
+```
+
+Nested source scopes are allowed. If a variable initializer contains an
+aggregate literal, the literal location becomes the top of the stack while the
+runtime allocation is made, so the report points at the expression that created
+the aggregate.
+
 ## Example
 
 ```cpp
@@ -171,8 +246,8 @@ yogi_memory_peak_bytes() >= base + 64;
 
 ```text
 yogi memory telemetry: live_bytes=0 live_allocations=0 total_allocated_bytes=96 total_freed_bytes=96 peak_bytes=64
-yogi memory attribution: module=runtime-test function=cast-test type=raw allocation live_bytes=0 live_allocations=0 total_allocated_bytes=32 total_freed_bytes=32 peak_bytes=32
-yogi memory attribution: module=runtime-test function=cast-test type=raw reallocation live_bytes=0 live_allocations=0 total_allocated_bytes=64 total_freed_bytes=64 peak_bytes=64
+yogi memory attribution: module=runtime-test function=cast-test source=tests/runtime/runtime_cast_test.io line=12 column=5 type=raw allocation live_bytes=0 live_allocations=0 total_allocated_bytes=32 total_freed_bytes=32 peak_bytes=32
+yogi memory attribution: module=runtime-test function=cast-test source=tests/runtime/runtime_cast_test.io line=12 column=5 type=raw reallocation live_bytes=0 live_allocations=0 total_allocated_bytes=64 total_freed_bytes=64 peak_bytes=64
 ```
 
 This is meant for tests, debugging, and future compiler tooling. It is not a
@@ -207,9 +282,12 @@ debug is disabled later for release builds.
 - Telemetry is process-local and currently single-thread oriented.
 - Internal telemetry bookkeeping uses system allocation directly to avoid
   recursive calls into `MemoryManager`.
-- It groups by module, function, and runtime allocation type, but not yet source
-  line/column.
+- It groups by module, function, source path, line, column, and runtime
+  allocation type.
 - It does not automatically fail on leaks; ownership debug remains responsible
   for explicit leak reports.
+- It records source locations only where the backend currently emits
+  source-location scopes. More expression kinds can be added as they begin to
+  allocate resources.
 
 Those are future lots once module-aware runtime metadata is stronger.

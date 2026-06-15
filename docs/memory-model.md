@@ -204,6 +204,21 @@ It can detect:
 See [Runtime Debug Ownership](runtime-debug.md) for the current debug ABI and
 examples.
 
+## Memory Attribution Tooling
+
+Runtime memory telemetry is supporting tooling, not the core ownership model.
+The compiler still decides stack-vs-heap placement, ownership moves, and cleanup
+scheduling. Telemetry observes the allocations that pass through the runtime ABI
+and attributes them to module, function, and source location.
+
+This helps validate future RAII work. For example, if a returned array moves
+ownership to the caller, telemetry can show whether the allocation came from the
+callee return path or a caller-side temporary. The feature is useful for tests
+and diagnostics, but the language does not depend on it to decide ownership.
+
+See [Runtime Memory Telemetry](runtime-memory-telemetry.md) for the current ABI
+and source-location attribution rules.
+
 ## Limitations
 
 This escape pass does not yet model:
