@@ -24,6 +24,15 @@ extern "C" unsigned long long yogi_memory_live_allocations(void);
 extern "C" unsigned long long yogi_memory_total_allocated_bytes(void);
 extern "C" unsigned long long yogi_memory_total_freed_bytes(void);
 extern "C" unsigned long long yogi_memory_peak_bytes(void);
+extern "C" void yogi_memory_push_context(const char *moduleName, const char *functionName);
+extern "C" void yogi_memory_pop_context(void);
+extern "C" const char *yogi_memory_current_module(void);
+extern "C" const char *yogi_memory_current_function(void);
+extern "C" unsigned long long yogi_memory_attributed_live_bytes(const char *moduleName, const char *functionName);
+extern "C" unsigned long long yogi_memory_attributed_live_allocations(const char *moduleName, const char *functionName);
+extern "C" unsigned long long yogi_memory_attributed_total_allocated_bytes(const char *moduleName, const char *functionName);
+extern "C" unsigned long long yogi_memory_attributed_total_freed_bytes(const char *moduleName, const char *functionName);
+extern "C" unsigned long long yogi_memory_attributed_peak_bytes(const char *moduleName, const char *functionName);
 extern "C" void yogi_memory_debug_report(void);
 ```
 
@@ -66,6 +75,72 @@ Telemetry counts bytes requested through the Yogi allocator ABI. A zero-size
 allocation is normalized to one byte because the runtime allocator returns a
 real non-null allocation for `yogi_alloc(0)`.
 
+The ordering is intentional:
+
+```text
+invalid free:
+  ownership debug aborts before telemetry changes
+
+failed realloc:
+  telemetry is unchanged because it updates only after the allocator succeeds
+
+realloc(nullptr, size):
+  behaves like alloc
+
+free(nullptr):
+  does not change telemetry
+
+realloc(existing, size):
+  live_allocations remains one after the operation completes
+```
+
+## Module And Function Attribution
+
+Telemetry now has a context stack:
+
+```c
+yogi_memory_push_context("main_io", "main_io_makeScores");
+void *scores = yogi_alloc(32);
+yogi_memory_pop_context();
+```
+
+Allocations made while that context is active are attributed to:
+
+```text
+module: main_io
+function: main_io_makeScores
+type: raw allocation / array elements / object value / any value / ...
+```
+
+The backend emits context calls automatically:
+
+```text
+module initializer:
+  push module, "$module.init"
+  ...
+  pop
+
+user function:
+  push module, qualified function name
+  ...
+  pop before every return
+
+module cleanup:
+  push module, "$module.cleanup"
+  ...
+  pop
+```
+
+The stack shape matters because function calls can be nested. A callee can push
+its own context and then pop back to the caller before returning.
+
+Attribution counters can be queried per module/function:
+
+```c
+yogi_memory_attributed_live_bytes("main_io", "main_io_makeScores");
+yogi_memory_attributed_total_allocated_bytes("main_io", "main_io_makeScores");
+```
+
 ## Example
 
 ```cpp
@@ -96,6 +171,8 @@ yogi_memory_peak_bytes() >= base + 64;
 
 ```text
 yogi memory telemetry: live_bytes=0 live_allocations=0 total_allocated_bytes=96 total_freed_bytes=96 peak_bytes=64
+yogi memory attribution: module=runtime-test function=cast-test type=raw allocation live_bytes=0 live_allocations=0 total_allocated_bytes=32 total_freed_bytes=32 peak_bytes=32
+yogi memory attribution: module=runtime-test function=cast-test type=raw reallocation live_bytes=0 live_allocations=0 total_allocated_bytes=64 total_freed_bytes=64 peak_bytes=64
 ```
 
 This is meant for tests, debugging, and future compiler tooling. It is not a
@@ -130,8 +207,8 @@ debug is disabled later for release builds.
 - Telemetry is process-local and currently single-thread oriented.
 - Internal telemetry bookkeeping uses system allocation directly to avoid
   recursive calls into `MemoryManager`.
-- It does not yet group allocations by module, function, source location, or
-  aggregate kind.
+- It groups by module, function, and runtime allocation type, but not yet source
+  line/column.
 - It does not automatically fail on leaks; ownership debug remains responsible
   for explicit leak reports.
 
