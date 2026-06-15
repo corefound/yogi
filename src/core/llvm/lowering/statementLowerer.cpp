@@ -222,11 +222,13 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
+		context.pushMemorySourceLocation(statement->position());
 		auto *returnValue = values.cast(
 			values.lower(statement->value(), returnType, context.currentReturnType),
 			returnType,
 			context.currentReturnType
 		);
+		context.popMemorySourceLocation();
 
 		const auto returnedName = identifierName(statement->value());
 		if (!returnedName.empty()) {

@@ -246,6 +246,7 @@ namespace yogi::core::llvm::internal {
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
 		const auto length = array->elements() ? array->elements()->size() : 0;
+		context.pushMemorySourceLocation(array->position());
 		auto *aggregate = callRuntime(
 			"yogi_array_create",
 			opaquePointer(),
@@ -253,6 +254,7 @@ namespace yogi::core::llvm::internal {
 		);
 
 		populateArray(array, aggregate);
+		context.popMemorySourceLocation();
 
 		return cast(aggregate, expectedType ? expectedType : opaquePointer(), expectedSemanticType, array->type());
 	}
@@ -262,9 +264,11 @@ namespace yogi::core::llvm::internal {
 		::llvm::Type *expectedType,
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
+		context.pushMemorySourceLocation(object->position());
 		auto *aggregate = callRuntime("yogi_object_create", opaquePointer(), {});
 
 		populateObject(object, aggregate);
+		context.popMemorySourceLocation();
 
 		return cast(aggregate, expectedType ? expectedType : opaquePointer(), expectedSemanticType, object->type());
 	}
@@ -285,6 +289,7 @@ namespace yogi::core::llvm::internal {
 
 		if (const auto *array = value->array()) {
 			const auto length = array->elements() ? array->elements()->size() : 0;
+			context.pushMemorySourceLocation(array->position());
 			auto *size = callRuntime("yogi_array_sizeof", ::llvm::Type::getInt64Ty(context.llvmContext), {});
 			auto *storage = context.builder.CreateAlloca(
 				::llvm::Type::getInt8Ty(context.llvmContext),
@@ -301,11 +306,13 @@ namespace yogi::core::llvm::internal {
 				}
 			);
 			populateArray(array, storage);
+			context.popMemorySourceLocation();
 
 			return storage;
 		}
 
 		if (const auto *object = value->object()) {
+			context.pushMemorySourceLocation(object->position());
 			auto *size = callRuntime("yogi_object_sizeof", ::llvm::Type::getInt64Ty(context.llvmContext), {});
 			auto *storage = context.builder.CreateAlloca(
 				::llvm::Type::getInt8Ty(context.llvmContext),
@@ -315,6 +322,7 @@ namespace yogi::core::llvm::internal {
 
 			callRuntime("yogi_object_init", ::llvm::Type::getVoidTy(context.llvmContext), {storage});
 			populateObject(object, storage);
+			context.popMemorySourceLocation();
 
 			return storage;
 		}

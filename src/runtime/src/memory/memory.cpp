@@ -145,6 +145,26 @@ namespace yogi::runtime {
 		return MemoryTelemetry::currentFunction();
 	}
 
+	void MemoryManager::pushMemorySourceLocation(const char *sourcePath, std::size_t line, std::size_t column) {
+		MemoryTelemetry::pushSourceLocation(sourcePath, line, column);
+	}
+
+	void MemoryManager::popMemorySourceLocation() {
+		MemoryTelemetry::popSourceLocation();
+	}
+
+	const char *MemoryManager::currentMemorySourcePath() {
+		return MemoryTelemetry::currentSourcePath();
+	}
+
+	std::size_t MemoryManager::currentMemorySourceLine() {
+		return MemoryTelemetry::currentSourceLine();
+	}
+
+	std::size_t MemoryManager::currentMemorySourceColumn() {
+		return MemoryTelemetry::currentSourceColumn();
+	}
+
 	std::size_t MemoryManager::attributedLiveBytes(const char *moduleName, const char *functionName) {
 		return MemoryTelemetry::attributedLiveBytes(moduleName, functionName);
 	}
@@ -163,6 +183,26 @@ namespace yogi::runtime {
 
 	std::size_t MemoryManager::attributedPeakBytes(const char *moduleName, const char *functionName) {
 		return MemoryTelemetry::attributedPeakBytes(moduleName, functionName);
+	}
+
+	std::size_t MemoryManager::attributedLocationLiveBytes(const char *sourcePath, std::size_t line, std::size_t column) {
+		return MemoryTelemetry::attributedLocationLiveBytes(sourcePath, line, column);
+	}
+
+	std::size_t MemoryManager::attributedLocationLiveAllocations(const char *sourcePath, std::size_t line, std::size_t column) {
+		return MemoryTelemetry::attributedLocationLiveAllocations(sourcePath, line, column);
+	}
+
+	std::size_t MemoryManager::attributedLocationTotalAllocatedBytes(const char *sourcePath, std::size_t line, std::size_t column) {
+		return MemoryTelemetry::attributedLocationTotalAllocatedBytes(sourcePath, line, column);
+	}
+
+	std::size_t MemoryManager::attributedLocationTotalFreedBytes(const char *sourcePath, std::size_t line, std::size_t column) {
+		return MemoryTelemetry::attributedLocationTotalFreedBytes(sourcePath, line, column);
+	}
+
+	std::size_t MemoryManager::attributedLocationPeakBytes(const char *sourcePath, std::size_t line, std::size_t column) {
+		return MemoryTelemetry::attributedLocationPeakBytes(sourcePath, line, column);
 	}
 
 	void MemoryManager::reportMemoryTelemetry() {
@@ -256,6 +296,100 @@ unsigned long long yogi_memory_attributed_total_freed_bytes(const char *moduleNa
 unsigned long long yogi_memory_attributed_peak_bytes(const char *moduleName, const char *functionName) {
 	return static_cast<unsigned long long>(
 		yogi::runtime::MemoryManager::attributedPeakBytes(moduleName, functionName)
+	);
+}
+
+void yogi_memory_push_source_location(const char *sourcePath, unsigned long long line, unsigned long long column) {
+	yogi::runtime::MemoryManager::pushMemorySourceLocation(
+		sourcePath,
+		static_cast<std::size_t>(line),
+		static_cast<std::size_t>(column)
+	);
+}
+
+void yogi_memory_pop_source_location() {
+	yogi::runtime::MemoryManager::popMemorySourceLocation();
+}
+
+const char *yogi_memory_current_source_path() {
+	return yogi::runtime::MemoryManager::currentMemorySourcePath();
+}
+
+unsigned long long yogi_memory_current_source_line() {
+	return static_cast<unsigned long long>(yogi::runtime::MemoryManager::currentMemorySourceLine());
+}
+
+unsigned long long yogi_memory_current_source_column() {
+	return static_cast<unsigned long long>(yogi::runtime::MemoryManager::currentMemorySourceColumn());
+}
+
+unsigned long long yogi_memory_attributed_location_live_bytes(
+	const char *sourcePath,
+	unsigned long long line,
+	unsigned long long column
+) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedLocationLiveBytes(
+			sourcePath,
+			static_cast<std::size_t>(line),
+			static_cast<std::size_t>(column)
+		)
+	);
+}
+
+unsigned long long yogi_memory_attributed_location_live_allocations(
+	const char *sourcePath,
+	unsigned long long line,
+	unsigned long long column
+) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedLocationLiveAllocations(
+			sourcePath,
+			static_cast<std::size_t>(line),
+			static_cast<std::size_t>(column)
+		)
+	);
+}
+
+unsigned long long yogi_memory_attributed_location_total_allocated_bytes(
+	const char *sourcePath,
+	unsigned long long line,
+	unsigned long long column
+) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedLocationTotalAllocatedBytes(
+			sourcePath,
+			static_cast<std::size_t>(line),
+			static_cast<std::size_t>(column)
+		)
+	);
+}
+
+unsigned long long yogi_memory_attributed_location_total_freed_bytes(
+	const char *sourcePath,
+	unsigned long long line,
+	unsigned long long column
+) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedLocationTotalFreedBytes(
+			sourcePath,
+			static_cast<std::size_t>(line),
+			static_cast<std::size_t>(column)
+		)
+	);
+}
+
+unsigned long long yogi_memory_attributed_location_peak_bytes(
+	const char *sourcePath,
+	unsigned long long line,
+	unsigned long long column
+) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedLocationPeakBytes(
+			sourcePath,
+			static_cast<std::size_t>(line),
+			static_cast<std::size_t>(column)
+		)
 	);
 }
 

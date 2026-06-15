@@ -59,6 +59,8 @@ namespace yogi::core::llvm::internal {
 			);
 			void pushMemoryContext(const std::string &functionName);
 			void popMemoryContext();
+			void pushMemorySourceLocation(const Yogi::Sir::SourcePosition *position);
+			void popMemorySourceLocation();
 			void clearLocalState();
 			void registerAggregateOwner(
 				const std::string &name,

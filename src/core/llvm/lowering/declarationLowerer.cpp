@@ -99,9 +99,11 @@ namespace yogi::core::llvm::internal {
 			isOwnedAggregateInitializer &&
 			!isLocalStackAggregate;
 
+		context.pushMemorySourceLocation(variable->position());
 		auto *initializer = isLocalStackAggregate
 			? values.lowerLocalAggregate(variable->value(), name)
 			: values.lower(variable->value(), type, variable->type());
+		context.popMemorySourceLocation();
 
 		if (isGlobalVariable) {
 			context.builder.CreateStore(

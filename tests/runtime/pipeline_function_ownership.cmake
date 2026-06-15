@@ -40,7 +40,9 @@ foreach(RUNTIME_SYMBOL
 		"yogi_array_drop"
 		"yogi_array_destroy"
 		"yogi_memory_push_context"
-		"yogi_memory_pop_context")
+		"yogi_memory_pop_context"
+		"yogi_memory_push_source_location"
+		"yogi_memory_pop_source_location")
 	string(FIND "${IR_CONTENT}" "${RUNTIME_SYMBOL}" RUNTIME_INDEX)
 	if(RUNTIME_INDEX EQUAL -1)
 		message(FATAL_ERROR "expected function ownership IR to call ${RUNTIME_SYMBOL}")

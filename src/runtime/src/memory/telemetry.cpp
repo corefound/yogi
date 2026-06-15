@@ -16,6 +16,9 @@ namespace yogi::runtime {
 			char *moduleName = nullptr;
 			char *functionName = nullptr;
 			char *typeName = nullptr;
+			char *sourcePath = nullptr;
+			std::size_t line = 0;
+			std::size_t column = 0;
 			std::size_t liveBytes = 0;
 			std::size_t liveAllocations = 0;
 			std::size_t totalAllocatedBytes = 0;
@@ -36,6 +39,12 @@ namespace yogi::runtime {
 			char *functionName = nullptr;
 		};
 
+		struct SourceFrame {
+			char *sourcePath = nullptr;
+			std::size_t line = 0;
+			std::size_t column = 0;
+		};
+
 		AllocationRecord *records = nullptr;
 		std::size_t recordCount = 0;
 		std::size_t recordCapacity = 0;
@@ -45,6 +54,9 @@ namespace yogi::runtime {
 		ContextFrame *contextStack = nullptr;
 		std::size_t contextCount = 0;
 		std::size_t contextCapacity = 0;
+		SourceFrame *sourceStack = nullptr;
+		std::size_t sourceCount = 0;
+		std::size_t sourceCapacity = 0;
 		std::size_t currentLiveBytes = 0;
 		std::size_t currentLiveAllocations = 0;
 		std::size_t allocatedBytes = 0;
@@ -61,6 +73,10 @@ namespace yogi::runtime {
 
 		const char *safeFunctionName(const char *functionName) {
 			return functionName && functionName[0] != '\0' ? functionName : "<unknown>";
+		}
+
+		const char *safeSourcePath(const char *sourcePath) {
+			return sourcePath && sourcePath[0] != '\0' ? sourcePath : "<unknown>";
 		}
 
 		char *copyString(const char *value) {
@@ -101,13 +117,19 @@ namespace yogi::runtime {
 		AttributionStats *findAttribution(
 			const char *moduleName,
 			const char *functionName,
-			const char *typeName
+			const char *typeName,
+			const char *sourcePath,
+			std::size_t line,
+			std::size_t column
 		) {
 			for (std::size_t index = 0; index < attributionCount; ++index) {
 				if (
 					std::strcmp(attributions[index].moduleName, moduleName) == 0 &&
 					std::strcmp(attributions[index].functionName, functionName) == 0 &&
-					std::strcmp(attributions[index].typeName, typeName) == 0
+					std::strcmp(attributions[index].typeName, typeName) == 0 &&
+					std::strcmp(attributions[index].sourcePath, sourcePath) == 0 &&
+					attributions[index].line == line &&
+					attributions[index].column == column
 				) {
 					return &attributions[index];
 				}
@@ -119,13 +141,17 @@ namespace yogi::runtime {
 		AttributionStats *ensureAttribution(
 			const char *moduleName,
 			const char *functionName,
-			const char *typeName
+			const char *typeName,
+			const char *sourcePath,
+			std::size_t line,
+			std::size_t column
 		) {
 			const auto *safeModule = safeModuleName(moduleName);
 			const auto *safeFunction = safeFunctionName(functionName);
 			const auto *safeType = safeTypeName(typeName);
+			const auto *safeSource = safeSourcePath(sourcePath);
 
-			if (auto *stats = findAttribution(safeModule, safeFunction, safeType)) {
+			if (auto *stats = findAttribution(safeModule, safeFunction, safeType, safeSource, line, column)) {
 				return stats;
 			}
 
@@ -148,6 +174,9 @@ namespace yogi::runtime {
 			stats->moduleName = copyString(safeModule);
 			stats->functionName = copyString(safeFunction);
 			stats->typeName = copyString(safeType);
+			stats->sourcePath = copyString(safeSource);
+			stats->line = line;
+			stats->column = column;
 			return stats;
 		}
 
@@ -212,6 +241,12 @@ namespace yogi::runtime {
 			return contextCount > 0 ? contextStack[contextCount - 1] : runtimeFrame;
 		}
 
+		const SourceFrame &currentSourceFrame() {
+			static char unknownSource[] = "<unknown>";
+			static SourceFrame runtimeSourceFrame = {unknownSource, 0, 0};
+			return sourceCount > 0 ? sourceStack[sourceCount - 1] : runtimeSourceFrame;
+		}
+
 		bool attributionMatches(
 			const AttributionStats &stats,
 			const char *moduleName,
@@ -219,6 +254,17 @@ namespace yogi::runtime {
 		) {
 			return std::strcmp(stats.moduleName, safeModuleName(moduleName)) == 0 &&
 				std::strcmp(stats.functionName, safeFunctionName(functionName)) == 0;
+		}
+
+		bool locationMatches(
+			const AttributionStats &stats,
+			const char *sourcePath,
+			std::size_t line,
+			std::size_t column
+		) {
+			return std::strcmp(stats.sourcePath, safeSourcePath(sourcePath)) == 0 &&
+				stats.line == line &&
+				stats.column == column;
 		}
 	}
 
@@ -232,7 +278,15 @@ namespace yogi::runtime {
 		record->size = size;
 		record->typeName = safeTypeName(typeName);
 		const auto &frame = currentFrame();
-		record->attribution = ensureAttribution(frame.moduleName, frame.functionName, typeName);
+		const auto &source = currentSourceFrame();
+		record->attribution = ensureAttribution(
+			frame.moduleName,
+			frame.functionName,
+			typeName,
+			source.sourcePath,
+			source.line,
+			source.column
+		);
 		record->alive = true;
 
 		currentLiveBytes += size;
@@ -278,7 +332,15 @@ namespace yogi::runtime {
 		newRecord->size = newSize;
 		newRecord->typeName = safeTypeName(typeName);
 		const auto &frame = currentFrame();
-		newRecord->attribution = ensureAttribution(frame.moduleName, frame.functionName, typeName);
+		const auto &source = currentSourceFrame();
+		newRecord->attribution = ensureAttribution(
+			frame.moduleName,
+			frame.functionName,
+			typeName,
+			source.sourcePath,
+			source.line,
+			source.column
+		);
 		newRecord->alive = true;
 
 		currentLiveBytes += newSize;
@@ -374,6 +436,50 @@ namespace yogi::runtime {
 		return currentFrame().functionName;
 	}
 
+	void MemoryTelemetry::pushSourceLocation(const char *sourcePath, std::size_t line, std::size_t column) {
+		if (sourceCount == sourceCapacity) {
+			const auto nextCapacity = sourceCapacity == 0 ? 32 : sourceCapacity * 2;
+			auto *nextStack = static_cast<SourceFrame *>(
+				std::realloc(sourceStack, sizeof(SourceFrame) * nextCapacity)
+			);
+
+			if (!nextStack) {
+				RuntimeError::abortAllocation("memory telemetry source stack");
+			}
+
+			sourceStack = nextStack;
+			sourceCapacity = nextCapacity;
+		}
+
+		sourceStack[sourceCount++] = {
+			copyString(safeSourcePath(sourcePath)),
+			line,
+			column,
+		};
+	}
+
+	void MemoryTelemetry::popSourceLocation() {
+		if (sourceCount == 0) {
+			return;
+		}
+
+		auto &source = sourceStack[--sourceCount];
+		std::free(source.sourcePath);
+		source = {};
+	}
+
+	const char *MemoryTelemetry::currentSourcePath() {
+		return currentSourceFrame().sourcePath;
+	}
+
+	std::size_t MemoryTelemetry::currentSourceLine() {
+		return currentSourceFrame().line;
+	}
+
+	std::size_t MemoryTelemetry::currentSourceColumn() {
+		return currentSourceFrame().column;
+	}
+
 	std::size_t MemoryTelemetry::attributedLiveBytes(const char *moduleName, const char *functionName) {
 		std::size_t total = 0;
 
@@ -434,6 +540,66 @@ namespace yogi::runtime {
 		return total;
 	}
 
+	std::size_t MemoryTelemetry::attributedLocationLiveBytes(const char *sourcePath, std::size_t line, std::size_t column) {
+		std::size_t total = 0;
+
+		for (std::size_t index = 0; index < attributionCount; ++index) {
+			if (locationMatches(attributions[index], sourcePath, line, column)) {
+				total += attributions[index].liveBytes;
+			}
+		}
+
+		return total;
+	}
+
+	std::size_t MemoryTelemetry::attributedLocationLiveAllocations(const char *sourcePath, std::size_t line, std::size_t column) {
+		std::size_t total = 0;
+
+		for (std::size_t index = 0; index < attributionCount; ++index) {
+			if (locationMatches(attributions[index], sourcePath, line, column)) {
+				total += attributions[index].liveAllocations;
+			}
+		}
+
+		return total;
+	}
+
+	std::size_t MemoryTelemetry::attributedLocationTotalAllocatedBytes(const char *sourcePath, std::size_t line, std::size_t column) {
+		std::size_t total = 0;
+
+		for (std::size_t index = 0; index < attributionCount; ++index) {
+			if (locationMatches(attributions[index], sourcePath, line, column)) {
+				total += attributions[index].totalAllocatedBytes;
+			}
+		}
+
+		return total;
+	}
+
+	std::size_t MemoryTelemetry::attributedLocationTotalFreedBytes(const char *sourcePath, std::size_t line, std::size_t column) {
+		std::size_t total = 0;
+
+		for (std::size_t index = 0; index < attributionCount; ++index) {
+			if (locationMatches(attributions[index], sourcePath, line, column)) {
+				total += attributions[index].totalFreedBytes;
+			}
+		}
+
+		return total;
+	}
+
+	std::size_t MemoryTelemetry::attributedLocationPeakBytes(const char *sourcePath, std::size_t line, std::size_t column) {
+		std::size_t total = 0;
+
+		for (std::size_t index = 0; index < attributionCount; ++index) {
+			if (locationMatches(attributions[index], sourcePath, line, column)) {
+				total += attributions[index].peakBytes;
+			}
+		}
+
+		return total;
+	}
+
 	void MemoryTelemetry::report() {
 		std::fprintf(
 			stderr,
@@ -454,9 +620,12 @@ namespace yogi::runtime {
 
 			std::fprintf(
 				stderr,
-				"yogi memory attribution: module=%s function=%s type=%s live_bytes=%zu live_allocations=%zu total_allocated_bytes=%zu total_freed_bytes=%zu peak_bytes=%zu\n",
+				"yogi memory attribution: module=%s function=%s source=%s line=%zu column=%zu type=%s live_bytes=%zu live_allocations=%zu total_allocated_bytes=%zu total_freed_bytes=%zu peak_bytes=%zu\n",
 				stats.moduleName,
 				stats.functionName,
+				stats.sourcePath,
+				stats.line,
+				stats.column,
 				stats.typeName,
 				stats.liveBytes,
 				stats.liveAllocations,

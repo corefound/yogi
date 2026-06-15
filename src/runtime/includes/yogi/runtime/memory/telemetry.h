@@ -27,11 +27,21 @@ namespace yogi::runtime {
 			static void popContext();
 			static const char *currentModule();
 			static const char *currentFunction();
+			static void pushSourceLocation(const char *sourcePath, std::size_t line, std::size_t column);
+			static void popSourceLocation();
+			static const char *currentSourcePath();
+			static std::size_t currentSourceLine();
+			static std::size_t currentSourceColumn();
 			static std::size_t attributedLiveBytes(const char *moduleName, const char *functionName);
 			static std::size_t attributedLiveAllocations(const char *moduleName, const char *functionName);
 			static std::size_t attributedTotalAllocatedBytes(const char *moduleName, const char *functionName);
 			static std::size_t attributedTotalFreedBytes(const char *moduleName, const char *functionName);
 			static std::size_t attributedPeakBytes(const char *moduleName, const char *functionName);
+			static std::size_t attributedLocationLiveBytes(const char *sourcePath, std::size_t line, std::size_t column);
+			static std::size_t attributedLocationLiveAllocations(const char *sourcePath, std::size_t line, std::size_t column);
+			static std::size_t attributedLocationTotalAllocatedBytes(const char *sourcePath, std::size_t line, std::size_t column);
+			static std::size_t attributedLocationTotalFreedBytes(const char *sourcePath, std::size_t line, std::size_t column);
+			static std::size_t attributedLocationPeakBytes(const char *sourcePath, std::size_t line, std::size_t column);
 			static void report();
 	};
 

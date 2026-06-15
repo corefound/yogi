@@ -3,6 +3,8 @@
 
 #include "llvm/context/loweringContext.h"
 
+#include <cstdint>
+
 #if YOGI_HAS_LLVM
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
@@ -103,6 +105,43 @@ namespace yogi::core::llvm::internal {
 	void ModuleLoweringContext::popMemoryContext() {
 		auto *function = runtimeFunction(
 			"yogi_memory_pop_context",
+			::llvm::Type::getVoidTy(llvmContext),
+			{}
+		);
+		builder.CreateCall(function);
+	}
+
+	void ModuleLoweringContext::pushMemorySourceLocation(const Yogi::Sir::SourcePosition *position) {
+		auto *pointerType = ::llvm::PointerType::getUnqual(llvmContext);
+		auto *integerType = ::llvm::Type::getInt64Ty(llvmContext);
+		auto *function = runtimeFunction(
+			"yogi_memory_push_source_location",
+			::llvm::Type::getVoidTy(llvmContext),
+			{pointerType, integerType, integerType}
+		);
+		auto sourcePath = fbString(sirModule->source_path());
+
+		if (sourcePath.empty() && moduleMeta && moduleMeta->source_path()) {
+			sourcePath = fbString(moduleMeta->source_path());
+		}
+
+		const auto line = position && position->line() >= 0
+			? static_cast<std::uint64_t>(position->line()) + 1
+			: 0;
+		const auto column = position && position->character() >= 0
+			? static_cast<std::uint64_t>(position->character()) + 1
+			: 0;
+
+		builder.CreateCall(function, {
+			builder.CreateGlobalString(sourcePath.empty() ? "<unknown>" : sourcePath),
+			::llvm::ConstantInt::get(integerType, line),
+			::llvm::ConstantInt::get(integerType, column),
+		});
+	}
+
+	void ModuleLoweringContext::popMemorySourceLocation() {
+		auto *function = runtimeFunction(
+			"yogi_memory_pop_source_location",
 			::llvm::Type::getVoidTy(llvmContext),
 			{}
 		);
