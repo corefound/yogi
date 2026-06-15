@@ -39,18 +39,32 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             }
 
             const { thenNarrowings, elseNarrowings } = this.getEqualityNarrowings(condition);
+            const beforeMoveState = this.captureMoveState();
 
+            this.restoreMoveState(beforeMoveState);
             const thenBlock = this.withTemporaryNarrowings(
                 thenNarrowings,
                 () => this.visitIfBlockStatement(node.then),
             );
+            const thenMoveState = this.blockAlwaysReturns(thenBlock)
+                ? null
+                : this.captureMoveState();
 
+            this.restoreMoveState(beforeMoveState);
             const elseBlock = node.else
                 ? this.withTemporaryNarrowings(
                     elseNarrowings,
                     () => this.visitIfBlockStatement(node.else),
                 )
                 : null;
+            const elseMoveState = node.else
+                ? this.blockAlwaysReturns(elseBlock)
+                    ? null
+                    : this.captureMoveState()
+                : beforeMoveState;
+
+            this.restoreMoveState(beforeMoveState);
+            this.mergeMoveState(thenMoveState, elseMoveState);
 
             return {
                 ...node,
@@ -80,6 +94,10 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     statements.push(...result);
                 } else {
                     statements.push(result);
+                }
+
+                if (this.statementAlwaysReturns(result)) {
+                    break;
                 }
             }
             this.exitScope();
@@ -260,6 +278,40 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     item.symbol.type = item.type;
                 }
             }
+        }
+
+        public statementAlwaysReturns(node: any): boolean {
+            if (!node) return false;
+
+            if (Array.isArray(node)) {
+                return node.some((item: any) => this.statementAlwaysReturns(item));
+            }
+
+            if (node.kind === Kinds.Statements.ReturnStatement) {
+                return true;
+            }
+
+            if (node.kind === Kinds.Statements.BlockStatement) {
+                return this.blockAlwaysReturns(node);
+            }
+
+            if (node.kind === Kinds.Statements.IfStatement) {
+                return this.blockAlwaysReturns(node.then) &&
+                    node.else &&
+                    this.blockAlwaysReturns(node.else);
+            }
+
+            return false;
+        }
+
+        public blockAlwaysReturns(node: any): boolean {
+            const statements = node?.statements ?? [];
+
+            if (!Array.isArray(statements) || statements.length === 0) {
+                return false;
+            }
+
+            return statements.some((statement: any) => this.statementAlwaysReturns(statement));
         }
     };
 }

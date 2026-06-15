@@ -26,6 +26,7 @@ export class BaseSemantic {
     public exportedSymbols: Map<string, Types.SemanticModuleSymbol> = new Map();
     public externalLinks: Map<string, Types.Sir.GlobalMetaLinkInput> = new Map();
     public functionEffectSummaries: Map<number, Types.Sir.SemanticFunctionEffectSummary> = new Map();
+    public symbolsById: Map<number, Types.SymbolInfo> = new Map();
 
     constructor(ast: Types.Ast[]) {
         this.ast = ast;
@@ -62,6 +63,7 @@ export class BaseSemantic {
         };
 
         this.currentScope.define(fullSymbol);
+        this.symbolsById.set(fullSymbol.id, fullSymbol);
 
         return fullSymbol;
     }
@@ -596,6 +598,190 @@ export class BaseSemantic {
         );
     }
 
+    public getSymbolById(symbolId: number | undefined | null): Types.SymbolInfo | null {
+        if (typeof symbolId !== "number" || symbolId < 0) {
+            return null;
+        }
+
+        return this.symbolsById.get(symbolId) ?? null;
+    }
+
+    public getIdentifierName(node: any): string | null {
+        if (!node) return null;
+        return node.value ?? node.name ?? node.raw ?? null;
+    }
+
+    public getAggregateOwnerSymbol(symbol: Types.SymbolInfo | null | undefined): Types.SymbolInfo | null {
+        if (!symbol) return null;
+
+        const ownerId = typeof symbol.aggregateOwnerSymbolId === "number"
+            ? symbol.aggregateOwnerSymbolId
+            : symbol.id;
+
+        return this.getSymbolById(ownerId) ?? symbol;
+    }
+
+    public getAggregateSymbolFromExpression(node: any): Types.SymbolInfo | null {
+        if (!node) return null;
+
+        if (node.kind !== Kinds.Expressions.IdentifierExpression) {
+            return null;
+        }
+
+        const name = this.getIdentifierName(node);
+        const symbol = name ? this.resolveSymbol(name) : null;
+
+        if (!symbol || !this.isAggregateType(symbol.type)) {
+            return null;
+        }
+
+        return symbol;
+    }
+
+    public getAggregateOwnerFromExpression(node: any): Types.SymbolInfo | null {
+        return this.getAggregateOwnerSymbol(this.getAggregateSymbolFromExpression(node));
+    }
+
+    public setAggregateOwner(symbol: Types.SymbolInfo, owner: Types.SymbolInfo | null): void {
+        if (!this.isAggregateType(symbol.type)) {
+            return;
+        }
+
+        const ownerSymbol = owner ? this.getAggregateOwnerSymbol(owner) : symbol;
+        symbol.aggregateOwnerSymbolId = ownerSymbol?.id ?? symbol.id;
+        symbol.moved = false;
+        symbol.moveReason = undefined;
+        symbol.movePosition = undefined;
+        symbol.moveSource = undefined;
+    }
+
+    public transferAggregateOwner(target: Types.SymbolInfo, source: Types.SymbolInfo, reason: string, context: any): void {
+        const sourceOwner = this.getAggregateOwnerSymbol(source);
+
+        if (!sourceOwner || !this.isAggregateType(sourceOwner.type) || !this.isAggregateType(target.type)) {
+            return;
+        }
+
+        target.aggregateOwnerSymbolId = target.id;
+        target.moved = false;
+        target.moveReason = undefined;
+        target.movePosition = undefined;
+        target.moveSource = undefined;
+
+        for (const symbol of this.symbolsById.values()) {
+            if (
+                symbol.id === target.id ||
+                !this.isAggregateType(symbol.type)
+            ) {
+                continue;
+            }
+
+            const owner = this.getAggregateOwnerSymbol(symbol);
+            if (owner?.id === sourceOwner.id) {
+                this.markAggregateSymbolMoved(symbol, reason, context);
+            }
+        }
+    }
+
+    public markAggregateExpressionMoved(value: any, reason: string, context: any): void {
+        const symbol = this.getAggregateSymbolFromExpression(value);
+        if (!symbol) return;
+
+        const owner = this.getAggregateOwnerSymbol(symbol);
+        if (!owner) return;
+
+        for (const candidate of this.symbolsById.values()) {
+            if (!this.isAggregateType(candidate.type)) continue;
+
+            const candidateOwner = this.getAggregateOwnerSymbol(candidate);
+            if (candidateOwner?.id === owner.id) {
+                this.markAggregateSymbolMoved(candidate, reason, context);
+            }
+        }
+    }
+
+    public markAggregateSymbolMoved(symbol: Types.SymbolInfo, reason: string, context: any): void {
+        symbol.moved = true;
+        symbol.moveReason = reason;
+        symbol.movePosition = context?.position;
+        symbol.moveSource = context?.source ?? context?.raw ?? context?.fullSource;
+    }
+
+    public assertAggregateExpressionUsable(node: any, sourceText?: string): void {
+        const symbol = this.getAggregateSymbolFromExpression(node);
+        if (!symbol) return;
+
+        const owner = this.getAggregateOwnerSymbol(symbol);
+        const movedSymbol = symbol.moved ? symbol : owner?.moved ? owner : null;
+
+        if (!movedSymbol) {
+            return;
+        }
+
+        const name = this.getIdentifierName(node) ?? symbol.name;
+        const moveReason = movedSymbol.moveReason ?? "ownership was moved";
+        const message =
+            `cannot use aggregate ${Helpers.RED}'${name}'${Helpers.RESET} after it was moved`;
+
+        node.arrowLength = node.source?.length ?? name.length ?? 1;
+
+        this.throwError(
+            message,
+            node.position,
+            sourceText ?? node.fullSource ?? node.source ?? movedSymbol.moveSource ?? name,
+            node,
+            `  = moved because ${moveReason}`,
+        );
+    }
+
+    public captureMoveState(): Map<number, any> {
+        const snapshot = new Map<number, any>();
+
+        for (const [id, symbol] of this.symbolsById.entries()) {
+            snapshot.set(id, {
+                aggregateOwnerSymbolId: symbol.aggregateOwnerSymbolId,
+                moved: symbol.moved,
+                moveReason: symbol.moveReason,
+                movePosition: symbol.movePosition,
+                moveSource: symbol.moveSource,
+            });
+        }
+
+        return snapshot;
+    }
+
+    public restoreMoveState(snapshot: Map<number, any>): void {
+        for (const [id, state] of snapshot.entries()) {
+            const symbol = this.getSymbolById(id);
+            if (!symbol) continue;
+
+            symbol.aggregateOwnerSymbolId = state.aggregateOwnerSymbolId;
+            symbol.moved = state.moved;
+            symbol.moveReason = state.moveReason;
+            symbol.movePosition = state.movePosition;
+            symbol.moveSource = state.moveSource;
+        }
+    }
+
+    public mergeMoveState(...snapshots: Array<Map<number, any> | null | undefined>): void {
+        for (const snapshot of snapshots) {
+            if (!snapshot) continue;
+
+            for (const [id, state] of snapshot.entries()) {
+                if (state?.moved !== true) continue;
+
+                const symbol = this.getSymbolById(id);
+                if (!symbol) continue;
+
+                symbol.aggregateOwnerSymbolId = state.aggregateOwnerSymbolId;
+                symbol.moved = true;
+                symbol.moveReason = state.moveReason;
+                symbol.movePosition = state.movePosition;
+                symbol.moveSource = state.moveSource;
+            }
+        }
+    }
+
     public literalIndexValue(index: any): number | string | null {
         if (!index) return null;
 
@@ -686,6 +872,9 @@ export class BaseSemantic {
 
             case Kinds.Collections.DictionaryExpression:
                 return this.visitDictionaryExpression(node);
+
+            case Kinds.Statements.ReturnStatement:
+                return this.visitReturnStatement(node);
         }
 
         const externs = this.visitExterns(node);
@@ -722,6 +911,16 @@ export class BaseSemantic {
             node.arrowLength = identifierName?.length ?? 1;
             this.throwError(message, node.position, node.fullSource ?? node.source ?? node.raw, node);
         }
+
+        this.assertAggregateExpressionUsable(
+            {
+                ...node,
+                symbolId: symbol.id,
+                scopeId: symbol.scopeId,
+                type: symbol.type,
+            },
+            node.fullSource ?? node.source ?? node.raw,
+        );
 
         return {
             ...node,
@@ -808,6 +1007,7 @@ export class BaseSemantic {
     visitArrayLikeDeclarations(_: any): any { }
     visitArrayExpression(_: any): any { }
     visitDictionaryExpression(_: any): any { }
+    visitReturnStatement(_: any): any { }
     visitExterns(_: any): any { }
     visitModuleStatement(_: any): any { }
     visitControlFlow(_: any): any { }

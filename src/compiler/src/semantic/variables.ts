@@ -58,6 +58,11 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node: value,
             });
 
+            this.setAggregateOwner(
+                symbol,
+                this.getAggregateSymbolFromExpression(value),
+            );
+
             if (node.export) {
                 this.exportSymbol(symbol);
             }

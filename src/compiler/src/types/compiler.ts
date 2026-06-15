@@ -115,6 +115,11 @@ export type SymbolInfo = {
     storage?: Kinds.Storage;
     trusted?: boolean;
     effectSummary?: SemanticFunctionEffectSummary;
+    aggregateOwnerSymbolId?: number;
+    moved?: boolean;
+    moveReason?: string;
+    movePosition?: any;
+    moveSource?: string;
     declare?: boolean;
     ambient?: boolean;
     emit?: boolean;

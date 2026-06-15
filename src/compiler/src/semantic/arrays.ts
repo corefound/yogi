@@ -46,6 +46,8 @@ export function ArraysSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                 node: value,
             });
 
+            this.setAggregateOwner(symbol, null);
+
             delete node.value;
 
             return {

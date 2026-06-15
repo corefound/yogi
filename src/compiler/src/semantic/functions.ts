@@ -159,6 +159,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node: param,
             });
 
+            this.setAggregateOwner(symbol, null);
+
             return {
                 ...param,
                 symbolId: symbol.id,
@@ -166,6 +168,24 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 mutable: symbol.mutable,
                 storage: symbol.storage,
                 trusted: symbol.trusted,
+            };
+        }
+
+        public visitReturnStatement(node: any): any {
+            const value = node.value ? this.visitNode(node.value) : null;
+
+            if (value && this.isAggregateType(value.type)) {
+                this.markAggregateExpressionMoved(
+                    value,
+                    "it was returned and ownership moved to the caller",
+                    node,
+                );
+            }
+
+            return {
+                ...node,
+                kind: Kinds.Statements.ReturnStatement,
+                value,
             };
         }
 

@@ -211,6 +211,22 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 };
             });
 
+            argumentEffects.forEach((effect: any, index: number) => {
+                const argument = args[index];
+
+                if (!argument || !this.isAggregateType(argument.type)) {
+                    return;
+                }
+
+                if (effect.consumes === true || effect.escapes === true) {
+                    const reason = external
+                        ? `it was passed to unknown/external function '${calleeName}'`
+                        : `function '${calleeName}' may retain or return that parameter`;
+
+                    this.markAggregateExpressionMoved(argument, reason, argument);
+                }
+            });
+
             return {
                 ...node,
                 kind: Kinds.Expressions.CallExpression,
@@ -662,6 +678,29 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
+                        if (this.isAggregateType(assignmentType)) {
+                            const rightSymbol = this.getAggregateSymbolFromExpression(right);
+
+                            if (rightSymbol) {
+                                if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
+                                    this.markAggregateExpressionMoved(
+                                        right,
+                                        `it was assigned into module/global storage '${identifierName}'`,
+                                        right,
+                                    );
+                                } else {
+                                    this.transferAggregateOwner(
+                                        symbol,
+                                        rightSymbol,
+                                        `ownership was reassigned to '${identifierName}'`,
+                                        right,
+                                    );
+                                }
+                            } else {
+                                this.setAggregateOwner(symbol, null);
+                            }
+                        }
+
                         return {
                             ...node,
                             kind: Kinds.Expressions.AssignmentExpression,
@@ -794,6 +833,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
                 }
 
+                if (this.isAggregateType(right.type)) {
+                    this.markAggregateExpressionMoved(
+                        right,
+                        `it was stored into aggregate member '${left.source ?? "member"}'`,
+                        right,
+                    );
+                }
+
                 return {
                     ...node,
                     kind: "AggregateAssignmentExpression",
@@ -844,6 +891,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         this.throwError(message, left.position, source, left);
                     }
 
+                    if (this.isAggregateType(right.type)) {
+                        this.markAggregateExpressionMoved(
+                            right,
+                            `it was stored into aggregate member '${left.source ?? "member"}'`,
+                            right,
+                        );
+                    }
+
                     return {
                         ...node,
                         kind: "AggregateAssignmentExpression",
@@ -885,6 +940,29 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 right.arrowLength = right.source?.length ?? 1;
                 this.throwError(message, right.position ?? node.position, source, right);
+            }
+
+            if (this.isAggregateType(assignmentType)) {
+                const rightSymbol = this.getAggregateSymbolFromExpression(right);
+
+                if (rightSymbol) {
+                    if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
+                        this.markAggregateExpressionMoved(
+                            right,
+                            `it was assigned into module/global storage '${identifierName}'`,
+                            right,
+                        );
+                    } else {
+                        this.transferAggregateOwner(
+                            symbol,
+                            rightSymbol,
+                            `ownership was reassigned to '${identifierName}'`,
+                            right,
+                        );
+                    }
+                } else {
+                    this.setAggregateOwner(symbol, null);
+                }
             }
 
             return {

@@ -478,6 +478,88 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("rejects aggregate use after ownership moved through retained callees and unknown calls", () => {
+    const retainedByKnownCallee = runCompiler(createProject({
+      "main.io": `
+        let saved: number[] = [0]
+
+        function save(scores: number[]): void {
+          saved = scores
+        }
+
+        function invalid(): number {
+          let local: number[] = [1, 2]
+          let alias: number[] = local
+          save(alias)
+          return local[0]
+        }
+      `,
+    }));
+    expect(retainedByKnownCallee.status).not.toBe(0);
+    expect(retainedByKnownCallee.stderr).toContain("cannot use aggregate");
+    expect(retainedByKnownCallee.stderr).toContain("local");
+    expect(retainedByKnownCallee.stderr).toContain("may retain or return");
+
+    const conditionalMove = runCompiler(createProject({
+      "main.io": `
+        let saved: number[] = [0]
+
+        function save(scores: number[]): void {
+          saved = scores
+        }
+
+        function invalid(flag: boolean): number {
+          let local: number[] = [1, 2]
+
+          if (flag) {
+            save(local)
+          }
+
+          return local[0]
+        }
+      `,
+    }));
+    expect(conditionalMove.status).not.toBe(0);
+    expect(conditionalMove.stderr).toContain("cannot use aggregate");
+    expect(conditionalMove.stderr).toContain("local");
+
+    const unknownCall = runCompiler(createProject({
+      "main.io": `
+        declare function externalUse(scores: number[]): void
+
+        function invalid(): number {
+          let local: number[] = [1, 2]
+          externalUse(local)
+          return local[0]
+        }
+      `,
+    }));
+    expect(unknownCall.status).not.toBe(0);
+    expect(unknownCall.stderr).toContain("cannot use aggregate");
+    expect(unknownCall.stderr).toContain("unknown/external function");
+  });
+
+  test("keeps borrowed aggregate arguments usable after known non-retaining calls", () => {
+    const root = createProject({
+      "main.io": `
+        function sum(scores: number[]): number {
+          return scores[0] + scores[1]
+        }
+
+        function ok(): number {
+          let local: number[] = [1, 2, 3]
+          let first: number = sum(local)
+          return first + local[2]
+        }
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
   test("rejects rest destructuring until aggregate copying exists", () => {
     const objectRest = runCompiler(createProject({
       "main.io": `
