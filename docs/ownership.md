@@ -197,8 +197,8 @@ The ownership model is intentionally small. It does not yet implement:
 - Explicit `move` or `consume` syntax.
 - Shared ownership or reference counting.
 - Closure capture summaries.
-- Destructor scheduling for every complex control-flow edge.
 - Method-call summaries such as `scores.push(4)`.
+- Loops with break/continue cleanup edges.
 
 The current model is enough to make function boundaries safe for direct
 function calls while preserving stack-first local aggregates whenever the callee

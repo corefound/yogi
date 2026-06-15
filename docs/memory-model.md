@@ -126,7 +126,8 @@ Local non-escaping aggregates are cleaned up automatically by generated LLVM.
 The user does not call `free`, `drop`, or `delete`.
 
 The current backend emits cleanup calls when a local aggregate leaves its block
-or when the function returns:
+or when the function returns. Cleanup is now scheduled on control-flow exits,
+including early returns inside `if`/`else` branches:
 
 ```text
 yogi_object_drop
@@ -135,6 +136,8 @@ yogi_array_drop
 
 That behavior is RAII-like for stack-owned aggregate descriptors: construction
 happens at declaration, and cleanup is emitted at the end of the lifetime.
+Returned aggregate identifiers move ownership to the caller, so their cleanup is
+deactivated only on the return path that moves them.
 
 Escaping heap aggregates are different. The semantic analyzer detects the escape
 and prevents stack cleanup from destroying a value that outlives the scope.
@@ -190,6 +193,6 @@ This escape pass does not yet model:
 - Closures and captured values.
 - Reference counting or shared ownership.
 - Explicit move/consume syntax.
-- Full destructor ordering for complex control-flow graphs.
+- Loop cleanup edges for `break` and `continue`.
 
 Those are expected to be added in later passes.
