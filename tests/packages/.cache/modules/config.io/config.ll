@@ -13,3 +13,14 @@ entry:
   store double 3.000000e+00, ptr @_yogi_config_io_maxRetries, align 8
   ret void
 }
+
+define void @_yogi_module_cleanup_config_io() {
+entry:
+  %0 = load double, ptr @_yogi_config_io_maxScore, align 8
+  store double 0.000000e+00, ptr @_yogi_config_io_maxScore, align 8
+  %1 = load double, ptr @_yogi_config_io_minDeployScore, align 8
+  store double 0.000000e+00, ptr @_yogi_config_io_minDeployScore, align 8
+  %2 = load double, ptr @_yogi_config_io_maxRetries, align 8
+  store double 0.000000e+00, ptr @_yogi_config_io_maxRetries, align 8
+  ret void
+}

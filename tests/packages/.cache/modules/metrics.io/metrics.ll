@@ -13,3 +13,14 @@ entry:
   store double 6.000000e+00, ptr @_yogi_metrics_io_crashPenalty, align 8
   ret void
 }
+
+define void @_yogi_module_cleanup_metrics_io() {
+entry:
+  %0 = load double, ptr @_yogi_metrics_io_rawScore, align 8
+  store double 0.000000e+00, ptr @_yogi_metrics_io_rawScore, align 8
+  %1 = load double, ptr @_yogi_metrics_io_testCoverage, align 8
+  store double 0.000000e+00, ptr @_yogi_metrics_io_testCoverage, align 8
+  %2 = load double, ptr @_yogi_metrics_io_crashPenalty, align 8
+  store double 0.000000e+00, ptr @_yogi_metrics_io_crashPenalty, align 8
+  ret void
+}

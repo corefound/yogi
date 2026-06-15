@@ -16,11 +16,15 @@ cachedOwner ??= "release-team"
 
 let releaseName: string = hasEnoughScore ? "stable" : "candidate"
 let auditTarget: { name: string, retries?: number } = { name: owner }
+auditTarget.name = releaseName
 let targetRetries: number | undefined = auditTarget.retries
 let auditOwner: string = auditTarget?.name
 
 let { name = "fallback" }: { name?: string } = { }
 let [priority = 1]: [number | undefined] = [undefined]
+let retrySlots: number[] = [0, 1, 2]
+retrySlots[1] = priority
+let selectedSlot: number = retrySlots[1]
 
 let hasRetries: boolean = retryCount < maxRetries
 let canDeploy: boolean = hasEnoughScore && hasRetries

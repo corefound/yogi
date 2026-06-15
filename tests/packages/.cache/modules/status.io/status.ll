@@ -6,3 +6,8 @@ define void @_yogi_module_init_status_io() {
 entry:
   ret void
 }
+
+define void @_yogi_module_cleanup_status_io() {
+entry:
+  ret void
+}

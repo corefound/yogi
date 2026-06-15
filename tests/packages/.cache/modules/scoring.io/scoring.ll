@@ -47,3 +47,14 @@ entry:
   store i1 %cmptmp, ptr @_yogi_scoring_io_hasEnoughScore, align 1
   ret void
 }
+
+define void @_yogi_module_cleanup_scoring_io() {
+entry:
+  %0 = load double, ptr @_yogi_scoring_io_weightedScore, align 8
+  store double 0.000000e+00, ptr @_yogi_scoring_io_weightedScore, align 8
+  %1 = load double, ptr @_yogi_scoring_io_scorePercent, align 8
+  store double 0.000000e+00, ptr @_yogi_scoring_io_scorePercent, align 8
+  %2 = load i1, ptr @_yogi_scoring_io_hasEnoughScore, align 1
+  store i1 false, ptr @_yogi_scoring_io_hasEnoughScore, align 1
+  ret void
+}

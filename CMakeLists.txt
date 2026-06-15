@@ -267,5 +267,21 @@ if(BUILD_TESTING)
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-dynamic-expressions
                                 -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_dynamic_expressions.cmake
                 )
+
+                add_test(
+                        NAME yogi_pipeline_aggregates
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-aggregates
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_aggregates.cmake
+                )
+
+                add_test(
+                        NAME yogi_pipeline_escape_analysis
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-escape-analysis
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_escape_analysis.cmake
+                )
         endif()
 endif()
