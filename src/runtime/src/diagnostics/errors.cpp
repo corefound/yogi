@@ -27,4 +27,20 @@ namespace yogi::runtime {
 		std::abort();
 	}
 
+	void RuntimeError::abortOwnership(const char *reason, const void *address, const char *typeName) {
+		std::fprintf(
+			stderr,
+			"yogi runtime ownership error: %s at %p",
+			reason ? reason : "ownership violation",
+			address
+		);
+
+		if (typeName) {
+			std::fprintf(stderr, " (%s)", typeName);
+		}
+
+		std::fprintf(stderr, "\n");
+		std::abort();
+	}
+
 } // namespace yogi::runtime

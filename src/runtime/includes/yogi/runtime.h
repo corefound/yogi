@@ -49,6 +49,12 @@ void *yogi_alloc(unsigned long long size);
 void *yogi_realloc(void *address, unsigned long long newSize);
 void yogi_free(void *address);
 
+bool yogi_debug_ownership_enabled(void);
+unsigned long long yogi_debug_ownership_live_allocations(void);
+unsigned long long yogi_debug_ownership_live_aggregates(void);
+unsigned long long yogi_debug_ownership_report_leaks(void);
+void yogi_debug_ownership_reset(void);
+
 void yogi_runtime_abort_cast(const char *fromType, const char *toType);
 
 #ifdef __cplusplus

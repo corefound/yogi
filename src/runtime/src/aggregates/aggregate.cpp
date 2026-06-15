@@ -4,6 +4,7 @@
 #include "yogi/runtime/aggregate.h"
 
 #include "yogi/runtime/any.h"
+#include "yogi/runtime/debug/ownership.h"
 #include "yogi/runtime/memory.h"
 
 #include <cstring>
@@ -13,11 +14,14 @@ namespace yogi::runtime {
 
 	ObjectValue *ObjectValue::create() {
 		void *address = MemoryManager::allocate(sizeof(ObjectValue), "object value");
-		return new (address) ObjectValue();
+		auto *object = new (address) ObjectValue();
+		OwnershipTracker::markHeapAggregate(object, "object value");
+		return object;
 	}
 
 	void ObjectValue::init(void *address) {
 		new (address) ObjectValue();
+		OwnershipTracker::registerStackAggregate(address, "object value");
 	}
 
 	std::size_t ObjectValue::size() {
@@ -25,6 +29,8 @@ namespace yogi::runtime {
 	}
 
 	void ObjectValue::set(const char *name, void *value) {
+		OwnershipTracker::assertLiveAggregate(this, "object set after destroy/drop", "object value");
+
 		if (!name) {
 			return;
 		}
@@ -43,6 +49,8 @@ namespace yogi::runtime {
 	}
 
 	void *ObjectValue::get(const char *name) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ObjectValue *>(this), "object get after destroy/drop", "object value");
+
 		if (!name) {
 			return AnyValue::undefined();
 		}
@@ -88,6 +96,8 @@ namespace yogi::runtime {
 	}
 
 	void ObjectValue::destroy() {
+		OwnershipTracker::assertLiveAggregate(this, "object destroy/drop after destroy/drop", "object value");
+
 		for (std::size_t index = 0; index < propertyCount; ++index) {
 			MemoryManager::deallocate(properties[index].key);
 			properties[index].key = nullptr;
@@ -103,11 +113,13 @@ namespace yogi::runtime {
 	ArrayValue *ArrayValue::create(std::size_t length) {
 		void *address = MemoryManager::allocate(sizeof(ArrayValue), "array value");
 		init(address, length);
+		OwnershipTracker::markHeapAggregate(address, "array value");
 		return static_cast<ArrayValue *>(address);
 	}
 
 	void ArrayValue::init(void *address, std::size_t length) {
 		auto *array = new (address) ArrayValue();
+		OwnershipTracker::registerStackAggregate(array, "array value");
 		array->elementCount = length;
 
 		if (length == 0) {
@@ -128,6 +140,8 @@ namespace yogi::runtime {
 	}
 
 	void ArrayValue::set(std::size_t index, void *value) {
+		OwnershipTracker::assertLiveAggregate(this, "array set after destroy/drop", "array value");
+
 		if (index >= elementCount) {
 			return;
 		}
@@ -136,6 +150,8 @@ namespace yogi::runtime {
 	}
 
 	void *ArrayValue::get(std::size_t index) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array get after destroy/drop", "array value");
+
 		if (index >= elementCount) {
 			return AnyValue::undefined();
 		}
@@ -144,6 +160,8 @@ namespace yogi::runtime {
 	}
 
 	void ArrayValue::destroy() {
+		OwnershipTracker::assertLiveAggregate(this, "array destroy/drop after destroy/drop", "array value");
+
 		MemoryManager::deallocate(elements);
 		elements = nullptr;
 		elementCount = 0;
@@ -191,6 +209,7 @@ void yogi_object_drop(void *object) {
 	}
 
 	static_cast<yogi::runtime::ObjectValue *>(object)->destroy();
+	yogi::runtime::OwnershipTracker::dropStackAggregate(object, "object value");
 }
 
 void yogi_object_destroy(void *object) {
@@ -200,6 +219,7 @@ void yogi_object_destroy(void *object) {
 
 	auto *value = static_cast<yogi::runtime::ObjectValue *>(object);
 	value->destroy();
+	yogi::runtime::OwnershipTracker::destroyHeapAggregate(object, "object value");
 	yogi_free(object);
 }
 
@@ -241,6 +261,7 @@ void yogi_array_drop(void *array) {
 	}
 
 	static_cast<yogi::runtime::ArrayValue *>(array)->destroy();
+	yogi::runtime::OwnershipTracker::dropStackAggregate(array, "array value");
 }
 
 void yogi_array_destroy(void *array) {
@@ -250,6 +271,7 @@ void yogi_array_destroy(void *array) {
 
 	auto *value = static_cast<yogi::runtime::ArrayValue *>(array);
 	value->destroy();
+	yogi::runtime::OwnershipTracker::destroyHeapAggregate(array, "array value");
 	yogi_free(array);
 }
 

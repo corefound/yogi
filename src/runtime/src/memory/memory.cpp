@@ -3,6 +3,7 @@
 
 #include "yogi/runtime/memory.h"
 
+#include "yogi/runtime/debug/ownership.h"
 #include "yogi/runtime/errors.h"
 #include "yogi/runtime.h"
 
@@ -73,6 +74,7 @@ namespace yogi::runtime {
 			RuntimeError::abortAllocation(typeName);
 		}
 
+		OwnershipTracker::recordAllocation(address, size, typeName);
 		return address;
 	}
 
@@ -83,10 +85,12 @@ namespace yogi::runtime {
 			RuntimeError::abortAllocation(typeName);
 		}
 
+		OwnershipTracker::recordReallocation(address, nextAddress, newSize, typeName);
 		return nextAddress;
 	}
 
 	void MemoryManager::deallocate(void *address) {
+		OwnershipTracker::recordDeallocation(address);
 		allocatorFree(address);
 	}
 
