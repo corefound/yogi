@@ -291,5 +291,13 @@ if(BUILD_TESTING)
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-function-ownership
                                 -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_function_ownership.cmake
                 )
+
+                add_test(
+                        NAME yogi_pipeline_destructor_scheduling
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-destructor-scheduling
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_destructor_scheduling.cmake
+                )
         endif()
 endif()
