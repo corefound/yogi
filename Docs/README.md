@@ -31,6 +31,7 @@ The compiler currently lowers source code through this pipeline:
 - [Variables](variables.md)
 - [Externs](externs.md)
 - [Memory Model](memory-model.md)
+- [Function Ownership](ownership.md)
 - [Backend and LLVM](backend-llvm.md)
 
 These docs describe the current implementation plus the intended direction when

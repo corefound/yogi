@@ -32,7 +32,9 @@ Values are marked as escaping when:
 - A function returns a local aggregate identifier.
 - A local aggregate aliases another aggregate that escapes.
 - A local aggregate is assigned into a global aggregate or global variable.
-- A local aggregate is passed as a function-call argument.
+- A local aggregate is passed to an unknown or external function call.
+- A known callee summary says an aggregate parameter is returned, retained, or
+  otherwise escapes.
 
 Example:
 
@@ -85,9 +87,9 @@ function run(): void {
 }
 ```
 
-`local` is treated as escaping when passed to a function call. This is
-conservative: until ownership and borrow semantics are explicit, the callee is
-allowed to retain the aggregate.
+`local` does not escape when `consume` is a known internal function whose summary
+says the parameter is only borrowed. Unknown or external calls still escape
+conservatively.
 
 Example:
 
@@ -134,12 +136,11 @@ yogi_array_drop
 That behavior is RAII-like for stack-owned aggregate descriptors: construction
 happens at declaration, and cleanup is emitted at the end of the lifetime.
 
-Escaping heap aggregates are different. The semantic analyzer now detects the
-escape and prevents stack cleanup from destroying a value that outlives the
-scope, but full ownership for escaped heap values is still a separate runtime
-feature. That future layer should decide whether escaped values are owned by a
-caller, moved, borrowed, reference counted, or attached to a module/global
-cleanup list.
+Escaping heap aggregates are different. The semantic analyzer detects the escape
+and prevents stack cleanup from destroying a value that outlives the scope.
+Function return of an aggregate is modeled as an ownership move to the caller;
+the caller becomes responsible for later cleanup when it stores that result in a
+local aggregate binding.
 
 Module-owned heap aggregates already have automatic cleanup. The backend emits a
 cleanup function per lowered module:
@@ -186,10 +187,9 @@ This escape pass does not yet model:
 - Captured variables.
 - Full inline typed object layout.
 - Full tuple layout as fixed LLVM structs.
-- Borrowed function parameters that are proven not to retain an aggregate.
-- Full `CallExpression` lowering. Escape metadata for aggregate call arguments
-  is prepared here, but generating LLVM calls belongs to the function-call lot.
-- Ownership and destruction for returned/callee-retained heap aggregates after
-  they escape beyond module-owned globals.
+- Closures and captured values.
+- Reference counting or shared ownership.
+- Explicit move/consume syntax.
+- Full destructor ordering for complex control-flow graphs.
 
 Those are expected to be added in later passes.
