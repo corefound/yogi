@@ -15,13 +15,32 @@ int main() {
 	assert(yogi_debug_ownership_enabled());
 	assert(std::strcmp(yogi_allocator_name(), YOGI_EXPECTED_ALLOCATOR) == 0);
 
+	const auto baseLiveBytes = yogi_memory_live_bytes();
+	const auto baseLiveAllocations = yogi_memory_live_allocations();
+	const auto baseAllocatedBytes = yogi_memory_total_allocated_bytes();
+	const auto baseFreedBytes = yogi_memory_total_freed_bytes();
+
 	void *raw = yogi_alloc(32);
 	assert(raw != nullptr);
+	assert(yogi_memory_live_bytes() == baseLiveBytes + 32);
+	assert(yogi_memory_live_allocations() == baseLiveAllocations + 1);
+	assert(yogi_memory_total_allocated_bytes() == baseAllocatedBytes + 32);
+
 	raw = yogi_realloc(raw, 64);
 	assert(raw != nullptr);
 	assert(yogi_debug_ownership_live_allocations() == 1);
+	assert(yogi_memory_live_bytes() == baseLiveBytes + 64);
+	assert(yogi_memory_live_allocations() == baseLiveAllocations + 1);
+	assert(yogi_memory_total_allocated_bytes() == baseAllocatedBytes + 96);
+	assert(yogi_memory_total_freed_bytes() == baseFreedBytes + 32);
+	assert(yogi_memory_peak_bytes() >= baseLiveBytes + 64);
+
 	yogi_free(raw);
 	assert(yogi_debug_ownership_live_allocations() == 0);
+	assert(yogi_memory_live_bytes() == baseLiveBytes);
+	assert(yogi_memory_live_allocations() == baseLiveAllocations);
+	assert(yogi_memory_total_freed_bytes() == baseFreedBytes + 96);
+	yogi_memory_debug_report();
 
 	void *number = yogi_any_from_number(42.5);
 	assert(yogi_any_to_number(number) == 42.5);

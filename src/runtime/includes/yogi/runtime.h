@@ -49,6 +49,12 @@ void *yogi_alloc(unsigned long long size);
 void *yogi_realloc(void *address, unsigned long long newSize);
 void yogi_free(void *address);
 const char *yogi_allocator_name(void);
+unsigned long long yogi_memory_live_bytes(void);
+unsigned long long yogi_memory_live_allocations(void);
+unsigned long long yogi_memory_total_allocated_bytes(void);
+unsigned long long yogi_memory_total_freed_bytes(void);
+unsigned long long yogi_memory_peak_bytes(void);
+void yogi_memory_debug_report(void);
 
 bool yogi_debug_ownership_enabled(void);
 unsigned long long yogi_debug_ownership_live_allocations(void);
