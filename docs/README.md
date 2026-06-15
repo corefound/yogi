@@ -32,6 +32,7 @@ The compiler currently lowers source code through this pipeline:
 - [Externs](externs.md)
 - [Memory Model](memory-model.md)
 - [Function Ownership](ownership.md)
+- [Move-State Validation](move-state-validation.md)
 - [Destructor Scheduling](destructor-scheduling.md)
 - [Runtime Debug Ownership](runtime-debug.md)
 - [Runtime Allocator](runtime-allocator.md)
