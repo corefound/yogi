@@ -139,6 +139,7 @@ export type SemanticCallExpression = {
     kind: "CallExpression";
     callee: SemanticValueInput;
     arguments: SemanticValueInput[];
+    argumentEffects?: SemanticCallArgumentEffect[];
     type: SemanticType;
     symbolId?: number;
     linkageName?: string | null;
@@ -146,6 +147,13 @@ export type SemanticCallExpression = {
     external?: boolean;
     source?: string;
     position?: SourcePosition;
+};
+
+export type SemanticCallArgumentEffect = {
+    index: number;
+    escapes: boolean;
+    mutates: boolean;
+    consumes: boolean;
 };
 
 export type SemanticArrayExpression = {

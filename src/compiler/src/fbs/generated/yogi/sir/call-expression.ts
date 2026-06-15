@@ -4,6 +4,7 @@
 
 import * as flatbuffers from 'flatbuffers';
 
+import { CallArgumentEffect } from '../../yogi/sir/call-argument-effect.js';
 import { SourcePosition } from '../../yogi/sir/source-position.js';
 import { TypeRef } from '../../yogi/sir/type-ref.js';
 import { ValueRef } from '../../yogi/sir/value-ref.js';
@@ -42,49 +43,59 @@ argumentsLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-type(obj?:TypeRef):TypeRef|null {
+argumentEffects(index: number, obj?:CallArgumentEffect):CallArgumentEffect|null {
   const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? (obj || new CallArgumentEffect()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+argumentEffectsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+type(obj?:TypeRef):TypeRef|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
   return offset ? (obj || new TypeRef()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 symbolId():number {
-  const offset = this.bb!.__offset(this.bb_pos, 10);
+  const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? this.bb!.readInt32(this.bb_pos + offset) : -1;
 }
 
 linkageName():string|null
 linkageName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 linkageName(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 12);
+  const offset = this.bb!.__offset(this.bb_pos, 14);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 qualifiedName():string|null
 qualifiedName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 qualifiedName(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 14);
+  const offset = this.bb!.__offset(this.bb_pos, 16);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 external():boolean {
-  const offset = this.bb!.__offset(this.bb_pos, 16);
+  const offset = this.bb!.__offset(this.bb_pos, 18);
   return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
 }
 
 source():string|null
 source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 source(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 18);
+  const offset = this.bb!.__offset(this.bb_pos, 20);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 position(obj?:SourcePosition):SourcePosition|null {
-  const offset = this.bb!.__offset(this.bb_pos, 20);
+  const offset = this.bb!.__offset(this.bb_pos, 22);
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startCallExpression(builder:flatbuffers.Builder) {
-  builder.startObject(9);
+  builder.startObject(10);
 }
 
 static addCallee(builder:flatbuffers.Builder, calleeOffset:flatbuffers.Offset) {
@@ -107,32 +118,48 @@ static startArgumentsVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 
+static addArgumentEffects(builder:flatbuffers.Builder, argumentEffectsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, argumentEffectsOffset, 0);
+}
+
+static createArgumentEffectsVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startArgumentEffectsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
 static addType(builder:flatbuffers.Builder, typeOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(2, typeOffset, 0);
+  builder.addFieldOffset(3, typeOffset, 0);
 }
 
 static addSymbolId(builder:flatbuffers.Builder, symbolId:number) {
-  builder.addFieldInt32(3, symbolId, -1);
+  builder.addFieldInt32(4, symbolId, -1);
 }
 
 static addLinkageName(builder:flatbuffers.Builder, linkageNameOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(4, linkageNameOffset, 0);
+  builder.addFieldOffset(5, linkageNameOffset, 0);
 }
 
 static addQualifiedName(builder:flatbuffers.Builder, qualifiedNameOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(5, qualifiedNameOffset, 0);
+  builder.addFieldOffset(6, qualifiedNameOffset, 0);
 }
 
 static addExternal(builder:flatbuffers.Builder, external:boolean) {
-  builder.addFieldInt8(6, +external, +false);
+  builder.addFieldInt8(7, +external, +false);
 }
 
 static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(7, sourceOffset, 0);
+  builder.addFieldOffset(8, sourceOffset, 0);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(8, positionOffset, 0);
+  builder.addFieldOffset(9, positionOffset, 0);
 }
 
 static endCallExpression(builder:flatbuffers.Builder):flatbuffers.Offset {

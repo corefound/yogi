@@ -117,6 +117,9 @@ struct ConditionalExpressionBuilder;
 struct CallExpression;
 struct CallExpressionBuilder;
 
+struct CallArgumentEffect;
+struct CallArgumentEffectBuilder;
+
 struct ArrayExpression;
 struct ArrayExpressionBuilder;
 
@@ -3181,19 +3184,23 @@ struct CallExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_CALLEE = 4,
     VT_ARGUMENTS = 6,
-    VT_TYPE = 8,
-    VT_SYMBOL_ID = 10,
-    VT_LINKAGE_NAME = 12,
-    VT_QUALIFIED_NAME = 14,
-    VT_EXTERNAL = 16,
-    VT_SOURCE = 18,
-    VT_POSITION = 20
+    VT_ARGUMENT_EFFECTS = 8,
+    VT_TYPE = 10,
+    VT_SYMBOL_ID = 12,
+    VT_LINKAGE_NAME = 14,
+    VT_QUALIFIED_NAME = 16,
+    VT_EXTERNAL = 18,
+    VT_SOURCE = 20,
+    VT_POSITION = 22
   };
   const Yogi::Sir::ValueRef *callee() const {
     return GetPointer<const Yogi::Sir::ValueRef *>(VT_CALLEE);
   }
   const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *arguments() const {
     return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *>(VT_ARGUMENTS);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::CallArgumentEffect>> *argument_effects() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::CallArgumentEffect>> *>(VT_ARGUMENT_EFFECTS);
   }
   const Yogi::Sir::TypeRef *type() const {
     return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
@@ -3224,6 +3231,9 @@ struct CallExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            VerifyOffset(verifier, VT_ARGUMENTS) &&
            verifier.VerifyVector(arguments()) &&
            verifier.VerifyVectorOfTables(arguments()) &&
+           VerifyOffset(verifier, VT_ARGUMENT_EFFECTS) &&
+           verifier.VerifyVector(argument_effects()) &&
+           verifier.VerifyVectorOfTables(argument_effects()) &&
            VerifyOffset(verifier, VT_TYPE) &&
            verifier.VerifyTable(type()) &&
            VerifyField<int32_t>(verifier, VT_SYMBOL_ID, 4) &&
@@ -3249,6 +3259,9 @@ struct CallExpressionBuilder {
   }
   void add_arguments(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> arguments) {
     fbb_.AddOffset(CallExpression::VT_ARGUMENTS, arguments);
+  }
+  void add_argument_effects(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::CallArgumentEffect>>> argument_effects) {
+    fbb_.AddOffset(CallExpression::VT_ARGUMENT_EFFECTS, argument_effects);
   }
   void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
     fbb_.AddOffset(CallExpression::VT_TYPE, type);
@@ -3286,6 +3299,7 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpression(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> callee = 0,
     ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> arguments = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::CallArgumentEffect>>> argument_effects = 0,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     int32_t symbol_id = -1,
     ::flatbuffers::Offset<::flatbuffers::String> linkage_name = 0,
@@ -3300,6 +3314,7 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpression(
   builder_.add_linkage_name(linkage_name);
   builder_.add_symbol_id(symbol_id);
   builder_.add_type(type);
+  builder_.add_argument_effects(argument_effects);
   builder_.add_arguments(arguments);
   builder_.add_callee(callee);
   builder_.add_external(external);
@@ -3310,6 +3325,7 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpressionDirect(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> callee = 0,
     const std::vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *arguments = nullptr,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::CallArgumentEffect>> *argument_effects = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     int32_t symbol_id = -1,
     const char *linkage_name = nullptr,
@@ -3318,6 +3334,7 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpressionDirect(
     const char *source = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
   auto arguments__ = arguments ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>(*arguments) : 0;
+  auto argument_effects__ = argument_effects ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::CallArgumentEffect>>(*argument_effects) : 0;
   auto linkage_name__ = linkage_name ? _fbb.CreateString(linkage_name) : 0;
   auto qualified_name__ = qualified_name ? _fbb.CreateString(qualified_name) : 0;
   auto source__ = source ? _fbb.CreateString(source) : 0;
@@ -3325,6 +3342,7 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpressionDirect(
       _fbb,
       callee,
       arguments__,
+      argument_effects__,
       type,
       symbol_id,
       linkage_name__,
@@ -3332,6 +3350,78 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpressionDirect(
       external,
       source__,
       position);
+}
+
+struct CallArgumentEffect FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef CallArgumentEffectBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_INDEX = 4,
+    VT_ESCAPES = 6,
+    VT_MUTATES = 8,
+    VT_CONSUMES = 10
+  };
+  int32_t index() const {
+    return GetField<int32_t>(VT_INDEX, -1);
+  }
+  bool escapes() const {
+    return GetField<uint8_t>(VT_ESCAPES, 0) != 0;
+  }
+  bool mutates() const {
+    return GetField<uint8_t>(VT_MUTATES, 0) != 0;
+  }
+  bool consumes() const {
+    return GetField<uint8_t>(VT_CONSUMES, 0) != 0;
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<int32_t>(verifier, VT_INDEX, 4) &&
+           VerifyField<uint8_t>(verifier, VT_ESCAPES, 1) &&
+           VerifyField<uint8_t>(verifier, VT_MUTATES, 1) &&
+           VerifyField<uint8_t>(verifier, VT_CONSUMES, 1) &&
+           verifier.EndTable();
+  }
+};
+
+struct CallArgumentEffectBuilder {
+  typedef CallArgumentEffect Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_index(int32_t index) {
+    fbb_.AddElement<int32_t>(CallArgumentEffect::VT_INDEX, index, -1);
+  }
+  void add_escapes(bool escapes) {
+    fbb_.AddElement<uint8_t>(CallArgumentEffect::VT_ESCAPES, static_cast<uint8_t>(escapes), 0);
+  }
+  void add_mutates(bool mutates) {
+    fbb_.AddElement<uint8_t>(CallArgumentEffect::VT_MUTATES, static_cast<uint8_t>(mutates), 0);
+  }
+  void add_consumes(bool consumes) {
+    fbb_.AddElement<uint8_t>(CallArgumentEffect::VT_CONSUMES, static_cast<uint8_t>(consumes), 0);
+  }
+  explicit CallArgumentEffectBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<CallArgumentEffect> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<CallArgumentEffect>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<CallArgumentEffect> CreateCallArgumentEffect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    int32_t index = -1,
+    bool escapes = false,
+    bool mutates = false,
+    bool consumes = false) {
+  CallArgumentEffectBuilder builder_(_fbb);
+  builder_.add_index(index);
+  builder_.add_consumes(consumes);
+  builder_.add_mutates(mutates);
+  builder_.add_escapes(escapes);
+  return builder_.Finish();
 }
 
 struct ArrayExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {

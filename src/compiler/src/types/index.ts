@@ -21,6 +21,7 @@ export namespace Types {
         export type SemanticAssignmentExpression = SirTypes.SemanticAssignmentExpression;
         export type SemanticConditionalExpression = SirTypes.SemanticConditionalExpression;
         export type SemanticCallExpression = SirTypes.SemanticCallExpression;
+        export type SemanticCallArgumentEffect = SirTypes.SemanticCallArgumentEffect;
         export type SemanticArrayExpression = SirTypes.SemanticArrayExpression;
         export type SemanticObjectProperty = SirTypes.SemanticObjectProperty;
         export type SemanticObjectExpression = SirTypes.SemanticObjectExpression;

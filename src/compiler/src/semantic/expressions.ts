@@ -198,18 +198,31 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 kind: Kinds.Types.UnknownType,
                 raw: "unknown",
             });
+            const effectSummary = symbol.effectSummary ?? null;
+            const external = symbol.ambient === true || symbol.declare === true || !effectSummary;
+            const argumentEffects = args.map((_: any, index: number) => {
+                const effect = effectSummary?.parameterEffects?.[index];
+
+                return {
+                    index,
+                    escapes: external ? this.isAggregateType(parameters[index]?.type) : effect?.escapes === true,
+                    mutates: effect?.mutates === true,
+                    consumes: effect?.consumes === true,
+                };
+            });
 
             return {
                 ...node,
                 kind: Kinds.Expressions.CallExpression,
                 callee,
                 arguments: args,
+                argumentEffects,
                 type: returnType,
                 symbolId: symbol.id,
                 linkageName: symbol.linkageName ?? null,
                 qualifiedName: symbol.qualifiedName,
-                external: symbol.ambient === true || symbol.declare === true || !symbol.effectSummary,
-                effectSummary: symbol.effectSummary ?? null,
+                external,
+                effectSummary,
             };
         }
 

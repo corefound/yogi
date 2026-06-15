@@ -61,6 +61,7 @@ table ConditionalExpression {
 table CallExpression {
   callee:ValueRef;
   arguments:[ValueRef];
+  argument_effects:[CallArgumentEffect];
   type:TypeRef;
   symbol_id:int = -1;
   linkage_name:string;
@@ -68,6 +69,13 @@ table CallExpression {
   external:bool = false;
   source:string;
   position:SourcePosition;
+}
+
+table CallArgumentEffect {
+  index:int = -1;
+  escapes:bool = false;
+  mutates:bool = false;
+  consumes:bool = false;
 }
 
 table ArrayExpression {

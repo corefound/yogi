@@ -8,6 +8,7 @@ export { AssignmentExpression } from './sir/assignment-expression.js';
 export { BinaryExpression } from './sir/binary-expression.js';
 export { BlockStatement } from './sir/block-statement.js';
 export { BooleanConstant } from './sir/boolean-constant.js';
+export { CallArgumentEffect } from './sir/call-argument-effect.js';
 export { CallExpression } from './sir/call-expression.js';
 export { ConditionalExpression } from './sir/conditional-expression.js';
 export { Constant } from './sir/constant.js';

@@ -23,6 +23,7 @@ import {
     AssignmentExpression,
     ConditionalExpression,
     CallExpression,
+    CallArgumentEffect,
     ArrayExpression,
     ObjectExpression,
     ObjectProperty,
@@ -674,6 +675,18 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const argumentsVector = createVector(builder, argumentOffsets, (length) => {
                 CallExpression.startArgumentsVector(builder, length);
             });
+            const argumentEffectOffsets = (expression.argumentEffects ?? []).map((effect) => {
+                return CallArgumentEffect.createCallArgumentEffect(
+                    builder,
+                    effect.index,
+                    effect.escapes,
+                    effect.mutates,
+                    effect.consumes,
+                );
+            });
+            const argumentEffectsVector = createVector(builder, argumentEffectOffsets, (length) => {
+                CallExpression.startArgumentEffectsVector(builder, length);
+            });
             const type = this.createTypeRef(builder, expression.type);
             const linkageName = builder.createString(expression.linkageName ?? "");
             const qualifiedName = builder.createString(expression.qualifiedName ?? "");
@@ -683,6 +696,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             CallExpression.startCallExpression(builder);
             CallExpression.addCallee(builder, callee);
             CallExpression.addArguments(builder, argumentsVector);
+            CallExpression.addArgumentEffects(builder, argumentEffectsVector);
             CallExpression.addType(builder, type);
             CallExpression.addSymbolId(builder, expression.symbolId ?? -1);
             CallExpression.addLinkageName(builder, linkageName);
