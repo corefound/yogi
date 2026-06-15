@@ -51,6 +51,10 @@ void yogi_debug_ownership_reset(void);
 These are debug/tooling hooks. Generated user code does not need to call them.
 Tests and future tooling can use them to inspect runtime state.
 
+Memory volume counters live in a separate telemetry layer. See
+[Runtime Memory Telemetry](runtime-memory-telemetry.md) for live bytes, total
+allocated/freed bytes, peak memory, and the compact debug report ABI.
+
 ## Double Free
 
 ```c
