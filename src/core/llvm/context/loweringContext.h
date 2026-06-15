@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -30,9 +31,12 @@ namespace yogi::core::llvm::internal {
 	class ModuleLoweringContext {
 		public:
 			struct LocalAggregateCleanup {
+				std::string owner;
+				int symbolId;
 				const Yogi::Sir::TypeRef *type;
 				::llvm::Value *value;
 				bool heapOwned;
+				bool active;
 			};
 
 			ModuleLoweringContext(
@@ -53,6 +57,18 @@ namespace yogi::core::llvm::internal {
 				::llvm::Type *returnType,
 				const std::vector<::llvm::Type *> &parameters
 			);
+			void clearLocalState();
+			void registerAggregateOwner(
+				const std::string &name,
+				int symbolId,
+				const Yogi::Sir::TypeRef *type,
+				::llvm::Value *value,
+				bool heapOwned
+			);
+			void aliasAggregateOwner(const std::string &alias, const std::string &source);
+			std::optional<std::string> resolveAggregateOwner(const std::string &name) const;
+			void deactivateAggregateOwner(const std::string &name);
+			void deactivateAggregateOwner(int symbolId);
 
 			const Yogi::Build::ModuleMeta *moduleMeta;
 			const Yogi::Sir::Module *sirModule;
@@ -65,6 +81,7 @@ namespace yogi::core::llvm::internal {
 			std::map<std::string, const Yogi::Sir::TypeRef *> localTypes;
 			std::map<std::string, Yogi::Sir::TypeKind> globalTypeKinds;
 			std::map<std::string, Yogi::Sir::TypeKind> localTypeKinds;
+			std::map<std::string, std::string> aggregateAliases;
 			std::vector<LocalAggregateCleanup> localAggregateCleanups;
 			const Yogi::Sir::TypeRef *currentReturnType = nullptr;
 	};

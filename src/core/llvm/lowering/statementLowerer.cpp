@@ -9,7 +9,24 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Type.h>
 
+#include <map>
+
 namespace yogi::core::llvm::internal {
+
+	namespace {
+		std::string identifierName(const Yogi::Sir::ValueRef *value) {
+			const auto *identifier = value ? value->identifier() : nullptr;
+			return identifier ? fbString(identifier->name()) : "";
+		}
+
+		struct OwnershipState {
+			std::map<std::string, ::llvm::AllocaInst *> locals;
+			std::map<std::string, const Yogi::Sir::TypeRef *> localTypes;
+			std::map<std::string, Yogi::Sir::TypeKind> localTypeKinds;
+			std::map<std::string, std::string> aggregateAliases;
+			std::vector<ModuleLoweringContext::LocalAggregateCleanup> localAggregateCleanups;
+		};
+	}
 
 	StatementLowerer::StatementLowerer(
 		ModuleLoweringContext &context,
@@ -32,10 +49,7 @@ namespace yogi::core::llvm::internal {
 		);
 		auto *entry = ::llvm::BasicBlock::Create(context.llvmContext, "entry", function);
 		context.builder.SetInsertPoint(entry);
-		context.locals.clear();
-		context.localTypes.clear();
-		context.localTypeKinds.clear();
-		context.localAggregateCleanups.clear();
+		context.clearLocalState();
 
 		for (const auto *node: *context.sirModule->nodes()) {
 			if (!node->value_as_FunctionDeclaration()) {
@@ -47,10 +61,7 @@ namespace yogi::core::llvm::internal {
 			context.builder.CreateRetVoid();
 		}
 
-		context.locals.clear();
-		context.localTypes.clear();
-		context.localTypeKinds.clear();
-		context.localAggregateCleanups.clear();
+		context.clearLocalState();
 	}
 
 	void StatementLowerer::lowerModuleCleanup() {
@@ -210,6 +221,11 @@ namespace yogi::core::llvm::internal {
 			context.currentReturnType
 		);
 
+		const auto returnedName = identifierName(statement->value());
+		if (!returnedName.empty()) {
+			context.deactivateAggregateOwner(returnedName);
+		}
+
 		emitLocalCleanups();
 		context.builder.CreateRet(returnValue);
 	}
@@ -225,6 +241,10 @@ namespace yogi::core::llvm::internal {
 
 		for (auto index = context.localAggregateCleanups.size(); index > firstCleanup; --index) {
 			const auto &cleanup = context.localAggregateCleanups[index - 1];
+			if (!cleanup.active) {
+				continue;
+			}
+
 			if (cleanup.heapOwned) {
 				values.destroyEscapedAggregate(cleanup.type, cleanup.value);
 			} else {
@@ -236,6 +256,41 @@ namespace yogi::core::llvm::internal {
 	}
 
 	void StatementLowerer::lowerIf(const Yogi::Sir::IfStatement *statement) {
+		const auto captureState = [&]() {
+			return OwnershipState{
+				context.locals,
+				context.localTypes,
+				context.localTypeKinds,
+				context.aggregateAliases,
+				context.localAggregateCleanups,
+			};
+		};
+		const auto restoreState = [&](const OwnershipState &state) {
+			context.locals = state.locals;
+			context.localTypes = state.localTypes;
+			context.localTypeKinds = state.localTypeKinds;
+			context.aggregateAliases = state.aggregateAliases;
+			context.localAggregateCleanups = state.localAggregateCleanups;
+		};
+		const auto mergeState = [&](const OwnershipState &base, const std::vector<OwnershipState> &reachableStates) {
+			auto merged = base;
+
+			for (std::size_t cleanupIndex = 0; cleanupIndex < merged.localAggregateCleanups.size(); ++cleanupIndex) {
+				for (const auto &state: reachableStates) {
+					if (cleanupIndex >= state.localAggregateCleanups.size()) {
+						merged.localAggregateCleanups[cleanupIndex].active = false;
+						continue;
+					}
+
+					if (!state.localAggregateCleanups[cleanupIndex].active) {
+						merged.localAggregateCleanups[cleanupIndex].active = false;
+					}
+				}
+			}
+
+			return merged;
+		};
+
 		auto *function = context.builder.GetInsertBlock()->getParent();
 		auto *condition = values.toBoolean(values.lower(statement->condition(), ::llvm::Type::getInt1Ty(context.llvmContext)));
 		auto *thenBlock = ::llvm::BasicBlock::Create(context.llvmContext, "if.then", function);
@@ -243,24 +298,39 @@ namespace yogi::core::llvm::internal {
 			? ::llvm::BasicBlock::Create(context.llvmContext, "if.else", function)
 			: nullptr;
 		auto *mergeBlock = ::llvm::BasicBlock::Create(context.llvmContext, "if.end", function);
+		const auto incomingState = captureState();
+		std::vector<OwnershipState> reachableStates;
 
 		context.builder.CreateCondBr(condition, thenBlock, elseBlock ? elseBlock : mergeBlock);
 
 		context.builder.SetInsertPoint(thenBlock);
+		restoreState(incomingState);
 		lowerBlock(statement->then_block());
 		if (!context.builder.GetInsertBlock()->hasTerminator()) {
 			context.builder.CreateBr(mergeBlock);
+			reachableStates.push_back(captureState());
 		}
 
 		if (elseBlock) {
 			context.builder.SetInsertPoint(elseBlock);
+			restoreState(incomingState);
 			lowerBlock(statement->else_block());
 			if (!context.builder.GetInsertBlock()->hasTerminator()) {
 				context.builder.CreateBr(mergeBlock);
+				reachableStates.push_back(captureState());
 			}
+		} else {
+			reachableStates.push_back(incomingState);
 		}
 
 		context.builder.SetInsertPoint(mergeBlock);
+		if (reachableStates.empty()) {
+			context.builder.CreateUnreachable();
+			restoreState(incomingState);
+			return;
+		}
+
+		restoreState(mergeState(incomingState, reachableStates));
 	}
 
 } // namespace yogi::core::llvm::internal

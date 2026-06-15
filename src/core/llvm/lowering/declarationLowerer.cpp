@@ -66,6 +66,8 @@ namespace yogi::core::llvm::internal {
 
 	void VariableLowerer::lowerVariable(const Yogi::Sir::VariableDeclaration *variable) {
 		auto *type = types.lower(variable->type());
+		const auto name = fbString(variable->name());
+		const auto isGlobalVariable = context.globals.contains(name);
 		const auto isAggregateType = [](const Yogi::Sir::TypeRef *typeRef) {
 			if (!typeRef) {
 				return false;
@@ -79,42 +81,51 @@ namespace yogi::core::llvm::internal {
 				kind == Yogi::Sir::TypeKind_tuple_type ||
 				kind == Yogi::Sir::TypeKind_type_literal;
 		};
+		const auto isOwnedAggregateInitializer =
+			variable->value() &&
+			(
+				values.isAggregateLiteral(variable->value()) ||
+				variable->value()->call()
+			);
 		const auto isLocalStackAggregate =
+			!isGlobalVariable &&
 			fbString(variable->storage()) == "stack" &&
 			!variable->escapes() &&
 			values.isAggregateLiteral(variable->value());
 		const auto isLocalOwnedHeapAggregate =
+			!isGlobalVariable &&
 			fbString(variable->storage()) == "stack" &&
-			!variable->escapes() &&
 			isAggregateType(variable->type()) &&
-			variable->value() &&
-			variable->value()->call();
+			isOwnedAggregateInitializer &&
+			!isLocalStackAggregate;
 
 		auto *initializer = isLocalStackAggregate
-			? values.lowerLocalAggregate(variable->value(), fbString(variable->name()))
+			? values.lowerLocalAggregate(variable->value(), name)
 			: values.lower(variable->value(), type, variable->type());
 
-		if (context.globals.contains(fbString(variable->name()))) {
+		if (isGlobalVariable) {
 			context.builder.CreateStore(
 				values.cast(initializer, type, variable->type()),
-				context.globals[fbString(variable->name())]
+				context.globals[name]
 			);
 			return;
 		}
 
 		auto *function = context.builder.GetInsertBlock()->getParent();
-		auto *slot = context.createEntryAlloca(function, fbString(variable->name()), type);
+		auto *slot = context.createEntryAlloca(function, name, type);
 		context.builder.CreateStore(values.cast(initializer, type, variable->type()), slot);
-		context.locals[fbString(variable->name())] = slot;
-		context.localTypes[fbString(variable->name())] = variable->type();
-		context.localTypeKinds[fbString(variable->name())] = variable->type()->kind();
+		context.locals[name] = slot;
+		context.localTypes[name] = variable->type();
+		context.localTypeKinds[name] = variable->type()->kind();
 
 		if (isLocalStackAggregate) {
-			context.localAggregateCleanups.push_back({variable->type(), initializer, false});
-		}
-
-		if (isLocalOwnedHeapAggregate) {
-			context.localAggregateCleanups.push_back({variable->type(), initializer, true});
+			context.registerAggregateOwner(name, variable->symbol_id(), variable->type(), initializer, false);
+		} else if (isLocalOwnedHeapAggregate) {
+			context.registerAggregateOwner(name, variable->symbol_id(), variable->type(), initializer, true);
+		} else if (isAggregateType(variable->type())) {
+			if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
+				context.aliasAggregateOwner(name, fbString(identifier->name()));
+			}
 		}
 	}
 
@@ -161,10 +172,7 @@ namespace yogi::core::llvm::internal {
 
 		auto *entry = ::llvm::BasicBlock::Create(context.llvmContext, "entry", llvmFunction);
 		context.builder.SetInsertPoint(entry);
-		context.locals.clear();
-		context.localTypes.clear();
-		context.localTypeKinds.clear();
-		context.localAggregateCleanups.clear();
+		context.clearLocalState();
 		context.currentReturnType = function->return_type();
 
 		unsigned index = 0;
@@ -196,10 +204,7 @@ namespace yogi::core::llvm::internal {
 			}
 		}
 
-		context.locals.clear();
-		context.localTypes.clear();
-		context.localTypeKinds.clear();
-		context.localAggregateCleanups.clear();
+		context.clearLocalState();
 		context.currentReturnType = nullptr;
 	}
 

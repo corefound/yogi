@@ -11,6 +11,13 @@
 
 namespace yogi::core::llvm::internal {
 
+	namespace {
+		std::string identifierName(const Yogi::Sir::ValueRef *value) {
+			const auto *identifier = value ? value->identifier() : nullptr;
+			return identifier ? fbString(identifier->name()) : "";
+		}
+	}
+
 	ValueLowerer::ValueLowerer(ModuleLoweringContext &context, TypeLowerer &types)
 		: context(context),
 		  types(types) {}
@@ -80,11 +87,23 @@ namespace yogi::core::llvm::internal {
 		std::vector<::llvm::Type *> argumentTypes;
 
 		if (call->arguments()) {
-			for (const auto *argument: *call->arguments()) {
+			for (flatbuffers::uoffset_t index = 0; index < call->arguments()->size(); ++index) {
+				const auto *argument = call->arguments()->Get(index);
 				const auto *argumentSemanticType = valueSemanticType(argument);
 				auto *argumentType = types.lower(argumentSemanticType);
 				arguments.push_back(lower(argument, argumentType, argumentSemanticType));
 				argumentTypes.push_back(argumentType);
+
+				const auto *effect = call->argument_effects() && index < call->argument_effects()->size()
+					? call->argument_effects()->Get(index)
+					: nullptr;
+
+				if (effect && effect->escapes()) {
+					const auto name = identifierName(argument);
+					if (!name.empty()) {
+						context.deactivateAggregateOwner(name);
+					}
+				}
 			}
 		}
 
@@ -423,6 +442,13 @@ namespace yogi::core::llvm::internal {
 			auto *object = lower(property->object(), opaquePointer(), valueSemanticType(property->object()));
 			auto *key = context.builder.CreateGlobalString(fbString(property->property()));
 			callRuntime("yogi_object_set", ::llvm::Type::getVoidTy(context.llvmContext), {object, key, boxedValue});
+			const auto objectName = identifierName(property->object());
+			const auto rightName = identifierName(assignment->right());
+
+			if (!objectName.empty() && context.globals.contains(objectName) && !rightName.empty()) {
+				context.deactivateAggregateOwner(rightName);
+			}
+
 			return cast(rightValue, types.lower(property->type()), property->type(), rightType);
 		}
 
@@ -430,6 +456,13 @@ namespace yogi::core::llvm::internal {
 			auto *array = lower(element->object(), opaquePointer(), valueSemanticType(element->object()));
 			auto *indexValue = lower(element->index(), ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(element->index()));
 			callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, toIndex(indexValue), boxedValue});
+			const auto objectName = identifierName(element->object());
+			const auto rightName = identifierName(assignment->right());
+
+			if (!objectName.empty() && context.globals.contains(objectName) && !rightName.empty()) {
+				context.deactivateAggregateOwner(rightName);
+			}
+
 			return cast(rightValue, types.lower(element->type()), element->type(), rightType);
 		}
 
@@ -467,6 +500,15 @@ namespace yogi::core::llvm::internal {
 			targetSemanticType
 		);
 		context.builder.CreateStore(value, target);
+
+		if (context.globals.contains(name)) {
+			const auto rightName = identifierName(assignment->right());
+			if (!rightName.empty()) {
+				context.deactivateAggregateOwner(rightName);
+			}
+		} else if (const auto *rightIdentifier = assignment->right() ? assignment->right()->identifier() : nullptr) {
+			context.aliasAggregateOwner(name, fbString(rightIdentifier->name()));
+		}
 
 		return value;
 	}

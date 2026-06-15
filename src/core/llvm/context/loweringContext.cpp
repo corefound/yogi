@@ -87,6 +87,87 @@ namespace yogi::core::llvm::internal {
 			module.get()
 		);
 	}
+
+	void ModuleLoweringContext::clearLocalState() {
+		locals.clear();
+		localTypes.clear();
+		localTypeKinds.clear();
+		aggregateAliases.clear();
+		localAggregateCleanups.clear();
+	}
+
+	void ModuleLoweringContext::registerAggregateOwner(
+		const std::string &name,
+		int symbolId,
+		const Yogi::Sir::TypeRef *type,
+		::llvm::Value *value,
+		bool heapOwned
+	) {
+		aggregateAliases[name] = name;
+		localAggregateCleanups.push_back({
+			name,
+			symbolId,
+			type,
+			value,
+			heapOwned,
+			true,
+		});
+	}
+
+	void ModuleLoweringContext::aliasAggregateOwner(
+		const std::string &alias,
+		const std::string &source
+	) {
+		const auto owner = resolveAggregateOwner(source);
+		if (owner) {
+			aggregateAliases[alias] = *owner;
+		}
+	}
+
+	std::optional<std::string> ModuleLoweringContext::resolveAggregateOwner(const std::string &name) const {
+		auto current = name;
+
+		for (std::size_t depth = 0; depth < aggregateAliases.size() + 1; ++depth) {
+			const auto alias = aggregateAliases.find(current);
+
+			if (alias == aggregateAliases.end()) {
+				return std::nullopt;
+			}
+
+			if (alias->second == current) {
+				return current;
+			}
+
+			current = alias->second;
+		}
+
+		return std::nullopt;
+	}
+
+	void ModuleLoweringContext::deactivateAggregateOwner(const std::string &name) {
+		const auto owner = resolveAggregateOwner(name);
+		if (!owner) {
+			return;
+		}
+
+		for (auto &cleanup: localAggregateCleanups) {
+			if (cleanup.owner == *owner) {
+				cleanup.active = false;
+			}
+		}
+	}
+
+	void ModuleLoweringContext::deactivateAggregateOwner(int symbolId) {
+		if (symbolId < 0) {
+			return;
+		}
+
+		for (auto &cleanup: localAggregateCleanups) {
+			if (cleanup.symbolId == symbolId) {
+				cleanup.active = false;
+			}
+		}
+	}
 #endif
 
 } // namespace yogi::core::llvm::internal
