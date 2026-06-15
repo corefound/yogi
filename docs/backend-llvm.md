@@ -37,6 +37,11 @@ packages/.cache/yogi
 LLD is used through the LLVM toolchain configured by CMake. External links from
 global metadata are included in the final link step.
 
+The generated executable link also receives the Yogi runtime archive and, when
+needed, the allocator archive selected by `YOGI_ALLOCATOR`. The backend still
+emits calls only to `yogi_alloc`, `yogi_realloc`, and `yogi_free`; concrete
+allocator calls stay inside the runtime.
+
 ## Runtime ABI
 
 Generated LLVM IR calls the Yogi runtime for behavior that should not be

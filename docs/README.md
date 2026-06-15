@@ -34,6 +34,7 @@ The compiler currently lowers source code through this pipeline:
 - [Function Ownership](ownership.md)
 - [Destructor Scheduling](destructor-scheduling.md)
 - [Runtime Debug Ownership](runtime-debug.md)
+- [Runtime Allocator](runtime-allocator.md)
 - [Backend and LLVM](backend-llvm.md)
 
 These docs describe the current implementation plus the intended direction when

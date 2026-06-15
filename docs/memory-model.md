@@ -179,7 +179,13 @@ The runtime can be configured for:
 
 - mimalloc
 - jemalloc
-- system malloc fallback
+- system allocator, selected explicitly
+
+The concrete allocator is a build-time runtime choice controlled by
+`-DYOGI_ALLOCATOR=mimalloc`, `-DYOGI_ALLOCATOR=jemalloc`, or
+`-DYOGI_ALLOCATOR=system`. Generated LLVM IR still calls only the Yogi ABI
+above. See [Runtime Allocator](runtime-allocator.md) for the current allocator
+build/link rules and `yogi_allocator_name()` debug hook.
 
 ## Runtime Debug Ownership
 
