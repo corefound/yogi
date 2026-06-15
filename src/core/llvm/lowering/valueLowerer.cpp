@@ -44,6 +44,10 @@ namespace yogi::core::llvm::internal {
 			return lowerConditional(conditional, expectedType, expectedSemanticType);
 		}
 
+		if (const auto *call = value->call()) {
+			return lowerCall(call, expectedType, expectedSemanticType);
+		}
+
 		if (const auto *array = value->array()) {
 			return lowerArray(array, expectedType, expectedSemanticType);
 		}
@@ -65,6 +69,58 @@ namespace yogi::core::llvm::internal {
 		}
 
 		return types.zero(expectedType);
+	}
+
+	::llvm::Value *ValueLowerer::lowerCall(
+		const Yogi::Sir::CallExpression *call,
+		::llvm::Type *expectedType,
+		const Yogi::Sir::TypeRef *expectedSemanticType
+	) {
+		std::vector<::llvm::Value *> arguments;
+		std::vector<::llvm::Type *> argumentTypes;
+
+		if (call->arguments()) {
+			for (const auto *argument: *call->arguments()) {
+				const auto *argumentSemanticType = valueSemanticType(argument);
+				auto *argumentType = types.lower(argumentSemanticType);
+				arguments.push_back(lower(argument, argumentType, argumentSemanticType));
+				argumentTypes.push_back(argumentType);
+			}
+		}
+
+		auto *returnType = types.lower(call->type());
+		std::string functionName;
+
+		if (call->external()) {
+			if (const auto *identifier = call->callee() ? call->callee()->identifier() : nullptr) {
+				functionName = fbString(identifier->name());
+			}
+		}
+
+		if (functionName.empty()) {
+			functionName = "_yogi_fn_" + sanitizeSymbol(fbString(call->qualified_name()));
+		}
+
+		auto *function = context.module->getFunction(functionName);
+
+		if (!function) {
+			auto *functionType = ::llvm::FunctionType::get(returnType, argumentTypes, false);
+			function = ::llvm::Function::Create(
+				functionType,
+				call->external()
+					? ::llvm::Function::ExternalLinkage
+					: ::llvm::Function::InternalLinkage,
+				functionName,
+				context.module.get()
+			);
+		}
+
+		if (returnType->isVoidTy()) {
+			return context.builder.CreateCall(function, arguments);
+		}
+
+		auto *result = context.builder.CreateCall(function, arguments, sanitizeSymbol(functionName) + ".call");
+		return cast(result, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
 	}
 
 	::llvm::Value *ValueLowerer::lowerConstant(
@@ -893,6 +949,10 @@ namespace yogi::core::llvm::internal {
 
 		if (const auto *assignment = value->aggregate_assignment()) {
 			return assignment->type();
+		}
+
+		if (const auto *call = value->call()) {
+			return call->type();
 		}
 
 		return nullptr;

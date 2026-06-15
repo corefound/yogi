@@ -174,6 +174,11 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
+		if (const auto *call = node->value_as_CallExpression()) {
+			values.lowerCall(call, types.lower(call->type()), call->type());
+			return;
+		}
+
 		if (const auto *assignment = node->value_as_AggregateAssignmentExpression()) {
 			values.lowerAggregateAssignment(assignment);
 			return;
@@ -220,7 +225,11 @@ namespace yogi::core::llvm::internal {
 
 		for (auto index = context.localAggregateCleanups.size(); index > firstCleanup; --index) {
 			const auto &cleanup = context.localAggregateCleanups[index - 1];
-			values.dropLocalAggregate(cleanup.type, cleanup.value);
+			if (cleanup.heapOwned) {
+				values.destroyEscapedAggregate(cleanup.type, cleanup.value);
+			} else {
+				values.dropLocalAggregate(cleanup.type, cleanup.value);
+			}
 		}
 
 		context.localAggregateCleanups.resize(firstCleanup);

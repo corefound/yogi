@@ -28,6 +28,11 @@ namespace yogi::core::llvm::internal {
 				::llvm::Type *expectedType,
 				const Yogi::Sir::TypeRef *expectedSemanticType = nullptr
 			);
+			::llvm::Value *lowerCall(
+				const Yogi::Sir::CallExpression *call,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType = nullptr
+			);
 			::llvm::Value *lowerAggregateAssignment(
 				const Yogi::Sir::AggregateAssignmentExpression *assignment
 			);

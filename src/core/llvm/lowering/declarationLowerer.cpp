@@ -66,10 +66,29 @@ namespace yogi::core::llvm::internal {
 
 	void VariableLowerer::lowerVariable(const Yogi::Sir::VariableDeclaration *variable) {
 		auto *type = types.lower(variable->type());
+		const auto isAggregateType = [](const Yogi::Sir::TypeRef *typeRef) {
+			if (!typeRef) {
+				return false;
+			}
+
+			const auto kind = typeRef->resolved()
+				? typeRef->resolved()->kind()
+				: typeRef->kind();
+
+			return kind == Yogi::Sir::TypeKind_array_type ||
+				kind == Yogi::Sir::TypeKind_tuple_type ||
+				kind == Yogi::Sir::TypeKind_type_literal;
+		};
 		const auto isLocalStackAggregate =
 			fbString(variable->storage()) == "stack" &&
 			!variable->escapes() &&
 			values.isAggregateLiteral(variable->value());
+		const auto isLocalOwnedHeapAggregate =
+			fbString(variable->storage()) == "stack" &&
+			!variable->escapes() &&
+			isAggregateType(variable->type()) &&
+			variable->value() &&
+			variable->value()->call();
 
 		auto *initializer = isLocalStackAggregate
 			? values.lowerLocalAggregate(variable->value(), fbString(variable->name()))
@@ -91,7 +110,11 @@ namespace yogi::core::llvm::internal {
 		context.localTypeKinds[fbString(variable->name())] = variable->type()->kind();
 
 		if (isLocalStackAggregate) {
-			context.localAggregateCleanups.push_back({variable->type(), initializer});
+			context.localAggregateCleanups.push_back({variable->type(), initializer, false});
+		}
+
+		if (isLocalOwnedHeapAggregate) {
+			context.localAggregateCleanups.push_back({variable->type(), initializer, true});
 		}
 	}
 

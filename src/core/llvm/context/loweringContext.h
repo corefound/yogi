@@ -32,6 +32,7 @@ namespace yogi::core::llvm::internal {
 			struct LocalAggregateCleanup {
 				const Yogi::Sir::TypeRef *type;
 				::llvm::Value *value;
+				bool heapOwned;
 			};
 
 			ModuleLoweringContext(
