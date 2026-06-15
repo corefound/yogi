@@ -88,6 +88,27 @@ namespace yogi::core::llvm::internal {
 		);
 	}
 
+	void ModuleLoweringContext::pushMemoryContext(const std::string &functionName) {
+		auto *pointerType = ::llvm::PointerType::getUnqual(llvmContext);
+		auto *function = runtimeFunction(
+			"yogi_memory_push_context",
+			::llvm::Type::getVoidTy(llvmContext),
+			{pointerType, pointerType}
+		);
+		auto *moduleValue = builder.CreateGlobalString(moduleName());
+		auto *functionValue = builder.CreateGlobalString(functionName);
+		builder.CreateCall(function, {moduleValue, functionValue});
+	}
+
+	void ModuleLoweringContext::popMemoryContext() {
+		auto *function = runtimeFunction(
+			"yogi_memory_pop_context",
+			::llvm::Type::getVoidTy(llvmContext),
+			{}
+		);
+		builder.CreateCall(function);
+	}
+
 	void ModuleLoweringContext::clearLocalState() {
 		locals.clear();
 		localTypes.clear();

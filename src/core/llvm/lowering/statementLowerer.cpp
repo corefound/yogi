@@ -50,6 +50,7 @@ namespace yogi::core::llvm::internal {
 		auto *entry = ::llvm::BasicBlock::Create(context.llvmContext, "entry", function);
 		context.builder.SetInsertPoint(entry);
 		context.clearLocalState();
+		context.pushMemoryContext("$module.init");
 
 		for (const auto *node: *context.sirModule->nodes()) {
 			if (!node->value_as_FunctionDeclaration()) {
@@ -58,6 +59,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (!context.builder.GetInsertBlock()->hasTerminator()) {
+			context.popMemoryContext();
 			context.builder.CreateRetVoid();
 		}
 
@@ -74,6 +76,7 @@ namespace yogi::core::llvm::internal {
 		);
 		auto *entry = ::llvm::BasicBlock::Create(context.llvmContext, "entry", function);
 		context.builder.SetInsertPoint(entry);
+		context.pushMemoryContext("$module.cleanup");
 
 		for (const auto *node: *context.sirModule->nodes()) {
 			const auto *variable = node->value_as_VariableDeclaration();
@@ -88,6 +91,7 @@ namespace yogi::core::llvm::internal {
 			context.builder.CreateStore(::llvm::Constant::getNullValue(global->getValueType()), global);
 		}
 
+		context.popMemoryContext();
 		context.builder.CreateRetVoid();
 	}
 
@@ -108,6 +112,7 @@ namespace yogi::core::llvm::internal {
 		);
 		auto *entry = ::llvm::BasicBlock::Create(context.llvmContext, "entry", function);
 		context.builder.SetInsertPoint(entry);
+		context.pushMemoryContext("main");
 
 		auto *initializerType = ::llvm::FunctionType::get(::llvm::Type::getVoidTy(context.llvmContext), false);
 
@@ -141,6 +146,7 @@ namespace yogi::core::llvm::internal {
 			context.builder.CreateCall(cleanup);
 		}
 
+		context.popMemoryContext();
 		context.builder.CreateRet(::llvm::ConstantInt::get(::llvm::Type::getInt32Ty(context.llvmContext), 0));
 	}
 
@@ -211,6 +217,7 @@ namespace yogi::core::llvm::internal {
 
 		if (returnType->isVoidTy()) {
 			emitLocalCleanups();
+			context.popMemoryContext();
 			context.builder.CreateRetVoid();
 			return;
 		}
@@ -227,6 +234,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		emitLocalCleanups();
+		context.popMemoryContext();
 		context.builder.CreateRet(returnValue);
 	}
 

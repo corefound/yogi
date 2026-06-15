@@ -54,6 +54,15 @@ unsigned long long yogi_memory_live_allocations(void);
 unsigned long long yogi_memory_total_allocated_bytes(void);
 unsigned long long yogi_memory_total_freed_bytes(void);
 unsigned long long yogi_memory_peak_bytes(void);
+void yogi_memory_push_context(const char *moduleName, const char *functionName);
+void yogi_memory_pop_context(void);
+const char *yogi_memory_current_module(void);
+const char *yogi_memory_current_function(void);
+unsigned long long yogi_memory_attributed_live_bytes(const char *moduleName, const char *functionName);
+unsigned long long yogi_memory_attributed_live_allocations(const char *moduleName, const char *functionName);
+unsigned long long yogi_memory_attributed_total_allocated_bytes(const char *moduleName, const char *functionName);
+unsigned long long yogi_memory_attributed_total_freed_bytes(const char *moduleName, const char *functionName);
+unsigned long long yogi_memory_attributed_peak_bytes(const char *moduleName, const char *functionName);
 void yogi_memory_debug_report(void);
 
 bool yogi_debug_ownership_enabled(void);

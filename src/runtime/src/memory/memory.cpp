@@ -129,6 +129,42 @@ namespace yogi::runtime {
 		return MemoryTelemetry::peakBytes();
 	}
 
+	void MemoryManager::pushMemoryContext(const char *moduleName, const char *functionName) {
+		MemoryTelemetry::pushContext(moduleName, functionName);
+	}
+
+	void MemoryManager::popMemoryContext() {
+		MemoryTelemetry::popContext();
+	}
+
+	const char *MemoryManager::currentMemoryModule() {
+		return MemoryTelemetry::currentModule();
+	}
+
+	const char *MemoryManager::currentMemoryFunction() {
+		return MemoryTelemetry::currentFunction();
+	}
+
+	std::size_t MemoryManager::attributedLiveBytes(const char *moduleName, const char *functionName) {
+		return MemoryTelemetry::attributedLiveBytes(moduleName, functionName);
+	}
+
+	std::size_t MemoryManager::attributedLiveAllocations(const char *moduleName, const char *functionName) {
+		return MemoryTelemetry::attributedLiveAllocations(moduleName, functionName);
+	}
+
+	std::size_t MemoryManager::attributedTotalAllocatedBytes(const char *moduleName, const char *functionName) {
+		return MemoryTelemetry::attributedTotalAllocatedBytes(moduleName, functionName);
+	}
+
+	std::size_t MemoryManager::attributedTotalFreedBytes(const char *moduleName, const char *functionName) {
+		return MemoryTelemetry::attributedTotalFreedBytes(moduleName, functionName);
+	}
+
+	std::size_t MemoryManager::attributedPeakBytes(const char *moduleName, const char *functionName) {
+		return MemoryTelemetry::attributedPeakBytes(moduleName, functionName);
+	}
+
 	void MemoryManager::reportMemoryTelemetry() {
 		MemoryTelemetry::report();
 	}
@@ -175,6 +211,52 @@ unsigned long long yogi_memory_total_freed_bytes() {
 
 unsigned long long yogi_memory_peak_bytes() {
 	return static_cast<unsigned long long>(yogi::runtime::MemoryManager::peakBytes());
+}
+
+void yogi_memory_push_context(const char *moduleName, const char *functionName) {
+	yogi::runtime::MemoryManager::pushMemoryContext(moduleName, functionName);
+}
+
+void yogi_memory_pop_context() {
+	yogi::runtime::MemoryManager::popMemoryContext();
+}
+
+const char *yogi_memory_current_module() {
+	return yogi::runtime::MemoryManager::currentMemoryModule();
+}
+
+const char *yogi_memory_current_function() {
+	return yogi::runtime::MemoryManager::currentMemoryFunction();
+}
+
+unsigned long long yogi_memory_attributed_live_bytes(const char *moduleName, const char *functionName) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedLiveBytes(moduleName, functionName)
+	);
+}
+
+unsigned long long yogi_memory_attributed_live_allocations(const char *moduleName, const char *functionName) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedLiveAllocations(moduleName, functionName)
+	);
+}
+
+unsigned long long yogi_memory_attributed_total_allocated_bytes(const char *moduleName, const char *functionName) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedTotalAllocatedBytes(moduleName, functionName)
+	);
+}
+
+unsigned long long yogi_memory_attributed_total_freed_bytes(const char *moduleName, const char *functionName) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedTotalFreedBytes(moduleName, functionName)
+	);
+}
+
+unsigned long long yogi_memory_attributed_peak_bytes(const char *moduleName, const char *functionName) {
+	return static_cast<unsigned long long>(
+		yogi::runtime::MemoryManager::attributedPeakBytes(moduleName, functionName)
+	);
 }
 
 void yogi_memory_debug_report() {

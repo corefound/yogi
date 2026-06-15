@@ -57,6 +57,8 @@ namespace yogi::core::llvm::internal {
 				::llvm::Type *returnType,
 				const std::vector<::llvm::Type *> &parameters
 			);
+			void pushMemoryContext(const std::string &functionName);
+			void popMemoryContext();
 			void clearLocalState();
 			void registerAggregateOwner(
 				const std::string &name,

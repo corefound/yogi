@@ -15,16 +15,26 @@ int main() {
 	assert(yogi_debug_ownership_enabled());
 	assert(std::strcmp(yogi_allocator_name(), YOGI_EXPECTED_ALLOCATOR) == 0);
 
+	const char *moduleName = "runtime-test";
+	const char *functionName = "cast-test";
 	const auto baseLiveBytes = yogi_memory_live_bytes();
 	const auto baseLiveAllocations = yogi_memory_live_allocations();
 	const auto baseAllocatedBytes = yogi_memory_total_allocated_bytes();
 	const auto baseFreedBytes = yogi_memory_total_freed_bytes();
+	const auto baseAttributedAllocatedBytes = yogi_memory_attributed_total_allocated_bytes(moduleName, functionName);
+	const auto baseAttributedFreedBytes = yogi_memory_attributed_total_freed_bytes(moduleName, functionName);
+
+	yogi_memory_push_context(moduleName, functionName);
+	assert(std::strcmp(yogi_memory_current_module(), moduleName) == 0);
+	assert(std::strcmp(yogi_memory_current_function(), functionName) == 0);
 
 	void *raw = yogi_alloc(32);
 	assert(raw != nullptr);
 	assert(yogi_memory_live_bytes() == baseLiveBytes + 32);
 	assert(yogi_memory_live_allocations() == baseLiveAllocations + 1);
 	assert(yogi_memory_total_allocated_bytes() == baseAllocatedBytes + 32);
+	assert(yogi_memory_attributed_live_bytes(moduleName, functionName) == 32);
+	assert(yogi_memory_attributed_live_allocations(moduleName, functionName) == 1);
 
 	raw = yogi_realloc(raw, 64);
 	assert(raw != nullptr);
@@ -34,12 +44,22 @@ int main() {
 	assert(yogi_memory_total_allocated_bytes() == baseAllocatedBytes + 96);
 	assert(yogi_memory_total_freed_bytes() == baseFreedBytes + 32);
 	assert(yogi_memory_peak_bytes() >= baseLiveBytes + 64);
+	assert(yogi_memory_attributed_live_bytes(moduleName, functionName) == 64);
+	assert(yogi_memory_attributed_live_allocations(moduleName, functionName) == 1);
+	assert(yogi_memory_attributed_total_allocated_bytes(moduleName, functionName) == baseAttributedAllocatedBytes + 96);
+	assert(yogi_memory_attributed_total_freed_bytes(moduleName, functionName) == baseAttributedFreedBytes + 32);
+	assert(yogi_memory_attributed_peak_bytes(moduleName, functionName) >= 64);
 
 	yogi_free(raw);
 	assert(yogi_debug_ownership_live_allocations() == 0);
 	assert(yogi_memory_live_bytes() == baseLiveBytes);
 	assert(yogi_memory_live_allocations() == baseLiveAllocations);
 	assert(yogi_memory_total_freed_bytes() == baseFreedBytes + 96);
+	assert(yogi_memory_attributed_live_bytes(moduleName, functionName) == 0);
+	assert(yogi_memory_attributed_live_allocations(moduleName, functionName) == 0);
+	assert(yogi_memory_attributed_total_freed_bytes(moduleName, functionName) == baseAttributedFreedBytes + 96);
+	yogi_memory_pop_context();
+	assert(std::strcmp(yogi_memory_current_module(), "<runtime>") == 0);
 	yogi_memory_debug_report();
 
 	void *number = yogi_any_from_number(42.5);

@@ -23,6 +23,15 @@ namespace yogi::runtime {
 			static std::size_t totalAllocatedBytes();
 			static std::size_t totalFreedBytes();
 			static std::size_t peakBytes();
+			static void pushContext(const char *moduleName, const char *functionName);
+			static void popContext();
+			static const char *currentModule();
+			static const char *currentFunction();
+			static std::size_t attributedLiveBytes(const char *moduleName, const char *functionName);
+			static std::size_t attributedLiveAllocations(const char *moduleName, const char *functionName);
+			static std::size_t attributedTotalAllocatedBytes(const char *moduleName, const char *functionName);
+			static std::size_t attributedTotalFreedBytes(const char *moduleName, const char *functionName);
+			static std::size_t attributedPeakBytes(const char *moduleName, const char *functionName);
 			static void report();
 	};
 

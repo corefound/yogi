@@ -174,6 +174,7 @@ namespace yogi::core::llvm::internal {
 		context.builder.SetInsertPoint(entry);
 		context.clearLocalState();
 		context.currentReturnType = function->return_type();
+		context.pushMemoryContext(fbString(function->qualified_name()));
 
 		unsigned index = 0;
 		if (function->parameters()) {
@@ -197,6 +198,7 @@ namespace yogi::core::llvm::internal {
 
 		if (!context.builder.GetInsertBlock()->hasTerminator()) {
 			statements->emitLocalCleanups();
+			context.popMemoryContext();
 			if (returnType->isVoidTy()) {
 				context.builder.CreateRetVoid();
 			} else {
