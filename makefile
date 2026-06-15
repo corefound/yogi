@@ -1,7 +1,6 @@
 # variable
 .PHONY: run build start fbs-build ts-dev ts-run ts-build ts-pkg
 
-
 run: build start
 
 
@@ -21,6 +20,15 @@ fbs-build:
 	@mv $(CURDIR)/src/fbs/generated/yogi $(CURDIR)/src/compiler/src/fbs/generated/yogi
 	@mv -f $(CURDIR)/src/fbs/generated/main_generated.h  $(CURDIR)/libs/flatbuffers/fbs_generated.h
 	@cd $(CURDIR)/src/fbs && rm -rf generated
+
+test:
+	@make cpp-test
+	@echo
+	@echo
+	@make ts-test
+
+cpp-test:
+	@ctest --test-dir build --output-on-failure
 
 
 # TypeScript
