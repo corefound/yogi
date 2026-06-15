@@ -2,15 +2,20 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
+import { AggregateAssignmentExpression } from '../../yogi/sir/aggregate-assignment-expression.js';
+import { ArrayExpression } from '../../yogi/sir/array-expression.js';
 import { AssignmentExpression } from '../../yogi/sir/assignment-expression.js';
 import { BinaryExpression } from '../../yogi/sir/binary-expression.js';
 import { BlockStatement } from '../../yogi/sir/block-statement.js';
 import { ConditionalExpression } from '../../yogi/sir/conditional-expression.js';
 import { Constant } from '../../yogi/sir/constant.js';
+import { ElementAccessExpression } from '../../yogi/sir/element-access-expression.js';
 import { ExternDeclaration } from '../../yogi/sir/extern-declaration.js';
 import { FunctionDeclaration } from '../../yogi/sir/function-declaration.js';
 import { IdentifierExpression } from '../../yogi/sir/identifier-expression.js';
 import { IfStatement } from '../../yogi/sir/if-statement.js';
+import { ObjectExpression } from '../../yogi/sir/object-expression.js';
+import { PropertyAccessExpression } from '../../yogi/sir/property-access-expression.js';
 import { ReturnStatement } from '../../yogi/sir/return-statement.js';
 import { VariableDeclaration } from '../../yogi/sir/variable-declaration.js';
 
@@ -23,17 +28,22 @@ export enum SirNodeValue {
   BinaryExpression = 4,
   AssignmentExpression = 5,
   ConditionalExpression = 6,
-  VariableDeclaration = 7,
-  ReturnStatement = 8,
-  BlockStatement = 9,
-  IfStatement = 10,
-  FunctionDeclaration = 11
+  ArrayExpression = 7,
+  ObjectExpression = 8,
+  PropertyAccessExpression = 9,
+  ElementAccessExpression = 10,
+  AggregateAssignmentExpression = 11,
+  VariableDeclaration = 12,
+  ReturnStatement = 13,
+  BlockStatement = 14,
+  IfStatement = 15,
+  FunctionDeclaration = 16
 }
 
 export function unionToSirNodeValue(
   type: SirNodeValue,
-  accessor: (obj:AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ReturnStatement|VariableDeclaration) => AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ReturnStatement|VariableDeclaration|null
-): AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ReturnStatement|VariableDeclaration|null {
+  accessor: (obj:AggregateAssignmentExpression|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ElementAccessExpression|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration) => AggregateAssignmentExpression|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ElementAccessExpression|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|null
+): AggregateAssignmentExpression|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ElementAccessExpression|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|null {
   switch(SirNodeValue[type]) {
     case 'NONE': return null;
     case 'Constant': return accessor(new Constant())! as Constant;
@@ -42,6 +52,11 @@ export function unionToSirNodeValue(
     case 'BinaryExpression': return accessor(new BinaryExpression())! as BinaryExpression;
     case 'AssignmentExpression': return accessor(new AssignmentExpression())! as AssignmentExpression;
     case 'ConditionalExpression': return accessor(new ConditionalExpression())! as ConditionalExpression;
+    case 'ArrayExpression': return accessor(new ArrayExpression())! as ArrayExpression;
+    case 'ObjectExpression': return accessor(new ObjectExpression())! as ObjectExpression;
+    case 'PropertyAccessExpression': return accessor(new PropertyAccessExpression())! as PropertyAccessExpression;
+    case 'ElementAccessExpression': return accessor(new ElementAccessExpression())! as ElementAccessExpression;
+    case 'AggregateAssignmentExpression': return accessor(new AggregateAssignmentExpression())! as AggregateAssignmentExpression;
     case 'VariableDeclaration': return accessor(new VariableDeclaration())! as VariableDeclaration;
     case 'ReturnStatement': return accessor(new ReturnStatement())! as ReturnStatement;
     case 'BlockStatement': return accessor(new BlockStatement())! as BlockStatement;
@@ -53,9 +68,9 @@ export function unionToSirNodeValue(
 
 export function unionListToSirNodeValue(
   type: SirNodeValue,
-  accessor: (index: number, obj:AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ReturnStatement|VariableDeclaration) => AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ReturnStatement|VariableDeclaration|null,
+  accessor: (index: number, obj:AggregateAssignmentExpression|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ElementAccessExpression|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration) => AggregateAssignmentExpression|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ElementAccessExpression|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|null,
   index: number
-): AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ReturnStatement|VariableDeclaration|null {
+): AggregateAssignmentExpression|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|ConditionalExpression|Constant|ElementAccessExpression|ExternDeclaration|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|null {
   switch(SirNodeValue[type]) {
     case 'NONE': return null;
     case 'Constant': return accessor(index, new Constant())! as Constant;
@@ -64,6 +79,11 @@ export function unionListToSirNodeValue(
     case 'BinaryExpression': return accessor(index, new BinaryExpression())! as BinaryExpression;
     case 'AssignmentExpression': return accessor(index, new AssignmentExpression())! as AssignmentExpression;
     case 'ConditionalExpression': return accessor(index, new ConditionalExpression())! as ConditionalExpression;
+    case 'ArrayExpression': return accessor(index, new ArrayExpression())! as ArrayExpression;
+    case 'ObjectExpression': return accessor(index, new ObjectExpression())! as ObjectExpression;
+    case 'PropertyAccessExpression': return accessor(index, new PropertyAccessExpression())! as PropertyAccessExpression;
+    case 'ElementAccessExpression': return accessor(index, new ElementAccessExpression())! as ElementAccessExpression;
+    case 'AggregateAssignmentExpression': return accessor(index, new AggregateAssignmentExpression())! as AggregateAssignmentExpression;
     case 'VariableDeclaration': return accessor(index, new VariableDeclaration())! as VariableDeclaration;
     case 'ReturnStatement': return accessor(index, new ReturnStatement())! as ReturnStatement;
     case 'BlockStatement': return accessor(index, new BlockStatement())! as BlockStatement;

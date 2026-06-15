@@ -22,6 +22,12 @@ import {
     BinaryExpression,
     AssignmentExpression,
     ConditionalExpression,
+    ArrayExpression,
+    ObjectExpression,
+    ObjectProperty,
+    PropertyAccessExpression,
+    ElementAccessExpression,
+    AggregateAssignmentExpression,
     VariableDeclaration,
     ReturnStatement,
     BlockStatement,
@@ -103,6 +109,36 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     const value = this.createConditionalExpression(builder, node);
 
                     return this.createSirNode(builder, SirNodeValue.ConditionalExpression, value);
+                }
+
+                case "ArrayExpression": {
+                    const value = this.createArrayExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.ArrayExpression, value);
+                }
+
+                case "DictionaryExpression": {
+                    const value = this.createObjectExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.ObjectExpression, value);
+                }
+
+                case "PropertyAccessExpression": {
+                    const value = this.createPropertyAccessExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.PropertyAccessExpression, value);
+                }
+
+                case "ElementAccessExpression": {
+                    const value = this.createElementAccessExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.ElementAccessExpression, value);
+                }
+
+                case "AggregateAssignmentExpression": {
+                    const value = this.createAggregateAssignmentExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.AggregateAssignmentExpression, value);
                 }
 
                 case "VariableDeclaration": {
@@ -436,8 +472,34 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const conditional = node.kind === "ConditionalExpression"
                 ? this.createConditionalExpression(builder, node)
                 : 0;
+            const array = node.kind === "ArrayExpression"
+                ? this.createArrayExpression(builder, node)
+                : 0;
+            const object = node.kind === "DictionaryExpression"
+                ? this.createObjectExpression(builder, node)
+                : 0;
+            const propertyAccess = node.kind === "PropertyAccessExpression"
+                ? this.createPropertyAccessExpression(builder, node)
+                : 0;
+            const elementAccess = node.kind === "ElementAccessExpression"
+                ? this.createElementAccessExpression(builder, node)
+                : 0;
+            const aggregateAssignment = node.kind === "AggregateAssignmentExpression"
+                ? this.createAggregateAssignmentExpression(builder, node)
+                : 0;
 
-            if (!constant && !identifier && !binary && !assignment && !conditional) {
+            if (
+                !constant &&
+                !identifier &&
+                !binary &&
+                !assignment &&
+                !conditional &&
+                !array &&
+                !object &&
+                !propertyAccess &&
+                !elementAccess &&
+                !aggregateAssignment
+            ) {
                 throw new Error(`Unsupported semantic value kind: ${(node as { kind: string }).kind}`);
             }
 
@@ -462,6 +524,26 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (conditional) {
                 ValueRef.addConditional(builder, conditional);
+            }
+
+            if (array) {
+                ValueRef.addArray(builder, array);
+            }
+
+            if (object) {
+                ValueRef.addObject(builder, object);
+            }
+
+            if (propertyAccess) {
+                ValueRef.addPropertyAccess(builder, propertyAccess);
+            }
+
+            if (elementAccess) {
+                ValueRef.addElementAccess(builder, elementAccess);
+            }
+
+            if (aggregateAssignment) {
+                ValueRef.addAggregateAssignment(builder, aggregateAssignment);
             }
 
             return ValueRef.endValueRef(builder);
@@ -566,6 +648,130 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             return ConditionalExpression.endConditionalExpression(builder);
         }
 
+        static createArrayExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticArrayExpression,
+        ): fbs.Offset {
+            const elementOffsets = (expression.elements ?? []).map((element) => this.createValueRef(builder, element));
+            const elements = createVector(builder, elementOffsets, (length) => {
+                ArrayExpression.startElementsVector(builder, length);
+            });
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            ArrayExpression.startArrayExpression(builder);
+            ArrayExpression.addElements(builder, elements);
+            ArrayExpression.addType(builder, type);
+            ArrayExpression.addSource(builder, source);
+            ArrayExpression.addPosition(builder, position);
+
+            return ArrayExpression.endArrayExpression(builder);
+        }
+
+        static createObjectProperty(
+            builder: fbs.Builder,
+            property: Types.Sir.SemanticObjectProperty,
+        ): fbs.Offset {
+            const key = builder.createString(property.key);
+            const value = this.createValueRef(builder, property.value);
+            const type = this.createTypeRef(builder, property.type);
+            const source = builder.createString(property.source ?? property.key);
+            const position = this.createSourcePosition(builder, property.position);
+
+            ObjectProperty.startObjectProperty(builder);
+            ObjectProperty.addKey(builder, key);
+            ObjectProperty.addValue(builder, value);
+            ObjectProperty.addType(builder, type);
+            ObjectProperty.addSource(builder, source);
+            ObjectProperty.addPosition(builder, position);
+
+            return ObjectProperty.endObjectProperty(builder);
+        }
+
+        static createObjectExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticObjectExpression,
+        ): fbs.Offset {
+            const propertyOffsets = (expression.properties ?? []).map((property) => {
+                return this.createObjectProperty(builder, property);
+            });
+            const properties = createVector(builder, propertyOffsets, (length) => {
+                ObjectExpression.startPropertiesVector(builder, length);
+            });
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            ObjectExpression.startObjectExpression(builder);
+            ObjectExpression.addProperties(builder, properties);
+            ObjectExpression.addType(builder, type);
+            ObjectExpression.addSource(builder, source);
+            ObjectExpression.addPosition(builder, position);
+
+            return ObjectExpression.endObjectExpression(builder);
+        }
+
+        static createPropertyAccessExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticPropertyAccessExpression,
+        ): fbs.Offset {
+            const object = this.createValueRef(builder, expression.object);
+            const property = builder.createString(expression.property);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            PropertyAccessExpression.startPropertyAccessExpression(builder);
+            PropertyAccessExpression.addObject(builder, object);
+            PropertyAccessExpression.addProperty(builder, property);
+            PropertyAccessExpression.addType(builder, type);
+            PropertyAccessExpression.addSource(builder, source);
+            PropertyAccessExpression.addPosition(builder, position);
+
+            return PropertyAccessExpression.endPropertyAccessExpression(builder);
+        }
+
+        static createElementAccessExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticElementAccessExpression,
+        ): fbs.Offset {
+            const object = this.createValueRef(builder, expression.object);
+            const index = this.createValueRef(builder, expression.index);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            ElementAccessExpression.startElementAccessExpression(builder);
+            ElementAccessExpression.addObject(builder, object);
+            ElementAccessExpression.addIndex(builder, index);
+            ElementAccessExpression.addType(builder, type);
+            ElementAccessExpression.addSource(builder, source);
+            ElementAccessExpression.addPosition(builder, position);
+
+            return ElementAccessExpression.endElementAccessExpression(builder);
+        }
+
+        static createAggregateAssignmentExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticAggregateAssignmentExpression,
+        ): fbs.Offset {
+            const target = this.createValueRef(builder, expression.target);
+            const right = this.createValueRef(builder, expression.right);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            AggregateAssignmentExpression.startAggregateAssignmentExpression(builder);
+            AggregateAssignmentExpression.addTarget(builder, target);
+            AggregateAssignmentExpression.addRight(builder, right);
+            AggregateAssignmentExpression.addType(builder, type);
+            AggregateAssignmentExpression.addSource(builder, source);
+            AggregateAssignmentExpression.addPosition(builder, position);
+
+            return AggregateAssignmentExpression.endAggregateAssignmentExpression(builder);
+        }
+
         static createVariableDeclaration(
             builder: fbs.Builder,
             declaration: Types.Sir.SemanticVariableDeclaration,
@@ -591,6 +797,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             VariableDeclaration.addFlag(builder, flag);
             VariableDeclaration.addExported(builder, declaration.export ?? false);
             VariableDeclaration.addTrusted(builder, declaration.trusted ?? true);
+            VariableDeclaration.addEscapes(builder, declaration.escapes ?? false);
             VariableDeclaration.addLinkageName(builder, linkageName);
             VariableDeclaration.addQualifiedName(builder, qualifiedName);
             VariableDeclaration.addSource(builder, source);

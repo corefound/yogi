@@ -246,6 +246,12 @@ export class BaseSemantic {
             return true;
         }
 
+        if (expectedType.kind === Kinds.Types.UnionType && actualType.kind === Kinds.Types.UnionType) {
+            return (actualType.types ?? []).every((type: any) => {
+                return this.isTypeAssignable(expectedType, type);
+            });
+        }
+
         if (expectedType.kind === Kinds.Types.UnionType) {
             return (expectedType.types ?? []).some((type: any) => {
                 return this.isTypeAssignable(type, actualType);
@@ -578,6 +584,15 @@ export class BaseSemantic {
     public isReadonlyType(type: any): boolean {
         const resolved = this.resolveType(type);
         return resolved?.readonly === true;
+    }
+
+    public isAggregateType(type: any): boolean {
+        const resolved = this.resolveType(type);
+        return (
+            resolved?.kind === Kinds.Types.ArrayType ||
+            resolved?.kind === Kinds.Types.TupleType ||
+            this.isObjectLikeType(resolved)
+        );
     }
 
     public literalIndexValue(index: any): number | string | null {

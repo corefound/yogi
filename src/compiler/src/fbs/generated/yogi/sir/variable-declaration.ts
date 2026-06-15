@@ -83,34 +83,39 @@ trusted():boolean {
   return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : true;
 }
 
+escapes():boolean {
+  const offset = this.bb!.__offset(this.bb_pos, 24);
+  return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
+}
+
 linkageName():string|null
 linkageName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 linkageName(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 24);
+  const offset = this.bb!.__offset(this.bb_pos, 26);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 qualifiedName():string|null
 qualifiedName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 qualifiedName(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 26);
+  const offset = this.bb!.__offset(this.bb_pos, 28);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 source():string|null
 source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 source(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 28);
+  const offset = this.bb!.__offset(this.bb_pos, 30);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 position(obj?:SourcePosition):SourcePosition|null {
-  const offset = this.bb!.__offset(this.bb_pos, 30);
+  const offset = this.bb!.__offset(this.bb_pos, 32);
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startVariableDeclaration(builder:flatbuffers.Builder) {
-  builder.startObject(14);
+  builder.startObject(15);
 }
 
 static addName(builder:flatbuffers.Builder, nameOffset:flatbuffers.Offset) {
@@ -153,20 +158,24 @@ static addTrusted(builder:flatbuffers.Builder, trusted:boolean) {
   builder.addFieldInt8(9, +trusted, +true);
 }
 
+static addEscapes(builder:flatbuffers.Builder, escapes:boolean) {
+  builder.addFieldInt8(10, +escapes, +false);
+}
+
 static addLinkageName(builder:flatbuffers.Builder, linkageNameOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(10, linkageNameOffset, 0);
+  builder.addFieldOffset(11, linkageNameOffset, 0);
 }
 
 static addQualifiedName(builder:flatbuffers.Builder, qualifiedNameOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(11, qualifiedNameOffset, 0);
+  builder.addFieldOffset(12, qualifiedNameOffset, 0);
 }
 
 static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(12, sourceOffset, 0);
+  builder.addFieldOffset(13, sourceOffset, 0);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(13, positionOffset, 0);
+  builder.addFieldOffset(14, positionOffset, 0);
 }
 
 static endVariableDeclaration(builder:flatbuffers.Builder):flatbuffers.Offset {

@@ -135,12 +135,68 @@ export type SemanticConditionalExpression = {
     position?: SourcePosition;
 };
 
+export type SemanticArrayExpression = {
+    kind: "ArrayExpression";
+    elements: SemanticValueInput[];
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticObjectProperty = {
+    key: string;
+    value: SemanticValueInput;
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticObjectExpression = {
+    kind: "DictionaryExpression";
+    properties: SemanticObjectProperty[];
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticPropertyAccessExpression = {
+    kind: "PropertyAccessExpression";
+    object: SemanticValueInput;
+    property: string;
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticElementAccessExpression = {
+    kind: "ElementAccessExpression";
+    object: SemanticValueInput;
+    index: SemanticValueInput;
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticAggregateAssignmentExpression = {
+    kind: "AggregateAssignmentExpression";
+    target: SemanticPropertyAccessExpression | SemanticElementAccessExpression;
+    right: SemanticValueInput;
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
 export type SemanticValueInput =
     | SemanticConstantInput
     | SemanticIdentifierExpression
     | SemanticBinaryExpression
     | SemanticAssignmentExpression
-    | SemanticConditionalExpression;
+    | SemanticConditionalExpression
+    | SemanticArrayExpression
+    | SemanticObjectExpression
+    | SemanticPropertyAccessExpression
+    | SemanticElementAccessExpression
+    | SemanticAggregateAssignmentExpression;
 
 export type SemanticVariableDeclaration = {
     kind: "VariableDeclaration";
@@ -154,6 +210,7 @@ export type SemanticVariableDeclaration = {
     flag?: string;
     export?: boolean;
     trusted?: boolean;
+    escapes?: boolean;
     linkageName?: string | null;
     qualifiedName?: string;
     source?: string;
@@ -258,6 +315,11 @@ export type SemanticNodeInput =
     | SemanticBinaryExpression
     | SemanticAssignmentExpression
     | SemanticConditionalExpression
+    | SemanticArrayExpression
+    | SemanticObjectExpression
+    | SemanticPropertyAccessExpression
+    | SemanticElementAccessExpression
+    | SemanticAggregateAssignmentExpression
     | SemanticVariableDeclaration
     | SemanticReturnStatement
     | SemanticBlockStatement

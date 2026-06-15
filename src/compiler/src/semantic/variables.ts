@@ -35,6 +35,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const isAmbient =
                 node.declare === true ||
                 node.ambient === true;
+            const lifetime = this.getVariableLifetime(node, type, isAmbient);
 
             const symbol = this.defineSymbol({
                 kind: Kinds.ScopeSymbols.Variable,
@@ -45,9 +46,9 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 declaredType: type,
 
                 mutable: flagName !== "const",
-                storage: isAmbient ? null : Kinds.Storage.stack,
+                storage: lifetime.storage,
 
-                escapes: false,
+                escapes: lifetime.escapes,
                 trusted,
 
                 declare: isAmbient,
@@ -70,8 +71,8 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 scopeId: symbol.scopeId,
 
                 mutable: symbol.mutable,
-                storage: symbol.storage,
-                escapes: symbol.escapes,
+                storage: lifetime.storage,
+                escapes: lifetime.escapes,
 
                 linkageName,
                 qualifiedName,
@@ -107,6 +108,23 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
             return String(flag);
         }
+
+        public getVariableLifetime(node: any, type: any, isAmbient: boolean): { storage: Kinds.Storage | null; escapes: boolean } {
+            if (isAmbient) {
+                return { storage: null, escapes: false };
+            }
+
+            if (node.export === true || this.currentScope.parent === null) {
+                return { storage: Kinds.Storage.global, escapes: true };
+            }
+
+            if (this.isAggregateType(type)) {
+                return { storage: Kinds.Storage.stack, escapes: false };
+            }
+
+            return { storage: Kinds.Storage.stack, escapes: false };
+        }
+
         public declarationVariableDiagnostics(context: any): any {
             let trusted = true;
             let value = context.value;
@@ -248,18 +266,21 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
         public createRuntimeInitializerValue(value: any, expectedType: any): any {
             if (!value) return value;
 
-            if (
-                value.kind === Kinds.Collections.ArrayExpression ||
-                value.kind === Kinds.Collections.DictionaryExpression
-            ) {
+            if (value.kind === Kinds.Collections.ArrayExpression) {
                 return {
-                    kind: Kinds.Sir.NullConstant,
+                    ...value,
                     type: this.toSerializableType(expectedType),
-                    raw: "null",
-                    value: null,
-                    source: value.source ?? "null",
-                    position: value.position,
-                    aggregate: value,
+                };
+            }
+
+            if (value.kind === Kinds.Collections.DictionaryExpression) {
+                return {
+                    ...value,
+                    type: this.toSerializableType(expectedType),
+                    properties: (value.properties ?? []).map((property: any) => ({
+                        ...property,
+                        type: this.toSerializableType(property.type),
+                    })),
                 };
             }
 

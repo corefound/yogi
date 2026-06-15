@@ -65,6 +65,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 body,
             };
 
+            this.analyzeAggregateEscapes(functionContext);
             this.validateFunctionReturnType(functionContext);
 
             this.exitScope();
@@ -294,6 +295,185 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     this.throwInvalidFunctionReturnError(functionNode, returnStatement);
                 }
             }
+        }
+
+        public analyzeAggregateEscapes(functionNode: any): void {
+            const declarations = new Map<string, any>();
+            const aliases = new Map<string, Set<string>>();
+            const escaping = new Set<string>();
+
+            const addAlias = (target: string | null, source: string | null): void => {
+                if (!target || !source || target === source) return;
+
+                if (!aliases.has(target)) {
+                    aliases.set(target, new Set());
+                }
+
+                aliases.get(target)!.add(source);
+            };
+
+            const addEscapingIdentifier = (value: any): void => {
+                const key = this.getAggregateIdentifierKey(value);
+                if (key) escaping.add(key);
+            };
+
+            const visit = (node: any): void => {
+                if (!node) return;
+
+                if (Array.isArray(node)) {
+                    for (const child of node) visit(child);
+                    return;
+                }
+
+                if (node.kind === Kinds.Statements.VariableDeclaration) {
+                    const key = this.getDeclarationKey(node);
+
+                    if (key) declarations.set(key, node);
+
+                    if (this.isAggregateType(node.type)) {
+                        addAlias(key, this.getAggregateIdentifierKey(node.value));
+                    }
+
+                    visit(node.value);
+                    return;
+                }
+
+                if (node.kind === Kinds.Expressions.AssignmentExpression) {
+                    const left = node.left;
+                    const right = node.right;
+                    const leftKey = this.getAggregateIdentifierKey(left);
+                    const rightKey = this.getAggregateIdentifierKey(right);
+
+                    if (this.isGlobalIdentifier(left)) {
+                        addEscapingIdentifier(right);
+                    } else {
+                        addAlias(leftKey, rightKey);
+                    }
+
+                    visit(right);
+                    return;
+                }
+
+                if (node.kind === "AggregateAssignmentExpression") {
+                    const root = this.getAggregateRootExpression(node.target);
+
+                    if (this.isGlobalIdentifier(root)) {
+                        addEscapingIdentifier(node.right);
+                    }
+
+                    visit(node.target);
+                    visit(node.right);
+                    return;
+                }
+
+                if (node.kind === Kinds.Statements.ReturnStatement) {
+                    addEscapingIdentifier(node.value);
+                    visit(node.value);
+                    return;
+                }
+
+                if (node.kind === Kinds.Expressions.CallExpression) {
+                    for (const argument of node.arguments ?? []) {
+                        addEscapingIdentifier(argument);
+                        visit(argument);
+                    }
+
+                    visit(node.callee);
+                    return;
+                }
+
+                for (const value of Object.values(node)) {
+                    if (value && typeof value === "object") {
+                        visit(value);
+                    }
+                }
+            };
+
+            visit(functionNode.body);
+
+            let changed = true;
+            while (changed) {
+                changed = false;
+
+                for (const [target, sources] of aliases.entries()) {
+                    if (!escaping.has(target)) continue;
+
+                    for (const source of sources) {
+                        if (!escaping.has(source)) {
+                            escaping.add(source);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            for (const key of escaping) {
+                const declaration = declarations.get(key);
+
+                if (!declaration || !this.isAggregateType(declaration.type)) {
+                    continue;
+                }
+
+                declaration.escapes = true;
+                declaration.storage = Kinds.Storage.heap;
+            }
+        }
+
+        public getDeclarationKey(node: any): string | null {
+            if (typeof node?.symbolId === "number" && node.symbolId >= 0) {
+                return `symbol:${node.symbolId}`;
+            }
+
+            if (typeof node?.name === "string" && typeof node?.scopeId === "number") {
+                return `scope:${node.scopeId}:${node.name}`;
+            }
+
+            return null;
+        }
+
+        public getAggregateIdentifierKey(node: any): string | null {
+            if (!node || node.kind !== Kinds.Expressions.IdentifierExpression) {
+                return null;
+            }
+
+            if (!this.isAggregateType(node.type)) {
+                return null;
+            }
+
+            if (typeof node.symbolId === "number" && node.symbolId >= 0) {
+                return `symbol:${node.symbolId}`;
+            }
+
+            const name = node.value ?? node.name ?? node.raw;
+            if (typeof name === "string" && typeof node.scopeId === "number") {
+                return `scope:${node.scopeId}:${name}`;
+            }
+
+            return null;
+        }
+
+        public isGlobalIdentifier(node: any): boolean {
+            return (
+                node?.kind === Kinds.Expressions.IdentifierExpression &&
+                node.scopeId === 0
+            );
+        }
+
+        public getAggregateRootExpression(node: any): any {
+            if (!node) return null;
+
+            if (node.kind === Kinds.Expressions.IdentifierExpression) {
+                return node;
+            }
+
+            if (
+                node.kind === Kinds.Expressions.PropertyAccessExpression ||
+                node.kind === Kinds.Expressions.ElementAccessExpression
+            ) {
+                return this.getAggregateRootExpression(node.object);
+            }
+
+            return null;
         }
 
         public throwInvalidFunctionReturnError(functionNode: any, returnStatement: any): never {

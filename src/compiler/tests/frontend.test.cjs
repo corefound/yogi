@@ -382,7 +382,31 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(dynamicNullishAssignment.stderr).toBe("");
   });
 
-  test("rejects rest destructuring until aggregate runtime storage exists", () => {
+  test("supports aggregate storage reads and writes in semantic output", () => {
+    const root = createProject({
+      "main.io": `
+        let user: { name: string, score: number, label?: string } = { name: "Ana", score: 1 }
+        user.name = "Bray"
+        user.score = user.score + 9
+        let label: string = user.label ?? "fallback"
+
+        let scores: number[] = [1, 2, 3]
+        scores[1] = 10
+        let middle: number = scores[1]
+
+        let pair: [number, string] = [7, "ready"]
+        pair[0] = 8
+        let first: number = pair[0]
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects rest destructuring until aggregate copying exists", () => {
     const objectRest = runCompiler(createProject({
       "main.io": `
         let { name, ...rest }: { name: string, age: number } = { name: "Ana", age: 20 }

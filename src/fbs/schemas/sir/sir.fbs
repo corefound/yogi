@@ -24,6 +24,11 @@ table ValueRef {
   binary:BinaryExpression;
   assignment:AssignmentExpression;
   conditional:ConditionalExpression;
+  array:ArrayExpression;
+  object:ObjectExpression;
+  property_access:PropertyAccessExpression;
+  element_access:ElementAccessExpression;
+  aggregate_assignment:AggregateAssignmentExpression;
 }
 
 table BinaryExpression {
@@ -52,6 +57,52 @@ table ConditionalExpression {
   position:SourcePosition;
 }
 
+table ArrayExpression {
+  elements:[ValueRef];
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table ObjectProperty {
+  key:string;
+  value:ValueRef;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table ObjectExpression {
+  properties:[ObjectProperty];
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table PropertyAccessExpression {
+  object:ValueRef;
+  property:string;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table ElementAccessExpression {
+  object:ValueRef;
+  index:ValueRef;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table AggregateAssignmentExpression {
+  target:ValueRef;
+  right:ValueRef;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
 table VariableDeclaration {
   name:string;
   type:TypeRef;
@@ -63,6 +114,7 @@ table VariableDeclaration {
   flag:string;
   exported:bool = false;
   trusted:bool = true;
+  escapes:bool = false;
   linkage_name:string;
   qualified_name:string;
   source:string;
@@ -125,6 +177,11 @@ union SirNodeValue {
   BinaryExpression,
   AssignmentExpression,
   ConditionalExpression,
+  ArrayExpression,
+  ObjectExpression,
+  PropertyAccessExpression,
+  ElementAccessExpression,
+  AggregateAssignmentExpression,
   VariableDeclaration,
   ReturnStatement,
   BlockStatement,

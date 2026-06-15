@@ -242,23 +242,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, node.position, node.fullSource ?? node.source, node);
             }
 
-            const folded = this.foldKnownPropertyAccess(object, node.property, node);
-            if (folded) return folded;
-
-            if (node.optional === true) {
-                const message =
-                    `dynamic optional property access ${Helpers.RED}'${node.source}'${Helpers.RESET} is not lowerable yet`;
-
-                node.arrowLength = node.source?.length ?? 1;
-                this.throwError(
-                    message,
-                    node.position,
-                    node.fullSource ?? node.source,
-                    node,
-                    "  = semantic validation is implemented; runtime optional access will be added with aggregate storage",
-                );
-            }
-
             return {
                 ...node,
                 object,
@@ -295,9 +278,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.throwError(message, node.position, node.fullSource ?? node.source, node);
                 }
 
-                const folded = this.foldKnownElementAccess(object, tupleIndex, node);
-                if (folded) return folded;
-
                 if (node.optional === true) {
                     const message =
                         `dynamic optional element access ${Helpers.RED}'${node.source}'${Helpers.RESET} is not lowerable yet`;
@@ -323,11 +303,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                     node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
                     this.throwError(message, node.position, node.fullSource ?? node.source, node);
-                }
-
-                if (typeof indexValue === "number") {
-                    const folded = this.foldKnownElementAccess(object, indexValue, node);
-                    if (folded) return folded;
                 }
 
                 if (node.optional === true) {
@@ -740,17 +715,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
                 }
 
-                const message =
-                    `assignment to aggregate member ${Helpers.RED}'${left.source ?? "member"}'${Helpers.RESET} is not lowerable yet`;
-
-                left.arrowLength = left.source?.length ?? 1;
-                this.throwError(
-                    message,
-                    left.position,
-                    context.fullSource ?? node.fullSource ?? node.source,
-                    left,
-                    "  = semantic validation is implemented; runtime aggregate storage will be added with memory management",
-                );
+                return {
+                    ...node,
+                    kind: "AggregateAssignmentExpression",
+                    target: left,
+                    right,
+                    type: left.type,
+                };
             };
 
             return checkExpression(context.value);
@@ -794,17 +765,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         this.throwError(message, left.position, source, left);
                     }
 
-                    const message =
-                        `assignment to aggregate member ${Helpers.RED}'${left.source ?? "member"}'${Helpers.RESET} is not lowerable yet`;
-
-                    left.arrowLength = left.source?.length ?? 1;
-                    this.throwError(
-                        message,
-                        left.position,
-                        source,
-                        left,
-                        "  = semantic validation is implemented; runtime aggregate storage will be added with memory management",
-                    );
+                    return {
+                        ...node,
+                        kind: "AggregateAssignmentExpression",
+                        target: left,
+                        right,
+                        type: left.type,
+                    };
                 }
 
                 const message = `left side of assignment must be a variable`;

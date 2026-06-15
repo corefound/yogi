@@ -4,11 +4,16 @@
 
 import * as flatbuffers from 'flatbuffers';
 
+import { AggregateAssignmentExpression } from '../../yogi/sir/aggregate-assignment-expression.js';
+import { ArrayExpression } from '../../yogi/sir/array-expression.js';
 import { AssignmentExpression } from '../../yogi/sir/assignment-expression.js';
 import { BinaryExpression } from '../../yogi/sir/binary-expression.js';
 import { ConditionalExpression } from '../../yogi/sir/conditional-expression.js';
 import { Constant } from '../../yogi/sir/constant.js';
+import { ElementAccessExpression } from '../../yogi/sir/element-access-expression.js';
 import { IdentifierExpression } from '../../yogi/sir/identifier-expression.js';
+import { ObjectExpression } from '../../yogi/sir/object-expression.js';
+import { PropertyAccessExpression } from '../../yogi/sir/property-access-expression.js';
 
 
 export class ValueRef {
@@ -61,8 +66,33 @@ conditional(obj?:ConditionalExpression):ConditionalExpression|null {
   return offset ? (obj || new ConditionalExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+array(obj?:ArrayExpression):ArrayExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? (obj || new ArrayExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+object(obj?:ObjectExpression):ObjectExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
+  return offset ? (obj || new ObjectExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+propertyAccess(obj?:PropertyAccessExpression):PropertyAccessExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 20);
+  return offset ? (obj || new PropertyAccessExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+elementAccess(obj?:ElementAccessExpression):ElementAccessExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 22);
+  return offset ? (obj || new ElementAccessExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+aggregateAssignment(obj?:AggregateAssignmentExpression):AggregateAssignmentExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 24);
+  return offset ? (obj || new AggregateAssignmentExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
 static startValueRef(builder:flatbuffers.Builder) {
-  builder.startObject(6);
+  builder.startObject(11);
 }
 
 static addKind(builder:flatbuffers.Builder, kindOffset:flatbuffers.Offset) {
@@ -87,6 +117,26 @@ static addAssignment(builder:flatbuffers.Builder, assignmentOffset:flatbuffers.O
 
 static addConditional(builder:flatbuffers.Builder, conditionalOffset:flatbuffers.Offset) {
   builder.addFieldOffset(5, conditionalOffset, 0);
+}
+
+static addArray(builder:flatbuffers.Builder, arrayOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(6, arrayOffset, 0);
+}
+
+static addObject(builder:flatbuffers.Builder, objectOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(7, objectOffset, 0);
+}
+
+static addPropertyAccess(builder:flatbuffers.Builder, propertyAccessOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(8, propertyAccessOffset, 0);
+}
+
+static addElementAccess(builder:flatbuffers.Builder, elementAccessOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(9, elementAccessOffset, 0);
+}
+
+static addAggregateAssignment(builder:flatbuffers.Builder, aggregateAssignmentOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(10, aggregateAssignmentOffset, 0);
 }
 
 static endValueRef(builder:flatbuffers.Builder):flatbuffers.Offset {

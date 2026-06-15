@@ -2,6 +2,8 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
+export { AggregateAssignmentExpression } from './sir/aggregate-assignment-expression.js';
+export { ArrayExpression } from './sir/array-expression.js';
 export { AssignmentExpression } from './sir/assignment-expression.js';
 export { BinaryExpression } from './sir/binary-expression.js';
 export { BlockStatement } from './sir/block-statement.js';
@@ -9,6 +11,7 @@ export { BooleanConstant } from './sir/boolean-constant.js';
 export { ConditionalExpression } from './sir/conditional-expression.js';
 export { Constant } from './sir/constant.js';
 export { ConstantValue } from './sir/constant-value.js';
+export { ElementAccessExpression } from './sir/element-access-expression.js';
 export { ExternDeclaration } from './sir/extern-declaration.js';
 export { ExternFunction } from './sir/extern-function.js';
 export { ExternParameter } from './sir/extern-parameter.js';
@@ -20,6 +23,9 @@ export { IfStatement } from './sir/if-statement.js';
 export { Module } from './sir/module.js';
 export { NullConstant } from './sir/null-constant.js';
 export { NumberConstant } from './sir/number-constant.js';
+export { ObjectExpression } from './sir/object-expression.js';
+export { ObjectProperty } from './sir/object-property.js';
+export { PropertyAccessExpression } from './sir/property-access-expression.js';
 export { ReturnStatement } from './sir/return-statement.js';
 export { SirNode } from './sir/sir-node.js';
 export { SirNodeValue } from './sir/sir-node-value.js';
