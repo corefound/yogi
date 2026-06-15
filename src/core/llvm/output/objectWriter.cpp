@@ -1,4 +1,7 @@
-#include "object_writer.h"
+// Created by Brayhan De Aza on 6/15/26.
+//
+
+#include "llvm/output/objectWriter.h"
 
 #if YOGI_HAS_LLVM
 #include <iostream>
@@ -18,10 +21,10 @@
 namespace yogi::core::llvm::internal {
 
 	ObjectWriter::ObjectWriter(ModuleLoweringContext &context)
-		: context_(context) {}
+		: context(context) {}
 
-	void ObjectWriter::write_ir_file() {
-		const auto path = context_.ir_path();
+	void ObjectWriter::writeIrFile() {
+		const auto path = context.irPath();
 		std::filesystem::create_directories(path.parent_path());
 
 		std::error_code error;
@@ -33,17 +36,17 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
-		context_.module->print(output, nullptr);
+		context.module->print(output, nullptr);
 	}
 
-	bool ObjectWriter::write_object_file() {
+	bool ObjectWriter::writeObjectFile() {
 		::llvm::InitializeNativeTarget();
 		::llvm::InitializeNativeTargetAsmParser();
 		::llvm::InitializeNativeTargetAsmPrinter();
 
-		::llvm::Triple target_triple(::llvm::sys::getDefaultTargetTriple());
+		::llvm::Triple targetTriple(::llvm::sys::getDefaultTargetTriple());
 		std::string error;
-		const auto *target = ::llvm::TargetRegistry::lookupTarget(target_triple, error);
+		const auto *target = ::llvm::TargetRegistry::lookupTarget(targetTriple, error);
 
 		if (!target) {
 			std::cerr << "failed to find LLVM target: " << error << "\n";
@@ -51,35 +54,35 @@ namespace yogi::core::llvm::internal {
 		}
 
 		::llvm::TargetOptions options;
-		std::optional<::llvm::Reloc::Model> reloc_model;
-		std::unique_ptr<::llvm::TargetMachine> target_machine(
-			target->createTargetMachine(target_triple, "generic", "", options, reloc_model)
+		std::optional<::llvm::Reloc::Model> relocModel;
+		std::unique_ptr<::llvm::TargetMachine> targetMachine(
+			target->createTargetMachine(targetTriple, "generic", "", options, relocModel)
 		);
 
-		if (!target_machine) {
+		if (!targetMachine) {
 			std::cerr << "failed to create LLVM target machine\n";
 			return false;
 		}
 
-		context_.module->setDataLayout(target_machine->createDataLayout());
-		context_.module->setTargetTriple(target_triple);
+		context.module->setDataLayout(targetMachine->createDataLayout());
+		context.module->setTargetTriple(targetTriple);
 
-		const auto path = context_.object_path();
+		const auto path = context.objectPath();
 		std::filesystem::create_directories(path.parent_path());
 
-		std::error_code error_code;
-		::llvm::raw_fd_ostream destination(path.string(), error_code, ::llvm::sys::fs::OF_None);
+		std::error_code errorCode;
+		::llvm::raw_fd_ostream destination(path.string(), errorCode, ::llvm::sys::fs::OF_None);
 
-		if (error_code) {
+		if (errorCode) {
 			std::cerr << "failed to open object file: " << path << ": "
-				<< error_code.message() << "\n";
+				<< errorCode.message() << "\n";
 			return false;
 		}
 
-		::llvm::legacy::PassManager pass_manager;
+		::llvm::legacy::PassManager passManager;
 
-		if (target_machine->addPassesToEmitFile(
-			pass_manager,
+		if (targetMachine->addPassesToEmitFile(
+			passManager,
 			destination,
 			nullptr,
 			::llvm::CodeGenFileType::ObjectFile
@@ -88,7 +91,7 @@ namespace yogi::core::llvm::internal {
 			return false;
 		}
 
-		pass_manager.run(*context_.module);
+		passManager.run(*context.module);
 		destination.flush();
 
 		return true;

@@ -1,6 +1,9 @@
+// Created by Brayhan De Aza on 6/15/26.
+//
+
 #pragma once
 
-#include "lowering_context.h"
+#include "llvm/context/loweringContext.h"
 
 #if YOGI_HAS_LLVM
 namespace yogi::core::llvm::internal {
@@ -13,7 +16,7 @@ namespace yogi::core::llvm::internal {
 			::llvm::Constant *zero(::llvm::Type *type);
 
 		private:
-			ModuleLoweringContext &context_;
+			ModuleLoweringContext &context;
 	};
 
 } // namespace yogi::core::llvm::internal

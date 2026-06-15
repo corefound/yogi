@@ -1,4 +1,7 @@
-#include "type_lowerer.h"
+// Created by Brayhan De Aza on 6/15/26.
+//
+
+#include "llvm/lowering/typeLowerer.h"
 
 #if YOGI_HAS_LLVM
 #include <llvm/IR/Constants.h>
@@ -8,28 +11,28 @@
 namespace yogi::core::llvm::internal {
 
 	namespace {
-		::llvm::PointerType *opaque_pointer(::llvm::LLVMContext &context) {
+		::llvm::PointerType *opaquePointerType(::llvm::LLVMContext &context) {
 			return ::llvm::PointerType::get(context, 0);
 		}
 	}
 
 	TypeLowerer::TypeLowerer(ModuleLoweringContext &context)
-		: context_(context) {}
+		: context(context) {}
 
 	::llvm::Type *TypeLowerer::lower(const Yogi::Sir::TypeRef *type) {
 		if (!type) {
-			return opaque_pointer(context_.llvm_context);
+			return opaquePointerType(context.llvmContext);
 		}
 
 		switch (type->kind()) {
 			case Yogi::Sir::TypeKind_number_type:
-				return ::llvm::Type::getDoubleTy(context_.llvm_context);
+				return ::llvm::Type::getDoubleTy(context.llvmContext);
 
 			case Yogi::Sir::TypeKind_boolean_type:
-				return ::llvm::Type::getInt1Ty(context_.llvm_context);
+				return ::llvm::Type::getInt1Ty(context.llvmContext);
 
 			case Yogi::Sir::TypeKind_void_type:
-				return ::llvm::Type::getVoidTy(context_.llvm_context);
+				return ::llvm::Type::getVoidTy(context.llvmContext);
 
 			case Yogi::Sir::TypeKind_string_type:
 			case Yogi::Sir::TypeKind_null_type:
@@ -38,10 +41,10 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_union_type:
 			case Yogi::Sir::TypeKind_unknown_type:
 			case Yogi::Sir::TypeKind_type_reference:
-				return opaque_pointer(context_.llvm_context);
+				return opaquePointerType(context.llvmContext);
 
 			default:
-				return opaque_pointer(context_.llvm_context);
+				return opaquePointerType(context.llvmContext);
 		}
 	}
 

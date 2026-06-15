@@ -1,6 +1,9 @@
+// Created by Brayhan De Aza on 6/15/26.
+//
+
 #pragma once
 
-#include "type_lowerer.h"
+#include "llvm/lowering/typeLowerer.h"
 
 #if YOGI_HAS_LLVM
 namespace yogi::core::llvm::internal {
@@ -25,6 +28,16 @@ namespace yogi::core::llvm::internal {
 				::llvm::Type *expectedType,
 				const Yogi::Sir::TypeRef *expectedSemanticType = nullptr
 			);
+			::llvm::Value *lowerAggregateAssignment(
+				const Yogi::Sir::AggregateAssignmentExpression *assignment
+			);
+			bool isAggregateLiteral(const Yogi::Sir::ValueRef *value) const;
+			::llvm::Value *lowerLocalAggregate(
+				const Yogi::Sir::ValueRef *value,
+				const std::string &name
+			);
+			void dropLocalAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
+			void destroyEscapedAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
 			::llvm::Value *cast(
 				::llvm::Value *value,
 				::llvm::Type *targetType,
@@ -45,6 +58,28 @@ namespace yogi::core::llvm::internal {
 				::llvm::Type *expectedType,
 				const Yogi::Sir::TypeRef *expectedSemanticType
 			);
+			::llvm::Value *lowerArray(
+				const Yogi::Sir::ArrayExpression *array,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
+			::llvm::Value *lowerObject(
+				const Yogi::Sir::ObjectExpression *object,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
+			void populateArray(const Yogi::Sir::ArrayExpression *array, ::llvm::Value *aggregate);
+			void populateObject(const Yogi::Sir::ObjectExpression *object, ::llvm::Value *aggregate);
+			::llvm::Value *lowerPropertyAccess(
+				const Yogi::Sir::PropertyAccessExpression *access,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
+			::llvm::Value *lowerElementAccess(
+				const Yogi::Sir::ElementAccessExpression *access,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
 			::llvm::Value *compare(::llvm::Value *left, ::llvm::Value *right, bool equals);
 			::llvm::Value *lowerNullish(
 				const Yogi::Sir::BinaryExpression *binary,
@@ -57,6 +92,7 @@ namespace yogi::core::llvm::internal {
 				const Yogi::Sir::TypeRef *expectedSemanticType
 			);
 			::llvm::Value *isNullish(::llvm::Value *value);
+			::llvm::Value *toIndex(::llvm::Value *value);
 			::llvm::Value *boxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType);
 			::llvm::Value *unboxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *targetSemanticType);
 			::llvm::Value *callRuntime(
@@ -65,11 +101,12 @@ namespace yogi::core::llvm::internal {
 				const std::vector<::llvm::Value *> &arguments
 			);
 			const Yogi::Sir::TypeRef *valueSemanticType(const Yogi::Sir::ValueRef *value) const;
+			Yogi::Sir::TypeKind resolvedTypeKind(const Yogi::Sir::TypeRef *type) const;
 			bool isAnyType(const Yogi::Sir::TypeRef *type) const;
 			::llvm::PointerType *opaquePointer() const;
 
-			ModuleLoweringContext &context_;
-			TypeLowerer &types_;
+			ModuleLoweringContext &context;
+			TypeLowerer &types;
 	};
 
 } // namespace yogi::core::llvm::internal

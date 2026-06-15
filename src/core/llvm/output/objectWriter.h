@@ -1,6 +1,9 @@
+// Created by Brayhan De Aza on 6/15/26.
+//
+
 #pragma once
 
-#include "lowering_context.h"
+#include "llvm/context/loweringContext.h"
 
 #if YOGI_HAS_LLVM
 namespace yogi::core::llvm::internal {
@@ -9,11 +12,11 @@ namespace yogi::core::llvm::internal {
 		public:
 			explicit ObjectWriter(ModuleLoweringContext &context);
 
-			void write_ir_file();
-			bool write_object_file();
+			void writeIrFile();
+			bool writeObjectFile();
 
 		private:
-			ModuleLoweringContext &context_;
+			ModuleLoweringContext &context;
 	};
 
 } // namespace yogi::core::llvm::internal

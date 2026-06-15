@@ -1,4 +1,7 @@
-#include "lowering_context.h"
+// Created by Brayhan De Aza on 6/15/26.
+//
+
+#include "llvm/context/loweringContext.h"
 
 #if YOGI_HAS_LLVM
 #include <llvm/IR/BasicBlock.h>
@@ -7,11 +10,11 @@
 
 namespace yogi::core::llvm::internal {
 
-	std::string fb_string(const flatbuffers::String *value) {
+	std::string fbString(const flatbuffers::String *value) {
 		return value ? value->str() : "";
 	}
 
-	std::string sanitize_symbol(std::string name) {
+	std::string sanitizeSymbol(std::string name) {
 		for (char &ch: name) {
 			const bool valid =
 				(ch >= 'a' && ch <= 'z') ||
@@ -29,32 +32,32 @@ namespace yogi::core::llvm::internal {
 
 #if YOGI_HAS_LLVM
 	ModuleLoweringContext::ModuleLoweringContext(
-		const Yogi::Build::ModuleMeta *module_meta,
-		const Yogi::Sir::Module *sir_module
+		const Yogi::Build::ModuleMeta *moduleMeta,
+		const Yogi::Sir::Module *sirModule
 	)
-		: module_meta(module_meta),
-		  sir_module(sir_module),
-		  module(std::make_unique<::llvm::Module>(module_name(), llvm_context)),
-		  builder(llvm_context) {
-		module->setSourceFileName(fb_string(sir_module->source_path()));
+		: moduleMeta(moduleMeta),
+		  sirModule(sirModule),
+		  module(std::make_unique<::llvm::Module>(moduleName(), llvmContext)),
+		  builder(llvmContext) {
+		module->setSourceFileName(fbString(sirModule->source_path()));
 	}
 
-	std::string ModuleLoweringContext::module_name() const {
-		return sanitize_symbol(fb_string(module_meta->name()));
+	std::string ModuleLoweringContext::moduleName() const {
+		return sanitizeSymbol(fbString(moduleMeta->name()));
 	}
 
-	std::filesystem::path ModuleLoweringContext::object_path() const {
-		return std::filesystem::path(module_meta->root_path()->str()) /
-			std::filesystem::path(module_meta->object_path()->str());
+	std::filesystem::path ModuleLoweringContext::objectPath() const {
+		return std::filesystem::path(moduleMeta->root_path()->str()) /
+			std::filesystem::path(moduleMeta->object_path()->str());
 	}
 
-	std::filesystem::path ModuleLoweringContext::ir_path() const {
-		auto path = object_path();
+	std::filesystem::path ModuleLoweringContext::irPath() const {
+		auto path = objectPath();
 		path.replace_extension(".ll");
 		return path;
 	}
 
-	::llvm::AllocaInst *ModuleLoweringContext::create_entry_alloca(
+	::llvm::AllocaInst *ModuleLoweringContext::createEntryAlloca(
 		::llvm::Function *function,
 		const std::string &name,
 		::llvm::Type *type
@@ -64,7 +67,7 @@ namespace yogi::core::llvm::internal {
 			function->getEntryBlock().begin()
 		);
 
-		return temporary.CreateAlloca(type, nullptr, sanitize_symbol(name));
+		return temporary.CreateAlloca(type, nullptr, sanitizeSymbol(name));
 	}
 
 	::llvm::Function *ModuleLoweringContext::runtimeFunction(
