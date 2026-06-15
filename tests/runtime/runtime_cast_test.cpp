@@ -6,9 +6,14 @@
 #include <cassert>
 #include <cstring>
 
+#ifndef YOGI_EXPECTED_ALLOCATOR
+#define YOGI_EXPECTED_ALLOCATOR "mimalloc"
+#endif
+
 int main() {
 	yogi_debug_ownership_reset();
 	assert(yogi_debug_ownership_enabled());
+	assert(std::strcmp(yogi_allocator_name(), YOGI_EXPECTED_ALLOCATOR) == 0);
 
 	void *raw = yogi_alloc(32);
 	assert(raw != nullptr);

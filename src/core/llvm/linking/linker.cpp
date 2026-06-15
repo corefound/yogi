@@ -32,6 +32,10 @@
 #define YOGI_RUNTIME_LIBRARY_PATH ""
 #endif
 
+#ifndef YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH
+#define YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH ""
+#endif
+
 namespace {
 	std::string quoteArg(const std::string &value) {
 		std::string quoted = "'";
@@ -171,6 +175,12 @@ namespace yogi::core::llvm {
 		const std::filesystem::path runtimeLibraryPath = YOGI_RUNTIME_LIBRARY_PATH;
 
 		if (!runtimeLibraryPath.empty() && !appendLinkPath(runtimeLibraryPath, "runtime library", true)) {
+			return false;
+		}
+
+		const std::filesystem::path allocatorLibraryPath = YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH;
+
+		if (!allocatorLibraryPath.empty() && !appendLinkPath(allocatorLibraryPath, "runtime allocator library", true)) {
 			return false;
 		}
 

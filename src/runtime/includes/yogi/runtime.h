@@ -48,6 +48,7 @@ void yogi_array_destroy(void *array);
 void *yogi_alloc(unsigned long long size);
 void *yogi_realloc(void *address, unsigned long long newSize);
 void yogi_free(void *address);
+const char *yogi_allocator_name(void);
 
 bool yogi_debug_ownership_enabled(void);
 unsigned long long yogi_debug_ownership_live_allocations(void);

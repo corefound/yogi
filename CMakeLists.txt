@@ -15,6 +15,8 @@ set(TS_PARSER_DIR "${CMAKE_SOURCE_DIR}/src/core")
 set(LLVM_ROOT "${LIBS_DIR}/llvm-project/build/llvm-custom" CACHE PATH "Path to the vendored LLVM installation")
 set(YOGI_ENABLE_LLVM "ON" CACHE STRING "Enable LLVM support: ON or OFF")
 set_property(CACHE YOGI_ENABLE_LLVM PROPERTY STRINGS ON OFF)
+set(YOGI_ALLOCATOR "mimalloc" CACHE STRING "Runtime allocator: mimalloc, jemalloc, or system")
+set_property(CACHE YOGI_ALLOCATOR PROPERTY STRINGS mimalloc jemalloc system)
 
 unset(ENV{LLVM_CONFIG})
 unset(ENV{LLVM_DIR})
@@ -182,6 +184,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 if(YOGI_LLVM_ENABLED)
+        set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH "")
+
+        if(DEFINED YOGI_RUNTIME_ALLOCATOR_TARGET AND TARGET ${YOGI_RUNTIME_ALLOCATOR_TARGET})
+                set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH "$<TARGET_FILE:${YOGI_RUNTIME_ALLOCATOR_TARGET}>")
+        endif()
+
         target_include_directories(${PROJECT_NAME} PRIVATE
                 ${LLVM_ROOT}/include
                 ${LLVM_INCLUDE_DIRS}
@@ -200,6 +208,7 @@ if(YOGI_LLVM_ENABLED)
                 YOGI_MACOS_SDK_PATH="${YOGI_MACOS_SDK_PATH}"
                 YOGI_MACOS_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}"
                 YOGI_RUNTIME_LIBRARY_PATH="$<TARGET_FILE:yogi_runtime>"
+                YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH="${YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH}"
         )
 
         target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -245,6 +254,9 @@ if(BUILD_TESTING)
         )
 
         target_link_libraries(yogi_runtime_cast_test PRIVATE yogi_runtime)
+        target_compile_definitions(yogi_runtime_cast_test PRIVATE
+                YOGI_EXPECTED_ALLOCATOR="${YOGI_ALLOCATOR}"
+        )
 
         add_test(
                 NAME yogi_runtime_cast_test

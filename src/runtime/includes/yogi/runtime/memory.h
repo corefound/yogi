@@ -9,6 +9,7 @@ namespace yogi::runtime {
 
 	class MemoryManager final {
 		public:
+			static const char *allocatorName();
 			static void *allocate(std::size_t size, const char *typeName);
 			static void *reallocate(void *address, std::size_t newSize, const char *typeName);
 			static void deallocate(void *address);

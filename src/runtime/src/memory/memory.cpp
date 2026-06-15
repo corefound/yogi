@@ -3,20 +3,17 @@
 
 #include "yogi/runtime/memory.h"
 
+#include "yogi/runtime.h"
 #include "yogi/runtime/debug/ownership.h"
 #include "yogi/runtime/errors.h"
-#include "yogi/runtime.h"
 
 #include <cstdlib>
 
-#if defined(YOGI_USE_MIMALLOC) && __has_include(<mimalloc.h>)
+#if defined(YOGI_USE_MIMALLOC)
 #include <mimalloc.h>
-#define YOGI_HAS_MIMALLOC 1
-#endif
-
-#if !defined(YOGI_HAS_MIMALLOC) && defined(YOGI_USE_JEMALLOC) && __has_include(<jemalloc/jemalloc.h>)
+#elif defined(YOGI_USE_JEMALLOC)
+#define JEMALLOC_NO_DEMANGLE
 #include <jemalloc/jemalloc.h>
-#define YOGI_HAS_JEMALLOC 1
 #endif
 
 namespace {
@@ -24,10 +21,10 @@ namespace {
 	void *allocatorAlloc(std::size_t size) {
 		const auto actualSize = size == 0 ? 1 : size;
 
-#if defined(YOGI_HAS_MIMALLOC)
+#if defined(YOGI_USE_MIMALLOC)
 		return mi_malloc(actualSize);
-#elif defined(YOGI_HAS_JEMALLOC)
-		return mallocx(actualSize, 0);
+#elif defined(YOGI_USE_JEMALLOC)
+		return je_mallocx(actualSize, 0);
 #else
 		return std::malloc(actualSize);
 #endif
@@ -36,14 +33,14 @@ namespace {
 	void *allocatorRealloc(void *address, std::size_t newSize) {
 		const auto actualSize = newSize == 0 ? 1 : newSize;
 
-#if defined(YOGI_HAS_MIMALLOC)
+#if defined(YOGI_USE_MIMALLOC)
 		return mi_realloc(address, actualSize);
-#elif defined(YOGI_HAS_JEMALLOC)
+#elif defined(YOGI_USE_JEMALLOC)
 		if (!address) {
-			return mallocx(actualSize, 0);
+			return je_mallocx(actualSize, 0);
 		}
 
-		return rallocx(address, actualSize, 0);
+		return je_rallocx(address, actualSize, 0);
 #else
 		return std::realloc(address, actualSize);
 #endif
@@ -54,10 +51,10 @@ namespace {
 			return;
 		}
 
-#if defined(YOGI_HAS_MIMALLOC)
+#if defined(YOGI_USE_MIMALLOC)
 		mi_free(address);
-#elif defined(YOGI_HAS_JEMALLOC)
-		dallocx(address, 0);
+#elif defined(YOGI_USE_JEMALLOC)
+		je_dallocx(address, 0);
 #else
 		std::free(address);
 #endif
@@ -66,6 +63,16 @@ namespace {
 }
 
 namespace yogi::runtime {
+
+	const char *MemoryManager::allocatorName() {
+		#if defined(YOGI_USE_MIMALLOC)
+		return "mimalloc";
+		#elif defined(YOGI_USE_JEMALLOC)
+		return "jemalloc";
+		#else
+		return "system";
+		#endif
+	}
 
 	void *MemoryManager::allocate(std::size_t size, const char *typeName) {
 		void *address = allocatorAlloc(size);
@@ -112,6 +119,10 @@ void *yogi_realloc(void *address, unsigned long long newSize) {
 
 void yogi_free(void *address) {
 	yogi::runtime::MemoryManager::deallocate(address);
+}
+
+const char *yogi_allocator_name() {
+	return yogi::runtime::MemoryManager::allocatorName();
 }
 
 }
