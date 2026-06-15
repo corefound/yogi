@@ -283,5 +283,13 @@ if(BUILD_TESTING)
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-escape-analysis
                                 -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_escape_analysis.cmake
                 )
+
+                add_test(
+                        NAME yogi_pipeline_function_ownership
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-function-ownership
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_function_ownership.cmake
+                )
         endif()
 endif()
