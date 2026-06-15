@@ -1,3 +1,6 @@
+// Created by Brayhan De Aza on 6/15/26.
+//
+
 #pragma once
 
 #include "yogi/runtime.h"
@@ -21,6 +24,7 @@ namespace yogi::runtime {
 			const char *asString() const;
 			void *asNull() const;
 			void *asUndefined() const;
+			bool isNullish() const;
 
 		private:
 			explicit AnyValue(YogiAnyTag tag);

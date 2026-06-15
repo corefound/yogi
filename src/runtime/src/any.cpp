@@ -1,3 +1,6 @@
+// Created by Brayhan De Aza on 6/15/26.
+//
+
 #include "yogi/runtime/any.h"
 
 #include "yogi/runtime/errors.h"
@@ -94,6 +97,10 @@ namespace yogi::runtime {
 	void *AnyValue::asUndefined() const {
 		requireTag(YOGI_ANY_UNDEFINED, "undefined");
 		return nullptr;
+	}
+
+	bool AnyValue::isNullish() const {
+		return valueTag == YOGI_ANY_NULL || valueTag == YOGI_ANY_UNDEFINED;
 	}
 
 	void AnyValue::requireTag(YogiAnyTag expectedTag, const char *targetType) const {

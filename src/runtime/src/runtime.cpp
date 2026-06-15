@@ -1,3 +1,6 @@
+// Created by Brayhan De Aza on 6/15/26.
+//
+
 #include "yogi/runtime.h"
 
 #include "yogi/runtime/any.h"
@@ -43,6 +46,15 @@ void *yogi_any_to_null(void *value) {
 
 void *yogi_any_to_undefined(void *value) {
 	return yogi::runtime::AnyValue::require(value, "undefined")->asUndefined();
+}
+
+bool yogi_any_is_nullish(void *value) {
+	if (!value) {
+		return true;
+	}
+
+	const auto *anyValue = static_cast<const yogi::runtime::AnyValue *>(value);
+	return anyValue->isNullish();
 }
 
 void yogi_runtime_abort_cast(const char *fromType, const char *toType) {
