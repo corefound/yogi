@@ -1,6 +1,7 @@
 import { BaseSemantic, Constructor } from "./base";
 import { Kinds } from "../helpers/types";
 import { Helpers } from "../helpers";
+import { Types } from "../helpers/types";
 
 export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
@@ -57,6 +58,19 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 return this.visitFunctionParameterDeclaration(node, param);
             });
 
+            if (node.declare === true || node.ambient === true || !node.body) {
+                const effectSummary = this.createEmptyFunctionEffectSummary(params, node.returnType);
+                symbol.effectSummary = undefined;
+                symbol.node = {
+                    ...node,
+                    params,
+                    effectSummary,
+                };
+
+                this.exitScope();
+                return null;
+            }
+
             const body = this.visitFunctionBody(node.body);
 
             const functionContext = {
@@ -65,7 +79,13 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 body,
             };
 
-            this.analyzeAggregateEscapes(functionContext);
+            const effectSummary = this.analyzeAggregateEscapes(functionContext);
+            symbol.effectSummary = effectSummary;
+            symbol.node = {
+                ...functionContext,
+                effectSummary,
+            };
+            this.functionEffectSummaries.set(symbol.id, effectSummary);
             this.validateFunctionReturnType(functionContext);
 
             this.exitScope();
@@ -85,6 +105,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
                 params,
                 body,
+                effectSummary,
             };
         }
 
@@ -297,10 +318,37 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             }
         }
 
-        public analyzeAggregateEscapes(functionNode: any): void {
+        public createEmptyFunctionEffectSummary(params: any[], returnType: any): Types.Sir.SemanticFunctionEffectSummary {
+            return {
+                parameterEffects: (params ?? []).map((_: any, index: number) => ({
+                    index,
+                    returns: false,
+                    stores: false,
+                    escapes: false,
+                    mutates: false,
+                    consumes: false,
+                })),
+                returnsAggregate: this.isAggregateType(returnType),
+            };
+        }
+
+        public analyzeAggregateEscapes(functionNode: any): Types.Sir.SemanticFunctionEffectSummary {
             const declarations = new Map<string, any>();
             const aliases = new Map<string, Set<string>>();
             const escaping = new Set<string>();
+            const returned = new Set<string>();
+            const stored = new Set<string>();
+            const mutated = new Set<string>();
+            const propertyStores: Array<{ root: string | null; value: string | null }> = [];
+            const paramKeys: Array<string | null> = (functionNode.params ?? []).map((param: any) => {
+                const key = this.getDeclarationKey(param);
+
+                if (key) {
+                    declarations.set(key, param);
+                }
+
+                return key;
+            });
 
             const addAlias = (target: string | null, source: string | null): void => {
                 if (!target || !source || target === source) return;
@@ -315,6 +363,25 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const addEscapingIdentifier = (value: any): void => {
                 const key = this.getAggregateIdentifierKey(value);
                 if (key) escaping.add(key);
+            };
+
+            const addReturnedIdentifier = (value: any): void => {
+                const key = this.getAggregateIdentifierKey(value);
+                if (!key) return;
+                returned.add(key);
+                escaping.add(key);
+            };
+
+            const addStoredIdentifier = (value: any): void => {
+                const key = this.getAggregateIdentifierKey(value);
+                if (!key) return;
+                stored.add(key);
+                escaping.add(key);
+            };
+
+            const addMutatedIdentifier = (value: any): void => {
+                const key = this.getAggregateIdentifierKey(value);
+                if (key) mutated.add(key);
             };
 
             const visit = (node: any): void => {
@@ -345,7 +412,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     const rightKey = this.getAggregateIdentifierKey(right);
 
                     if (this.isGlobalIdentifier(left)) {
-                        addEscapingIdentifier(right);
+                        addStoredIdentifier(right);
                     } else {
                         addAlias(leftKey, rightKey);
                     }
@@ -358,7 +425,13 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     const root = this.getAggregateRootExpression(node.target);
 
                     if (this.isGlobalIdentifier(root)) {
-                        addEscapingIdentifier(node.right);
+                        addStoredIdentifier(node.right);
+                    } else {
+                        addMutatedIdentifier(root);
+                        propertyStores.push({
+                            root: this.getAggregateIdentifierKey(root),
+                            value: this.getAggregateIdentifierKey(node.right),
+                        });
                     }
 
                     visit(node.target);
@@ -367,14 +440,31 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 }
 
                 if (node.kind === Kinds.Statements.ReturnStatement) {
-                    addEscapingIdentifier(node.value);
+                    addReturnedIdentifier(node.value);
                     visit(node.value);
                     return;
                 }
 
                 if (node.kind === Kinds.Expressions.CallExpression) {
-                    for (const argument of node.arguments ?? []) {
-                        addEscapingIdentifier(argument);
+                    const summary = this.getCallEffectSummary(node);
+                    const argumentsList = node.arguments ?? [];
+
+                    for (let index = 0; index < argumentsList.length; index++) {
+                        const argument = argumentsList[index];
+                        const effect = summary?.parameterEffects?.[index];
+
+                        if (!summary || node.external === true) {
+                            addEscapingIdentifier(argument);
+                        } else {
+                            if (effect?.escapes === true) {
+                                addEscapingIdentifier(argument);
+                            }
+
+                            if (effect?.mutates === true) {
+                                addMutatedIdentifier(argument);
+                            }
+                        }
+
                         visit(argument);
                     }
 
@@ -405,6 +495,51 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         }
                     }
                 }
+
+                for (const [target, sources] of aliases.entries()) {
+                    if (!returned.has(target)) continue;
+
+                    for (const source of sources) {
+                        if (!returned.has(source)) {
+                            returned.add(source);
+                            changed = true;
+                        }
+                    }
+                }
+
+                for (const [target, sources] of aliases.entries()) {
+                    if (!stored.has(target)) continue;
+
+                    for (const source of sources) {
+                        if (!stored.has(source)) {
+                            stored.add(source);
+                            changed = true;
+                        }
+                    }
+                }
+
+                for (const [target, sources] of aliases.entries()) {
+                    if (!mutated.has(target)) continue;
+
+                    for (const source of sources) {
+                        if (!mutated.has(source)) {
+                            mutated.add(source);
+                            changed = true;
+                        }
+                    }
+                }
+
+                for (const store of propertyStores) {
+                    if (!store.root || !store.value || !escaping.has(store.root)) {
+                        continue;
+                    }
+
+                    if (!escaping.has(store.value)) {
+                        escaping.add(store.value);
+                        stored.add(store.value);
+                        changed = true;
+                    }
+                }
             }
 
             for (const key of escaping) {
@@ -417,6 +552,36 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 declaration.escapes = true;
                 declaration.storage = Kinds.Storage.heap;
             }
+
+            return {
+                parameterEffects: paramKeys.map((key, index) => ({
+                    index,
+                    returns: key ? returned.has(key) : false,
+                    stores: key ? stored.has(key) : false,
+                    escapes: key ? escaping.has(key) : false,
+                    mutates: key ? mutated.has(key) : false,
+                    consumes: false,
+                })),
+                returnsAggregate: this.isAggregateType(functionNode.returnType),
+            };
+        }
+
+        public getCallEffectSummary(node: any): Types.Sir.SemanticFunctionEffectSummary | null {
+            if (node.effectSummary) {
+                return node.effectSummary;
+            }
+
+            if (typeof node.symbolId === "number" && node.symbolId >= 0) {
+                return this.functionEffectSummaries.get(node.symbolId) ?? null;
+            }
+
+            const calleeName =
+                node.callee?.value ??
+                node.callee?.name ??
+                node.callee?.raw;
+            const symbol = calleeName ? this.resolveSymbol(calleeName) : null;
+
+            return symbol?.effectSummary ?? null;
         }
 
         public getDeclarationKey(node: any): string | null {

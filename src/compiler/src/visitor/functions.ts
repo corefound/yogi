@@ -17,10 +17,13 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
         // -----------------------------------
         visitFunctionDeclaration(node: ts.FunctionDeclaration) {
             const isExported = node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+            const isAmbient = node.modifiers?.some(m => m.kind === ts.SyntaxKind.DeclareKeyword) ?? false;
 
             return {
                 kind: Kinds.Functions.FunctionDeclaration,
                 regular: true,
+                declare: isAmbient,
+                ambient: isAmbient,
                 export: isExported,
                 exported: isExported,
                 name: node.name?.getText() ?? "anonymous",

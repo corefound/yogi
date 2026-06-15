@@ -1,5 +1,6 @@
 import type { LinkKind } from "../fbs";
 import type { Kinds } from "./kinds";
+import type { SemanticFunctionEffectSummary } from "./sir";
 
 export type AstNumberLiteralInput = {
     kind: "number";
@@ -113,6 +114,7 @@ export type SymbolInfo = {
     escapes?: boolean;
     storage?: Kinds.Storage;
     trusted?: boolean;
+    effectSummary?: SemanticFunctionEffectSummary;
     declare?: boolean;
     ambient?: boolean;
     emit?: boolean;

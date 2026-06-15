@@ -147,6 +147,72 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
         }
 
+        public visitCallExpression(node: any): any {
+            const callee = this.visitNode(node.callee);
+            const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
+
+            if (callee?.kind !== Kinds.Expressions.IdentifierExpression) {
+                const message = `only direct function calls are supported for now`;
+                node.arrowLength = node.callee?.source?.length ?? node.source?.length ?? 1;
+                this.throwError(message, node.position, node.fullSource ?? node.source, node);
+            }
+
+            const calleeName = callee.value ?? callee.name ?? callee.raw;
+            const symbol = this.resolveSymbol(calleeName);
+
+            if (!symbol || symbol.kind !== Kinds.ScopeSymbols.Function) {
+                const message = `${Helpers.RED}'${calleeName}'${Helpers.RESET} is not a callable function`;
+                callee.arrowLength = calleeName?.length ?? 1;
+                this.throwError(message, callee.position ?? node.position, node.fullSource ?? node.source, callee);
+            }
+
+            const parameters = symbol.node?.params ?? [];
+
+            if (args.length !== parameters.length) {
+                const message =
+                    `function ${Helpers.BLUE}'${calleeName}'${Helpers.RESET} expects ` +
+                    `${Helpers.BLUE}'${parameters.length}'${Helpers.RESET} argument(s), got ` +
+                    `${Helpers.RED}'${args.length}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? calleeName?.length ?? 1;
+                this.throwError(message, node.position, node.fullSource ?? node.source, node);
+            }
+
+            for (let index = 0; index < args.length; index++) {
+                const expectedType = parameters[index]?.type;
+                const actualType = args[index]?.type;
+
+                if (!this.isTypeAssignable(expectedType, actualType)) {
+                    const message =
+                        `argument ${Helpers.BLUE}'${index + 1}'${Helpers.RESET} of ` +
+                        `${Helpers.BLUE}'${calleeName}'${Helpers.RESET} must be ` +
+                        `${Helpers.BLUE}'${expectedType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${actualType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    args[index].arrowLength = args[index].source?.length ?? 1;
+                    this.throwError(message, args[index].position ?? node.position, node.fullSource ?? node.source, args[index]);
+                }
+            }
+
+            const returnType = this.toSerializableType(symbol.node?.returnType ?? {
+                kind: Kinds.Types.UnknownType,
+                raw: "unknown",
+            });
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.CallExpression,
+                callee,
+                arguments: args,
+                type: returnType,
+                symbolId: symbol.id,
+                linkageName: symbol.linkageName ?? null,
+                qualifiedName: symbol.qualifiedName,
+                external: symbol.ambient === true || symbol.declare === true || !symbol.effectSummary,
+                effectSummary: symbol.effectSummary ?? null,
+            };
+        }
+
         public removeNullishFromType(type: any): any {
             const resolved = this.resolveType(type);
 

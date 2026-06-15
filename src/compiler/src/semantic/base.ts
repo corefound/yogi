@@ -25,6 +25,7 @@ export class BaseSemantic {
     public modules: Map<string, Types.SemanticModuleInfo> = new Map();
     public exportedSymbols: Map<string, Types.SemanticModuleSymbol> = new Map();
     public externalLinks: Map<string, Types.Sir.GlobalMetaLinkInput> = new Map();
+    public functionEffectSummaries: Map<number, Types.Sir.SemanticFunctionEffectSummary> = new Map();
 
     constructor(ast: Types.Ast[]) {
         this.ast = ast;
@@ -668,6 +669,9 @@ export class BaseSemantic {
             case Kinds.Expressions.ConditionalExpression:
                 return this.visitConditionalExpression(node);
 
+            case Kinds.Expressions.CallExpression:
+                return this.visitCallExpression(node);
+
             case Kinds.Expressions.UnaryExpression:
                 return this.visitUnaryExpression(node);
 
@@ -813,6 +817,7 @@ export class BaseSemantic {
     visitSatisfiesExpression(_: any): any { }
     visitNonNullExpression(_: any): any { }
     visitConditionalExpression(_: any): any { }
+    visitCallExpression(_: any): any { }
     visitUnaryExpression(_: any): any { }
     visitPropertyAccessExpression(_: any): any { }
     visitElementAccessExpression(_: any): any { }

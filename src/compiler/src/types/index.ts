@@ -20,6 +20,7 @@ export namespace Types {
         export type SemanticBinaryExpression = SirTypes.SemanticBinaryExpression;
         export type SemanticAssignmentExpression = SirTypes.SemanticAssignmentExpression;
         export type SemanticConditionalExpression = SirTypes.SemanticConditionalExpression;
+        export type SemanticCallExpression = SirTypes.SemanticCallExpression;
         export type SemanticArrayExpression = SirTypes.SemanticArrayExpression;
         export type SemanticObjectProperty = SirTypes.SemanticObjectProperty;
         export type SemanticObjectExpression = SirTypes.SemanticObjectExpression;
@@ -32,6 +33,8 @@ export namespace Types {
         export type SemanticBlockStatement = SirTypes.SemanticBlockStatement;
         export type SemanticIfStatement = SirTypes.SemanticIfStatement;
         export type SemanticFunctionParameter = SirTypes.SemanticFunctionParameter;
+        export type SemanticParameterEffect = SirTypes.SemanticParameterEffect;
+        export type SemanticFunctionEffectSummary = SirTypes.SemanticFunctionEffectSummary;
         export type SemanticFunctionDeclaration = SirTypes.SemanticFunctionDeclaration;
         export type SemanticExternParameter = SirTypes.SemanticExternParameter;
         export type SemanticExternFunction = SirTypes.SemanticExternFunction;

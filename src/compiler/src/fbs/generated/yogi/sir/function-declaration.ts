@@ -5,6 +5,7 @@
 import * as flatbuffers from 'flatbuffers';
 
 import { BlockStatement } from '../../yogi/sir/block-statement.js';
+import { FunctionEffectSummary } from '../../yogi/sir/function-effect-summary.js';
 import { FunctionParameter } from '../../yogi/sir/function-parameter.js';
 import { SourcePosition } from '../../yogi/sir/source-position.js';
 import { TypeRef } from '../../yogi/sir/type-ref.js';
@@ -113,8 +114,13 @@ position(obj?:SourcePosition):SourcePosition|null {
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+effectSummary(obj?:FunctionEffectSummary):FunctionEffectSummary|null {
+  const offset = this.bb!.__offset(this.bb_pos, 32);
+  return offset ? (obj || new FunctionEffectSummary()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
 static startFunctionDeclaration(builder:flatbuffers.Builder) {
-  builder.startObject(14);
+  builder.startObject(15);
 }
 
 static addName(builder:flatbuffers.Builder, nameOffset:flatbuffers.Offset) {
@@ -183,6 +189,10 @@ static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
   builder.addFieldOffset(13, positionOffset, 0);
+}
+
+static addEffectSummary(builder:flatbuffers.Builder, effectSummaryOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(14, effectSummaryOffset, 0);
 }
 
 static endFunctionDeclaration(builder:flatbuffers.Builder):flatbuffers.Offset {

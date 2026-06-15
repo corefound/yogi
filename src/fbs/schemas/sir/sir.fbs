@@ -24,6 +24,7 @@ table ValueRef {
   binary:BinaryExpression;
   assignment:AssignmentExpression;
   conditional:ConditionalExpression;
+  call:CallExpression;
   array:ArrayExpression;
   object:ObjectExpression;
   property_access:PropertyAccessExpression;
@@ -53,6 +54,18 @@ table ConditionalExpression {
   when_true:ValueRef;
   when_false:ValueRef;
   type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table CallExpression {
+  callee:ValueRef;
+  arguments:[ValueRef];
+  type:TypeRef;
+  symbol_id:int = -1;
+  linkage_name:string;
+  qualified_name:string;
+  external:bool = false;
   source:string;
   position:SourcePosition;
 }
@@ -153,6 +166,20 @@ table FunctionParameter {
   position:SourcePosition;
 }
 
+table ParameterEffect {
+  index:int = -1;
+  returns:bool = false;
+  stores:bool = false;
+  escapes:bool = false;
+  mutates:bool = false;
+  consumes:bool = false;
+}
+
+table FunctionEffectSummary {
+  parameter_effects:[ParameterEffect];
+  returns_aggregate:bool = false;
+}
+
 table FunctionDeclaration {
   name:string;
   parameters:[FunctionParameter];
@@ -168,6 +195,7 @@ table FunctionDeclaration {
   qualified_name:string;
   source:string;
   position:SourcePosition;
+  effect_summary:FunctionEffectSummary;
 }
 
 union SirNodeValue {
@@ -177,6 +205,7 @@ union SirNodeValue {
   BinaryExpression,
   AssignmentExpression,
   ConditionalExpression,
+  CallExpression,
   ArrayExpression,
   ObjectExpression,
   PropertyAccessExpression,

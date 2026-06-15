@@ -406,6 +406,78 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("supports ownership summaries for aggregate calls across function boundaries", () => {
+    const root = createProject({
+      "main.io": `
+        let saved: number[] = [0]
+
+        function makeScores(): number[] {
+          let scores: number[] = [1, 2, 3]
+          return scores
+        }
+
+        function sum(scores: number[]): number {
+          return scores[0] + scores[1]
+        }
+
+        function touch(scores: number[]): void {
+          scores[0] = scores[0] + 1
+        }
+
+        function save(scores: number[]): void {
+          saved = scores
+        }
+
+        function returnAlias(scores: number[]): number[] {
+          let alias: number[] = scores
+          return alias
+        }
+
+        function readOnlyCaller(): number {
+          let local: number[] = [1, 2, 3]
+          return sum(local)
+        }
+
+        function mutatingCaller(): void {
+          let local: number[] = [1, 2, 3]
+          touch(local)
+        }
+
+        function retainingCaller(): void {
+          let local: number[] = [1, 2, 3]
+          let alias: number[] = local
+          save(alias)
+        }
+
+        let result: number[] = makeScores()
+        let returned: number[] = returnAlias(result)
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("treats declared unknown aggregate calls as conservative escapes", () => {
+    const root = createProject({
+      "main.io": `
+        declare function externalUse(scores: number[]): void
+
+        function caller(): void {
+          let local: number[] = [1, 2, 3]
+          externalUse(local)
+        }
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
   test("rejects rest destructuring until aggregate copying exists", () => {
     const objectRest = runCompiler(createProject({
       "main.io": `

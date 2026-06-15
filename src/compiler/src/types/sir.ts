@@ -135,6 +135,19 @@ export type SemanticConditionalExpression = {
     position?: SourcePosition;
 };
 
+export type SemanticCallExpression = {
+    kind: "CallExpression";
+    callee: SemanticValueInput;
+    arguments: SemanticValueInput[];
+    type: SemanticType;
+    symbolId?: number;
+    linkageName?: string | null;
+    qualifiedName?: string;
+    external?: boolean;
+    source?: string;
+    position?: SourcePosition;
+};
+
 export type SemanticArrayExpression = {
     kind: "ArrayExpression";
     elements: SemanticValueInput[];
@@ -192,6 +205,7 @@ export type SemanticValueInput =
     | SemanticBinaryExpression
     | SemanticAssignmentExpression
     | SemanticConditionalExpression
+    | SemanticCallExpression
     | SemanticArrayExpression
     | SemanticObjectExpression
     | SemanticPropertyAccessExpression
@@ -253,6 +267,20 @@ export type SemanticFunctionParameter = {
     position?: SourcePosition;
 };
 
+export type SemanticParameterEffect = {
+    index: number;
+    returns: boolean;
+    stores: boolean;
+    escapes: boolean;
+    mutates: boolean;
+    consumes: boolean;
+};
+
+export type SemanticFunctionEffectSummary = {
+    parameterEffects: SemanticParameterEffect[];
+    returnsAggregate: boolean;
+};
+
 export type SemanticFunctionDeclaration = {
     kind: "FunctionDeclaration";
     name: string;
@@ -267,6 +295,7 @@ export type SemanticFunctionDeclaration = {
     trusted?: boolean;
     linkageName?: string | null;
     qualifiedName?: string;
+    effectSummary?: SemanticFunctionEffectSummary;
     source?: string;
     position?: SourcePosition;
 };
@@ -315,6 +344,7 @@ export type SemanticNodeInput =
     | SemanticBinaryExpression
     | SemanticAssignmentExpression
     | SemanticConditionalExpression
+    | SemanticCallExpression
     | SemanticArrayExpression
     | SemanticObjectExpression
     | SemanticPropertyAccessExpression

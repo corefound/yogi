@@ -12,6 +12,7 @@ import { ExternsSemantic } from "./externs";
 import { IfSemantic } from "./if";
 import { Helpers } from "../helpers";
 import { ModulesSemantic } from "./modules";
+import { Kinds } from "../helpers/types";
 
 
 export class Semantic extends applySemanticMixins(
@@ -40,7 +41,13 @@ export class Semantic extends applySemanticMixins(
         const sir = ast
             .map((statement: any) => this.visitNode(statement))
             .flat(Infinity)
-            .filter((node: any) => node !== null && node !== undefined);
+            .filter((node: any) => node !== null && node !== undefined)
+            .filter((node: any) => {
+                return !(
+                    node.kind === Kinds.Functions.FunctionDeclaration &&
+                    !node.body
+                );
+            });
 
         return {
             sir,

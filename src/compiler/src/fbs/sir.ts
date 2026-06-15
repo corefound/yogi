@@ -22,6 +22,7 @@ import {
     BinaryExpression,
     AssignmentExpression,
     ConditionalExpression,
+    CallExpression,
     ArrayExpression,
     ObjectExpression,
     ObjectProperty,
@@ -34,6 +35,8 @@ import {
     IfStatement,
     FunctionDeclaration,
     FunctionParameter,
+    FunctionEffectSummary,
+    ParameterEffect,
     ExternDeclaration,
     ExternFunction,
     ExternParameter,
@@ -109,6 +112,12 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     const value = this.createConditionalExpression(builder, node);
 
                     return this.createSirNode(builder, SirNodeValue.ConditionalExpression, value);
+                }
+
+                case "CallExpression": {
+                    const value = this.createCallExpression(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.CallExpression, value);
                 }
 
                 case "ArrayExpression": {
@@ -472,6 +481,9 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const conditional = node.kind === "ConditionalExpression"
                 ? this.createConditionalExpression(builder, node)
                 : 0;
+            const call = node.kind === "CallExpression"
+                ? this.createCallExpression(builder, node)
+                : 0;
             const array = node.kind === "ArrayExpression"
                 ? this.createArrayExpression(builder, node)
                 : 0;
@@ -494,6 +506,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 !binary &&
                 !assignment &&
                 !conditional &&
+                !call &&
                 !array &&
                 !object &&
                 !propertyAccess &&
@@ -524,6 +537,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (conditional) {
                 ValueRef.addConditional(builder, conditional);
+            }
+
+            if (call) {
+                ValueRef.addCall(builder, call);
             }
 
             if (array) {
@@ -646,6 +663,35 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             ConditionalExpression.addPosition(builder, position);
 
             return ConditionalExpression.endConditionalExpression(builder);
+        }
+
+        static createCallExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticCallExpression,
+        ): fbs.Offset {
+            const callee = this.createValueRef(builder, expression.callee);
+            const argumentOffsets = (expression.arguments ?? []).map((argument) => this.createValueRef(builder, argument));
+            const argumentsVector = createVector(builder, argumentOffsets, (length) => {
+                CallExpression.startArgumentsVector(builder, length);
+            });
+            const type = this.createTypeRef(builder, expression.type);
+            const linkageName = builder.createString(expression.linkageName ?? "");
+            const qualifiedName = builder.createString(expression.qualifiedName ?? "");
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            CallExpression.startCallExpression(builder);
+            CallExpression.addCallee(builder, callee);
+            CallExpression.addArguments(builder, argumentsVector);
+            CallExpression.addType(builder, type);
+            CallExpression.addSymbolId(builder, expression.symbolId ?? -1);
+            CallExpression.addLinkageName(builder, linkageName);
+            CallExpression.addQualifiedName(builder, qualifiedName);
+            CallExpression.addExternal(builder, expression.external ?? false);
+            CallExpression.addSource(builder, source);
+            CallExpression.addPosition(builder, position);
+
+            return CallExpression.endCallExpression(builder);
         }
 
         static createArrayExpression(
@@ -895,6 +941,38 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             return FunctionParameter.endFunctionParameter(builder);
         }
 
+        static createParameterEffect(
+            builder: fbs.Builder,
+            effect: Types.Sir.SemanticParameterEffect,
+        ): fbs.Offset {
+            return ParameterEffect.createParameterEffect(
+                builder,
+                effect.index,
+                effect.returns,
+                effect.stores,
+                effect.escapes,
+                effect.mutates,
+                effect.consumes,
+            );
+        }
+
+        static createFunctionEffectSummary(
+            builder: fbs.Builder,
+            summary?: Types.Sir.SemanticFunctionEffectSummary,
+        ): fbs.Offset {
+            const effects = summary?.parameterEffects ?? [];
+            const effectOffsets = effects.map((effect) => this.createParameterEffect(builder, effect));
+            const effectsVector = createVector(builder, effectOffsets, (length) => {
+                FunctionEffectSummary.startParameterEffectsVector(builder, length);
+            });
+
+            FunctionEffectSummary.startFunctionEffectSummary(builder);
+            FunctionEffectSummary.addParameterEffects(builder, effectsVector);
+            FunctionEffectSummary.addReturnsAggregate(builder, summary?.returnsAggregate ?? false);
+
+            return FunctionEffectSummary.endFunctionEffectSummary(builder);
+        }
+
         static createFunctionDeclaration(
             builder: fbs.Builder,
             declaration: Types.Sir.SemanticFunctionDeclaration,
@@ -910,6 +988,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const qualifiedName = builder.createString(declaration.qualifiedName ?? "");
             const source = builder.createString(declaration.source ?? declaration.name);
             const position = this.createSourcePosition(builder, declaration.position);
+            const effectSummary = this.createFunctionEffectSummary(builder, declaration.effectSummary);
 
             const parameterOffsets = (declaration.params ?? []).map((parameter) => {
                 return this.createFunctionParameter(builder, parameter);
@@ -934,6 +1013,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             FunctionDeclaration.addQualifiedName(builder, qualifiedName);
             FunctionDeclaration.addSource(builder, source);
             FunctionDeclaration.addPosition(builder, position);
+            FunctionDeclaration.addEffectSummary(builder, effectSummary);
 
             return FunctionDeclaration.endFunctionDeclaration(builder);
         }
