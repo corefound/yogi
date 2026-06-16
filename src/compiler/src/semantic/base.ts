@@ -16,6 +16,7 @@ export class BaseSemantic {
     public sourceText = "";
     public symbolId = 0;
     public nextScopeId = 1;
+    public loopDepth = 0;
 
     public globalScope: Scope;
     public currentScope: Scope;

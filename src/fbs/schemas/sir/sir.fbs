@@ -162,6 +162,32 @@ table IfStatement {
   position:SourcePosition;
 }
 
+table WhileStatement {
+  condition:ValueRef;
+  body:BlockStatement;
+  source:string;
+  position:SourcePosition;
+}
+
+table ForStatement {
+  initializer:SirNode;
+  condition:ValueRef;
+  incrementor:ValueRef;
+  body:BlockStatement;
+  source:string;
+  position:SourcePosition;
+}
+
+table BreakStatement {
+  source:string;
+  position:SourcePosition;
+}
+
+table ContinueStatement {
+  source:string;
+  position:SourcePosition;
+}
+
 table FunctionParameter {
   name:string;
   type:TypeRef;
@@ -223,6 +249,10 @@ union SirNodeValue {
   ReturnStatement,
   BlockStatement,
   IfStatement,
+  WhileStatement,
+  ForStatement,
+  BreakStatement,
+  ContinueStatement,
   FunctionDeclaration
 }
 

@@ -262,6 +262,36 @@ export type SemanticIfStatement = {
     position?: SourcePosition;
 };
 
+export type SemanticWhileStatement = {
+    kind: "WhileStatement";
+    condition: SemanticValueInput;
+    body: SemanticBlockStatement;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticForStatement = {
+    kind: "ForStatement";
+    initializer?: SemanticNodeInput | null;
+    condition?: SemanticValueInput | null;
+    incrementor?: SemanticValueInput | null;
+    body: SemanticBlockStatement;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticBreakStatement = {
+    kind: "BreakStatement";
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticContinueStatement = {
+    kind: "ContinueStatement";
+    source?: string;
+    position?: SourcePosition;
+};
+
 export type SemanticFunctionParameter = {
     kind: "FunctionParameter";
     name: string;
@@ -362,6 +392,10 @@ export type SemanticNodeInput =
     | SemanticReturnStatement
     | SemanticBlockStatement
     | SemanticIfStatement
+    | SemanticWhileStatement
+    | SemanticForStatement
+    | SemanticBreakStatement
+    | SemanticContinueStatement
     | SemanticFunctionDeclaration
     | SemanticExternDeclaration;
 

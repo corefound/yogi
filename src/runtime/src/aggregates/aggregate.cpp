@@ -121,6 +121,7 @@ namespace yogi::runtime {
 		auto *array = new (address) ArrayValue();
 		OwnershipTracker::registerStackAggregate(array, "array value");
 		array->elementCount = length;
+		array->elementCapacity = length;
 
 		if (length == 0) {
 			return;
@@ -159,12 +160,44 @@ namespace yogi::runtime {
 		return elements[index] ? elements[index] : AnyValue::undefined();
 	}
 
+	std::size_t ArrayValue::push(void *value) {
+		OwnershipTracker::assertLiveAggregate(this, "array push after destroy/drop", "array value");
+
+		ensureCapacity(elementCount + 1);
+		elements[elementCount] = value ? value : AnyValue::undefined();
+		++elementCount;
+
+		return elementCount;
+	}
+
+	void ArrayValue::ensureCapacity(std::size_t requiredCapacity) {
+		if (requiredCapacity <= elementCapacity) {
+			return;
+		}
+
+		auto nextCapacity = elementCapacity == 0 ? 4 : elementCapacity * 2;
+		while (nextCapacity < requiredCapacity) {
+			nextCapacity *= 2;
+		}
+
+		elements = static_cast<void **>(
+			MemoryManager::reallocate(elements, sizeof(void *) * nextCapacity, "array elements")
+		);
+
+		for (std::size_t index = elementCapacity; index < nextCapacity; ++index) {
+			elements[index] = AnyValue::undefined();
+		}
+
+		elementCapacity = nextCapacity;
+	}
+
 	void ArrayValue::destroy() {
 		OwnershipTracker::assertLiveAggregate(this, "array destroy/drop after destroy/drop", "array value");
 
 		MemoryManager::deallocate(elements);
 		elements = nullptr;
 		elementCount = 0;
+		elementCapacity = 0;
 	}
 
 } // namespace yogi::runtime
@@ -253,6 +286,16 @@ void *yogi_array_get(void *array, unsigned long long index) {
 	}
 
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->get(static_cast<std::size_t>(index));
+}
+
+unsigned long long yogi_array_push(void *array, void *value) {
+	if (!array) {
+		return 0;
+	}
+
+	return static_cast<unsigned long long>(
+		static_cast<yogi::runtime::ArrayValue *>(array)->push(value)
+	);
 }
 
 void yogi_array_drop(void *array) {

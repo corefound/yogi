@@ -42,6 +42,7 @@ unsigned long long yogi_array_sizeof(void);
 void yogi_array_init(void *array, unsigned long long length);
 void yogi_array_set(void *array, unsigned long long index, void *value);
 void *yogi_array_get(void *array, unsigned long long index);
+unsigned long long yogi_array_push(void *array, void *value);
 void yogi_array_drop(void *array);
 void yogi_array_destroy(void *array);
 

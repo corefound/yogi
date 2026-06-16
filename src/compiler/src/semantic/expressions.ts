@@ -148,6 +148,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
         }
 
         public visitCallExpression(node: any): any {
+            if (node.callee?.kind === Kinds.Expressions.PropertyAccessExpression) {
+                return this.visitBuiltinMethodCall(node);
+            }
+
             const callee = this.visitNode(node.callee);
             const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
 
@@ -239,6 +243,109 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 qualifiedName: symbol.qualifiedName,
                 external,
                 effectSummary,
+            };
+        }
+
+        public visitBuiltinMethodCall(node: any): any {
+            const rawCallee = node.callee;
+            const receiver = this.visitNode(rawCallee.object);
+            const receiverType = this.resolveType(receiver?.declaredType ?? receiver?.type);
+            const methodName = rawCallee.property;
+            const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
+            const source = node.fullSource ?? node.source ?? rawCallee.source;
+
+            if (receiverType?.kind !== Kinds.Types.ArrayType && receiverType?.kind !== Kinds.Types.TupleType) {
+                const message =
+                    `method ${Helpers.RED}'${methodName}'${Helpers.RESET} does not exist on type ` +
+                    `${Helpers.RED}'${receiverType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            if (methodName !== "push") {
+                const message =
+                    `array method ${Helpers.RED}'${methodName}'${Helpers.RESET} is not supported yet`;
+
+                rawCallee.arrowLength = methodName?.length ?? rawCallee.source?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            if (receiverType?.kind === Kinds.Types.TupleType) {
+                const message =
+                    `tuple method ${Helpers.RED}'push'${Helpers.RESET} is not supported because tuple length is fixed`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            const root = this.getAggregateRootIdentifier(receiver);
+            const symbol = root ? this.resolveSymbol(root) : null;
+
+            if (symbol?.mutable !== true) {
+                const message =
+                    `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            if (this.isReadonlyType(receiverType)) {
+                const message =
+                    `cannot call mutating method ${Helpers.RED}'push'${Helpers.RESET} on readonly array`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            if (args.length !== 1) {
+                const message =
+                    `array method ${Helpers.BLUE}'push'${Helpers.RESET} expects ` +
+                    `${Helpers.BLUE}'1'${Helpers.RESET} argument, got ${Helpers.RED}'${args.length}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, node.position, source, node);
+            }
+
+            const elementType = receiverType.elementType;
+            const actualType = args[0]?.type;
+
+            if (!this.isTypeAssignable(elementType, actualType)) {
+                const message =
+                    `array method ${Helpers.BLUE}'push'${Helpers.RESET} expects ` +
+                    `${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                    `${Helpers.RED}'${actualType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                args[0].arrowLength = args[0].source?.length ?? 1;
+                this.throwError(message, args[0].position ?? node.position, source, args[0]);
+            }
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.CallExpression,
+                callee: {
+                    ...rawCallee,
+                    object: receiver,
+                    type: {
+                        kind: Kinds.Types.FunctionType,
+                        raw: "Function",
+                    },
+                },
+                arguments: args,
+                argumentEffects: [
+                    {
+                        index: 0,
+                        escapes: false,
+                        mutates: true,
+                        consumes: false,
+                    },
+                ],
+                type: {
+                    kind: Kinds.Types.NumberType,
+                    raw: "number",
+                },
+                external: false,
+                builtinMethod: "array.push",
             };
         }
 

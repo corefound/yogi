@@ -34,6 +34,10 @@ import {
     ReturnStatement,
     BlockStatement,
     IfStatement,
+    WhileStatement,
+    ForStatement,
+    BreakStatement,
+    ContinueStatement,
     FunctionDeclaration,
     FunctionParameter,
     FunctionEffectSummary,
@@ -173,6 +177,30 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     const value = this.createIfStatement(builder, node);
 
                     return this.createSirNode(builder, SirNodeValue.IfStatement, value);
+                }
+
+                case "WhileStatement": {
+                    const value = this.createWhileStatement(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.WhileStatement, value);
+                }
+
+                case "ForStatement": {
+                    const value = this.createForStatement(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.ForStatement, value);
+                }
+
+                case "BreakStatement": {
+                    const value = this.createBreakStatement(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.BreakStatement, value);
+                }
+
+                case "ContinueStatement": {
+                    const value = this.createContinueStatement(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.ContinueStatement, value);
                 }
 
                 case "FunctionDeclaration": {
@@ -929,6 +957,80 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             IfStatement.addPosition(builder, position);
 
             return IfStatement.endIfStatement(builder);
+        }
+
+        static createWhileStatement(
+            builder: fbs.Builder,
+            statement: Types.Sir.SemanticWhileStatement,
+        ): fbs.Offset {
+            const condition = this.createValueRef(builder, statement.condition);
+            const body = this.createBlockStatement(builder, statement.body);
+            const source = builder.createString(statement.source ?? "");
+            const position = this.createSourcePosition(builder, statement.position);
+
+            WhileStatement.startWhileStatement(builder);
+            WhileStatement.addCondition(builder, condition);
+            WhileStatement.addBody(builder, body);
+            WhileStatement.addSource(builder, source);
+            WhileStatement.addPosition(builder, position);
+
+            return WhileStatement.endWhileStatement(builder);
+        }
+
+        static createForStatement(
+            builder: fbs.Builder,
+            statement: Types.Sir.SemanticForStatement,
+        ): fbs.Offset {
+            const initializer = statement.initializer
+                ? this.visitSemanticNode(builder, statement.initializer)
+                : 0;
+            const condition = this.createValueRef(builder, statement.condition ?? null);
+            const incrementor = this.createValueRef(builder, statement.incrementor ?? null);
+            const body = this.createBlockStatement(builder, statement.body);
+            const source = builder.createString(statement.source ?? "");
+            const position = this.createSourcePosition(builder, statement.position);
+
+            ForStatement.startForStatement(builder);
+
+            if (initializer) {
+                ForStatement.addInitializer(builder, initializer);
+            }
+
+            ForStatement.addCondition(builder, condition);
+            ForStatement.addIncrementor(builder, incrementor);
+            ForStatement.addBody(builder, body);
+            ForStatement.addSource(builder, source);
+            ForStatement.addPosition(builder, position);
+
+            return ForStatement.endForStatement(builder);
+        }
+
+        static createBreakStatement(
+            builder: fbs.Builder,
+            statement: Types.Sir.SemanticBreakStatement,
+        ): fbs.Offset {
+            const source = builder.createString(statement.source ?? "break");
+            const position = this.createSourcePosition(builder, statement.position);
+
+            BreakStatement.startBreakStatement(builder);
+            BreakStatement.addSource(builder, source);
+            BreakStatement.addPosition(builder, position);
+
+            return BreakStatement.endBreakStatement(builder);
+        }
+
+        static createContinueStatement(
+            builder: fbs.Builder,
+            statement: Types.Sir.SemanticContinueStatement,
+        ): fbs.Offset {
+            const source = builder.createString(statement.source ?? "continue");
+            const position = this.createSourcePosition(builder, statement.position);
+
+            ContinueStatement.startContinueStatement(builder);
+            ContinueStatement.addSource(builder, source);
+            ContinueStatement.addPosition(builder, position);
+
+            return ContinueStatement.endContinueStatement(builder);
         }
 
         static createFunctionParameter(

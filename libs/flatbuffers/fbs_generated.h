@@ -150,6 +150,18 @@ struct BlockStatementBuilder;
 struct IfStatement;
 struct IfStatementBuilder;
 
+struct WhileStatement;
+struct WhileStatementBuilder;
+
+struct ForStatement;
+struct ForStatementBuilder;
+
+struct BreakStatement;
+struct BreakStatementBuilder;
+
+struct ContinueStatement;
+struct ContinueStatementBuilder;
+
 struct FunctionParameter;
 struct FunctionParameterBuilder;
 
@@ -383,12 +395,16 @@ enum SirNodeValue : uint8_t {
   SirNodeValue_ReturnStatement = 14,
   SirNodeValue_BlockStatement = 15,
   SirNodeValue_IfStatement = 16,
-  SirNodeValue_FunctionDeclaration = 17,
+  SirNodeValue_WhileStatement = 17,
+  SirNodeValue_ForStatement = 18,
+  SirNodeValue_BreakStatement = 19,
+  SirNodeValue_ContinueStatement = 20,
+  SirNodeValue_FunctionDeclaration = 21,
   SirNodeValue_MIN = SirNodeValue_NONE,
   SirNodeValue_MAX = SirNodeValue_FunctionDeclaration
 };
 
-inline const SirNodeValue (&EnumValuesSirNodeValue())[18] {
+inline const SirNodeValue (&EnumValuesSirNodeValue())[22] {
   static const SirNodeValue values[] = {
     SirNodeValue_NONE,
     SirNodeValue_Constant,
@@ -407,13 +423,17 @@ inline const SirNodeValue (&EnumValuesSirNodeValue())[18] {
     SirNodeValue_ReturnStatement,
     SirNodeValue_BlockStatement,
     SirNodeValue_IfStatement,
+    SirNodeValue_WhileStatement,
+    SirNodeValue_ForStatement,
+    SirNodeValue_BreakStatement,
+    SirNodeValue_ContinueStatement,
     SirNodeValue_FunctionDeclaration
   };
   return values;
 }
 
 inline const char * const *EnumNamesSirNodeValue() {
-  static const char * const names[19] = {
+  static const char * const names[23] = {
     "NONE",
     "Constant",
     "ExternDeclaration",
@@ -431,6 +451,10 @@ inline const char * const *EnumNamesSirNodeValue() {
     "ReturnStatement",
     "BlockStatement",
     "IfStatement",
+    "WhileStatement",
+    "ForStatement",
+    "BreakStatement",
+    "ContinueStatement",
     "FunctionDeclaration",
     nullptr
   };
@@ -509,6 +533,22 @@ template<> struct SirNodeValueTraits<Yogi::Sir::BlockStatement> {
 
 template<> struct SirNodeValueTraits<Yogi::Sir::IfStatement> {
   static const SirNodeValue enum_value = SirNodeValue_IfStatement;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::WhileStatement> {
+  static const SirNodeValue enum_value = SirNodeValue_WhileStatement;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::ForStatement> {
+  static const SirNodeValue enum_value = SirNodeValue_ForStatement;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::BreakStatement> {
+  static const SirNodeValue enum_value = SirNodeValue_BreakStatement;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::ContinueStatement> {
+  static const SirNodeValue enum_value = SirNodeValue_ContinueStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::FunctionDeclaration> {
@@ -4523,6 +4563,344 @@ inline ::flatbuffers::Offset<IfStatement> CreateIfStatementDirect(
       position);
 }
 
+struct WhileStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef WhileStatementBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_CONDITION = 4,
+    VT_BODY = 6,
+    VT_SOURCE = 8,
+    VT_POSITION = 10
+  };
+  const Yogi::Sir::ValueRef *condition() const {
+    return GetPointer<const Yogi::Sir::ValueRef *>(VT_CONDITION);
+  }
+  const Yogi::Sir::BlockStatement *body() const {
+    return GetPointer<const Yogi::Sir::BlockStatement *>(VT_BODY);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_CONDITION) &&
+           verifier.VerifyTable(condition()) &&
+           VerifyOffset(verifier, VT_BODY) &&
+           verifier.VerifyTable(body()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct WhileStatementBuilder {
+  typedef WhileStatement Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_condition(::flatbuffers::Offset<Yogi::Sir::ValueRef> condition) {
+    fbb_.AddOffset(WhileStatement::VT_CONDITION, condition);
+  }
+  void add_body(::flatbuffers::Offset<Yogi::Sir::BlockStatement> body) {
+    fbb_.AddOffset(WhileStatement::VT_BODY, body);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(WhileStatement::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(WhileStatement::VT_POSITION, position);
+  }
+  explicit WhileStatementBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<WhileStatement> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<WhileStatement>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<WhileStatement> CreateWhileStatement(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> condition = 0,
+    ::flatbuffers::Offset<Yogi::Sir::BlockStatement> body = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  WhileStatementBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_body(body);
+  builder_.add_condition(condition);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<WhileStatement> CreateWhileStatementDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> condition = 0,
+    ::flatbuffers::Offset<Yogi::Sir::BlockStatement> body = 0,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateWhileStatement(
+      _fbb,
+      condition,
+      body,
+      source__,
+      position);
+}
+
+struct ForStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ForStatementBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_INITIALIZER = 4,
+    VT_CONDITION = 6,
+    VT_INCREMENTOR = 8,
+    VT_BODY = 10,
+    VT_SOURCE = 12,
+    VT_POSITION = 14
+  };
+  const Yogi::Sir::SirNode *initializer() const {
+    return GetPointer<const Yogi::Sir::SirNode *>(VT_INITIALIZER);
+  }
+  const Yogi::Sir::ValueRef *condition() const {
+    return GetPointer<const Yogi::Sir::ValueRef *>(VT_CONDITION);
+  }
+  const Yogi::Sir::ValueRef *incrementor() const {
+    return GetPointer<const Yogi::Sir::ValueRef *>(VT_INCREMENTOR);
+  }
+  const Yogi::Sir::BlockStatement *body() const {
+    return GetPointer<const Yogi::Sir::BlockStatement *>(VT_BODY);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_INITIALIZER) &&
+           verifier.VerifyTable(initializer()) &&
+           VerifyOffset(verifier, VT_CONDITION) &&
+           verifier.VerifyTable(condition()) &&
+           VerifyOffset(verifier, VT_INCREMENTOR) &&
+           verifier.VerifyTable(incrementor()) &&
+           VerifyOffset(verifier, VT_BODY) &&
+           verifier.VerifyTable(body()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ForStatementBuilder {
+  typedef ForStatement Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_initializer(::flatbuffers::Offset<Yogi::Sir::SirNode> initializer) {
+    fbb_.AddOffset(ForStatement::VT_INITIALIZER, initializer);
+  }
+  void add_condition(::flatbuffers::Offset<Yogi::Sir::ValueRef> condition) {
+    fbb_.AddOffset(ForStatement::VT_CONDITION, condition);
+  }
+  void add_incrementor(::flatbuffers::Offset<Yogi::Sir::ValueRef> incrementor) {
+    fbb_.AddOffset(ForStatement::VT_INCREMENTOR, incrementor);
+  }
+  void add_body(::flatbuffers::Offset<Yogi::Sir::BlockStatement> body) {
+    fbb_.AddOffset(ForStatement::VT_BODY, body);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(ForStatement::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ForStatement::VT_POSITION, position);
+  }
+  explicit ForStatementBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ForStatement> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ForStatement>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ForStatement> CreateForStatement(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::SirNode> initializer = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> condition = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> incrementor = 0,
+    ::flatbuffers::Offset<Yogi::Sir::BlockStatement> body = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ForStatementBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_body(body);
+  builder_.add_incrementor(incrementor);
+  builder_.add_condition(condition);
+  builder_.add_initializer(initializer);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ForStatement> CreateForStatementDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::SirNode> initializer = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> condition = 0,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> incrementor = 0,
+    ::flatbuffers::Offset<Yogi::Sir::BlockStatement> body = 0,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateForStatement(
+      _fbb,
+      initializer,
+      condition,
+      incrementor,
+      body,
+      source__,
+      position);
+}
+
+struct BreakStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef BreakStatementBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_SOURCE = 4,
+    VT_POSITION = 6
+  };
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct BreakStatementBuilder {
+  typedef BreakStatement Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(BreakStatement::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(BreakStatement::VT_POSITION, position);
+  }
+  explicit BreakStatementBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<BreakStatement> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<BreakStatement>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<BreakStatement> CreateBreakStatement(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  BreakStatementBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<BreakStatement> CreateBreakStatementDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateBreakStatement(
+      _fbb,
+      source__,
+      position);
+}
+
+struct ContinueStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ContinueStatementBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_SOURCE = 4,
+    VT_POSITION = 6
+  };
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ContinueStatementBuilder {
+  typedef ContinueStatement Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(ContinueStatement::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ContinueStatement::VT_POSITION, position);
+  }
+  explicit ContinueStatementBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ContinueStatement> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ContinueStatement>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ContinueStatement> CreateContinueStatement(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ContinueStatementBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ContinueStatement> CreateContinueStatementDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateContinueStatement(
+      _fbb,
+      source__,
+      position);
+}
+
 struct FunctionParameter FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef FunctionParameterBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
@@ -5130,6 +5508,18 @@ struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::IfStatement *value_as_IfStatement() const {
     return value_type() == Yogi::Sir::SirNodeValue_IfStatement ? static_cast<const Yogi::Sir::IfStatement *>(value()) : nullptr;
   }
+  const Yogi::Sir::WhileStatement *value_as_WhileStatement() const {
+    return value_type() == Yogi::Sir::SirNodeValue_WhileStatement ? static_cast<const Yogi::Sir::WhileStatement *>(value()) : nullptr;
+  }
+  const Yogi::Sir::ForStatement *value_as_ForStatement() const {
+    return value_type() == Yogi::Sir::SirNodeValue_ForStatement ? static_cast<const Yogi::Sir::ForStatement *>(value()) : nullptr;
+  }
+  const Yogi::Sir::BreakStatement *value_as_BreakStatement() const {
+    return value_type() == Yogi::Sir::SirNodeValue_BreakStatement ? static_cast<const Yogi::Sir::BreakStatement *>(value()) : nullptr;
+  }
+  const Yogi::Sir::ContinueStatement *value_as_ContinueStatement() const {
+    return value_type() == Yogi::Sir::SirNodeValue_ContinueStatement ? static_cast<const Yogi::Sir::ContinueStatement *>(value()) : nullptr;
+  }
   const Yogi::Sir::FunctionDeclaration *value_as_FunctionDeclaration() const {
     return value_type() == Yogi::Sir::SirNodeValue_FunctionDeclaration ? static_cast<const Yogi::Sir::FunctionDeclaration *>(value()) : nullptr;
   }
@@ -5205,6 +5595,22 @@ template<> inline const Yogi::Sir::BlockStatement *SirNode::value_as<Yogi::Sir::
 
 template<> inline const Yogi::Sir::IfStatement *SirNode::value_as<Yogi::Sir::IfStatement>() const {
   return value_as_IfStatement();
+}
+
+template<> inline const Yogi::Sir::WhileStatement *SirNode::value_as<Yogi::Sir::WhileStatement>() const {
+  return value_as_WhileStatement();
+}
+
+template<> inline const Yogi::Sir::ForStatement *SirNode::value_as<Yogi::Sir::ForStatement>() const {
+  return value_as_ForStatement();
+}
+
+template<> inline const Yogi::Sir::BreakStatement *SirNode::value_as<Yogi::Sir::BreakStatement>() const {
+  return value_as_BreakStatement();
+}
+
+template<> inline const Yogi::Sir::ContinueStatement *SirNode::value_as<Yogi::Sir::ContinueStatement>() const {
+  return value_as_ContinueStatement();
 }
 
 template<> inline const Yogi::Sir::FunctionDeclaration *SirNode::value_as<Yogi::Sir::FunctionDeclaration>() const {
@@ -5509,6 +5915,22 @@ inline bool VerifySirNodeValue(::flatbuffers::VerifierTemplate<B> &verifier, con
     }
     case SirNodeValue_IfStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::IfStatement *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case SirNodeValue_WhileStatement: {
+      auto ptr = reinterpret_cast<const Yogi::Sir::WhileStatement *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case SirNodeValue_ForStatement: {
+      auto ptr = reinterpret_cast<const Yogi::Sir::ForStatement *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case SirNodeValue_BreakStatement: {
+      auto ptr = reinterpret_cast<const Yogi::Sir::BreakStatement *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case SirNodeValue_ContinueStatement: {
+      auto ptr = reinterpret_cast<const Yogi::Sir::ContinueStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
     case SirNodeValue_FunctionDeclaration: {

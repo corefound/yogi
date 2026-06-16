@@ -560,6 +560,85 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("supports loop semantics and array push as a mutating builtin borrow", () => {
+    const root = createProject({
+      "main.io": `
+        function grow(): number {
+          let scores: number[] = [1]
+          let i: number = 0
+
+          while (i < 3) {
+            scores.push(i)
+            i = i + 1
+          }
+
+          let total: number = 0
+
+          for (let j: number = 0; j < 4; j = j + 1) {
+            let one: number[] = [j]
+
+            if (j == 2) {
+              continue
+            }
+
+            total = total + scores[j]
+
+            if (j == 3) {
+              break
+            }
+          }
+
+          return total
+        }
+
+        let value: number = grow()
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects invalid array push and use after move from loop body", () => {
+    const wrongPushType = runCompiler(createProject({
+      "main.io": `
+        function invalid(): void {
+          let scores: number[] = [1]
+          scores.push("bad")
+        }
+      `,
+    }));
+    expect(wrongPushType.status).not.toBe(0);
+    expect(wrongPushType.stderr).toContain("push");
+    expect(wrongPushType.stderr).toContain("number");
+
+    const movedInLoop = runCompiler(createProject({
+      "main.io": `
+        let saved: number[] = [0]
+
+        function save(scores: number[]): void {
+          saved = scores
+        }
+
+        function invalid(flag: boolean): number {
+          let local: number[] = [1, 2]
+
+          while (flag) {
+            save(local)
+            break
+          }
+
+          return local[0]
+        }
+      `,
+    }));
+    expect(movedInLoop.status).not.toBe(0);
+    expect(movedInLoop.stderr).toContain("cannot use aggregate");
+    expect(movedInLoop.stderr).toContain("local");
+  });
+
   test("rejects rest destructuring until aggregate copying exists", () => {
     const objectRest = runCompiler(createProject({
       "main.io": `

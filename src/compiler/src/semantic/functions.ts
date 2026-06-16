@@ -466,6 +466,19 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 }
 
                 if (node.kind === Kinds.Expressions.CallExpression) {
+                    if (
+                        node.builtinMethod === "array.push" ||
+                        (
+                            node.callee?.kind === Kinds.Expressions.PropertyAccessExpression &&
+                            node.callee?.property === "push"
+                        )
+                    ) {
+                        addMutatedIdentifier(node.callee?.object);
+                        visit(node.callee?.object);
+                        visit(node.arguments);
+                        return;
+                    }
+
                     const summary = this.getCallEffectSummary(node);
                     const argumentsList = node.arguments ?? [];
 

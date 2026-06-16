@@ -330,5 +330,13 @@ if(BUILD_TESTING)
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-move-state-validation
                                 -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_move_state_validation.cmake
                 )
+
+                add_test(
+                        NAME yogi_pipeline_loops_and_methods
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-loops-and-methods
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_loops_and_methods.cmake
+                )
         endif()
 endif()

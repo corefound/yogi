@@ -83,6 +83,10 @@ namespace yogi::core::llvm::internal {
 		::llvm::Type *expectedType,
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
+		if (call->callee() && call->callee()->property_access()) {
+			return lowerBuiltinMethodCall(call, expectedType, expectedSemanticType);
+		}
+
 		std::vector<::llvm::Value *> arguments;
 		std::vector<::llvm::Type *> argumentTypes;
 
@@ -140,6 +144,44 @@ namespace yogi::core::llvm::internal {
 
 		auto *result = context.builder.CreateCall(function, arguments, sanitizeSymbol(functionName) + ".call");
 		return cast(result, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
+	}
+
+	::llvm::Value *ValueLowerer::lowerBuiltinMethodCall(
+		const Yogi::Sir::CallExpression *call,
+		::llvm::Type *expectedType,
+		const Yogi::Sir::TypeRef *expectedSemanticType
+	) {
+		const auto *callee = call->callee()->property_access();
+		const auto methodName = fbString(callee->property());
+
+		if (methodName == "push") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			const auto *argument = call->arguments() && call->arguments()->size() > 0
+				? call->arguments()->Get(0)
+				: nullptr;
+			const auto *argumentSemanticType = valueSemanticType(argument);
+			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+			auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
+			auto *length = callRuntime(
+				"yogi_array_push",
+				::llvm::Type::getInt64Ty(context.llvmContext),
+				{array, boxedValue}
+			);
+			auto *asNumber = context.builder.CreateUIToFP(
+				length,
+				::llvm::Type::getDoubleTy(context.llvmContext),
+				"array.push.length"
+			);
+
+			return cast(
+				asNumber,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
 	}
 
 	::llvm::Value *ValueLowerer::lowerConstant(

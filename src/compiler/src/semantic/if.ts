@@ -18,6 +18,12 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 case Kinds.ControlFlow.ForStatement:
                     return this.visitForStatement(node);
 
+                case Kinds.ControlFlow.BreakStatement:
+                    return this.visitBreakStatement(node);
+
+                case Kinds.ControlFlow.ContinueStatement:
+                    return this.visitContinueStatement(node);
+
                 default:
                     return null;
             }
@@ -96,7 +102,7 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     statements.push(result);
                 }
 
-                if (this.statementAlwaysReturns(result)) {
+                if (this.statementTerminatesBlock(result)) {
                     break;
                 }
             }
@@ -124,20 +130,40 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 );
             }
 
+            const beforeMoveState = this.captureMoveState();
+
+            this.loopDepth++;
+            this.restoreMoveState(beforeMoveState);
+            const body = this.visitBlockStatement(node.body);
+            const bodyMoveState = this.blockAlwaysReturns(body)
+                ? null
+                : this.captureMoveState();
+            this.loopDepth--;
+
+            this.restoreMoveState(beforeMoveState);
+            this.mergeMoveState(bodyMoveState);
+
             return {
                 ...node,
                 kind: Kinds.Statements.WhileStatement,
                 condition,
-                body: this.visitBlockStatement(node.body),
+                body,
             };
         }
 
         public visitForStatement(node: any): any {
             this.enterScope();
 
-            const initializer = node.initializer ? this.visitNode(node.initializer) : null;
+            const visitedInitializer = node.initializer ? this.visitNode(node.initializer) : null;
+            const initializer = Array.isArray(visitedInitializer)
+                ? {
+                    kind: Kinds.Statements.BlockStatement,
+                    statements: visitedInitializer,
+                    source: node.initializer?.source,
+                    position: node.initializer?.position,
+                }
+                : visitedInitializer;
             const condition = node.condition ? this.visitNode(node.condition) : null;
-            const incrementor = node.incrementor ? this.visitNode(node.incrementor) : null;
 
             if (condition && !this.isBooleanType(condition?.type)) {
                 const message =
@@ -151,8 +177,28 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 );
             }
 
+            const beforeBodyMoveState = this.captureMoveState();
+            this.loopDepth++;
+            this.restoreMoveState(beforeBodyMoveState);
             const body = this.visitBlockStatement(node.body);
+            const bodyMoveState = this.blockAlwaysReturns(body)
+                ? null
+                : this.captureMoveState();
+            let incrementor = null;
 
+            if (bodyMoveState) {
+                this.restoreMoveState(bodyMoveState);
+                incrementor = node.incrementor ? this.visitNode(node.incrementor) : null;
+            } else {
+                this.restoreMoveState(beforeBodyMoveState);
+                incrementor = node.incrementor ? this.visitNode(node.incrementor) : null;
+            }
+
+            const afterIterationMoveState = this.captureMoveState();
+            this.loopDepth--;
+
+            this.restoreMoveState(beforeBodyMoveState);
+            this.mergeMoveState(afterIterationMoveState);
             this.exitScope();
 
             return {
@@ -162,6 +208,32 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 condition,
                 incrementor,
                 body,
+            };
+        }
+
+        public visitBreakStatement(node: any): any {
+            if (this.loopDepth <= 0) {
+                const message = `${Helpers.RED}'break'${Helpers.RESET} can only be used inside a loop`;
+                node.arrowLength = node.source?.length ?? 5;
+                this.throwError(message, node.position, node.source ?? "break", node);
+            }
+
+            return {
+                ...node,
+                kind: Kinds.Statements.BreakStatement,
+            };
+        }
+
+        public visitContinueStatement(node: any): any {
+            if (this.loopDepth <= 0) {
+                const message = `${Helpers.RED}'continue'${Helpers.RESET} can only be used inside a loop`;
+                node.arrowLength = node.source?.length ?? 8;
+                this.throwError(message, node.position, node.source ?? "continue", node);
+            }
+
+            return {
+                ...node,
+                kind: Kinds.Statements.ContinueStatement,
             };
         }
 
@@ -304,6 +376,26 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             return false;
         }
 
+        public statementTerminatesBlock(node: any): boolean {
+            if (!node) return false;
+
+            if (Array.isArray(node)) {
+                return node.some((item: any) => this.statementTerminatesBlock(item));
+            }
+
+            return (
+                this.statementAlwaysReturns(node) ||
+                node.kind === Kinds.Statements.BreakStatement ||
+                node.kind === Kinds.Statements.ContinueStatement ||
+                (
+                    node.kind === Kinds.Statements.IfStatement &&
+                    this.blockTerminates(node.then) &&
+                    node.else &&
+                    this.blockTerminates(node.else)
+                )
+            );
+        }
+
         public blockAlwaysReturns(node: any): boolean {
             const statements = node?.statements ?? [];
 
@@ -312,6 +404,16 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             }
 
             return statements.some((statement: any) => this.statementAlwaysReturns(statement));
+        }
+
+        public blockTerminates(node: any): boolean {
+            const statements = node?.statements ?? [];
+
+            if (!Array.isArray(statements) || statements.length === 0) {
+                return false;
+            }
+
+            return statements.some((statement: any) => this.statementTerminatesBlock(statement));
         }
     };
 }

@@ -42,11 +42,15 @@ namespace yogi::runtime {
 
 			void set(std::size_t index, void *value);
 			void *get(std::size_t index) const;
+			std::size_t push(void *value);
 			void destroy();
 
 		private:
 			void **elements = nullptr;
 			std::size_t elementCount = 0;
+			std::size_t elementCapacity = 0;
+
+			void ensureCapacity(std::size_t requiredCapacity);
 	};
 
 } // namespace yogi::runtime

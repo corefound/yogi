@@ -33,6 +33,10 @@ export namespace Types {
         export type SemanticReturnStatement = SirTypes.SemanticReturnStatement;
         export type SemanticBlockStatement = SirTypes.SemanticBlockStatement;
         export type SemanticIfStatement = SirTypes.SemanticIfStatement;
+        export type SemanticWhileStatement = SirTypes.SemanticWhileStatement;
+        export type SemanticForStatement = SirTypes.SemanticForStatement;
+        export type SemanticBreakStatement = SirTypes.SemanticBreakStatement;
+        export type SemanticContinueStatement = SirTypes.SemanticContinueStatement;
         export type SemanticFunctionParameter = SirTypes.SemanticFunctionParameter;
         export type SemanticParameterEffect = SirTypes.SemanticParameterEffect;
         export type SemanticFunctionEffectSummary = SirTypes.SemanticFunctionEffectSummary;

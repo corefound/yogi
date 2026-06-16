@@ -206,6 +206,31 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
+		if (const auto *statement = node->value_as_BlockStatement()) {
+			lowerBlock(statement);
+			return;
+		}
+
+		if (const auto *statement = node->value_as_WhileStatement()) {
+			lowerWhile(statement);
+			return;
+		}
+
+		if (const auto *statement = node->value_as_ForStatement()) {
+			lowerFor(statement);
+			return;
+		}
+
+		if (const auto *statement = node->value_as_BreakStatement()) {
+			lowerBreak(statement);
+			return;
+		}
+
+		if (const auto *statement = node->value_as_ContinueStatement()) {
+			lowerContinue(statement);
+			return;
+		}
+
 		if (const auto *statement = node->value_as_ReturnStatement()) {
 			lowerReturn(statement);
 		}
@@ -341,6 +366,109 @@ namespace yogi::core::llvm::internal {
 		}
 
 		restoreState(mergeState(incomingState, reachableStates));
+	}
+
+	void StatementLowerer::lowerWhile(const Yogi::Sir::WhileStatement *statement) {
+		auto *function = context.builder.GetInsertBlock()->getParent();
+		auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "while.cond", function);
+		auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "while.body", function);
+		auto *endBlock = ::llvm::BasicBlock::Create(context.llvmContext, "while.end", function);
+		const auto cleanupStart = context.localAggregateCleanups.size();
+
+		context.builder.CreateBr(conditionBlock);
+
+		context.builder.SetInsertPoint(conditionBlock);
+		auto *condition = values.toBoolean(values.lower(statement->condition(), ::llvm::Type::getInt1Ty(context.llvmContext)));
+		context.builder.CreateCondBr(condition, bodyBlock, endBlock);
+
+		context.builder.SetInsertPoint(bodyBlock);
+		loopFrames.push_back({
+			endBlock,
+			conditionBlock,
+			cleanupStart,
+			cleanupStart,
+		});
+		lowerBlock(statement->body());
+		loopFrames.pop_back();
+
+		if (!context.builder.GetInsertBlock()->hasTerminator()) {
+			context.builder.CreateBr(conditionBlock);
+		}
+
+		context.builder.SetInsertPoint(endBlock);
+		emitLocalCleanupsFrom(cleanupStart);
+	}
+
+	void StatementLowerer::lowerFor(const Yogi::Sir::ForStatement *statement) {
+		const auto loopScopeStart = context.localAggregateCleanups.size();
+
+		if (statement->initializer()) {
+			lowerStatement(statement->initializer());
+		}
+
+		auto *function = context.builder.GetInsertBlock()->getParent();
+		auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "for.cond", function);
+		auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "for.body", function);
+		auto *incrementBlock = ::llvm::BasicBlock::Create(context.llvmContext, "for.inc", function);
+		auto *endBlock = ::llvm::BasicBlock::Create(context.llvmContext, "for.end", function);
+		const auto bodyCleanupStart = context.localAggregateCleanups.size();
+
+		context.builder.CreateBr(conditionBlock);
+
+		context.builder.SetInsertPoint(conditionBlock);
+		if (statement->condition() && statement->condition()->kind()) {
+			auto *condition = values.toBoolean(values.lower(statement->condition(), ::llvm::Type::getInt1Ty(context.llvmContext)));
+			context.builder.CreateCondBr(condition, bodyBlock, endBlock);
+		} else {
+			context.builder.CreateBr(bodyBlock);
+		}
+
+		context.builder.SetInsertPoint(bodyBlock);
+		loopFrames.push_back({
+			endBlock,
+			incrementBlock,
+			bodyCleanupStart,
+			bodyCleanupStart,
+		});
+		lowerBlock(statement->body());
+		loopFrames.pop_back();
+
+		if (!context.builder.GetInsertBlock()->hasTerminator()) {
+			context.builder.CreateBr(incrementBlock);
+		}
+
+		context.builder.SetInsertPoint(incrementBlock);
+		if (statement->incrementor() && statement->incrementor()->kind()) {
+			values.lower(statement->incrementor(), nullptr);
+		}
+		if (!context.builder.GetInsertBlock()->hasTerminator()) {
+			context.builder.CreateBr(conditionBlock);
+		}
+
+		context.builder.SetInsertPoint(endBlock);
+		emitLocalCleanupsFrom(loopScopeStart);
+	}
+
+	void StatementLowerer::lowerBreak(const Yogi::Sir::BreakStatement *) {
+		if (loopFrames.empty()) {
+			context.builder.CreateUnreachable();
+			return;
+		}
+
+		const auto frame = loopFrames.back();
+		emitLocalCleanupsFrom(frame.breakCleanupStart);
+		context.builder.CreateBr(frame.breakBlock);
+	}
+
+	void StatementLowerer::lowerContinue(const Yogi::Sir::ContinueStatement *) {
+		if (loopFrames.empty()) {
+			context.builder.CreateUnreachable();
+			return;
+		}
+
+		const auto frame = loopFrames.back();
+		emitLocalCleanupsFrom(frame.continueCleanupStart);
+		context.builder.CreateBr(frame.continueBlock);
 	}
 
 } // namespace yogi::core::llvm::internal
