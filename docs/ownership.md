@@ -197,7 +197,7 @@ The ownership model is intentionally small. It does not yet implement:
 - Explicit `move` or `consume` syntax.
 - Shared ownership or reference counting.
 - Closure capture summaries.
-- Method-call summaries such as `scores.push(4)`.
+- More method-call summaries beyond the implemented `scores.push(value)`.
 - Loops with break/continue cleanup edges.
 
 The current model is enough to make function boundaries safe for direct

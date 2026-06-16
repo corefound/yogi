@@ -318,6 +318,6 @@ Future lots should improve:
 
 - Precise runtime liveness flags for conditional escapes after merge.
 - Explicit move/consume syntax.
-- Method-call summaries such as `scores.push(4)`.
+- More method-call summaries beyond the implemented `scores.push(value)`.
 - Loops with break/continue cleanup edges.
 - Exceptions or panic/unwind cleanup paths if the language adds them.

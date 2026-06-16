@@ -34,6 +34,7 @@ The compiler currently lowers source code through this pipeline:
 - [Function Ownership](ownership.md)
 - [Move-State Validation](move-state-validation.md)
 - [Destructor Scheduling](destructor-scheduling.md)
+- [Loops and Aggregate Methods](loops-and-methods.md)
 - [Runtime Debug Ownership](runtime-debug.md)
 - [Runtime Allocator](runtime-allocator.md)
 - [Runtime Memory Telemetry](runtime-memory-telemetry.md)

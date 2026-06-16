@@ -177,7 +177,7 @@ model:
 
 - Explicit `move` or `consume` syntax.
 - Copy constructors or clone operations for aggregates.
-- Method-level ownership summaries.
+- More method-level ownership summaries beyond the implemented array `push`.
 - Loop-aware move-state joins for `break` and `continue`.
 - Closure capture ownership.
 
