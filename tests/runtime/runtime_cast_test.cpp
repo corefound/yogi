@@ -154,5 +154,32 @@ int main() {
 	yogi_array_destroy(array);
 	assert(yogi_debug_ownership_live_aggregates() == 0);
 
+	// Test yogi_array_pop
+	void *popArray = yogi_array_create(3);
+	yogi_array_set(popArray, 0, yogi_any_from_number(10));
+	yogi_array_set(popArray, 1, yogi_any_from_number(20));
+	yogi_array_set(popArray, 2, yogi_any_from_number(30));
+	void *popped = yogi_array_pop(popArray);
+	assert(yogi_any_to_number(popped) == 30);
+	popped = yogi_array_pop(popArray);
+	assert(yogi_any_to_number(popped) == 20);
+	popped = yogi_array_pop(popArray);
+	assert(yogi_any_to_number(popped) == 10);
+	popped = yogi_array_pop(popArray);
+	assert(yogi_any_is_nullish(popped));
+	yogi_array_destroy(popArray);
+	assert(yogi_debug_ownership_live_aggregates() == 0);
+
+	// Test yogi_array_at
+	void *atArray = yogi_array_create(3);
+	yogi_array_set(atArray, 0, yogi_any_from_number(100));
+	yogi_array_set(atArray, 1, yogi_any_from_number(200));
+	assert(yogi_any_to_number(yogi_array_at(atArray, 0)) == 100);
+	assert(yogi_any_to_number(yogi_array_at(atArray, 1)) == 200);
+	assert(yogi_any_is_nullish(yogi_array_at(atArray, 5)));
+	assert(yogi_any_is_nullish(yogi_array_at(atArray, 100)));
+	yogi_array_destroy(atArray);
+	assert(yogi_debug_ownership_live_aggregates() == 0);
+
 	return 0;
 }

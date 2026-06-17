@@ -170,6 +170,30 @@ namespace yogi::runtime {
 		return elementCount;
 	}
 
+	void *ArrayValue::pop() {
+		OwnershipTracker::assertLiveAggregate(this, "array pop after destroy/drop", "array value");
+
+		if (elementCount == 0) {
+			return AnyValue::undefined();
+		}
+
+		--elementCount;
+		auto *result = elements[elementCount];
+		elements[elementCount] = AnyValue::undefined();
+
+		return result ? result : AnyValue::undefined();
+	}
+
+	void *ArrayValue::at(std::size_t index) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array at after destroy/drop", "array value");
+
+		if (index >= elementCount) {
+			return AnyValue::undefined();
+		}
+
+		return elements[index] ? elements[index] : AnyValue::undefined();
+	}
+
 	void ArrayValue::ensureCapacity(std::size_t requiredCapacity) {
 		if (requiredCapacity <= elementCapacity) {
 			return;
@@ -296,6 +320,22 @@ unsigned long long yogi_array_push(void *array, void *value) {
 	return static_cast<unsigned long long>(
 		static_cast<yogi::runtime::ArrayValue *>(array)->push(value)
 	);
+}
+
+void *yogi_array_pop(void *array) {
+	if (!array) {
+		return yogi_any_undefined();
+	}
+
+	return static_cast<yogi::runtime::ArrayValue *>(array)->pop();
+}
+
+void *yogi_array_at(void *array, unsigned long long index) {
+	if (!array) {
+		return yogi_any_undefined();
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->at(static_cast<std::size_t>(index));
 }
 
 void yogi_array_drop(void *array) {

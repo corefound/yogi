@@ -181,6 +181,43 @@ namespace yogi::core::llvm::internal {
 			);
 		}
 
+		if (methodName == "pop") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *result = callRuntime(
+				"yogi_array_pop",
+				opaquePointer(),
+				{array}
+			);
+
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "at") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			const auto *argument = call->arguments() && call->arguments()->size() > 0
+				? call->arguments()->Get(0)
+				: nullptr;
+			const auto *argumentSemanticType = valueSemanticType(argument);
+			auto *argumentValue = lower(argument, ::llvm::Type::getDoubleTy(context.llvmContext), argumentSemanticType);
+			auto *result = callRuntime(
+				"yogi_array_at",
+				opaquePointer(),
+				{array, toIndex(argumentValue)}
+			);
+
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
 		return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
 	}
 

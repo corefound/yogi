@@ -10,7 +10,7 @@ file(REMOVE_RECURSE "${TEST_WORK_DIR}")
 file(MAKE_DIRECTORY "${TEST_WORK_DIR}")
 
 set(SOURCE "${TEST_WORK_DIR}/main.io")
-file(WRITE "${SOURCE}" "function grow(): number {\n    let scores: number[] = [1]\n    let i: number = 0\n\n    while (i < 3) {\n        scores.push(i)\n        i = i + 1\n    }\n\n    let total: number = 0\n\n    for (let j: number = 0; j < 4; j = j + 1) {\n        let scratch: number[] = [j]\n\n        if (j == 2) {\n            continue\n        }\n\n        total = total + scores[j] + scratch[0]\n\n        if (j == 3) {\n            break\n        }\n    }\n\n    return total\n}\n\nlet value: number = grow()\n")
+file(WRITE "${SOURCE}" "function grow(): number {\n    let scores: number[] = [1]\n    let i: number = 0\n\n    while (i < 3) {\n        scores.push(i)\n        i = i + 1\n    }\n\n    let total: number = 0\n\n    for (let j: number = 0; j < 4; j = j + 1) {\n        let scratch: number[] = [j]\n\n        if (j == 2) {\n            continue\n        }\n\n        total = total + scores[j] + scratch[0]\n\n        if (j == 3) {\n            break\n        }\n    }\n\n    return total\n}\n\nfunction getFirst(): number | undefined {\n    let scores: number[] = [100, 200]\n    return scores.at(0)\n}\n\nfunction popLast(): number | undefined {\n    let scores: number[] = [10, 20, 30]\n    return scores.pop()\n}\n\nlet value: number = grow()\nlet first: number | undefined = getFirst()\nlet last: number | undefined = popLast()\n")
 
 execute_process(
 	COMMAND "${YOGI_EXECUTABLE}" "${SOURCE}"
@@ -49,6 +49,8 @@ foreach(symbol
 		for.body
 		for.inc
 		yogi_array_push
+		yogi_array_pop
+		yogi_array_at
 		yogi_array_drop)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected loops/methods IR to contain ${symbol}")

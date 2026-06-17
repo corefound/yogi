@@ -43,6 +43,8 @@ namespace yogi::runtime {
 			void set(std::size_t index, void *value);
 			void *get(std::size_t index) const;
 			std::size_t push(void *value);
+			void *pop();
+			void *at(std::size_t index) const;
 			void destroy();
 
 		private:
