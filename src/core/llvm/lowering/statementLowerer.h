@@ -51,7 +51,10 @@ namespace yogi::core::llvm::internal {
 				std::size_t continueCleanupStart;
 			};
 
-			struct SwitchFrame {
+			// Unified break frame stack preserves lexical nesting order.
+			// Both loops and switches are "breakable" — unlabeled break targets
+			// the most recently entered breakable frame, matching TS/JS semantics.
+			struct BreakFrame {
 				::llvm::BasicBlock *breakBlock;
 				std::size_t breakCleanupStart;
 			};
@@ -61,7 +64,7 @@ namespace yogi::core::llvm::internal {
 			ValueLowerer &values;
 			VariableLowerer &variables;
 			std::vector<LoopFrame> loopFrames;
-			std::vector<SwitchFrame> switchFrames;
+			std::vector<BreakFrame> breakFrames;
 	};
 
 } // namespace yogi::core::llvm::internal

@@ -8,7 +8,6 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Type.h>
-
 #include <map>
 
 namespace yogi::core::llvm::internal {
@@ -393,7 +392,9 @@ namespace yogi::core::llvm::internal {
 			cleanupStart,
 			cleanupStart,
 		});
+		breakFrames.push_back({endBlock, cleanupStart});
 		lowerBlock(statement->body());
+		breakFrames.pop_back();
 		loopFrames.pop_back();
 
 		if (!context.builder.GetInsertBlock()->hasTerminator()) {
@@ -435,7 +436,9 @@ namespace yogi::core::llvm::internal {
 			bodyCleanupStart,
 			bodyCleanupStart,
 		});
+		breakFrames.push_back({endBlock, bodyCleanupStart});
 		lowerBlock(statement->body());
+		breakFrames.pop_back();
 		loopFrames.pop_back();
 
 		if (!context.builder.GetInsertBlock()->hasTerminator()) {
@@ -455,19 +458,12 @@ namespace yogi::core::llvm::internal {
 	}
 
 	void StatementLowerer::lowerBreak(const Yogi::Sir::BreakStatement *) {
-		if (!switchFrames.empty()) {
-			const auto &frame = switchFrames.back();
-			emitLocalCleanupsFrom(frame.breakCleanupStart);
-			context.builder.CreateBr(frame.breakBlock);
-			return;
-		}
-
-		if (loopFrames.empty()) {
+		if (breakFrames.empty()) {
 			context.builder.CreateUnreachable();
 			return;
 		}
 
-		const auto &frame = loopFrames.back();
+		const auto &frame = breakFrames.back();
 		emitLocalCleanupsFrom(frame.breakCleanupStart);
 		context.builder.CreateBr(frame.breakBlock);
 	}
@@ -515,6 +511,21 @@ namespace yogi::core::llvm::internal {
 		}
 
 		const auto incomingState = captureState();
+
+		// Track whether each pre-switch cleanup entry was deactivated in any case body.
+		// This is needed because switch.end restores incomingState, but if a pre-switch
+		// aggregate escaped (e.g., assigned to global) inside a case, its cleanup must
+		// remain disabled after the switch. This mirrors lowerIf's mergeState logic.
+		std::vector<bool> preSwitchDeactivated(incomingState.localAggregateCleanups.size(), false);
+		const auto trackDeactivations = [&]() {
+			for (std::size_t j = 0; j < incomingState.localAggregateCleanups.size(); ++j) {
+				if (j < context.localAggregateCleanups.size() &&
+					!context.localAggregateCleanups[j].active &&
+					incomingState.localAggregateCleanups[j].active) {
+					preSwitchDeactivated[j] = true;
+				}
+			}
+		};
 
 		// Identify default clause index
 		int defaultIndex = -1;
@@ -594,9 +605,11 @@ namespace yogi::core::llvm::internal {
 
 				context.builder.SetInsertPoint(caseBodyBB);
 				restoreState(incomingState);
-				switchFrames.push_back({switchEndBB, context.localAggregateCleanups.size()});
+				breakFrames.push_back({switchEndBB, context.localAggregateCleanups.size()});
 				lowerBlock(caseClause->body());
-				switchFrames.pop_back();
+				breakFrames.pop_back();
+
+				trackDeactivations();
 
 				if (!context.builder.GetInsertBlock()->hasTerminator()) {
 					context.builder.CreateBr(switchEndBB);
@@ -608,9 +621,11 @@ namespace yogi::core::llvm::internal {
 				context.builder.SetInsertPoint(defaultBodyBB);
 				restoreState(incomingState);
 				const auto *defaultClause = clause->value_as_DefaultClause();
-				switchFrames.push_back({switchEndBB, context.localAggregateCleanups.size()});
+				breakFrames.push_back({switchEndBB, context.localAggregateCleanups.size()});
 				lowerBlock(defaultClause->body());
-				switchFrames.pop_back();
+				breakFrames.pop_back();
+
+				trackDeactivations();
 
 				if (!context.builder.GetInsertBlock()->hasTerminator()) {
 					context.builder.CreateBr(switchEndBB);
@@ -620,6 +635,11 @@ namespace yogi::core::llvm::internal {
 
 		context.builder.SetInsertPoint(switchEndBB);
 		restoreState(incomingState);
+		for (std::size_t j = 0; j < preSwitchDeactivated.size() && j < context.localAggregateCleanups.size(); ++j) {
+			if (preSwitchDeactivated[j]) {
+				context.localAggregateCleanups[j].active = false;
+			}
+		}
 	}
 
 } // namespace yogi::core::llvm::internal
