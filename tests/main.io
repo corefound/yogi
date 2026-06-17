@@ -44,3 +44,38 @@ if (status === undefined) {
     status = "manual-review"
     retryCount = retryCount + 1
 }
+
+// --- Array methods (push, pop, at, length) ---
+function computeScore(): number {
+    let scores: number[] = [10, 20]
+    scores.push(30)
+    let last: number | undefined = scores.pop()
+    let first: number | undefined = scores.at(0)
+    return scores.length
+}
+
+let totalScore: number = computeScore()
+
+// --- Path-sensitive break/continue ---
+function findThreshold(scores: number[], threshold: number): number {
+    let result: number = 0
+
+    for (let i: number = 0; i < scores.length; i = i + 1) {
+        let value: number = scores[i]
+
+        if (value > threshold) {
+            result = value
+            break
+        }
+
+        if (value == 0) {
+            continue
+        }
+
+        result = result + value
+    }
+
+    return result
+}
+
+let thresholdResult: number = findThreshold([5, 3, 8, 2], 4)
