@@ -346,5 +346,21 @@ if(BUILD_TESTING)
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-switch
                                 -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_switch.cmake
                 )
+
+                add_test(
+                        NAME yogi_pipeline_switch_ownership
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-switch-ownership
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_switch_ownership.cmake
+                )
+
+                add_test(
+                        NAME yogi_pipeline_break
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-break
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_break.cmake
+                )
         endif()
 endif()
