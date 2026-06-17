@@ -30,6 +30,7 @@ export namespace Types {
         export type SemanticAggregateAssignmentExpression = SirTypes.SemanticAggregateAssignmentExpression;
         export type SemanticValueInput = SirTypes.SemanticValueInput;
         export type SemanticVariableDeclaration = SirTypes.SemanticVariableDeclaration;
+        export type SemanticArrayDeclaration = SirTypes.SemanticArrayDeclaration;
         export type SemanticReturnStatement = SirTypes.SemanticReturnStatement;
         export type SemanticBlockStatement = SirTypes.SemanticBlockStatement;
         export type SemanticIfStatement = SirTypes.SemanticIfStatement;

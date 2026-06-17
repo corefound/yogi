@@ -31,6 +31,7 @@ import {
     ElementAccessExpression,
     AggregateAssignmentExpression,
     VariableDeclaration,
+    ArrayDeclaration,
     ReturnStatement,
     BlockStatement,
     IfStatement,
@@ -159,6 +160,12 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     const value = this.createVariableDeclaration(builder, node);
 
                     return this.createSirNode(builder, SirNodeValue.VariableDeclaration, value);
+                }
+
+                case "ArrayDeclaration": {
+                    const value = this.createArrayDeclaration(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.ArrayDeclaration, value);
                 }
 
                 case "ReturnStatement": {
@@ -694,6 +701,19 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             return ConditionalExpression.endConditionalExpression(builder);
         }
 
+        /**
+         * Serializes a semantic call expression to FBS format.
+         * 
+         * Key fields:
+         * - callee: the function/method being called
+         * - arguments: array of argument value references
+         * - argumentEffects: describes how each argument is used (escapes, mutates, consumes)
+         * - type: the return type of the call
+         * - builtinMethod: identifier for built-in array methods (e.g., "array.push", "array.pop", "array.at")
+         *   - Allows runtime identification of built-in method calls for special handling
+         *   - Empty string for regular function calls
+         * - external: whether this calls an external/imported function
+         */
         static createCallExpression(
             builder: fbs.Builder,
             expression: Types.Sir.SemanticCallExpression,
@@ -718,6 +738,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const type = this.createTypeRef(builder, expression.type);
             const linkageName = builder.createString(expression.linkageName ?? "");
             const qualifiedName = builder.createString(expression.qualifiedName ?? "");
+            const builtinMethod = builder.createString(expression.builtinMethod ?? "");
             const source = builder.createString(expression.source ?? "");
             const position = this.createSourcePosition(builder, expression.position);
 
@@ -730,6 +751,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             CallExpression.addLinkageName(builder, linkageName);
             CallExpression.addQualifiedName(builder, qualifiedName);
             CallExpression.addExternal(builder, expression.external ?? false);
+            CallExpression.addBuiltinMethod(builder, builtinMethod);
             CallExpression.addSource(builder, source);
             CallExpression.addPosition(builder, position);
 
@@ -892,6 +914,43 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             VariableDeclaration.addPosition(builder, position);
 
             return VariableDeclaration.endVariableDeclaration(builder);
+        }
+
+        static createArrayDeclaration(
+            builder: fbs.Builder,
+            declaration: Types.Sir.SemanticArrayDeclaration,
+        ): fbs.Offset {
+            const name = builder.createString(declaration.name);
+            const type = this.createTypeRef(builder, declaration.type);
+            const elementOffsets = (declaration.elements ?? []).map((element) => this.createValueRef(builder, element));
+            const elementsVector = createVector(builder, elementOffsets, (length) => {
+                ArrayDeclaration.startElementsVector(builder, length);
+            });
+            const storage = builder.createString(declaration.storage ?? "");
+            const flag = builder.createString(declaration.flag ?? "");
+            const linkageName = builder.createString(declaration.linkageName ?? "");
+            const qualifiedName = builder.createString(declaration.qualifiedName ?? "");
+            const source = builder.createString(declaration.source ?? declaration.name);
+            const position = this.createSourcePosition(builder, declaration.position);
+
+            ArrayDeclaration.startArrayDeclaration(builder);
+            ArrayDeclaration.addName(builder, name);
+            ArrayDeclaration.addType(builder, type);
+            ArrayDeclaration.addElements(builder, elementsVector);
+            ArrayDeclaration.addSymbolId(builder, declaration.symbolId ?? -1);
+            ArrayDeclaration.addScopeId(builder, declaration.scopeId ?? -1);
+            ArrayDeclaration.addMutable(builder, declaration.mutable ?? false);
+            ArrayDeclaration.addStorage(builder, storage);
+            ArrayDeclaration.addFlag(builder, flag);
+            ArrayDeclaration.addExported(builder, declaration.export ?? false);
+            ArrayDeclaration.addTrusted(builder, declaration.trusted ?? true);
+            ArrayDeclaration.addEscapes(builder, declaration.escapes ?? false);
+            ArrayDeclaration.addLinkageName(builder, linkageName);
+            ArrayDeclaration.addQualifiedName(builder, qualifiedName);
+            ArrayDeclaration.addSource(builder, source);
+            ArrayDeclaration.addPosition(builder, position);
+
+            return ArrayDeclaration.endArrayDeclaration(builder);
         }
 
         static createReturnStatement(

@@ -67,6 +67,8 @@ table CallExpression {
   linkage_name:string;
   qualified_name:string;
   external:bool = false;
+  /// Built-in method identifier for array methods (e.g., "array.push", "array.pop", "array.at")
+  builtin_method:string;
   source:string;
   position:SourcePosition;
 }
@@ -128,6 +130,26 @@ table VariableDeclaration {
   name:string;
   type:TypeRef;
   value:ValueRef;
+  symbol_id:int = -1;
+  scope_id:int = -1;
+  mutable:bool = false;
+  storage:string;
+  flag:string;
+  exported:bool = false;
+  trusted:bool = true;
+  escapes:bool = false;
+  linkage_name:string;
+  qualified_name:string;
+  source:string;
+  position:SourcePosition;
+}
+
+/// Array declaration with inline element initializers.
+/// Represents: let name: type[] = [elem1, elem2, ...]
+table ArrayDeclaration {
+  name:string;
+  type:TypeRef;
+  elements:[ValueRef];
   symbol_id:int = -1;
   scope_id:int = -1;
   mutable:bool = false;
@@ -253,7 +275,8 @@ union SirNodeValue {
   ForStatement,
   BreakStatement,
   ContinueStatement,
-  FunctionDeclaration
+  FunctionDeclaration,
+  ArrayDeclaration
 }
 
 table SirNode {

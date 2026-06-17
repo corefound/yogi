@@ -246,6 +246,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
         }
 
+        /**
+         * Handles built-in array methods: push, pop, at.
+         * Each method is validated according to its signature and constraints.
+         * 
+         * - push(element: T): number - mutates array, returns new length
+         * - pop(): T | undefined - mutates array, returns element
+         * - at(index: number): T | undefined - non-mutating, returns element
+         */
         public visitBuiltinMethodCall(node: any): any {
             const rawCallee = node.callee;
             const receiver = this.visitNode(rawCallee.object);
@@ -254,6 +262,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
             const source = node.fullSource ?? node.source ?? rawCallee.source;
 
+            // Validate receiver is an array or tuple
             if (receiverType?.kind !== Kinds.Types.ArrayType && receiverType?.kind !== Kinds.Types.TupleType) {
                 const message =
                     `method ${Helpers.RED}'${methodName}'${Helpers.RESET} does not exist on type ` +
@@ -263,14 +272,30 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
-            if (methodName !== "push") {
+            // Dispatch table for built-in array methods
+            const methodHandlers: Record<string, () => any> = {
+                push: () => this.validateAndCreatePushCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                pop: () => this.validateAndCreatePopCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                at: () => this.validateAndCreateAtCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+            };
+
+            if (!methodHandlers[methodName]) {
                 const message =
-                    `array method ${Helpers.RED}'${methodName}'${Helpers.RESET} is not supported yet`;
+                    `array method ${Helpers.RED}'${methodName}'${Helpers.RESET} is not supported`;
 
                 rawCallee.arrowLength = methodName?.length ?? rawCallee.source?.length ?? 1;
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
+            return methodHandlers[methodName]();
+        }
+
+        /**
+         * Validates and creates a push() call expression.
+         * push(element: T): number - mutates array, returns length
+         */
+        public validateAndCreatePushCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            // Tuples have fixed length; push is not allowed
             if (receiverType?.kind === Kinds.Types.TupleType) {
                 const message =
                     `tuple method ${Helpers.RED}'push'${Helpers.RESET} is not supported because tuple length is fixed`;
@@ -279,6 +304,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
+            // Validate receiver is mutable
             const root = this.getAggregateRootIdentifier(receiver);
             const symbol = root ? this.resolveSymbol(root) : null;
 
@@ -290,6 +316,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
+            // Validate receiver is not readonly
             if (this.isReadonlyType(receiverType)) {
                 const message =
                     `cannot call mutating method ${Helpers.RED}'push'${Helpers.RESET} on readonly array`;
@@ -298,6 +325,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
+            // Validate argument count
             if (args.length !== 1) {
                 const message =
                     `array method ${Helpers.BLUE}'push'${Helpers.RESET} expects ` +
@@ -307,6 +335,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, node.position, source, node);
             }
 
+            // Validate argument type matches element type
             const elementType = receiverType.elementType;
             const actualType = args[0]?.type;
 
@@ -346,6 +375,132 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 },
                 external: false,
                 builtinMethod: "array.push",
+            };
+        }
+
+        /**
+         * Validates and creates a pop() call expression.
+         * pop(): T | undefined - mutates array, returns element
+         */
+        public validateAndCreatePopCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            // Tuples have fixed length; pop is not allowed
+            if (receiverType?.kind === Kinds.Types.TupleType) {
+                const message =
+                    `tuple method ${Helpers.RED}'pop'${Helpers.RESET} is not supported because tuple length is fixed`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            // Validate receiver is mutable
+            const root = this.getAggregateRootIdentifier(receiver);
+            const symbol = root ? this.resolveSymbol(root) : null;
+
+            if (symbol?.mutable !== true) {
+                const message =
+                    `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            // Validate receiver is not readonly
+            if (this.isReadonlyType(receiverType)) {
+                const message =
+                    `cannot call mutating method ${Helpers.RED}'pop'${Helpers.RESET} on readonly array`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            // pop() takes no arguments
+            if (args.length !== 0) {
+                const message =
+                    `array method ${Helpers.BLUE}'pop'${Helpers.RESET} expects ` +
+                    `${Helpers.BLUE}'0'${Helpers.RESET} arguments, got ${Helpers.RED}'${args.length}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, node.position, source, node);
+            }
+
+            // pop() returns T | undefined
+            const elementType = receiverType.elementType;
+            const returnType = {
+                kind: Kinds.Types.UnionType,
+                types: [elementType, { kind: Kinds.Types.UndefinedType, raw: "undefined" }],
+                raw: `${elementType?.raw ?? "unknown"} | undefined`,
+            };
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.CallExpression,
+                callee: {
+                    ...rawCallee,
+                    object: receiver,
+                    type: {
+                        kind: Kinds.Types.FunctionType,
+                        raw: "Function",
+                    },
+                },
+                arguments: args,
+                argumentEffects: [],
+                type: returnType,
+                external: false,
+                builtinMethod: "array.pop",
+            };
+        }
+
+        /**
+         * Validates and creates an at() call expression.
+         * at(index: number): T | undefined - non-mutating, returns element
+         */
+        public validateAndCreateAtCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            // at() takes exactly one argument (index)
+            if (args.length !== 1) {
+                const message =
+                    `array method ${Helpers.BLUE}'at'${Helpers.RESET} expects ` +
+                    `${Helpers.BLUE}'1'${Helpers.RESET} argument, got ${Helpers.RED}'${args.length}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, node.position, source, node);
+            }
+
+            // Validate index argument is a number
+            const indexType = args[0]?.type;
+            if (this.resolveType(indexType)?.kind !== Kinds.Types.NumberType) {
+                const message =
+                    `array method ${Helpers.BLUE}'at'${Helpers.RESET} expects ` +
+                    `${Helpers.BLUE}'number'${Helpers.RESET} index, got ` +
+                    `${Helpers.RED}'${indexType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                args[0].arrowLength = args[0].source?.length ?? 1;
+                this.throwError(message, args[0].position ?? node.position, source, args[0]);
+            }
+
+            // at() returns T | undefined
+            const elementType = receiverType.elementType;
+            const returnType = {
+                kind: Kinds.Types.UnionType,
+                types: [elementType, { kind: Kinds.Types.UndefinedType, raw: "undefined" }],
+                raw: `${elementType?.raw ?? "unknown"} | undefined`,
+            };
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.CallExpression,
+                callee: {
+                    ...rawCallee,
+                    object: receiver,
+                    type: {
+                        kind: Kinds.Types.FunctionType,
+                        raw: "Function",
+                    },
+                },
+                arguments: args,
+                argumentEffects: [],
+                type: returnType,
+                external: false,
+                builtinMethod: "array.at",
             };
         }
 
@@ -418,10 +573,30 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             );
         }
 
+        /**
+         * Handles property access expressions including special handling for array.length and tuple.length.
+         * array.length returns the array length as a readonly number.
+         * tuple.length returns the fixed tuple length as a readonly number.
+         */
         public visitPropertyAccessExpression(node: any): any {
             const object = this.visitNode(node.object);
             const accessType = object?.declaredType ?? object?.type;
             const objectType = this.resolveOptionalAccessObjectType(accessType);
+
+            // Handle array.length and tuple.length - special built-in properties
+            if (node.property === "length") {
+                if (objectType?.kind === Kinds.Types.ArrayType || objectType?.kind === Kinds.Types.TupleType) {
+                    return {
+                        ...node,
+                        object,
+                        type: {
+                            kind: Kinds.Types.NumberType,
+                            raw: "number",
+                        },
+                        readonly: true,
+                    };
+                }
+            }
 
             if (!this.isObjectLikeType(objectType)) {
                 const message =

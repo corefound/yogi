@@ -145,6 +145,8 @@ export type SemanticCallExpression = {
     linkageName?: string | null;
     qualifiedName?: string;
     external?: boolean;
+    /** Built-in method identifier for array methods (e.g., "array.push", "array.pop", "array.at") */
+    builtinMethod?: string;
     source?: string;
     position?: SourcePosition;
 };
@@ -225,6 +227,25 @@ export type SemanticVariableDeclaration = {
     name: string;
     type: SemanticType;
     value: SemanticValueInput | null;
+    symbolId?: number;
+    scopeId?: number;
+    mutable?: boolean;
+    storage?: string | null;
+    flag?: string;
+    export?: boolean;
+    trusted?: boolean;
+    escapes?: boolean;
+    linkageName?: string | null;
+    qualifiedName?: string;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticArrayDeclaration = {
+    kind: "ArrayDeclaration";
+    name: string;
+    type: SemanticType;
+    elements: SemanticValueInput[];
     symbolId?: number;
     scopeId?: number;
     mutable?: boolean;
@@ -389,6 +410,7 @@ export type SemanticNodeInput =
     | SemanticElementAccessExpression
     | SemanticAggregateAssignmentExpression
     | SemanticVariableDeclaration
+    | SemanticArrayDeclaration
     | SemanticReturnStatement
     | SemanticBlockStatement
     | SemanticIfStatement
