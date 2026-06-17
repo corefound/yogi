@@ -1,5 +1,164 @@
 # Lot 04: switch/case/default
 
+## Anchored Summary
+
+**Status**: ✅ Semantic analysis + LLVM lowering done. 5 bugs fixed (4 semantic, 1 lowering). Audit at `docs/audit/switch-case-default-audit.md`.
+
+**Semantic** (`if.ts:243-298`):
+- `visitSwitchStatement`: validates expression/case types are `number`, detects duplicate `default`, enforces default-last ordering, wraps each clause body in a `BlockStatement` for scope isolation, increments `switchDepth` for `break` validation
+- Stores move state once before the switch, restores it before each clause body, collects per-clause move states, merges them after all clauses
+- Switch must have a `default` clause for `statementAlwaysReturns`/`statementTerminatesBlock` to return true
+
+**Lowering** (`statementLowerer.cpp:486-650`):
+- if-else chain via `FCmpOEQ` (no LLVM `SwitchInst` — discriminant is `f64`)
+- No fall-through: each case body branches to `switch.end`
+- Unified `breakFrames` stack replaces old `switchFrames`/`loopFrames` dual stacks; `lowerBreak` always targets the innermost break-targetable construct (switch or loop)
+- Case-local aggregates cleaned up via `lowerBlock`/`lowerBreak`/`lowerReturn`
+- `restoreState(incomingState)` before each case body isolates scope
+- **Ownership merge at `switch.end`**: pre-switch aggregate deactivations are tracked per-case and applied after full restore, preventing double-free when aggregates escape inside a case
+
+**Known limitation (pre-existing)**: `statementTerminatesBlock` used `blockTerminates` (counts `break` as terminating) instead of `blockAlwaysReturns` for switch clauses → **FIXED 2026-06-17**. This caused statements after a `switch` inside a loop body to be silently dropped.
+
+**Full audit**: `docs/audit/switch-case-default-audit.md` — complete coverage table (45+ items), scenario verifications, limitations, and 24 recommended follow-up tests.
+
+## Switch Ownership and Cleanup Edge Cases
+
+This section documents how `switch`/`case`/`default` interacts with Yogi's stack-first / RAII memory model, verified by the `pipeline_switch_ownership` test suite (12 tests, 10 scenarios).
+
+### 1. Case/default scope behavior
+
+Each case/default body is a **self-contained scope**:
+
+- Variables declared inside a case live only inside that case
+- The semantic analysis wraps each body in a `BlockStatement` (`visitSwitchClause`)
+- The LLVM lowering calls `restoreState(incomingState)` before each case body, ensuring no cross-case state contamination
+- Variables in different cases can have the same name without conflict
+
+### 2. Cleanup before explicit break
+
+When a case body ends with `break`:
+
+```ts
+case 1:
+    let scores: number[] = [1, 2, 3]
+    break
+```
+
+- `lowerBreak` calls `emitLocalCleanupsFrom(switchFrame.breakCleanupStart)`
+- All aggregates created in that case body are dropped via `dropLocalAggregate`
+- Then branches to `switch.end`
+
+### 3. Cleanup before implicit branch to `switch.end`
+
+When a case body ends without break/return (no fall-through — implicit branch):
+
+```ts
+case 1:
+    let scores: number[] = [1, 2, 3]
+```
+
+- `lowerBlock` calls `emitLocalCleanupsFrom(firstCleanup)` at block exit
+- All case-local aggregates are dropped
+- `lowerSwitch` then adds `CreateBr(switchEndBB)`
+
+### 4. Cleanup before return (value does not escape)
+
+When returning a non-aggregate (scalar) from a case:
+
+```ts
+case 1:
+    let scores: number[] = [1, 2, 3]
+    return scores[0]   // scores is NOT consumed
+```
+
+- `lowerReturn` calls `emitLocalCleanups()` which drops `scores` (active, didn't escape)
+- Then `CreateRet(returnValue)`
+
+### 5. Returned aggregate ownership transfer
+
+When returning an aggregate from a case:
+
+```ts
+case 1:
+    let scores: number[] = [1, 2, 3]
+    return scores      // ownership moves to caller
+```
+
+- `lowerReturn` calls `deactivateAggregateOwner("scores")` → cleanup entry set to inactive
+- `emitLocalCleanups()` skips inactive entries → `scores` NOT dropped
+- `CreateRet(scoresValue)` — ownership transferred
+- The semantic analysis marks the expression as moved via `markAggregateExpressionMoved`
+
+### 6. Escaped aggregate behavior
+
+When an aggregate escapes to a global/module variable inside a case:
+
+```ts
+let saved: number[] = [0]
+function test(x: number): void {
+    switch (x) {
+        case 1:
+            let scores: number[] = [1, 2, 3]
+            saved = scores        // scores escapes to global
+            break
+    }
+}
+```
+
+- `lowerAssignment` detects the target is a global (`context.globals.contains(name)`)
+- Calls `deactivateAggregateOwner(rightName)` → `scores` cleanup marked inactive
+- `lowerBreak` calls `emitLocalCleanupsFrom(breakCleanupStart)` — skips inactive `scores`
+- No double-free
+
+### 7. Pre-switch aggregate escaping inside a case (critical)
+
+The most subtle case — an aggregate created BEFORE the switch that escapes inside a case:
+
+```ts
+let saved: number[] = [0]
+function test(x: number): void {
+    let scores: number[] = [1, 2, 3]      // created before switch
+    switch (x) {
+        case 1:
+            saved = scores                 // escapes here
+            break
+    }
+    // scores must NOT be cleaned here — it now belongs to saved
+}
+```
+
+**The bug and fix**: `lowerSwitch` calls `restoreState(incomingState)` at `switch.end`, which restores the pre-switch cleanup state. If a pre-switch aggregate was deactivated inside a case, the full restore would **reactivate** its cleanup → **double-free**.
+
+**Fix** (`statementLowerer.cpp:521-530, 655-660`):
+- A `preSwitchDeactivated` vector tracks which pre-switch cleanup entries were deactivated in any case body
+- After `restoreState(incomingState)` at `switch.end`, entries flagged in `preSwitchDeactivated` are explicitly set to `active = false`
+- This mirrors the `mergeState` logic in `lowerIf`
+
+### 8. Tests added
+
+| Test file | Scenarios |
+|---|---|
+| `pipeline_switch_ownership.cmake` | 10 scenarios (see below) |
+
+| # | Scenario | What it verifies |
+|---|---|---|
+| 1 | Aggregate inside case + explicit break | `scores` dropped before break |
+| 2 | Aggregate inside case + implicit branch | `scores` dropped before implicit branch |
+| 3 | Aggregate inside default | `fallback` dropped in default body |
+| 4 | Aggregate inside case + returned | `scores` NOT dropped on return path |
+| 5 | Aggregate inside case + global escape | `scores` deactivated, no double-free |
+| 6 | Pre-switch aggregate + global escape (critical) | `restoreState` bug fixed, no double-free |
+| 7 | Pre-switch aggregate + returned | Return path doesn't drops pre-switch aggregate |
+| 8 | Pre-switch aggregate + not escaped | Cleanup still runs for non-escaping pre-switch aggregates |
+| 9 | Same variable name in different cases | Scope isolation at lowering level |
+| 10 | Switch inside loop + break | Break exits switch, loop continues |
+
+### 9. Known limitations (resolved)
+
+- ~~`break` inside loop-in-switch exits the switch instead of the loop~~ ✅ **FIXED 2026-06-17**: Unified `breakFrames` stack correctly targets innermost break-targetable construct
+- ~~Statements after `switch` inside a loop body are silently dropped~~ ✅ **FIXED 2026-06-17**: `statementTerminatesBlock` changed from `blockTerminates` to `blockAlwaysReturns`
+- Escape-to-property (`obj.prop = arr`) within case body: `lowerAggregateAssignment` handles it for globals; local object property escape paths need separate verification
+
 ## Objetivo
 
 Implementar `switch`/`case`/`default` end-to-end: TypeScript parsing → semantic analysis → FBS serialization → LLVM lowering → runtime executable.
@@ -160,3 +319,5 @@ switch.end:
 | `pipeline_switch` | Compilación: IR contiene `switch.check0`, `switch.case0.body`, `switch.end`, `fcmp oeq` |
 | `pipeline_switch` | Ejecución: binario corre sin error |
 | `pipeline_switch` | 3 funciones: con default, sin default, con break |
+| `pipeline_switch_ownership` | 10 escenarios de ownership/cleanup: break, implicit branch, default, return, global escape, pre-switch escape, loop + break, scope isolation |
+| `pipeline_break` | 10 escenarios de break: while, for, switch, switch-in-while, while-in-switch, nested, aggregate cleanup, break-outside diagnostic |
