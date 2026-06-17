@@ -136,14 +136,18 @@ entry:
   %yogi_array_push.call = call i64 @yogi_array_push(ptr %scores.load, ptr %yogi_any_from_number.call2)
   %array.push.length = uitofp i64 %yogi_array_push.call to double
   call void @yogi_memory_push_source_location(ptr @8, i64 52, i64 9)
-  call void @yogi_memory_pop_source_location()
-  store ptr null, ptr %last, align 8
-  call void @yogi_memory_push_source_location(ptr @9, i64 53, i64 9)
-  call void @yogi_memory_pop_source_location()
-  store ptr null, ptr %first, align 8
-  call void @yogi_memory_push_source_location(ptr @10, i64 54, i64 5)
   %scores.load3 = load ptr, ptr %scores, align 8
-  %yogi_object_get.call = call ptr @yogi_object_get(ptr %scores.load3, ptr @11)
+  %yogi_array_pop.call = call ptr @yogi_array_pop(ptr %scores.load3)
+  call void @yogi_memory_pop_source_location()
+  store ptr %yogi_array_pop.call, ptr %last, align 8
+  call void @yogi_memory_push_source_location(ptr @9, i64 53, i64 9)
+  %scores.load4 = load ptr, ptr %scores, align 8
+  %yogi_array_at.call = call ptr @yogi_array_at(ptr %scores.load4, i64 0)
+  call void @yogi_memory_pop_source_location()
+  store ptr %yogi_array_at.call, ptr %first, align 8
+  call void @yogi_memory_push_source_location(ptr @10, i64 54, i64 5)
+  %scores.load5 = load ptr, ptr %scores, align 8
+  %yogi_object_get.call = call ptr @yogi_object_get(ptr %scores.load5, ptr @11)
   %yogi_any_to_number.call = call double @yogi_any_to_number(ptr %yogi_object_get.call)
   call void @yogi_memory_pop_source_location()
   call void @yogi_array_drop(ptr %scores.array.storage)
@@ -160,6 +164,10 @@ declare ptr @yogi_any_from_number(double)
 declare void @yogi_array_set(ptr, i64, ptr)
 
 declare i64 @yogi_array_push(ptr, ptr)
+
+declare ptr @yogi_array_pop(ptr)
+
+declare ptr @yogi_array_at(ptr, i64)
 
 declare ptr @yogi_object_get(ptr, ptr)
 
