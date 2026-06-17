@@ -12,7 +12,7 @@
 
 /libs/llvm-project/
 
-/cmake-build-debug/
+./cmake-build-debug/
 ./cmake-build-allocator-jemalloc/*
 ./cmake-build-allocator-system/
 
@@ -20,5 +20,6 @@
 libs/uni-algo/
 /trash/
 /tests/packages/*
+/inputs/packages/*
 sir.json
 /yogi/

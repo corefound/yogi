@@ -11,7 +11,7 @@ build:
 	@echo Build complete
 
 start:
-	@./build/yogi ./tests/main.io
+	@./build/yogi ./inputs/main.io
 
 # Flatbuffers
 fbs-build:
@@ -39,7 +39,7 @@ ts-dev:
 	@cd $(CURDIR)/src/compiler && npm run dev
 
 ts-run:
-	$(CURDIR)/src/compiler/bin/ts-parser-macos-arm64 $(CURDIR)/tests/main.io
+	$(CURDIR)/src/compiler/bin/ts-parser-macos-arm64 $(CURDIR)/inputs/main.io
 
 ts-build:
 	@cd $(CURDIR)/tools/typescript && rm -rf built && npm run build
