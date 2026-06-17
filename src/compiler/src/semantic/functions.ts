@@ -721,6 +721,12 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 return this.findFunctionReturnStatements(node.statements);
             }
 
+            if (node.kind === Kinds.Statements.SwitchStatement) {
+                return (node.clauses ?? []).flatMap(
+                    (clause: any) => this.findFunctionReturnStatements(clause.body),
+                );
+            }
+
             return [];
         }
     };

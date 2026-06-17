@@ -257,6 +257,7 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             let hasDefault = false;
             const visitedClauses = [];
             const beforeMoveState = this.captureMoveState();
+            const clauseMoveStates: Array<Map<number, any> | null> = [];
 
             for (const clause of node.cases ?? []) {
                 if (clause.kind === Kinds.ControlFlow.DefaultClause) {
@@ -282,12 +283,18 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     );
                 }
 
+                this.restoreMoveState(beforeMoveState);
                 const visitedClause = this.visitSwitchClause(clause);
                 visitedClauses.push(visitedClause);
+                clauseMoveStates.push(
+                    this.blockAlwaysReturns(visitedClause.body)
+                        ? null
+                        : this.captureMoveState(),
+                );
             }
 
             this.restoreMoveState(beforeMoveState);
-            this.mergeMoveState(this.captureMoveState());
+            this.mergeMoveState(...clauseMoveStates);
 
             return {
                 ...node,
@@ -490,7 +497,11 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             }
 
             if (node.kind === Kinds.Statements.SwitchStatement) {
-                return (node.clauses ?? []).every(
+                const clauses = node.clauses ?? [];
+                const hasDefault = clauses.some(
+                    (c: any) => c.kind === Kinds.ControlFlow.DefaultClause,
+                );
+                return hasDefault && clauses.every(
                     (clause: any) => this.blockAlwaysReturns(clause.body),
                 );
             }
@@ -505,6 +516,16 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 return node.some((item: any) => this.statementTerminatesBlock(item));
             }
 
+            if (node.kind === Kinds.Statements.SwitchStatement) {
+                const clauses = node.clauses ?? [];
+                const hasDefault = clauses.some(
+                    (c: any) => c.kind === Kinds.ControlFlow.DefaultClause,
+                );
+                return hasDefault && clauses.every(
+                    (clause: any) => this.blockAlwaysReturns(clause.body),
+                );
+            }
+
             return (
                 this.statementAlwaysReturns(node) ||
                 node.kind === Kinds.Statements.BreakStatement ||
@@ -514,12 +535,6 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     this.blockTerminates(node.then) &&
                     node.else &&
                     this.blockTerminates(node.else)
-                ) ||
-                (
-                    node.kind === Kinds.Statements.SwitchStatement &&
-                    (node.clauses ?? []).every(
-                        (clause: any) => this.blockTerminates(clause.body),
-                    )
                 )
             );
         }
