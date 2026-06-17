@@ -19,7 +19,7 @@
 /cmake-build-*/
 libs/uni-algo/
 /trash/
-/tests/packages/*
-/inputs/packages/*
+./tests/packages/*
+./inputs/packages/*
 sir.json
 /yogi/
