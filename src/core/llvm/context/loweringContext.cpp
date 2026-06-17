@@ -161,7 +161,8 @@ namespace yogi::core::llvm::internal {
 		int symbolId,
 		const Yogi::Sir::TypeRef *type,
 		::llvm::Value *value,
-		bool heapOwned
+		bool heapOwned,
+		::llvm::Value *cleanupSlot
 	) {
 		aggregateAliases[name] = name;
 		localAggregateCleanups.push_back({
@@ -171,6 +172,7 @@ namespace yogi::core::llvm::internal {
 			value,
 			heapOwned,
 			true,
+			cleanupSlot,
 		});
 	}
 

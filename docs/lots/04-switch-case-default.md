@@ -1,40 +1,61 @@
-# Lot 04: switch/case/default
+# Lot 04: switch/case/default (updated for Lot 05 fall-through)
 
 ## Anchored Summary
 
-**Status**: ✅ Semantic analysis + LLVM lowering done. 5 bugs fixed (4 semantic, 1 lowering). Audit at `docs/audit/switch-case-default-audit.md`.
+**Status**: ✅ Semantic analysis + LLVM lowering done. Now supports JavaScript/TypeScript-style fall-through semantics. Shared switch scope. Cleanup-slot safety for aggregates across fallthrough paths. Audit at `docs/audit/switch-case-default-audit.md`.
 
-**Semantic** (`if.ts:243-298`):
-- `visitSwitchStatement`: validates expression/case types are `number`, detects duplicate `default`, enforces default-last ordering, wraps each clause body in a `BlockStatement` for scope isolation, increments `switchDepth` for `break` validation
-- Stores move state once before the switch, restores it before each clause body, collects per-clause move states, merges them after all clauses
+**Semantic** (`if.ts:243-305`):
+- `visitSwitchStatement`: validates expression/case types are `number`, detects duplicate `default`, allows `default` in any position, enters a single shared `BlockStatement` scope for the entire switch body (not per-clause scopes)
+- Stores move state once before the switch, visits clauses sequentially in one shared switch scope, and merges the final reachable move state (no per-clause `restoreState` — the switch uses shared scope and fall-through)
 - Switch must have a `default` clause for `statementAlwaysReturns`/`statementTerminatesBlock` to return true
+- Explicit `{}` blocks inside cases create normal nested block scopes, matching TypeScript. This allows repeated `let` names in separate case blocks.
 
 **Lowering** (`statementLowerer.cpp:486-650`):
 - if-else chain via `FCmpOEQ` (no LLVM `SwitchInst` — discriminant is `f64`)
-- No fall-through: each case body branches to `switch.end`
+- **Fall-through**: clause bodies are lowered sequentially in source order. A matched case continues into the next clause body unless a `break`/`return`/`continue` terminates early
+- Empty cases naturally group multiple values (no explicit "fall-through" annotation needed)
+- `default` can appear at any position; it is **not a comparison check** — the lowering remembers it as the fallback entry block for the last case check's no-match branch
+- Single shared scope: move state is captured at switch entry, then clauses share the same scope (no per-clause `enterScope`/`exitScope` or `restoreState`)
 - Unified `breakFrames` stack replaces old `switchFrames`/`loopFrames` dual stacks; `lowerBreak` always targets the innermost break-targetable construct (switch or loop)
-- Case-local aggregates cleaned up via `lowerBlock`/`lowerBreak`/`lowerReturn`
-- `restoreState(incomingState)` before each case body isolates scope
-- **Ownership merge at `switch.end`**: pre-switch aggregate deactivations are tracked per-case and applied after full restore, preventing double-free when aggregates escape inside a case
+- Clause body aggregates are lowered directly (not via `lowerBlock`), so no spurious scope cleanup at block boundaries
+- **CleanupSlot approach**: switch-body aggregates use an indirection through the variable's entry-block `slot`. The slot is zero-initialized at function entry; the clause body stores the aggregate storage pointer into the slot. At cleanup time, the cleaner loads from the slot and null-checks before calling `dropLocalAggregate`/`destroyEscapedAggregate`. After cleanup, the slot is cleared to null to prevent stale pointer issues on subsequent loop iterations
+- **Scope restore at `switch.end`**: after cleanup, the backend restores only the pre-switch name/type/alias maps. It keeps the current cleanup state, so pre-switch aggregates moved or escaped inside a case stay deactivated and switch-local names do not leak after the switch.
 
 **Known limitation (pre-existing)**: `statementTerminatesBlock` used `blockTerminates` (counts `break` as terminating) instead of `blockAlwaysReturns` for switch clauses → **FIXED 2026-06-17**. This caused statements after a `switch` inside a loop body to be silently dropped.
 
-**Full audit**: `docs/audit/switch-case-default-audit.md` — complete coverage table (45+ items), scenario verifications, limitations, and 24 recommended follow-up tests.
+**Full audit**: `docs/audit/switch-case-default-audit.md` — complete coverage table (45+ items), scenario verifications, limitations, and recommended follow-up tests.
 
 ## Switch Ownership and Cleanup Edge Cases
 
-This section documents how `switch`/`case`/`default` interacts with Yogi's stack-first / RAII memory model, verified by the `pipeline_switch_ownership` test suite (12 tests, 10 scenarios).
+This section documents how `switch`/`case`/`default` interacts with Yogi's stack-first / RAII memory model, verified by the `tests/runtime/sessions/04-control-flow/switch_ownership.cmake` test suite.
 
-### 1. Case/default scope behavior
+### 1. Shared switch scope (no per-clause isolation)
 
-Each case/default body is a **self-contained scope**:
+The entire `switch` body uses **one shared scope**, matching JavaScript/TypeScript semantics:
 
-- Variables declared inside a case live only inside that case
-- The semantic analysis wraps each body in a `BlockStatement` (`visitSwitchClause`)
-- The LLVM lowering calls `restoreState(incomingState)` before each case body, ensuring no cross-case state contamination
-- Variables in different cases can have the same name without conflict
+- Variables declared in one case are visible in subsequent cases (fall-through can see them)
+- Same-named variables across different cases cause a redeclaration error (no per-clause scope hiding)
+- Move state is captured at switch entry and flows through clause bodies sequentially with NO `restoreState` calls between clauses — this ensures ownership/cleanup state from earlier declarations remains valid on fall-through paths
+- Developers can use explicit `{}` blocks within a case for finer scoping
 
-### 2. Cleanup before explicit break
+### 2. Fall-through execution
+
+When a case matches, execution begins at that case and continues into subsequent cases in source order:
+
+```ts
+case 1:
+    let scores: number[] = [1, 2, 3]
+    // fall through to case 2
+case 2:
+    console.log(scores[0])  // scores is visible (shared scope)
+    break
+```
+
+- Each clause body that does not end with `break`/`return`/`continue` emits an explicit `br` to the next clause body in source order (or to `switch.end` if it is the last clause). LLVM BasicBlocks must always have a terminator — there is no implicit fall-through between blocks
+- `break`/`return`/`continue` are required to exit the switch early
+- Empty cases naturally group multiple values
+
+### 3. Cleanup before explicit break
 
 When a case body ends with `break`:
 
@@ -45,23 +66,28 @@ case 1:
 ```
 
 - `lowerBreak` calls `emitLocalCleanupsFrom(switchFrame.breakCleanupStart)`
-- All aggregates created in that case body are dropped via `dropLocalAggregate`
+- All aggregates created in reachable clause bodies are cleaned (using `cleanupSlot` null-check for those only initialized on certain paths)
 - Then branches to `switch.end`
 
-### 3. Cleanup before implicit branch to `switch.end`
+### 4. Cleanup via `switch.end` (fall-through reaches the end)
 
-When a case body ends without break/return (no fall-through — implicit branch):
+When execution falls through all matched cases to `switch.end`:
 
 ```ts
 case 1:
-    let scores: number[] = [1, 2, 3]
+    let scores: number[] = [1, 2, 3]   // initialized
+    // fall through
+default:
+    let fallback: number[] = [0, 0, 0]  // also initialized
+    // no break — falls to switch.end
 ```
 
-- `lowerBlock` calls `emitLocalCleanupsFrom(firstCleanup)` at block exit
-- All case-local aggregates are dropped
-- `lowerSwitch` then adds `CreateBr(switchEndBB)`
+- At `switch.end`, `emitLocalCleanupsFrom(switchCleanupStart)` cleans all live aggregates
+- `scores` and `fallback` are both dropped
+- If execution entered `default` directly (bypassing `case 1`), `scores`'s `cleanupSlot` is still null → null-check skips it
+- This is the path-sensitive cleanup guarantee
 
-### 4. Cleanup before return (value does not escape)
+### 5. Cleanup before return (value does not escape)
 
 When returning a non-aggregate (scalar) from a case:
 
@@ -74,7 +100,7 @@ case 1:
 - `lowerReturn` calls `emitLocalCleanups()` which drops `scores` (active, didn't escape)
 - Then `CreateRet(returnValue)`
 
-### 5. Returned aggregate ownership transfer
+### 6. Returned aggregate ownership transfer
 
 When returning an aggregate from a case:
 
@@ -89,7 +115,7 @@ case 1:
 - `CreateRet(scoresValue)` — ownership transferred
 - The semantic analysis marks the expression as moved via `markAggregateExpressionMoved`
 
-### 6. Escaped aggregate behavior
+### 7. Escaped aggregate behavior
 
 When an aggregate escapes to a global/module variable inside a case:
 
@@ -110,7 +136,7 @@ function test(x: number): void {
 - `lowerBreak` calls `emitLocalCleanupsFrom(breakCleanupStart)` — skips inactive `scores`
 - No double-free
 
-### 7. Pre-switch aggregate escaping inside a case (critical)
+### 8. Pre-switch aggregate escaping inside a case (critical)
 
 The most subtle case — an aggregate created BEFORE the switch that escapes inside a case:
 
@@ -127,37 +153,96 @@ function test(x: number): void {
 }
 ```
 
-**The bug and fix**: `lowerSwitch` calls `restoreState(incomingState)` at `switch.end`, which restores the pre-switch cleanup state. If a pre-switch aggregate was deactivated inside a case, the full restore would **reactivate** its cleanup → **double-free**.
+**The bug and fix**: early versions restored the full pre-switch lowering state at `switch.end`. That brought back the old cleanup state, so a pre-switch aggregate deactivated inside a case could be reactivated → **double-free**.
 
-**Fix** (`statementLowerer.cpp:521-530, 655-660`):
-- A `preSwitchDeactivated` vector tracks which pre-switch cleanup entries were deactivated in any case body
-- After `restoreState(incomingState)` at `switch.end`, entries flagged in `preSwitchDeactivated` are explicitly set to `active = false`
-- This mirrors the `mergeState` logic in `lowerIf`
+**Fix** (`statementLowerer.cpp`):
+- Capture the incoming name/type/alias state before lowering the switch.
+- Lower all clause bodies through one shared switch scope.
+- At `switch.end`, call `emitLocalCleanupsFrom(switchCleanupStart)`.
+- Restore only `locals`, `localTypes`, `localTypeKinds`, and `aggregateAliases`.
+- Keep `localAggregateCleanups` as-is after cleanup, preserving deactivations caused by returns, global stores, and other escapes.
 
-### 8. Tests added
+### 9. CleanupSlot behavior
+
+For aggregates declared inside a switch body (may or may not be initialized depending on which case was entered):
+
+```ts
+switch (x) {
+    case 1:
+        let scores: number[] = [1, 2, 3]   // initialized only if x === 1
+        // fall through
+    case 2:
+        break                               // cleanup must not crash if scores was never initialized
+}
+```
+
+**The problem**: If `x === 2`, execution enters at `case 2` directly. `scores` is never initialized, but at `break` time the cleaner would try to call `dropLocalAggregate` on garbage memory.
+
+**The solution — cleanupSlot indirection**:
+- `scores`'s entry-block `slot` is used as the `cleanupSlot`
+- Zero-initialized at function entry (null/zero pointer)
+- When `case 1` executes, the storage pointer is stored into the slot
+- At cleanup time (break/return/switch.end):
+  1. Load the pointer from `cleanupSlot`
+  2. Null-check: if null → skip (aggregate was never initialized)
+  3. If non-null → call `dropLocalAggregate` or `destroyEscapedAggregate`
+  4. **Clear the slot to null** → this prevents stale pointer issues on subsequent loop iterations when the switch is inside a loop
+
+### 10. Definite assignment safety with fall-through
+
+Variables declared in an earlier clause are visible in later clauses because the switch has shared scope. However, **visibility does not equal definite initialization** — a later clause can be entered directly, skipping the declaration:
+
+```ts
+switch (x) {
+    case 1:
+        let value: number = 10    // declared here
+
+    case 2:
+        return value              // unsafe if x === 2 (entry at case 2)
+}
+```
+
+Yogi rejects uses of switch-body variables that may read/move/return/escape an uninitialized value on any entry path.
+
+**Rule**: A variable declared in clause N is unsafe to use in clause M > N because clause M can be entered directly (any case/default clause is a direct entry point).
+
+**Implementation** (`if.ts`, `base.ts`):
+- Before visiting clauses, `collectClauseVarDeclarations` pre-collects all `let`/`const` declarations in the switch body, mapping variable name → clause index
+- During visiting, `switchBodyCurrentClause` tracks which clause is being processed
+- In `visitIdentifierExpression`, if the identifier resolves to a switch-body variable whose declaration clause is earlier than the current clause, a diagnostic is thrown: `variable 'X' may be used before initialization`
+
+**Safe patterns**:
+- Declaration and use in the same clause (with return/break before fall-through)
+- Empty case grouping (all entry points reach the declaration)
+- Explicit block `{}` (block scope isolates the variable)
+- Variable declared before the switch (initialized at switch entry)
+
+**cleanupSlot is NOT a substitute**: cleanupSlot prevents cleanup of uninitialized aggregates, but does not make reads safe. Definite assignment and cleanupSlot work together — one protects reads, the other protects cleanup.
+
+### 11. Tests
 
 | Test file | Scenarios |
 |---|---|
-| `pipeline_switch_ownership.cmake` | 10 scenarios (see below) |
+| `tests/runtime/sessions/04-control-flow/switch.cmake` | Basic fall-through IR and execution |
+| `tests/runtime/sessions/04-control-flow/switch_ownership.cmake` | Ownership/cleanup scenarios |
+| `tests/runtime/sessions/04-control-flow/switch_definite_assignment.cmake` | Switch shared-scope definite assignment |
+| `tests/runtime/sessions/04-control-flow/break.cmake` | Break behavior across switch/loop |
 
 | # | Scenario | What it verifies |
 |---|---|---|
 | 1 | Aggregate inside case + explicit break | `scores` dropped before break |
-| 2 | Aggregate inside case + implicit branch | `scores` dropped before implicit branch |
+| 2 | Aggregate inside case + fall-through to switch.end | `scores` cleaned via `switch.end` |
 | 3 | Aggregate inside default | `fallback` dropped in default body |
 | 4 | Aggregate inside case + returned | `scores` NOT dropped on return path |
 | 5 | Aggregate inside case + global escape | `scores` deactivated, no double-free |
-| 6 | Pre-switch aggregate + global escape (critical) | `restoreState` bug fixed, no double-free |
-| 7 | Pre-switch aggregate + returned | Return path doesn't drops pre-switch aggregate |
+| 6 | Pre-switch aggregate + global escape (critical) | name-map restore keeps cleanup deactivation intact; no double-free |
+| 7 | Pre-switch aggregate + returned | Return path doesn't drop pre-switch aggregate |
 | 8 | Pre-switch aggregate + not escaped | Cleanup still runs for non-escaping pre-switch aggregates |
-| 9 | Same variable name in different cases | Scope isolation at lowering level |
+| 9 | Same variable name in different cases | ~~Scope isolation~~ → Shared scope: redeclaration error |
 | 10 | Switch inside loop + break | Break exits switch, loop continues |
-
-### 9. Known limitations (resolved)
-
-- ~~`break` inside loop-in-switch exits the switch instead of the loop~~ ✅ **FIXED 2026-06-17**: Unified `breakFrames` stack correctly targets innermost break-targetable construct
-- ~~Statements after `switch` inside a loop body are silently dropped~~ ✅ **FIXED 2026-06-17**: `statementTerminatesBlock` changed from `blockTerminates` to `blockAlwaysReturns`
-- Escape-to-property (`obj.prop = arr`) within case body: `lowerAggregateAssignment` handles it for globals; local object property escape paths need separate verification
+| 11 | Fall-through from case to next case | Sequential body blocks, explicit branch to next body |
+| 12 | Direct entry to later case (skip earlier aggregate init) | `cleanupSlot` null-check prevents double-free |
+| 13 | Aggregate declared in earlier case, cleaned on later break | Fall-through + break cleanup |
 
 ## Objetivo
 
@@ -171,16 +256,20 @@ Implementar `switch`/`case`/`default` end-to-end: TypeScript parsing → semanti
 - Se usa `FCmpOEQ` (ordered equality) para comparaciones
 - NaN nunca matchea ningún case (ordered equality con NaN es false)
 
-### Sin fall-through
+### Fall-through (JS/TS-style)
 
-- Cada case body termina con un branch implícito a `switch.end`
-- No hay ejecución automática del case siguiente
-- C/JavaScript fall-through no está soportado
+- Un case que matchea comienza ejecución en ese punto y continúa secuencialmente al siguiente case/default
+- Cada clause body que no termina con `break`/`return`/`continue` emite un `br` explícito al siguiente clause body (o a `switch.end` si es el último). LLVM BasicBlocks siempre deben tener un terminator — no existe fall-through implícito entre bloques
+- `break`/`return`/`continue` son necesarios para salir del switch antes de tiempo
+- Casos vacíos agrupan múltiples valores naturalmente (no se necesita sintaxis especial)
+- Implementado mediante bodies secuenciales en el CFG, no mediante if-else anidados por clause
 
-### default debe ser el último
+### default en cualquier posición
 
-- El semantic analysis rechaza `default` en cualquier posición que no sea la última
-- Error: `default clause must be the last clause in a switch statement`
+- El semantic analysis ya no exige que `default` sea el último
+- `default` puede aparecer en cualquier lugar entre los cases
+- `default` **no es una comparación**: el lowering NO crea un `default.check`. Default es meramente el bloque de entrada de fallback. La cadena de comparaciones solo itera sobre los cases; si ningún case matchea, el último check brancha al body de default
+- `default` duplicado sigue siendo error
 
 ### Un solo default
 
@@ -194,21 +283,27 @@ Implementar `switch`/`case`/`default` end-to-end: TypeScript parsing → semanti
 
 ### break dentro de switch
 
-- `break` dentro de un case sale del switch (no del loop contenedor)
-- Implementado via `switchFrames` stack en el lowering
-- `lowerBreak` checkea `switchFrames` antes de `loopFrames`
+- `break` dentro de un case sale del switch (o del loop más interno si está dentro de un loop dentro del switch)
+- Implementado via unified `breakFrames` stack (reemplaza los antiguos `switchFrames`/`loopFrames`)
+- `lowerBreak` siempre apunta al constructo breakable más interno
 
-### Scope por case body
+### Shared scope (no per-clause scope)
 
-- Cada case/default body tiene su propio scope para variables locales
-- `let arr: number[]` en case 1 y otro `let arr: number[]` en case 2 son válidos
-- Implementado via `lowerBlock` que maneja enterScope/exitScope y cleanup
+- Todo el cuerpo del switch comparte un solo scope
+- `let arr: number[]` en case 1 y otro `let arr: number[]` en case 2 son error de redeclaración
+- Para scoping más fino, el usuario puede usar bloques `{}` explícitos dentro de un case
+- Implementado envolviendo todo el switch en un solo `enterScope`/`exitScope`
 
-### Cleanup de agregados locales
+### Cleanup de agregados con fall-through
 
-- Variables declaradas dentro de un case body son destruidas al salir del case
-- Cleanup ocurre antes del branch a `switch.end`
-- `break` también ejecuta cleanup antes de saltar a `switch.end`
+- Variables declaradas en un case que hace fall-through NO son destruidas al pasar al siguiente case
+- Cleanup ocurre solo al salir del switch (break/return/continue/end-of-switch)
+- Para seguridad con path-sensitive initialization (agregados que solo se inicializan en ciertos paths de entrada):
+  - Se usa `cleanupSlot` (el `slot` del entry-block de la variable)
+  - El slot se inicializa a null/zero al inicio de la función
+  - Cuando el clause body ejecuta la declaración, almacena el puntero del aggregate en el slot
+  - Al hacer cleanup, se carga del slot y se checkea null antes de llamar a drop/destroy
+  - Después del cleanup, el slot se limpia a null para evitar punteros obsoletos en futuras iteraciones del loop
 
 ## Pipeline End-to-End
 
@@ -216,23 +311,17 @@ Implementar `switch`/`case`/`default` end-to-end: TypeScript parsing → semanti
 
 ```typescript
 function classify(x: number): number {
-    let result: number = 0
-
     switch (x) {
         case 1:
-            result = 10
-            break
-
+            print("one")
+            // fall through
         case 2:
-            result = 20
+            print("one or two")
             break
-
         default:
-            result = 99
+            print("other")
             break
     }
-
-    return result
 }
 ```
 
@@ -246,8 +335,8 @@ Produce nodos con `kind: Kinds.ControlFlow.SwitchStatement` y clauses con `CaseC
 1. Valida que el discriminante sea `number`
 2. Valida que cada case expression sea `number`
 3. Valida que no haya duplicate default
-4. Valida que default sea el último
-5. Visita cada clause body como BlockStatement (scope local)
+4. ~~Valida que default sea el último~~ (removed — default can appear anywhere)
+5. Visita el cuerpo del switch como un solo BlockStatement (scope compartido)
 6. Incrementa/decrementa `switchDepth` para permitir `break`
 
 ### 4. FBS Schema (`sir.fbs`)
@@ -287,7 +376,7 @@ switch.check1:
 
 switch.case0.body:
     ... body ...
-    br label %switch.end
+    br label %switch.case1.body             // explicit branch to next clause body
 
 switch.case1.body:
     ... body ...
@@ -301,23 +390,36 @@ switch.end:
     ... merge ...
 ```
 
+Note: `switch.case0.body` emits an explicit `br` to `switch.case1.body`. LLVM BasicBlocks cannot fall through implicitly — every block must end with a terminator. The lowering emits a `br` to the next clause body in source order (or to `switch.end` for the last clause).
+
 ### 6. C++ Lowering (`statementLowerer.cpp`)
 
-`lowerSwitch` crea una cadena de if-else:
-- Entry bloque → branch a `switch.check0`
-- Cada `switch.checkN` compara discriminant == case value con `FCmpOEQ`
-- Match → branch a `switch.caseN.body`
-- No match → branch a siguiente check / default body / switch.end
-- Cada case body se baja via `lowerBlock` (scope/cleanup automático)
-- Si el body no termina con terminator → branch a switch.end
-- Si el default no existe → último check branch a switch.end
+`lowerSwitch`:
+- Entry block → branch to `switch.check0`
+- Each `switch.checkN` compares discriminant == case value with `FCmpOEQ`
+  - Match → branch to `switch.caseN.body`
+  - No match → branch to next check / default body / switch.end
+- Clause bodies in source order (sequential, no per-block cleanup/scope)
+- Each clause body's statements are lowered inline (not via `lowerBlock`) to avoid spurious scope cleanup
+- If a clause body doesn't end with a terminator → emits an explicit `br` to the next clause body (or `switch.end` for the last clause)
+- `break`/`return`/`continue` within a body emit the appropriate terminator + cleanup
+- At `switch.end`: `emitLocalCleanupsFrom(switchCleanupStart)` cleans remaining aggregates
+- `cleanupSlot` indirection ensures aggregates only initialized on certain entry paths are safely skipped
+- After cleanup, the `cleanupSlot` is cleared to null to prevent stale pointer issues on subsequent loop iterations
 
 ## Tests
 
 | Test | Cobertura |
 |------|-----------|
-| `pipeline_switch` | Compilación: IR contiene `switch.check0`, `switch.case0.body`, `switch.end`, `fcmp oeq` |
-| `pipeline_switch` | Ejecución: binario corre sin error |
-| `pipeline_switch` | 3 funciones: con default, sin default, con break |
-| `pipeline_switch_ownership` | 10 escenarios de ownership/cleanup: break, implicit branch, default, return, global escape, pre-switch escape, loop + break, scope isolation |
-| `pipeline_break` | 10 escenarios de break: while, for, switch, switch-in-while, while-in-switch, nested, aggregate cleanup, break-outside diagnostic |
+| `switch` | Compilación: IR contiene `switch.check0`, `switch.case0.body`, `switch.end`, `fcmp oeq` |
+| `switch` | Ejecución: binario corre sin error |
+| `switch` | Funciones: con default, sin default, con default en el medio, con break, fall-through, shadowing después del switch |
+| `switch_ownership` | Escenarios de ownership/cleanup: break, fall-through, default, return, global escape, pre-switch escape, loop + break, cleanupSlot path safety |
+| `switch_definite_assignment` | Diagnósticos de use-before-init por fall-through, nested switch, y bloques explícitos tipo TypeScript |
+| `break` | Escenarios de break: while, for, switch, switch-in-while, while-in-switch, nested, aggregate cleanup, break-outside diagnostic |
+
+## Historical note
+
+Lot 04 initially implemented no-fall-through switch semantics (each case body auto-branched to `switch.end`, per-clause scopes, `default` must be last).
+
+Lot 05 changed switch to JavaScript/TypeScript-style fall-through: sequential body CFG, shared switch scope, `default` in any position, and `cleanupSlot`-based path-sensitive aggregate cleanup safety. The old `switchFrames` stack was removed in favor of the unified `breakFrames` stack.

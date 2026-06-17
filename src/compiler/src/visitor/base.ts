@@ -83,7 +83,7 @@ export class BaseVisitor {
         // statements
         if (ts.isVariableStatement(node)) return this.visitVariableDeclaration(node);
         if (ts.isExpressionStatement(node)) return this.visitExpression(node);
-        if (ts.isBlock(node)) return node.statements.map((s: ts.Statement) => this.visitNode(s));
+        if (ts.isBlock(node)) return this.visitBlockStatement(node);
         if (ts.isReturnStatement(node)) {
             return {
                 kind: Kinds.Statements.ReturnStatement,
@@ -122,6 +122,7 @@ export class BaseVisitor {
 
     visitExpressions(_: ts.Node): any { }
     visitFunctions(_: ts.Node): any { }
+    visitBlockStatement(_: ts.Block): any { }
 
     // Functions
     transformFunctionDeclaration(_: ts.Node): any { }

@@ -18,6 +18,9 @@ export class BaseSemantic {
     public nextScopeId = 1;
     public loopDepth = 0;
     public switchDepth = 0;
+    public switchBodyDeclClause: Map<string, number> | null = null;
+    public switchBodyCurrentClause: number = -1;
+    public switchBodyScopeId: number | null = null;
 
     public globalScope: Scope;
     public currentScope: Scope;
@@ -912,6 +915,23 @@ export class BaseSemantic {
             const message = `cannot find name ${Helpers.RED}'${identifierName}'${Helpers.RESET}`;
             node.arrowLength = identifierName?.length ?? 1;
             this.throwError(message, node.position, node.fullSource ?? node.source ?? node.raw, node);
+        }
+
+        if (
+            this.switchBodyDeclClause &&
+            symbol.scopeId === this.switchBodyScopeId &&
+            this.switchBodyDeclClause.has(identifierName) &&
+            this.switchBodyDeclClause.get(identifierName)! < this.switchBodyCurrentClause
+        ) {
+            const message =
+                `variable ${Helpers.RED}'${identifierName}'${Helpers.RESET} may be used before initialization`;
+            node.arrowLength = identifierName?.length ?? 1;
+            this.throwError(
+                message,
+                node.position,
+                node.fullSource ?? node.source ?? node.raw,
+                node,
+            );
         }
 
         this.assertAggregateExpressionUsable(

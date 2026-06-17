@@ -250,7 +250,7 @@ include(CTest)
 
 if(BUILD_TESTING)
         add_executable(yogi_runtime_cast_test
-                ${CMAKE_SOURCE_DIR}/tests/runtime/runtime_cast_test.cpp
+                ${CMAKE_SOURCE_DIR}/tests/runtime/unit/runtime_cast_test.cpp
         )
 
         target_link_libraries(yogi_runtime_cast_test PRIVATE yogi_runtime)
@@ -264,7 +264,7 @@ if(BUILD_TESTING)
         )
 
         add_executable(yogi_runtime_ownership_negative_test
-                ${CMAKE_SOURCE_DIR}/tests/runtime/runtime_ownership_negative_test.cpp
+                ${CMAKE_SOURCE_DIR}/tests/runtime/unit/runtime_ownership_negative_test.cpp
         )
 
         target_link_libraries(yogi_runtime_ownership_negative_test PRIVATE yogi_runtime)
@@ -280,7 +280,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-runtime-any
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_runtime_any.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/01-runtime/runtime_any.cmake
                 )
 
                 add_test(
@@ -288,7 +288,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-dynamic-expressions
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_dynamic_expressions.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/dynamic_expressions.cmake
                 )
 
                 add_test(
@@ -296,7 +296,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-aggregates
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_aggregates.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/aggregates.cmake
                 )
 
                 add_test(
@@ -304,7 +304,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-escape-analysis
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_escape_analysis.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/escape_analysis.cmake
                 )
 
                 add_test(
@@ -312,7 +312,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-function-ownership
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_function_ownership.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/function_ownership.cmake
                 )
 
                 add_test(
@@ -320,7 +320,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-destructor-scheduling
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_destructor_scheduling.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/destructor_scheduling.cmake
                 )
 
                 add_test(
@@ -328,7 +328,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-move-state-validation
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_move_state_validation.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/move_state_validation.cmake
                 )
 
                 add_test(
@@ -336,7 +336,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-loops-and-methods
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_loops_and_methods.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/loops_and_methods.cmake
                 )
 
                 add_test(
@@ -344,7 +344,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-switch
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_switch.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/switch.cmake
                 )
 
                 add_test(
@@ -352,7 +352,15 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-switch-ownership
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_switch_ownership.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/switch_ownership.cmake
+                )
+
+                add_test(
+                        NAME yogi_pipeline_switch_definite_assignment
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-switch-definite-assignment
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/switch_definite_assignment.cmake
                 )
 
                 add_test(
@@ -360,7 +368,7 @@ if(BUILD_TESTING)
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-break
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/pipeline_break.cmake
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/break.cmake
                 )
         endif()
 endif()

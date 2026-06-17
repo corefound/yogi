@@ -97,14 +97,14 @@ function preSwitchNotEscaped(x: number): void {\n\
     }\n\
 }\n\
 \n\
-// Scenario 9: same variable name in different cases — scope isolation\n\
-function sameNameInDifferentCases(x: number): void {\n\
+// Scenario 9: unique variable names in different cases — shared scope (JS/TS semantics)\n\
+function differentNamesInDifferentCases(x: number): void {\n\
     switch (x) {\n\
         case 1:\n\
-            let arr: number[] = [1]\n\
+            let arr1: number[] = [1]\n\
             break\n\
         case 2:\n\
-            let arr: number[] = [2]\n\
+            let arr2: number[] = [2]\n\
             break\n\
     }\n\
 }\n\
@@ -152,8 +152,8 @@ let r7b: number[] = preSwitchReturned(99)\n\
 preSwitchNotEscaped(1)\n\
 preSwitchNotEscaped(99)\n\
 \n\
-sameNameInDifferentCases(1)\n\
-sameNameInDifferentCases(2)\n\
+differentNamesInDifferentCases(1)\n\
+differentNamesInDifferentCases(2)\n\
 \n\
 let r10: number = switchInsideLoop(1)\n\
 let r10b: number = switchInsideLoop(99)\n\
@@ -206,7 +206,7 @@ foreach(func
 		caseAggregateBreak
 		caseAggregateImplicit
 		defaultAggregateCleanup
-		sameNameInDifferentCases
+		differentNamesInDifferentCases
 		switchInsideLoop)
 	if(NOT ir MATCHES "${func}")
 		message(FATAL_ERROR "expected IR to contain function ${func}")

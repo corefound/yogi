@@ -656,4 +656,82 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(arrayRest.status).not.toBe(0);
     expect(arrayRest.stderr).toContain("array rest bindings");
   });
+
+  test("keeps TypeScript switch block scoping and default fallthrough behavior", () => {
+    const root = createProject({
+      "main.io": `
+        function blockCaseRedeclare(x: number): number {
+          switch (x) {
+            case 1: {
+              let value: number = 1
+              return value
+            }
+
+            case 2: {
+              let value: number = 2
+              return value
+            }
+
+            default:
+              return 0
+          }
+        }
+
+        function defaultInMiddle(x: number): number {
+          let value: number = 0
+
+          switch (x) {
+            case 1:
+              value = value + 1
+
+            default:
+              value = value + 10
+
+            case 2:
+              value = value + 100
+              break
+          }
+
+          return value
+        }
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects switch fallthrough use-before-init even after a nested switch", () => {
+    const root = createProject({
+      "main.io": `
+        function invalid(x: number, y: number): number {
+          switch (x) {
+            case 1:
+              let value: number = 1
+              break
+
+            case 2:
+              switch (y) {
+                default:
+                  let nested: number = 0
+              }
+
+            case 3:
+              return value
+
+            default:
+              return 0
+          }
+        }
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("may be used before initialization");
+    expect(result.stderr).toContain("value");
+  });
 });

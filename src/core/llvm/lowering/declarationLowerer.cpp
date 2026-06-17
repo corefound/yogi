@@ -115,15 +115,32 @@ namespace yogi::core::llvm::internal {
 
 		auto *function = context.builder.GetInsertBlock()->getParent();
 		auto *slot = context.createEntryAlloca(function, name, type);
+
+		const auto inSwitchBody = context.switchBodyDepth > 0;
+		if (inSwitchBody && (isLocalStackAggregate || isLocalOwnedHeapAggregate)) {
+			auto entryIt = function->getEntryBlock().begin();
+			++entryIt;
+			::llvm::IRBuilder<> entryBuilder(&function->getEntryBlock(), entryIt);
+			entryBuilder.CreateStore(::llvm::Constant::getNullValue(type), slot);
+		}
+
 		context.builder.CreateStore(values.cast(initializer, type, variable->type()), slot);
 		context.locals[name] = slot;
 		context.localTypes[name] = variable->type();
 		context.localTypeKinds[name] = variable->type()->kind();
 
 		if (isLocalStackAggregate) {
-			context.registerAggregateOwner(name, variable->symbol_id(), variable->type(), initializer, false);
+			context.registerAggregateOwner(
+				name, variable->symbol_id(), variable->type(),
+				initializer, false,
+				inSwitchBody ? slot : nullptr
+			);
 		} else if (isLocalOwnedHeapAggregate) {
-			context.registerAggregateOwner(name, variable->symbol_id(), variable->type(), initializer, true);
+			context.registerAggregateOwner(
+				name, variable->symbol_id(), variable->type(),
+				initializer, true,
+				inSwitchBody ? slot : nullptr
+			);
 		} else if (isAggregateType(variable->type())) {
 			if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
 				context.aliasAggregateOwner(name, fbString(identifier->name()));

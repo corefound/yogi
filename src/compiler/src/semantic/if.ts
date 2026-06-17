@@ -257,44 +257,60 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             let hasDefault = false;
             const visitedClauses = [];
             const beforeMoveState = this.captureMoveState();
-            const clauseMoveStates: Array<Map<number, any> | null> = [];
+            const previousSwitchBodyDeclClause = this.switchBodyDeclClause;
+            const previousSwitchBodyCurrentClause = this.switchBodyCurrentClause;
+            const previousSwitchBodyScopeId = this.switchBodyScopeId;
+            let afterState: Map<number, any> = beforeMoveState;
 
-            for (const clause of node.cases ?? []) {
-                if (clause.kind === Kinds.ControlFlow.DefaultClause) {
-                    if (hasDefault) {
-                        const message = `${Helpers.RED}A switch statement can only have one default clause${Helpers.RESET}`;
-                        this.throwError(
-                            message,
-                            clause.position,
-                            clause.source ?? "default",
-                            clause,
-                        );
+            // Shared scope for the entire switch body (JS/TS-compatible)
+            this.enterScope();
+            const switchBodyScopeId = this.getCurrentScopeId();
+
+            try {
+                // Track switch-body variable declarations per clause for definite-assignment checking
+                const switchVarDecls = new Map<string, number>();
+                this.switchBodyDeclClause = switchVarDecls;
+                this.switchBodyScopeId = switchBodyScopeId;
+                const clauseList = node.cases ?? [];
+                const numClauses = clauseList.length;
+
+                // Pre-collect variable declarations for each clause
+                for (let clauseIdx = 0; clauseIdx < numClauses; clauseIdx++) {
+                    const clause = clauseList[clauseIdx];
+                    this.collectClauseVarDeclarations(clause, clauseIdx, switchVarDecls);
+                }
+
+                for (let clauseIdx = 0; clauseIdx < numClauses; clauseIdx++) {
+                    const clause = clauseList[clauseIdx];
+                    this.switchBodyCurrentClause = clauseIdx;
+
+                    if (clause.kind === Kinds.ControlFlow.DefaultClause) {
+                        if (hasDefault) {
+                            const message = `${Helpers.RED}A switch statement can only have one default clause${Helpers.RESET}`;
+                            this.throwError(
+                                message,
+                                clause.position,
+                                clause.source ?? "default",
+                                clause,
+                            );
+                        }
+                        hasDefault = true;
                     }
-                    hasDefault = true;
+
+                    const visitedClause = this.visitSwitchClause(clause);
+                    visitedClauses.push(visitedClause);
                 }
 
-                if (hasDefault && clause.kind !== Kinds.ControlFlow.DefaultClause) {
-                    const message = `${Helpers.RED}default clause must be the last clause in a switch statement${Helpers.RESET}`;
-                    this.throwError(
-                        message,
-                        clause.position,
-                        clause.source ?? clause.expression?.fullSource ?? "case",
-                        clause,
-                    );
-                }
-
-                this.restoreMoveState(beforeMoveState);
-                const visitedClause = this.visitSwitchClause(clause);
-                visitedClauses.push(visitedClause);
-                clauseMoveStates.push(
-                    this.blockAlwaysReturns(visitedClause.body)
-                        ? null
-                        : this.captureMoveState(),
-                );
+                afterState = this.captureMoveState();
+            } finally {
+                this.switchBodyDeclClause = previousSwitchBodyDeclClause;
+                this.switchBodyCurrentClause = previousSwitchBodyCurrentClause;
+                this.switchBodyScopeId = previousSwitchBodyScopeId;
+                this.exitScope();
             }
 
             this.restoreMoveState(beforeMoveState);
-            this.mergeMoveState(...clauseMoveStates);
+            this.mergeMoveState(afterState);
 
             return {
                 ...node,
@@ -320,34 +336,98 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 }
 
                 this.switchDepth++;
-                const body = this.visitBlockStatement({
-                    ...clause,
-                    kind: Kinds.Statements.BlockStatement,
-                    statements: clause.statements ?? [],
-                });
+                const statements = this.visitClauseStatements(clause.statements ?? []);
                 this.switchDepth--;
 
                 return {
                     ...clause,
                     kind: Kinds.Statements.CaseClause,
                     expression,
-                    body,
+                    body: {
+                        kind: Kinds.Statements.BlockStatement,
+                        statements,
+                    },
                 };
             }
 
             this.switchDepth++;
-            const body = this.visitBlockStatement({
-                ...clause,
-                kind: Kinds.Statements.BlockStatement,
-                statements: clause.statements ?? [],
-            });
+            const statements = this.visitClauseStatements(clause.statements ?? []);
             this.switchDepth--;
 
             return {
                 ...clause,
                 kind: Kinds.Statements.DefaultClause,
-                body,
+                body: {
+                    kind: Kinds.Statements.BlockStatement,
+                    statements,
+                },
             };
+        }
+
+        // Process clause statements within the shared switch scope (no enterScope/exitScope)
+        public visitClauseStatements(statements: any[]): any[] {
+            const visited = [];
+
+            for (const statement of statements) {
+                const result = this.visitNode(statement);
+
+                if (result === null || result === undefined) {
+                    continue;
+                }
+
+                if (Array.isArray(result)) {
+                    visited.push(...result);
+                } else {
+                    visited.push(result);
+                }
+
+                if (this.statementTerminatesBlock(result)) {
+                    break;
+                }
+            }
+
+            return visited;
+        }
+
+        // Collect variable declarations from a clause's statements for switch fall-through
+        // definite assignment checking. Only collects declarations directly in the clause
+        // body (not inside nested blocks, which have their own scope).
+        public collectClauseVarDeclarations(clause: any, clauseIndex: number, decls: Map<string, number>): void {
+            for (const statement of clause.statements ?? []) {
+                this.collectVarDeclarations(statement, clauseIndex, decls);
+            }
+        }
+
+        public collectVarDeclarations(statement: any, clauseIndex: number, decls: Map<string, number>): void {
+            if (!statement) return;
+
+            // Blocks have their own scope - variables inside are not in the switch scope
+            if (statement.kind === Kinds.Statements.BlockStatement) {
+                return;
+            }
+
+            if (statement.kind === Kinds.Statements.DeclarationStatement) {
+                for (const decl of statement.declarations ?? []) {
+                    const name = typeof decl.name === "string"
+                        ? decl.name
+                        : decl.name?.value ?? decl.name?.name ?? decl.name?.text;
+                    if (name && !decls.has(name)) {
+                        decls.set(name, clauseIndex);
+                    }
+                }
+                return;
+            }
+
+            // For if/while/for/switch - do not recurse into bodies (conservative:
+            // skip internal declarations rather than risk false positives from shadowing)
+            if (
+                statement.kind === Kinds.ControlFlow.IfStatement ||
+                statement.kind === Kinds.ControlFlow.WhileStatement ||
+                statement.kind === Kinds.ControlFlow.ForStatement ||
+                statement.kind === Kinds.ControlFlow.SwitchStatement
+            ) {
+                return;
+            }
         }
 
         public isNumberType(type: any): boolean {

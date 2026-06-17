@@ -7,6 +7,7 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Type.h>
 #include <map>
 
@@ -284,10 +285,43 @@ namespace yogi::core::llvm::internal {
 				continue;
 			}
 
-			if (cleanup.heapOwned) {
-				values.destroyEscapedAggregate(cleanup.type, cleanup.value);
+			if (cleanup.cleanupSlot) {
+				auto *loaded = context.builder.CreateLoad(
+					::llvm::PointerType::getUnqual(context.llvmContext),
+					cleanup.cleanupSlot
+				);
+				auto *isNull = context.builder.CreateIsNull(loaded);
+				auto *currentBB = context.builder.GetInsertBlock();
+				auto *function = currentBB->getParent();
+				auto *cleanupBB = ::llvm::BasicBlock::Create(
+					context.llvmContext, "agg.cleanup", function
+				);
+				auto *skipBB = ::llvm::BasicBlock::Create(
+					context.llvmContext, "agg.skip", function
+				);
+				context.builder.CreateCondBr(isNull, skipBB, cleanupBB);
+				context.builder.SetInsertPoint(cleanupBB);
+
+				if (cleanup.heapOwned) {
+					values.destroyEscapedAggregate(cleanup.type, loaded);
+				} else {
+					values.dropLocalAggregate(cleanup.type, loaded);
+				}
+
+				context.builder.CreateStore(
+					::llvm::Constant::getNullValue(
+						::llvm::cast<::llvm::AllocaInst>(cleanup.cleanupSlot)->getAllocatedType()
+					),
+					cleanup.cleanupSlot
+				);
+				context.builder.CreateBr(skipBB);
+				context.builder.SetInsertPoint(skipBB);
 			} else {
-				values.dropLocalAggregate(cleanup.type, cleanup.value);
+				if (cleanup.heapOwned) {
+					values.destroyEscapedAggregate(cleanup.type, cleanup.value);
+				} else {
+					values.dropLocalAggregate(cleanup.type, cleanup.value);
+				}
 			}
 		}
 
@@ -483,7 +517,6 @@ namespace yogi::core::llvm::internal {
 		auto *function = context.builder.GetInsertBlock()->getParent();
 		auto *discriminant = values.lower(statement->expression(), ::llvm::Type::getDoubleTy(context.llvmContext));
 		auto *switchEndBB = ::llvm::BasicBlock::Create(context.llvmContext, "switch.end", function);
-
 		const auto captureState = [&]() {
 			return OwnershipState{
 				context.locals,
@@ -493,13 +526,13 @@ namespace yogi::core::llvm::internal {
 				context.localAggregateCleanups,
 			};
 		};
-		const auto restoreState = [&](const OwnershipState &state) {
+		const auto restoreNameState = [&](const OwnershipState &state) {
 			context.locals = state.locals;
 			context.localTypes = state.localTypes;
 			context.localTypeKinds = state.localTypeKinds;
 			context.aggregateAliases = state.aggregateAliases;
-			context.localAggregateCleanups = state.localAggregateCleanups;
 		};
+		const auto incomingState = captureState();
 
 		const auto clauses = statement->clauses();
 		::flatbuffers::uoffset_t numClauses = clauses ? clauses->size() : 0;
@@ -510,136 +543,132 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
-		const auto incomingState = captureState();
-
-		// Track whether each pre-switch cleanup entry was deactivated in any case body.
-		// This is needed because switch.end restores incomingState, but if a pre-switch
-		// aggregate escaped (e.g., assigned to global) inside a case, its cleanup must
-		// remain disabled after the switch. This mirrors lowerIf's mergeState logic.
-		std::vector<bool> preSwitchDeactivated(incomingState.localAggregateCleanups.size(), false);
-		const auto trackDeactivations = [&]() {
-			for (std::size_t j = 0; j < incomingState.localAggregateCleanups.size(); ++j) {
-				if (j < context.localAggregateCleanups.size() &&
-					!context.localAggregateCleanups[j].active &&
-					incomingState.localAggregateCleanups[j].active) {
-					preSwitchDeactivated[j] = true;
-				}
-			}
+		// Build body blocks in source order.
+		// Also track which source positions are case clauses vs default.
+		struct ClauseInfo {
+			::llvm::BasicBlock *bodyBB;
+			bool isCase;
 		};
-
-		// Identify default clause index
+		std::vector<ClauseInfo> clauseInfos;
 		int defaultIndex = -1;
+		clauseInfos.reserve(numClauses);
+
 		for (::flatbuffers::uoffset_t i = 0; i < numClauses; ++i) {
-			if (!clauses->Get(i)->value_as_CaseClause()) {
+			const auto *clause = clauses->Get(i);
+			const auto *caseClause = clause->value_as_CaseClause();
+			const bool isCase = caseClause != nullptr;
+			const auto bodyLabel = isCase
+				? "switch.case" + std::to_string(i) + ".body"
+				: "switch.default.body";
+
+			auto *bodyBB = ::llvm::BasicBlock::Create(context.llvmContext, bodyLabel, function);
+			clauseInfos.push_back({bodyBB, isCase});
+
+			if (!isCase) {
 				defaultIndex = static_cast<int>(i);
-				break;
 			}
 		}
 
-		// Create default body block upfront if it exists
-		::llvm::BasicBlock *defaultBodyBB = nullptr;
-		if (defaultIndex >= 0) {
-			defaultBodyBB = ::llvm::BasicBlock::Create(
-				context.llvmContext, "switch.default.body", function
-			);
-		}
-
-		// Create check blocks and case body blocks
-		std::vector<::llvm::BasicBlock *> checkBBs;
-		std::vector<::llvm::BasicBlock *> bodyBBs;
-
+		// Build check chain for case clauses only.
+		// Two-pass approach: first collect all case positions and create their
+		// check blocks, then wire them up (so each check knows its fallthrough
+		// target at creation time).
+		std::vector<::flatbuffers::uoffset_t> casePositions;
 		for (::flatbuffers::uoffset_t i = 0; i < numClauses; ++i) {
-			if (static_cast<int>(i) == defaultIndex) {
-				// Default clause doesn't need a check block
-				checkBBs.push_back(nullptr);
-				bodyBBs.push_back(defaultBodyBB);
-			} else {
-				checkBBs.push_back(::llvm::BasicBlock::Create(
-					context.llvmContext, "switch.check" + std::to_string(i), function
-				));
-				bodyBBs.push_back(::llvm::BasicBlock::Create(
-					context.llvmContext, "switch.case" + std::to_string(i) + ".body", function
-				));
+			if (clauseInfos[i].isCase) {
+				casePositions.push_back(i);
 			}
 		}
 
-		// Branch from entry to first check (or directly to default/end)
-		if (checkBBs[0]) {
+		std::vector<::llvm::BasicBlock *> checkBBs;
+		for (auto pos : casePositions) {
+			checkBBs.push_back(::llvm::BasicBlock::Create(
+				context.llvmContext, "switch.check" + std::to_string(pos), function
+			));
+		}
+
+		// Branch from entry to the first check (or directly to default/switch.end)
+		// Do this BEFORE wiring checks, so the builder is still in the entry block.
+		if (!checkBBs.empty()) {
 			context.builder.CreateBr(checkBBs[0]);
-		} else if (defaultBodyBB) {
-			context.builder.CreateBr(defaultBodyBB);
+		} else if (defaultIndex >= 0) {
+			context.builder.CreateBr(clauseInfos[defaultIndex].bodyBB);
 		} else {
 			context.builder.CreateBr(switchEndBB);
 		}
 
-		// Wire check blocks and body blocks
+		// Wire each check block
+		for (std::size_t ci = 0; ci < checkBBs.size(); ++ci) {
+			auto *checkBB = checkBBs[ci];
+			auto *matchBB = clauseInfos[casePositions[ci]].bodyBB;
+			const auto *caseClause = clauses->Get(casePositions[ci])->value_as_CaseClause();
+
+			// Determine fallthrough (no-match) target
+			::llvm::BasicBlock *noMatchBB = switchEndBB;
+			if (ci + 1 < checkBBs.size()) {
+				noMatchBB = checkBBs[ci + 1];
+			} else if (defaultIndex >= 0) {
+				noMatchBB = clauseInfos[defaultIndex].bodyBB;
+			}
+
+			context.builder.SetInsertPoint(checkBB);
+			auto *caseValue = values.lower(
+				caseClause->expression(),
+				::llvm::Type::getDoubleTy(context.llvmContext)
+			);
+			auto *cmp = context.builder.CreateFCmpOEQ(
+				discriminant, caseValue, "switch.cmp" + std::to_string(casePositions[ci])
+			);
+			context.builder.CreateCondBr(cmp, matchBB, noMatchBB);
+		}
+
+		// Lower each clause body in source order, chaining via fall-through.
+		// IMPORTANT: We process clause body statements directly (not via lowerBlock)
+		// because lowerBlock emits scope cleanup at the end which would prematurely
+		// clean aggregates before fallthrough (shared switch scope semantics).
+		const auto switchCleanupStart = context.localAggregateCleanups.size();
+		breakFrames.push_back({switchEndBB, switchCleanupStart});
+		context.switchBodyDepth++;
+
 		for (::flatbuffers::uoffset_t i = 0; i < numClauses; ++i) {
 			const auto *clause = clauses->Get(i);
-			const auto *caseClause = clause->value_as_CaseClause();
+			auto *bodyBB = clauseInfos[i].bodyBB;
 
-			if (caseClause) {
-				auto *checkBB = checkBBs[i];
-				auto *caseBodyBB = bodyBBs[i];
+			context.builder.SetInsertPoint(bodyBB);
 
-				// Determine failure target for this case
-				::llvm::BasicBlock *nextBB;
-				if (defaultIndex >= 0 && static_cast<::flatbuffers::uoffset_t>(defaultIndex) == i + 1) {
-					// Next clause is default → jump directly to default body
-					nextBB = defaultBodyBB;
-				} else if (i + 1 < numClauses && checkBBs[i + 1]) {
-					nextBB = checkBBs[i + 1];
+			const auto *body = clauseInfos[i].isCase
+				? clause->value_as_CaseClause()->body()
+				: clause->value_as_DefaultClause()->body();
+
+			// Process body statements directly — no scope cleanup at block end.
+			// This preserves aggregates across fallthrough boundaries.
+			if (body && body->statements()) {
+				for (auto *stmt : *body->statements()) {
+					if (context.builder.GetInsertBlock()->hasTerminator()) {
+						break;
+					}
+					lowerStatement(stmt);
+				}
+			}
+
+			// If this clause didn't terminate, fall through to the next clause
+			if (!context.builder.GetInsertBlock()->hasTerminator()) {
+				if (i + 1 < numClauses) {
+					context.builder.CreateBr(clauseInfos[i + 1].bodyBB);
 				} else {
-					nextBB = switchEndBB;
-				}
-
-				context.builder.SetInsertPoint(checkBB);
-				restoreState(incomingState);
-				auto *caseValue = values.lower(
-					caseClause->expression(),
-					::llvm::Type::getDoubleTy(context.llvmContext)
-				);
-				auto *cmp = context.builder.CreateFCmpOEQ(
-					discriminant, caseValue, "switch.cmp" + std::to_string(i)
-				);
-				context.builder.CreateCondBr(cmp, caseBodyBB, nextBB);
-
-				context.builder.SetInsertPoint(caseBodyBB);
-				restoreState(incomingState);
-				breakFrames.push_back({switchEndBB, context.localAggregateCleanups.size()});
-				lowerBlock(caseClause->body());
-				breakFrames.pop_back();
-
-				trackDeactivations();
-
-				if (!context.builder.GetInsertBlock()->hasTerminator()) {
-					context.builder.CreateBr(switchEndBB);
-				}
-			} else if (defaultBodyBB) {
-				// Default clause: branch from the preceding check to default body
-				// (already wired above as the nextBB of the last case)
-
-				context.builder.SetInsertPoint(defaultBodyBB);
-				restoreState(incomingState);
-				const auto *defaultClause = clause->value_as_DefaultClause();
-				breakFrames.push_back({switchEndBB, context.localAggregateCleanups.size()});
-				lowerBlock(defaultClause->body());
-				breakFrames.pop_back();
-
-				trackDeactivations();
-
-				if (!context.builder.GetInsertBlock()->hasTerminator()) {
 					context.builder.CreateBr(switchEndBB);
 				}
 			}
 		}
 
+		context.switchBodyDepth--;
+		breakFrames.pop_back();
+
+		// At switch.end, clean up switch-local aggregates (those created inside
+		// any clause body that haven't already been cleaned by break/return).
 		context.builder.SetInsertPoint(switchEndBB);
-		restoreState(incomingState);
-		for (std::size_t j = 0; j < preSwitchDeactivated.size() && j < context.localAggregateCleanups.size(); ++j) {
-			if (preSwitchDeactivated[j]) {
-				context.localAggregateCleanups[j].active = false;
-			}
-		}
+		emitLocalCleanupsFrom(switchCleanupStart);
+		restoreNameState(incomingState);
 	}
 
 } // namespace yogi::core::llvm::internal

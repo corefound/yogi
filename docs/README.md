@@ -42,3 +42,13 @@ The compiler currently lowers source code through this pipeline:
 
 These docs describe the current implementation plus the intended direction when
 a feature is still partial.
+
+## Test Layout
+
+Runtime pipeline tests are grouped by implementation session:
+
+- `tests/runtime/unit/`: C++ runtime unit tests.
+- `tests/runtime/sessions/01-runtime/`: runtime ABI and `any` behavior.
+- `tests/runtime/sessions/02-variables-aggregates/`: variables, dynamic expressions, arrays, tuples, and objects.
+- `tests/runtime/sessions/03-memory-management/`: escape analysis, ownership, destructor scheduling, and move-state validation.
+- `tests/runtime/sessions/04-control-flow/`: loops, `break`, and TypeScript-style `switch` behavior.

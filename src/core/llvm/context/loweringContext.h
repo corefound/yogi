@@ -37,6 +37,7 @@ namespace yogi::core::llvm::internal {
 				::llvm::Value *value;
 				bool heapOwned;
 				bool active;
+				::llvm::Value *cleanupSlot;
 			};
 
 			ModuleLoweringContext(
@@ -67,7 +68,8 @@ namespace yogi::core::llvm::internal {
 				int symbolId,
 				const Yogi::Sir::TypeRef *type,
 				::llvm::Value *value,
-				bool heapOwned
+				bool heapOwned,
+				::llvm::Value *cleanupSlot = nullptr
 			);
 			void aliasAggregateOwner(const std::string &alias, const std::string &source);
 			std::optional<std::string> resolveAggregateOwner(const std::string &name) const;
@@ -87,6 +89,7 @@ namespace yogi::core::llvm::internal {
 			std::map<std::string, Yogi::Sir::TypeKind> localTypeKinds;
 			std::map<std::string, std::string> aggregateAliases;
 			std::vector<LocalAggregateCleanup> localAggregateCleanups;
+			int switchBodyDepth = 0;
 			const Yogi::Sir::TypeRef *currentReturnType = nullptr;
 	};
 #endif
