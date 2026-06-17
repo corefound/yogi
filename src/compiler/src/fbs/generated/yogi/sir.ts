@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 export { AggregateAssignmentExpression } from './sir/aggregate-assignment-expression.js';
+export { ArrayDeclaration } from './sir/array-declaration.js';
 export { ArrayExpression } from './sir/array-expression.js';
 export { AssignmentExpression } from './sir/assignment-expression.js';
 export { BinaryExpression } from './sir/binary-expression.js';

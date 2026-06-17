@@ -82,20 +82,30 @@ external():boolean {
   return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
 }
 
-source():string|null
-source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-source(optionalEncoding?:any):string|Uint8Array|null {
+/**
+ * Built-in method identifier for array methods (e.g., "array.push", "array.pop", "array.at")
+ */
+builtinMethod():string|null
+builtinMethod(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+builtinMethod(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 20);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-position(obj?:SourcePosition):SourcePosition|null {
+source():string|null
+source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+source(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 22);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+position(obj?:SourcePosition):SourcePosition|null {
+  const offset = this.bb!.__offset(this.bb_pos, 24);
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startCallExpression(builder:flatbuffers.Builder) {
-  builder.startObject(10);
+  builder.startObject(11);
 }
 
 static addCallee(builder:flatbuffers.Builder, calleeOffset:flatbuffers.Offset) {
@@ -154,12 +164,16 @@ static addExternal(builder:flatbuffers.Builder, external:boolean) {
   builder.addFieldInt8(7, +external, +false);
 }
 
+static addBuiltinMethod(builder:flatbuffers.Builder, builtinMethodOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(8, builtinMethodOffset, 0);
+}
+
 static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(8, sourceOffset, 0);
+  builder.addFieldOffset(9, sourceOffset, 0);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(9, positionOffset, 0);
+  builder.addFieldOffset(10, positionOffset, 0);
 }
 
 static endCallExpression(builder:flatbuffers.Builder):flatbuffers.Offset {

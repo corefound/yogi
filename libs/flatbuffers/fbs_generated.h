@@ -141,6 +141,9 @@ struct AggregateAssignmentExpressionBuilder;
 struct VariableDeclaration;
 struct VariableDeclarationBuilder;
 
+struct ArrayDeclaration;
+struct ArrayDeclarationBuilder;
+
 struct ReturnStatement;
 struct ReturnStatementBuilder;
 
@@ -400,11 +403,12 @@ enum SirNodeValue : uint8_t {
   SirNodeValue_BreakStatement = 19,
   SirNodeValue_ContinueStatement = 20,
   SirNodeValue_FunctionDeclaration = 21,
+  SirNodeValue_ArrayDeclaration = 22,
   SirNodeValue_MIN = SirNodeValue_NONE,
-  SirNodeValue_MAX = SirNodeValue_FunctionDeclaration
+  SirNodeValue_MAX = SirNodeValue_ArrayDeclaration
 };
 
-inline const SirNodeValue (&EnumValuesSirNodeValue())[22] {
+inline const SirNodeValue (&EnumValuesSirNodeValue())[23] {
   static const SirNodeValue values[] = {
     SirNodeValue_NONE,
     SirNodeValue_Constant,
@@ -427,13 +431,14 @@ inline const SirNodeValue (&EnumValuesSirNodeValue())[22] {
     SirNodeValue_ForStatement,
     SirNodeValue_BreakStatement,
     SirNodeValue_ContinueStatement,
-    SirNodeValue_FunctionDeclaration
+    SirNodeValue_FunctionDeclaration,
+    SirNodeValue_ArrayDeclaration
   };
   return values;
 }
 
 inline const char * const *EnumNamesSirNodeValue() {
-  static const char * const names[23] = {
+  static const char * const names[24] = {
     "NONE",
     "Constant",
     "ExternDeclaration",
@@ -456,13 +461,14 @@ inline const char * const *EnumNamesSirNodeValue() {
     "BreakStatement",
     "ContinueStatement",
     "FunctionDeclaration",
+    "ArrayDeclaration",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameSirNodeValue(SirNodeValue e) {
-  if (::flatbuffers::IsOutRange(e, SirNodeValue_NONE, SirNodeValue_FunctionDeclaration)) return "";
+  if (::flatbuffers::IsOutRange(e, SirNodeValue_NONE, SirNodeValue_ArrayDeclaration)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesSirNodeValue()[index];
 }
@@ -553,6 +559,10 @@ template<> struct SirNodeValueTraits<Yogi::Sir::ContinueStatement> {
 
 template<> struct SirNodeValueTraits<Yogi::Sir::FunctionDeclaration> {
   static const SirNodeValue enum_value = SirNodeValue_FunctionDeclaration;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::ArrayDeclaration> {
+  static const SirNodeValue enum_value = SirNodeValue_ArrayDeclaration;
 };
 
 template <bool B = false>
@@ -3230,8 +3240,9 @@ struct CallExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_LINKAGE_NAME = 14,
     VT_QUALIFIED_NAME = 16,
     VT_EXTERNAL = 18,
-    VT_SOURCE = 20,
-    VT_POSITION = 22
+    VT_BUILTIN_METHOD = 20,
+    VT_SOURCE = 22,
+    VT_POSITION = 24
   };
   const Yogi::Sir::ValueRef *callee() const {
     return GetPointer<const Yogi::Sir::ValueRef *>(VT_CALLEE);
@@ -3256,6 +3267,10 @@ struct CallExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   }
   bool external() const {
     return GetField<uint8_t>(VT_EXTERNAL, 0) != 0;
+  }
+  /// Built-in method identifier for array methods (e.g., "array.push", "array.pop", "array.at")
+  const ::flatbuffers::String *builtin_method() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_BUILTIN_METHOD);
   }
   const ::flatbuffers::String *source() const {
     return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
@@ -3282,6 +3297,8 @@ struct CallExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            VerifyOffset(verifier, VT_QUALIFIED_NAME) &&
            verifier.VerifyString(qualified_name()) &&
            VerifyField<uint8_t>(verifier, VT_EXTERNAL, 1) &&
+           VerifyOffset(verifier, VT_BUILTIN_METHOD) &&
+           verifier.VerifyString(builtin_method()) &&
            VerifyOffset(verifier, VT_SOURCE) &&
            verifier.VerifyString(source()) &&
            VerifyOffset(verifier, VT_POSITION) &&
@@ -3318,6 +3335,9 @@ struct CallExpressionBuilder {
   void add_external(bool external) {
     fbb_.AddElement<uint8_t>(CallExpression::VT_EXTERNAL, static_cast<uint8_t>(external), 0);
   }
+  void add_builtin_method(::flatbuffers::Offset<::flatbuffers::String> builtin_method) {
+    fbb_.AddOffset(CallExpression::VT_BUILTIN_METHOD, builtin_method);
+  }
   void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
     fbb_.AddOffset(CallExpression::VT_SOURCE, source);
   }
@@ -3345,11 +3365,13 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpression(
     ::flatbuffers::Offset<::flatbuffers::String> linkage_name = 0,
     ::flatbuffers::Offset<::flatbuffers::String> qualified_name = 0,
     bool external = false,
+    ::flatbuffers::Offset<::flatbuffers::String> builtin_method = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source = 0,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
   CallExpressionBuilder builder_(_fbb);
   builder_.add_position(position);
   builder_.add_source(source);
+  builder_.add_builtin_method(builtin_method);
   builder_.add_qualified_name(qualified_name);
   builder_.add_linkage_name(linkage_name);
   builder_.add_symbol_id(symbol_id);
@@ -3371,12 +3393,14 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpressionDirect(
     const char *linkage_name = nullptr,
     const char *qualified_name = nullptr,
     bool external = false,
+    const char *builtin_method = nullptr,
     const char *source = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
   auto arguments__ = arguments ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>(*arguments) : 0;
   auto argument_effects__ = argument_effects ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::CallArgumentEffect>>(*argument_effects) : 0;
   auto linkage_name__ = linkage_name ? _fbb.CreateString(linkage_name) : 0;
   auto qualified_name__ = qualified_name ? _fbb.CreateString(qualified_name) : 0;
+  auto builtin_method__ = builtin_method ? _fbb.CreateString(builtin_method) : 0;
   auto source__ = source ? _fbb.CreateString(source) : 0;
   return Yogi::Sir::CreateCallExpression(
       _fbb,
@@ -3388,6 +3412,7 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpressionDirect(
       linkage_name__,
       qualified_name__,
       external,
+      builtin_method__,
       source__,
       position);
 }
@@ -4287,6 +4312,243 @@ inline ::flatbuffers::Offset<VariableDeclaration> CreateVariableDeclarationDirec
       name__,
       type,
       value,
+      symbol_id,
+      scope_id,
+      mutable_,
+      storage__,
+      flag__,
+      exported,
+      trusted,
+      escapes,
+      linkage_name__,
+      qualified_name__,
+      source__,
+      position);
+}
+
+/// Array declaration with inline element initializers.
+/// Represents: let name: type[] = [elem1, elem2, ...]
+struct ArrayDeclaration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ArrayDeclarationBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_NAME = 4,
+    VT_TYPE = 6,
+    VT_ELEMENTS = 8,
+    VT_SYMBOL_ID = 10,
+    VT_SCOPE_ID = 12,
+    VT_MUTABLE_ = 14,
+    VT_STORAGE = 16,
+    VT_FLAG = 18,
+    VT_EXPORTED = 20,
+    VT_TRUSTED = 22,
+    VT_ESCAPES = 24,
+    VT_LINKAGE_NAME = 26,
+    VT_QUALIFIED_NAME = 28,
+    VT_SOURCE = 30,
+    VT_POSITION = 32
+  };
+  const ::flatbuffers::String *name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NAME);
+  }
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *elements() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *>(VT_ELEMENTS);
+  }
+  int32_t symbol_id() const {
+    return GetField<int32_t>(VT_SYMBOL_ID, -1);
+  }
+  int32_t scope_id() const {
+    return GetField<int32_t>(VT_SCOPE_ID, -1);
+  }
+  bool mutable_() const {
+    return GetField<uint8_t>(VT_MUTABLE_, 0) != 0;
+  }
+  const ::flatbuffers::String *storage() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_STORAGE);
+  }
+  const ::flatbuffers::String *flag() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_FLAG);
+  }
+  bool exported() const {
+    return GetField<uint8_t>(VT_EXPORTED, 0) != 0;
+  }
+  bool trusted() const {
+    return GetField<uint8_t>(VT_TRUSTED, 1) != 0;
+  }
+  bool escapes() const {
+    return GetField<uint8_t>(VT_ESCAPES, 0) != 0;
+  }
+  const ::flatbuffers::String *linkage_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_LINKAGE_NAME);
+  }
+  const ::flatbuffers::String *qualified_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_QUALIFIED_NAME);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NAME) &&
+           verifier.VerifyString(name()) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyOffset(verifier, VT_ELEMENTS) &&
+           verifier.VerifyVector(elements()) &&
+           verifier.VerifyVectorOfTables(elements()) &&
+           VerifyField<int32_t>(verifier, VT_SYMBOL_ID, 4) &&
+           VerifyField<int32_t>(verifier, VT_SCOPE_ID, 4) &&
+           VerifyField<uint8_t>(verifier, VT_MUTABLE_, 1) &&
+           VerifyOffset(verifier, VT_STORAGE) &&
+           verifier.VerifyString(storage()) &&
+           VerifyOffset(verifier, VT_FLAG) &&
+           verifier.VerifyString(flag()) &&
+           VerifyField<uint8_t>(verifier, VT_EXPORTED, 1) &&
+           VerifyField<uint8_t>(verifier, VT_TRUSTED, 1) &&
+           VerifyField<uint8_t>(verifier, VT_ESCAPES, 1) &&
+           VerifyOffset(verifier, VT_LINKAGE_NAME) &&
+           verifier.VerifyString(linkage_name()) &&
+           VerifyOffset(verifier, VT_QUALIFIED_NAME) &&
+           verifier.VerifyString(qualified_name()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ArrayDeclarationBuilder {
+  typedef ArrayDeclaration Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
+    fbb_.AddOffset(ArrayDeclaration::VT_NAME, name);
+  }
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(ArrayDeclaration::VT_TYPE, type);
+  }
+  void add_elements(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> elements) {
+    fbb_.AddOffset(ArrayDeclaration::VT_ELEMENTS, elements);
+  }
+  void add_symbol_id(int32_t symbol_id) {
+    fbb_.AddElement<int32_t>(ArrayDeclaration::VT_SYMBOL_ID, symbol_id, -1);
+  }
+  void add_scope_id(int32_t scope_id) {
+    fbb_.AddElement<int32_t>(ArrayDeclaration::VT_SCOPE_ID, scope_id, -1);
+  }
+  void add_mutable_(bool mutable_) {
+    fbb_.AddElement<uint8_t>(ArrayDeclaration::VT_MUTABLE_, static_cast<uint8_t>(mutable_), 0);
+  }
+  void add_storage(::flatbuffers::Offset<::flatbuffers::String> storage) {
+    fbb_.AddOffset(ArrayDeclaration::VT_STORAGE, storage);
+  }
+  void add_flag(::flatbuffers::Offset<::flatbuffers::String> flag) {
+    fbb_.AddOffset(ArrayDeclaration::VT_FLAG, flag);
+  }
+  void add_exported(bool exported) {
+    fbb_.AddElement<uint8_t>(ArrayDeclaration::VT_EXPORTED, static_cast<uint8_t>(exported), 0);
+  }
+  void add_trusted(bool trusted) {
+    fbb_.AddElement<uint8_t>(ArrayDeclaration::VT_TRUSTED, static_cast<uint8_t>(trusted), 1);
+  }
+  void add_escapes(bool escapes) {
+    fbb_.AddElement<uint8_t>(ArrayDeclaration::VT_ESCAPES, static_cast<uint8_t>(escapes), 0);
+  }
+  void add_linkage_name(::flatbuffers::Offset<::flatbuffers::String> linkage_name) {
+    fbb_.AddOffset(ArrayDeclaration::VT_LINKAGE_NAME, linkage_name);
+  }
+  void add_qualified_name(::flatbuffers::Offset<::flatbuffers::String> qualified_name) {
+    fbb_.AddOffset(ArrayDeclaration::VT_QUALIFIED_NAME, qualified_name);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(ArrayDeclaration::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ArrayDeclaration::VT_POSITION, position);
+  }
+  explicit ArrayDeclarationBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ArrayDeclaration> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ArrayDeclaration>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ArrayDeclaration> CreateArrayDeclaration(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> name = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> elements = 0,
+    int32_t symbol_id = -1,
+    int32_t scope_id = -1,
+    bool mutable_ = false,
+    ::flatbuffers::Offset<::flatbuffers::String> storage = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> flag = 0,
+    bool exported = false,
+    bool trusted = true,
+    bool escapes = false,
+    ::flatbuffers::Offset<::flatbuffers::String> linkage_name = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> qualified_name = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ArrayDeclarationBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_qualified_name(qualified_name);
+  builder_.add_linkage_name(linkage_name);
+  builder_.add_flag(flag);
+  builder_.add_storage(storage);
+  builder_.add_scope_id(scope_id);
+  builder_.add_symbol_id(symbol_id);
+  builder_.add_elements(elements);
+  builder_.add_type(type);
+  builder_.add_name(name);
+  builder_.add_escapes(escapes);
+  builder_.add_trusted(trusted);
+  builder_.add_exported(exported);
+  builder_.add_mutable_(mutable_);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ArrayDeclaration> CreateArrayDeclarationDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *name = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *elements = nullptr,
+    int32_t symbol_id = -1,
+    int32_t scope_id = -1,
+    bool mutable_ = false,
+    const char *storage = nullptr,
+    const char *flag = nullptr,
+    bool exported = false,
+    bool trusted = true,
+    bool escapes = false,
+    const char *linkage_name = nullptr,
+    const char *qualified_name = nullptr,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto name__ = name ? _fbb.CreateString(name) : 0;
+  auto elements__ = elements ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>(*elements) : 0;
+  auto storage__ = storage ? _fbb.CreateString(storage) : 0;
+  auto flag__ = flag ? _fbb.CreateString(flag) : 0;
+  auto linkage_name__ = linkage_name ? _fbb.CreateString(linkage_name) : 0;
+  auto qualified_name__ = qualified_name ? _fbb.CreateString(qualified_name) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateArrayDeclaration(
+      _fbb,
+      name__,
+      type,
+      elements__,
       symbol_id,
       scope_id,
       mutable_,
@@ -5523,6 +5785,9 @@ struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::FunctionDeclaration *value_as_FunctionDeclaration() const {
     return value_type() == Yogi::Sir::SirNodeValue_FunctionDeclaration ? static_cast<const Yogi::Sir::FunctionDeclaration *>(value()) : nullptr;
   }
+  const Yogi::Sir::ArrayDeclaration *value_as_ArrayDeclaration() const {
+    return value_type() == Yogi::Sir::SirNodeValue_ArrayDeclaration ? static_cast<const Yogi::Sir::ArrayDeclaration *>(value()) : nullptr;
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -5615,6 +5880,10 @@ template<> inline const Yogi::Sir::ContinueStatement *SirNode::value_as<Yogi::Si
 
 template<> inline const Yogi::Sir::FunctionDeclaration *SirNode::value_as<Yogi::Sir::FunctionDeclaration>() const {
   return value_as_FunctionDeclaration();
+}
+
+template<> inline const Yogi::Sir::ArrayDeclaration *SirNode::value_as<Yogi::Sir::ArrayDeclaration>() const {
+  return value_as_ArrayDeclaration();
 }
 
 struct SirNodeBuilder {
@@ -5935,6 +6204,10 @@ inline bool VerifySirNodeValue(::flatbuffers::VerifierTemplate<B> &verifier, con
     }
     case SirNodeValue_FunctionDeclaration: {
       auto ptr = reinterpret_cast<const Yogi::Sir::FunctionDeclaration *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case SirNodeValue_ArrayDeclaration: {
+      auto ptr = reinterpret_cast<const Yogi::Sir::ArrayDeclaration *>(obj);
       return verifier.VerifyTable(ptr);
     }
     default: return true;
