@@ -24,6 +24,9 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 case Kinds.ControlFlow.ContinueStatement:
                     return this.visitContinueStatement(node);
 
+                case Kinds.ControlFlow.SwitchStatement:
+                    return this.visitSwitchStatement(node);
+
                 default:
                     return null;
             }
@@ -212,8 +215,8 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
         }
 
         public visitBreakStatement(node: any): any {
-            if (this.loopDepth <= 0) {
-                const message = `${Helpers.RED}'break'${Helpers.RESET} can only be used inside a loop`;
+            if (this.loopDepth <= 0 && this.switchDepth <= 0) {
+                const message = `${Helpers.RED}'break'${Helpers.RESET} can only be used inside a loop or switch`;
                 node.arrowLength = node.source?.length ?? 5;
                 this.throwError(message, node.position, node.source ?? "break", node);
             }
@@ -235,6 +238,119 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 ...node,
                 kind: Kinds.Statements.ContinueStatement,
             };
+        }
+
+        public visitSwitchStatement(node: any): any {
+            const expression = this.visitNode(node.expression);
+
+            if (!this.isNumberType(expression?.type)) {
+                const message =
+                    `switch expression must be of type ${Helpers.RED}'number'${Helpers.RESET}`;
+                this.throwError(
+                    message,
+                    node.expression.position,
+                    node.expression.fullSource ?? node.fullSource ?? node.source,
+                    node.expression,
+                );
+            }
+
+            let hasDefault = false;
+            const visitedClauses = [];
+            const beforeMoveState = this.captureMoveState();
+
+            for (const clause of node.cases ?? []) {
+                if (clause.kind === Kinds.ControlFlow.DefaultClause) {
+                    if (hasDefault) {
+                        const message = `${Helpers.RED}A switch statement can only have one default clause${Helpers.RESET}`;
+                        this.throwError(
+                            message,
+                            clause.position,
+                            clause.source ?? "default",
+                            clause,
+                        );
+                    }
+                    hasDefault = true;
+                }
+
+                if (hasDefault && clause.kind !== Kinds.ControlFlow.DefaultClause) {
+                    const message = `${Helpers.RED}default clause must be the last clause in a switch statement${Helpers.RESET}`;
+                    this.throwError(
+                        message,
+                        clause.position,
+                        clause.source ?? clause.expression?.fullSource ?? "case",
+                        clause,
+                    );
+                }
+
+                const visitedClause = this.visitSwitchClause(clause);
+                visitedClauses.push(visitedClause);
+            }
+
+            this.restoreMoveState(beforeMoveState);
+            this.mergeMoveState(this.captureMoveState());
+
+            return {
+                ...node,
+                kind: Kinds.Statements.SwitchStatement,
+                expression,
+                clauses: visitedClauses,
+            };
+        }
+
+        public visitSwitchClause(clause: any): any {
+            if (clause.kind === Kinds.ControlFlow.CaseClause) {
+                const expression = this.visitNode(clause.expression);
+
+                if (!this.isNumberType(expression?.type)) {
+                    const message =
+                        `case expression must be of type ${Helpers.RED}'number'${Helpers.RESET}`;
+                    this.throwError(
+                        message,
+                        clause.expression.position,
+                        clause.expression.fullSource ?? clause.source,
+                        clause.expression,
+                    );
+                }
+
+                this.switchDepth++;
+                const body = this.visitBlockStatement({
+                    ...clause,
+                    kind: Kinds.Statements.BlockStatement,
+                    statements: clause.statements ?? [],
+                });
+                this.switchDepth--;
+
+                return {
+                    ...clause,
+                    kind: Kinds.Statements.CaseClause,
+                    expression,
+                    body,
+                };
+            }
+
+            this.switchDepth++;
+            const body = this.visitBlockStatement({
+                ...clause,
+                kind: Kinds.Statements.BlockStatement,
+                statements: clause.statements ?? [],
+            });
+            this.switchDepth--;
+
+            return {
+                ...clause,
+                kind: Kinds.Statements.DefaultClause,
+                body,
+            };
+        }
+
+        public isNumberType(type: any): boolean {
+            if (!type) return false;
+
+            return (
+                type.kind === Kinds.Types.NumberType ||
+                type.raw === "number" ||
+                type === "number"
+            );
         }
 
         public isBooleanType(type: any): boolean {
@@ -373,6 +489,12 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     this.blockAlwaysReturns(node.else);
             }
 
+            if (node.kind === Kinds.Statements.SwitchStatement) {
+                return (node.clauses ?? []).every(
+                    (clause: any) => this.blockAlwaysReturns(clause.body),
+                );
+            }
+
             return false;
         }
 
@@ -392,6 +514,12 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     this.blockTerminates(node.then) &&
                     node.else &&
                     this.blockTerminates(node.else)
+                ) ||
+                (
+                    node.kind === Kinds.Statements.SwitchStatement &&
+                    (node.clauses ?? []).every(
+                        (clause: any) => this.blockTerminates(clause.body),
+                    )
                 )
             );
         }

@@ -38,6 +38,9 @@ export namespace Types {
         export type SemanticForStatement = SirTypes.SemanticForStatement;
         export type SemanticBreakStatement = SirTypes.SemanticBreakStatement;
         export type SemanticContinueStatement = SirTypes.SemanticContinueStatement;
+        export type SemanticCaseClause = SirTypes.SemanticCaseClause;
+        export type SemanticDefaultClause = SirTypes.SemanticDefaultClause;
+        export type SemanticSwitchStatement = SirTypes.SemanticSwitchStatement;
         export type SemanticFunctionParameter = SirTypes.SemanticFunctionParameter;
         export type SemanticParameterEffect = SirTypes.SemanticParameterEffect;
         export type SemanticFunctionEffectSummary = SirTypes.SemanticFunctionEffectSummary;

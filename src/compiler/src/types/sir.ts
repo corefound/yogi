@@ -313,6 +313,29 @@ export type SemanticContinueStatement = {
     position?: SourcePosition;
 };
 
+export type SemanticCaseClause = {
+    kind: "CaseClause";
+    expression: SemanticValueInput;
+    body: SemanticBlockStatement;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticDefaultClause = {
+    kind: "DefaultClause";
+    body: SemanticBlockStatement;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticSwitchStatement = {
+    kind: "SwitchStatement";
+    expression: SemanticValueInput;
+    clauses: (SemanticCaseClause | SemanticDefaultClause)[];
+    source?: string;
+    position?: SourcePosition;
+};
+
 export type SemanticFunctionParameter = {
     kind: "FunctionParameter";
     name: string;
@@ -418,6 +441,9 @@ export type SemanticNodeInput =
     | SemanticForStatement
     | SemanticBreakStatement
     | SemanticContinueStatement
+    | SemanticCaseClause
+    | SemanticDefaultClause
+    | SemanticSwitchStatement
     | SemanticFunctionDeclaration
     | SemanticExternDeclaration;
 

@@ -39,6 +39,7 @@ namespace yogi::core::llvm::internal {
 			void lowerFor(const Yogi::Sir::ForStatement *statement);
 			void lowerBreak(const Yogi::Sir::BreakStatement *statement);
 			void lowerContinue(const Yogi::Sir::ContinueStatement *statement);
+			void lowerSwitch(const Yogi::Sir::SwitchStatement *statement);
 			void emitLocalCleanups();
 			void emitLocalCleanupsFrom(std::size_t firstCleanup);
 
@@ -50,11 +51,17 @@ namespace yogi::core::llvm::internal {
 				std::size_t continueCleanupStart;
 			};
 
+			struct SwitchFrame {
+				::llvm::BasicBlock *breakBlock;
+				std::size_t breakCleanupStart;
+			};
+
 			ModuleLoweringContext &context;
 			TypeLowerer &types;
 			ValueLowerer &values;
 			VariableLowerer &variables;
 			std::vector<LoopFrame> loopFrames;
+			std::vector<SwitchFrame> switchFrames;
 	};
 
 } // namespace yogi::core::llvm::internal

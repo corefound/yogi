@@ -210,6 +210,26 @@ table ContinueStatement {
   position:SourcePosition;
 }
 
+table CaseClause {
+  expression:ValueRef;
+  body:BlockStatement;
+  source:string;
+  position:SourcePosition;
+}
+
+table DefaultClause {
+  body:BlockStatement;
+  source:string;
+  position:SourcePosition;
+}
+
+table SwitchStatement {
+  expression:ValueRef;
+  clauses:[SirNode];
+  source:string;
+  position:SourcePosition;
+}
+
 table FunctionParameter {
   name:string;
   type:TypeRef;
@@ -275,6 +295,9 @@ union SirNodeValue {
   ForStatement,
   BreakStatement,
   ContinueStatement,
+  CaseClause,
+  DefaultClause,
+  SwitchStatement,
   FunctionDeclaration,
   ArrayDeclaration
 }

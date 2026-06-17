@@ -47,6 +47,8 @@ export namespace Kinds {
 
         IfStatement = "IfStatement",
         SwitchStatement = "SwitchStatement",
+        CaseClause = "CaseClause",
+        DefaultClause = "DefaultClause",
         WhileStatement = "WhileStatement",
         ForStatement = "ForStatement",
         BreakStatement = "BreakStatement",

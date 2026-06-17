@@ -15,6 +15,7 @@ import {
     NullConstant,
     UndefinedConstant,
     SourcePosition,
+    SwitchStatement,
     TypeRef,
     TypeKind,
     ValueRef,
@@ -38,7 +39,9 @@ import {
     WhileStatement,
     ForStatement,
     BreakStatement,
+    CaseClause,
     ContinueStatement,
+    DefaultClause,
     FunctionDeclaration,
     FunctionParameter,
     FunctionEffectSummary,
@@ -208,6 +211,24 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     const value = this.createContinueStatement(builder, node);
 
                     return this.createSirNode(builder, SirNodeValue.ContinueStatement, value);
+                }
+
+                case "CaseClause": {
+                    const value = this.createCaseClause(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.CaseClause, value);
+                }
+
+                case "DefaultClause": {
+                    const value = this.createDefaultClause(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.DefaultClause, value);
+                }
+
+                case "SwitchStatement": {
+                    const value = this.createSwitchStatement(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.SwitchStatement, value);
                 }
 
                 case "FunctionDeclaration": {
@@ -1090,6 +1111,65 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             ContinueStatement.addPosition(builder, position);
 
             return ContinueStatement.endContinueStatement(builder);
+        }
+
+        static createCaseClause(
+            builder: fbs.Builder,
+            clause: Types.Sir.SemanticCaseClause,
+        ): fbs.Offset {
+            const expression = this.createValueRef(builder, clause.expression);
+            const body = this.createBlockStatement(builder, clause.body);
+            const source = builder.createString(clause.source ?? "");
+            const position = this.createSourcePosition(builder, clause.position);
+
+            CaseClause.startCaseClause(builder);
+            CaseClause.addExpression(builder, expression);
+            CaseClause.addBody(builder, body);
+            CaseClause.addSource(builder, source);
+            CaseClause.addPosition(builder, position);
+
+            return CaseClause.endCaseClause(builder);
+        }
+
+        static createDefaultClause(
+            builder: fbs.Builder,
+            clause: Types.Sir.SemanticDefaultClause,
+        ): fbs.Offset {
+            const body = this.createBlockStatement(builder, clause.body);
+            const source = builder.createString(clause.source ?? "");
+            const position = this.createSourcePosition(builder, clause.position);
+
+            DefaultClause.startDefaultClause(builder);
+            DefaultClause.addBody(builder, body);
+            DefaultClause.addSource(builder, source);
+            DefaultClause.addPosition(builder, position);
+
+            return DefaultClause.endDefaultClause(builder);
+        }
+
+        static createSwitchStatement(
+            builder: fbs.Builder,
+            statement: Types.Sir.SemanticSwitchStatement,
+        ): fbs.Offset {
+            const expression = this.createValueRef(builder, statement.expression);
+            const clauseOffsets = (statement.clauses ?? []).map(
+                (clause: Types.Sir.SemanticNodeInput) => {
+                    return this.visitSemanticNode(builder, clause);
+                },
+            );
+            const clausesVector = createVector(builder, clauseOffsets, (length) => {
+                SwitchStatement.startClausesVector(builder, length);
+            });
+            const source = builder.createString(statement.source ?? "");
+            const position = this.createSourcePosition(builder, statement.position);
+
+            SwitchStatement.startSwitchStatement(builder);
+            SwitchStatement.addExpression(builder, expression);
+            SwitchStatement.addClauses(builder, clausesVector);
+            SwitchStatement.addSource(builder, source);
+            SwitchStatement.addPosition(builder, position);
+
+            return SwitchStatement.endSwitchStatement(builder);
         }
 
         static createFunctionParameter(

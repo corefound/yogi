@@ -10,9 +10,11 @@ import { BinaryExpression } from '../../yogi/sir/binary-expression.js';
 import { BlockStatement } from '../../yogi/sir/block-statement.js';
 import { BreakStatement } from '../../yogi/sir/break-statement.js';
 import { CallExpression } from '../../yogi/sir/call-expression.js';
+import { CaseClause } from '../../yogi/sir/case-clause.js';
 import { ConditionalExpression } from '../../yogi/sir/conditional-expression.js';
 import { Constant } from '../../yogi/sir/constant.js';
 import { ContinueStatement } from '../../yogi/sir/continue-statement.js';
+import { DefaultClause } from '../../yogi/sir/default-clause.js';
 import { ElementAccessExpression } from '../../yogi/sir/element-access-expression.js';
 import { ExternDeclaration } from '../../yogi/sir/extern-declaration.js';
 import { ForStatement } from '../../yogi/sir/for-statement.js';
@@ -22,6 +24,7 @@ import { IfStatement } from '../../yogi/sir/if-statement.js';
 import { ObjectExpression } from '../../yogi/sir/object-expression.js';
 import { PropertyAccessExpression } from '../../yogi/sir/property-access-expression.js';
 import { ReturnStatement } from '../../yogi/sir/return-statement.js';
+import { SwitchStatement } from '../../yogi/sir/switch-statement.js';
 import { VariableDeclaration } from '../../yogi/sir/variable-declaration.js';
 import { WhileStatement } from '../../yogi/sir/while-statement.js';
 
@@ -48,14 +51,17 @@ export enum SirNodeValue {
   ForStatement = 18,
   BreakStatement = 19,
   ContinueStatement = 20,
-  FunctionDeclaration = 21,
-  ArrayDeclaration = 22
+  CaseClause = 21,
+  DefaultClause = 22,
+  SwitchStatement = 23,
+  FunctionDeclaration = 24,
+  ArrayDeclaration = 25
 }
 
 export function unionToSirNodeValue(
   type: SirNodeValue,
-  accessor: (obj:AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|ConditionalExpression|Constant|ContinueStatement|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|WhileStatement) => AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|ConditionalExpression|Constant|ContinueStatement|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|WhileStatement|null
-): AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|ConditionalExpression|Constant|ContinueStatement|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|WhileStatement|null {
+  accessor: (obj:AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|CaseClause|ConditionalExpression|Constant|ContinueStatement|DefaultClause|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|SwitchStatement|VariableDeclaration|WhileStatement) => AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|CaseClause|ConditionalExpression|Constant|ContinueStatement|DefaultClause|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|SwitchStatement|VariableDeclaration|WhileStatement|null
+): AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|CaseClause|ConditionalExpression|Constant|ContinueStatement|DefaultClause|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|SwitchStatement|VariableDeclaration|WhileStatement|null {
   switch(SirNodeValue[type]) {
     case 'NONE': return null; 
     case 'Constant': return accessor(new Constant())! as Constant;
@@ -78,6 +84,9 @@ export function unionToSirNodeValue(
     case 'ForStatement': return accessor(new ForStatement())! as ForStatement;
     case 'BreakStatement': return accessor(new BreakStatement())! as BreakStatement;
     case 'ContinueStatement': return accessor(new ContinueStatement())! as ContinueStatement;
+    case 'CaseClause': return accessor(new CaseClause())! as CaseClause;
+    case 'DefaultClause': return accessor(new DefaultClause())! as DefaultClause;
+    case 'SwitchStatement': return accessor(new SwitchStatement())! as SwitchStatement;
     case 'FunctionDeclaration': return accessor(new FunctionDeclaration())! as FunctionDeclaration;
     case 'ArrayDeclaration': return accessor(new ArrayDeclaration())! as ArrayDeclaration;
     default: return null;
@@ -86,9 +95,9 @@ export function unionToSirNodeValue(
 
 export function unionListToSirNodeValue(
   type: SirNodeValue, 
-  accessor: (index: number, obj:AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|ConditionalExpression|Constant|ContinueStatement|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|WhileStatement) => AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|ConditionalExpression|Constant|ContinueStatement|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|WhileStatement|null, 
+  accessor: (index: number, obj:AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|CaseClause|ConditionalExpression|Constant|ContinueStatement|DefaultClause|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|SwitchStatement|VariableDeclaration|WhileStatement) => AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|CaseClause|ConditionalExpression|Constant|ContinueStatement|DefaultClause|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|SwitchStatement|VariableDeclaration|WhileStatement|null, 
   index: number
-): AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|ConditionalExpression|Constant|ContinueStatement|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|VariableDeclaration|WhileStatement|null {
+): AggregateAssignmentExpression|ArrayDeclaration|ArrayExpression|AssignmentExpression|BinaryExpression|BlockStatement|BreakStatement|CallExpression|CaseClause|ConditionalExpression|Constant|ContinueStatement|DefaultClause|ElementAccessExpression|ExternDeclaration|ForStatement|FunctionDeclaration|IdentifierExpression|IfStatement|ObjectExpression|PropertyAccessExpression|ReturnStatement|SwitchStatement|VariableDeclaration|WhileStatement|null {
   switch(SirNodeValue[type]) {
     case 'NONE': return null; 
     case 'Constant': return accessor(index, new Constant())! as Constant;
@@ -111,6 +120,9 @@ export function unionListToSirNodeValue(
     case 'ForStatement': return accessor(index, new ForStatement())! as ForStatement;
     case 'BreakStatement': return accessor(index, new BreakStatement())! as BreakStatement;
     case 'ContinueStatement': return accessor(index, new ContinueStatement())! as ContinueStatement;
+    case 'CaseClause': return accessor(index, new CaseClause())! as CaseClause;
+    case 'DefaultClause': return accessor(index, new DefaultClause())! as DefaultClause;
+    case 'SwitchStatement': return accessor(index, new SwitchStatement())! as SwitchStatement;
     case 'FunctionDeclaration': return accessor(index, new FunctionDeclaration())! as FunctionDeclaration;
     case 'ArrayDeclaration': return accessor(index, new ArrayDeclaration())! as ArrayDeclaration;
     default: return null;
