@@ -202,13 +202,15 @@ function values:
 | `concat(...values)` | no | `T[]` |
 | `toReversed()` | no | `T[]` |
 | `toSpliced(start, deleteCount?, ...items)` | no | `T[]` |
+| `with(index, value)` | no | `T[]` |
 
 Mutating methods require a mutable, non-readonly dynamic array. Tuples reject
 mutating methods because their length and element layout are fixed.
 
-`at`, `slice`, `includes`, `indexOf`, and `lastIndexOf` follow the JavaScript
-index rules that matter for this stage, including negative indexes for `at` and
-`slice`.
+`at`, `slice`, `includes`, `indexOf`, `lastIndexOf`, and `with` follow the
+JavaScript index rules that matter for this stage. `with` supports negative
+indexes and aborts with a runtime range diagnostic when the normalized index is
+outside the array.
 
 ## Example
 
@@ -255,7 +257,6 @@ This lot is still not a full control-flow analysis engine. Remaining loop work:
 - Loop-carried type narrowing.
 - Callback-based array methods such as `map`, `filter`, `reduce`, `find`,
   `some`, and `every`.
-- Range-error-sensitive methods such as `with`.
 - Comparator/string-dependent methods such as `sort`, `toSorted`, and `join`.
 - Object helper methods.
 

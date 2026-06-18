@@ -238,10 +238,15 @@ int main() {
 	void *splicedCopy = yogi_array_to_spliced(copyArray, 1, 1, inserted);
 	assert(yogi_any_to_number(yogi_array_get(splicedCopy, 1)) == 7);
 	assert(yogi_any_to_number(yogi_array_get(copyArray, 1)) == 7);
+	void *withCopy = yogi_array_with(copyArray, -1, yogi_any_from_number(99));
+	assert(yogi_array_length(withCopy) == yogi_array_length(copyArray));
+	assert(yogi_any_to_number(yogi_array_get(withCopy, yogi_array_length(withCopy) - 1)) == 99);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, yogi_array_length(copyArray) - 1)) != 99);
 	void *concatCopy = yogi_array_clone(copyArray);
 	yogi_array_append_array(concatCopy, inserted);
 	assert(yogi_array_length(concatCopy) == yogi_array_length(copyArray) + 2);
 	yogi_array_destroy(concatCopy);
+	yogi_array_destroy(withCopy);
 	yogi_array_destroy(splicedCopy);
 	yogi_array_destroy(removed);
 	yogi_array_destroy(inserted);

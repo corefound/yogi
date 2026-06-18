@@ -539,6 +539,25 @@ namespace yogi::core::llvm::internal {
 			);
 		}
 
+		if (methodName == "with") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *index = lowerNumberArgument(0, 0);
+			const auto *argument = arguments && argumentCount > 1
+				? arguments->Get(1)
+				: nullptr;
+			const auto *argumentSemanticType = valueSemanticType(argument);
+			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+			auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
+			auto *result = callRuntime("yogi_array_with", opaquePointer(), {array, index, boxedValue});
+
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
 		if (methodName == "slice") {
 			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
 			auto *start = lowerNumberArgument(0, 0);

@@ -100,6 +100,6 @@ language features:
   `every`, `forEach`, `flatMap`.
 - Comparator-dependent methods: `sort`, `toSorted`.
 - String-dependent methods: `join`, `toString`.
-- Range-error-sensitive copy method: `with`.
+- Range-error-sensitive copy method: `with` is covered by Lot 07.
 - Comparator/string-dependent methods: `sort`, `toSorted`, `join`, `toString`.
 - Callback/function-value methods listed above.

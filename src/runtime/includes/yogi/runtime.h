@@ -66,6 +66,7 @@ void yogi_array_copy_within(void *array, double target, double start, double end
 void *yogi_array_splice(void *array, double start, double deleteCount, void *inserted);
 void *yogi_array_to_reversed(void *array);
 void *yogi_array_to_spliced(void *array, double start, double deleteCount, void *inserted);
+void *yogi_array_with(void *array, double index, void *value);
 void *yogi_array_slice(void *array, double start, double end);
 void yogi_array_drop(void *array);
 void yogi_array_destroy(void *array);

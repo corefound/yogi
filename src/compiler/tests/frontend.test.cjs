@@ -165,6 +165,34 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("validates array with builtin method", () => {
+    const root = createProject({
+      "main.io": `
+        let scores: number[] = [1, 2, 3]
+        let changed: number[] = scores.with(-1, 9)
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects wrong array with replacement type", () => {
+    const root = createProject({
+      "main.io": `
+        let scores: number[] = [1, 2, 3]
+        let changed: number[] = scores.with(0, "bad")
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("replacement value");
+  });
+
   test("rejects reassignment to const variables", () => {
     const root = createProject({
       "main.io": `

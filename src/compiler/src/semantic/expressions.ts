@@ -291,6 +291,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 splice: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, receiverType, methodName, args, source, true),
                 toReversed: () => this.validateAndCreateToReversedCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 toSpliced: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, receiverType, methodName, args, source, false),
+                with: () => this.validateAndCreateWithCall(node, rawCallee, receiver, receiverType, methodName, args, source),
             };
 
             if (!methodHandlers[methodName]) {
@@ -879,6 +880,21 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
         public validateAndCreateToReversedCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
             this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                this.arrayReturnType(receiverType),
+                methodName,
+            );
+        }
+
+        public validateAndCreateWithCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 2, 2);
+            this.validateNumberArrayMethodArgument(node, methodName, args[0], source, "index");
+            this.validateArrayElementValue(node, methodName, args[1], this.arrayReadableElementType(receiverType), source, "replacement value");
 
             return this.createArrayBuiltinCall(
                 node,

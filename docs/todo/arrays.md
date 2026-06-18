@@ -25,6 +25,7 @@ known state instead of rediscovering gaps from the source code.
   - `slice`
   - `toReversed`
   - `toSpliced`
+  - `with`
 - Copy/mutation methods:
   - `fill`
   - `copyWithin`
@@ -32,8 +33,7 @@ known state instead of rediscovering gaps from the source code.
 
 ## In Progress / Next Lots
 
-- Decide how Yogi should model range errors and then add:
-  - `with`
+- Function-value/callback foundation for callback-based array methods.
 
 ## Future Work
 
@@ -67,5 +67,6 @@ known state instead of rediscovering gaps from the source code.
 - Callback methods should wait until function values or callable references are
   represented in semantic analysis and LLVM lowering.
 - `sort` and `join` should wait until string runtime semantics are stronger.
-- `with` should wait until the runtime has a clear RangeError or diagnostic
-  strategy for out-of-range indexes.
+- `with` now uses runtime range diagnostics. Future range-sensitive APIs should
+  reuse the same `yogi runtime range error` path unless Yogi later adds
+  catchable exceptions.

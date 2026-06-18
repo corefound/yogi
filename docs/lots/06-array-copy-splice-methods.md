@@ -87,7 +87,6 @@ runtime call.
 
 The main remaining array features are:
 
-- `with`, once runtime range diagnostics are formalized.
 - Callback/function-value methods such as `forEach`, `map`, `filter`, `reduce`,
   `find`, `some`, and `every`.
 - String/comparator-dependent methods such as `join`, `sort`, and `toSorted`.

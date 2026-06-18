@@ -283,6 +283,17 @@ if(BUILD_TESTING)
                 COMMAND yogi_runtime_ownership_negative_test
         )
 
+        add_executable(yogi_runtime_range_negative_test
+                ${CMAKE_SOURCE_DIR}/tests/runtime/unit/runtime_range_negative_test.cpp
+        )
+
+        target_link_libraries(yogi_runtime_range_negative_test PRIVATE yogi_runtime)
+
+        add_test(
+                NAME yogi_runtime_range_negative_test
+                COMMAND yogi_runtime_range_negative_test
+        )
+
         if(YOGI_LLVM_ENABLED)
                 add_test(
                         NAME yogi_pipeline_runtime_any
@@ -322,6 +333,14 @@ if(BUILD_TESTING)
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-copy-splice-methods
                                 -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_copy_splice_methods.cmake
+                )
+
+                add_test(
+                        NAME yogi_pipeline_array_with_range
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-with-range
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_with_range.cmake
                 )
 
                 add_test(

@@ -61,6 +61,7 @@ namespace yogi::runtime {
 			ArrayValue *splice(double start, double deleteCount, const ArrayValue *inserted);
 			ArrayValue *toReversed() const;
 			ArrayValue *toSpliced(double start, double deleteCount, const ArrayValue *inserted) const;
+			ArrayValue *with(double index, void *value) const;
 			ArrayValue *slice(double start, double end) const;
 			void destroy();
 

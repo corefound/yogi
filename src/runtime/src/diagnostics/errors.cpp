@@ -3,6 +3,8 @@
 
 #include "yogi/runtime/errors.h"
 
+#include "yogi/runtime/memory.h"
+
 #include <cstdio>
 #include <cstdlib>
 
@@ -24,6 +26,23 @@ namespace yogi::runtime {
 
     void RuntimeError::abortCast(const char* fromType, const char* toType) {
         std::fprintf(stderr, "yogi runtime error: cannot cast value of type '%s' to '%s'\n", fromType ? fromType : "unknown", toType ? toType : "unknown");
+        std::abort();
+    }
+
+    void RuntimeError::abortRange(const char* operation, long long index, unsigned long long length) {
+        std::fprintf(
+            stderr,
+            "yogi runtime range error: %s index %lld is out of range for length %llu\n",
+            safeText(operation, "array access"),
+            index,
+            length);
+        printLocation(
+            "detected",
+            MemoryManager::currentMemoryModule(),
+            MemoryManager::currentMemoryFunction(),
+            MemoryManager::currentMemorySourcePath(),
+            MemoryManager::currentMemorySourceLine(),
+            MemoryManager::currentMemorySourceColumn());
         std::abort();
     }
 

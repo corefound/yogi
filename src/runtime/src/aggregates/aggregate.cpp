@@ -5,6 +5,7 @@
 
 #include "yogi/runtime/any.h"
 #include "yogi/runtime/debug/ownership.h"
+#include "yogi/runtime/errors.h"
 #include "yogi/runtime/memory.h"
 
 #include <algorithm>
@@ -93,6 +94,41 @@ namespace yogi::runtime {
 			}
 
 			return std::min<std::size_t>(static_cast<std::size_t>(integer), available);
+		}
+
+		bool normalizeRequiredIndex(double value, std::size_t length, std::size_t &result) {
+			const auto integer = toInteger(value);
+
+			if (std::isinf(integer)) {
+				return false;
+			}
+
+			const auto normalized = integer >= 0
+				? integer
+				: static_cast<double>(length) + integer;
+
+			if (normalized < 0 || normalized >= static_cast<double>(length)) {
+				return false;
+			}
+
+			result = static_cast<std::size_t>(normalized);
+			return true;
+		}
+
+		long long rangeDiagnosticIndex(double value) {
+			const auto integer = toInteger(value);
+
+			if (std::isnan(integer)) {
+				return 0;
+			}
+
+			if (std::isinf(integer)) {
+				return integer > 0
+					? std::numeric_limits<long long>::max()
+					: std::numeric_limits<long long>::min();
+			}
+
+			return static_cast<long long>(integer);
 		}
 
 		const AnyValue *asAny(void *value) {
@@ -565,6 +601,19 @@ namespace yogi::runtime {
 		return result;
 	}
 
+	ArrayValue *ArrayValue::with(double index, void *value) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array with after destroy/drop", "array value");
+
+		std::size_t target = 0;
+		if (!normalizeRequiredIndex(index, elementCount, target)) {
+			RuntimeError::abortRange("array.with", rangeDiagnosticIndex(index), elementCount);
+		}
+
+		auto *result = clone();
+		result->elements[target] = value ? value : AnyValue::undefined();
+		return result;
+	}
+
 	ArrayValue *ArrayValue::slice(double start, double end) const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array slice after destroy/drop", "array value");
 
@@ -864,6 +913,14 @@ void *yogi_array_to_spliced(void *array, double start, double deleteCount, void 
 		deleteCount,
 		static_cast<const yogi::runtime::ArrayValue *>(inserted)
 	);
+}
+
+void *yogi_array_with(void *array, double index, void *value) {
+	if (!array) {
+		yogi::runtime::RuntimeError::abortRange("array.with", 0, 0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->with(index, value);
 }
 
 void *yogi_array_slice(void *array, double start, double end) {
