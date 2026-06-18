@@ -1,0 +1,7 @@
+/tests/
+/build/
+/build_cmake/
+/packages
+*.vscode
+/AGENTS.md
+node_modules/
