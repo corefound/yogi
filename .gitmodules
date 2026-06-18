@@ -13,6 +13,7 @@
 [submodule "tools/mimalloc"]
 	path = tools/mimalloc
 	url = https://github.com/microsoft/mimalloc.git
+	
 [submodule "tools/jemalloc"]
 	path = tools/jemalloc
 	url = https://github.com/jemalloc/jemalloc.git
