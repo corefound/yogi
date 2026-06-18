@@ -4,7 +4,7 @@ Yogi's main executable is the package-manager CLI. The same binary also owns the
 compiler pipeline, so users can work in two modes:
 
 ```txt
-yogi <file.io>
+yogi <file.ts>
 yogi init
 yogi build
 yogi run
@@ -15,7 +15,7 @@ yogi run
 For pipeline tests and quick local experiments, pass a source file directly:
 
 ```sh
-yogi main.io
+yogi main.ts
 ```
 
 This compiles the file with the internal compiler driver and writes generated
@@ -30,7 +30,7 @@ packages/.cache/modules/<module>/<module>.o
 packages/.cache/yogi
 ```
 
-`yogi run main.io` compiles the file and then executes `packages/.cache/yogi`.
+`yogi run main.ts` compiles the file and then executes `packages/.cache/yogi`.
 
 ## Project Mode
 
@@ -39,12 +39,12 @@ packages/.cache/yogi
 ```txt
 yogi.json
 yogi.log
-main.io
+main.ts
 packages/
 .gitignore
 ```
 
-The default `main.io` is intentionally tiny:
+The default `main.ts` is intentionally tiny:
 
 ```ts
 function main(): number {
@@ -57,11 +57,28 @@ The manifest points at that file:
 ```json
 {
   "build": {
-    "entry": "main.io",
+    "entry": "main.ts",
     "output": "dist"
   }
 }
 ```
+
+## Command Semantics
+
+`compile`, `build`, `run`, and `start` are intentionally separate:
+
+| Command | Meaning today | Output |
+|---|---|---|
+| `yogi compile main.ts` | Ahead-of-time compile a single source file | `packages/.cache/yogi` next to the source |
+| `yogi main.ts` | Shorthand for single-file compile | `packages/.cache/yogi` next to the source |
+| `yogi build` | Ahead-of-time build the current package project | `dist/<package-name>` |
+| `yogi run` | Build the project, then execute `dist/<package-name>` | executable process result |
+| `yogi run main.ts` | Compile a single source file, then execute its cache binary | executable process result |
+| `yogi start` | Alias for `yogi run` | executable process result |
+
+There is no non-AOT runtime/JIT mode yet. Today, every successful `compile`,
+`build`, or `run` path still goes through the compiler pipeline and produces a
+native executable.
 
 ## Build
 
@@ -80,6 +97,25 @@ dist/<package-name>
 
 Projects with dependencies still use `yogi.log`. Projects with no dependencies
 can build with the empty lockfile created by `yogi init`.
+
+## Packages
+
+Installed packages belong under:
+
+```txt
+packages/libs/<package>/<version>/
+```
+
+The current installer can resolve dependency versions and create package folders,
+but it still needs the real GitHub release download path:
+
+1. resolve package metadata from the registry/backend
+2. read the GitHub release asset URL and checksum
+3. download the release archive
+4. verify checksum
+5. unpack into `packages/libs/<package>/<version>/`
+6. write `yogi.log`
+7. expose installed package modules/libs to the compiler during `build`
 
 ## Run
 
@@ -108,4 +144,3 @@ yogi::core::runCompiler(...)
 The CLI uses that function instead of shelling out to a separate `yogic`
 executable. This keeps the current C++/LLVM backend as the actual compiler while
 making the package manager the user-facing workflow.
-

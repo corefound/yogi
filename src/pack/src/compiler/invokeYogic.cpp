@@ -19,7 +19,7 @@ static std::string valueAfterFlag(const std::vector<std::string>& args, const st
 YogicResult invokeYogic(const yogi::fs::ProjectPaths& paths, const std::vector<std::string>& args) {
   std::string entry = valueAfterFlag(args, "--entry");
   if (entry.empty())
-    entry = "main.io";
+    entry = "main.ts";
 
   std::string projectRoot = valueAfterFlag(args, "--project-root");
   if (projectRoot.empty())

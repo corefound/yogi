@@ -22,11 +22,11 @@
 static void printHelp() {
   std::cerr << "Yogi Package Manager" << std::endl;
   std::cerr << "Usage: yogi <command> [options]" << std::endl;
-  std::cerr << "       yogi <file.io>" << std::endl;
+  std::cerr << "       yogi <file.ts>" << std::endl;
   std::cerr << std::endl;
   std::cerr << "Commands:" << std::endl;
-  std::cerr << "  <file.io>    Compile a single Yogi source file" << std::endl;
-  std::cerr << "    yogi main.io" << std::endl;
+  std::cerr << "  <file.ts>    Compile a single Yogi source file" << std::endl;
+  std::cerr << "    yogi main.ts" << std::endl;
   std::cerr << "  init         Initialize a new Yogi project" << std::endl;
   std::cerr << "    yogi init" << std::endl;
   std::cerr << "  install      Install project dependencies" << std::endl;
@@ -35,11 +35,11 @@ static void printHelp() {
   std::cerr << "    yogi build" << std::endl;
   std::cerr << "  run          Build and run the project or a source file" << std::endl;
   std::cerr << "    yogi run [-- args...]" << std::endl;
-  std::cerr << "    yogi run main.io [-- args...]" << std::endl;
+  std::cerr << "    yogi run main.ts [-- args...]" << std::endl;
   std::cerr << "  start        Alias for run" << std::endl;
   std::cerr << "    yogi start" << std::endl;
   std::cerr << "  compile      Compile a source file" << std::endl;
-  std::cerr << "    yogi compile main.io" << std::endl;
+  std::cerr << "    yogi compile main.ts" << std::endl;
   std::cerr << "  clean        Clean build artifacts" << std::endl;
   std::cerr << "    yogi clean" << std::endl;
   std::cerr << "  login        Authenticate with GitHub" << std::endl;
@@ -163,7 +163,7 @@ int main(int argc, char* argv[]) {
       yogi::cli::initCommand(root, logger, yes);
     } else if (command == "compile") {
       if (args.size() < 2) {
-        std::cerr << "Usage: yogi compile <file.io>" << std::endl;
+        std::cerr << "Usage: yogi compile <file.ts>" << std::endl;
         return 1;
       }
       return yogi::core::runCompiler(args[1]);

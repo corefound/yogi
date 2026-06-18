@@ -37,7 +37,7 @@ void buildCommand(const std::string& root, diagnostics::Logger& logger) {
     throw diagnostics::fileSystemError(paths.destDir, ec.message());
 
   logger.info("Running Yogi compiler...");
-  std::string entry = manifest.build && manifest.build->entry ? *manifest.build->entry : "main.io";
+  std::string entry = manifest.build && manifest.build->entry ? *manifest.build->entry : "main.ts";
   std::string output = manifest.build && manifest.build->output ? *manifest.build->output : "dist";
 
   auto result = compiler::invokeYogic(paths, {

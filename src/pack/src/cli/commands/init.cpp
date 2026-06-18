@@ -44,7 +44,7 @@ void initCommand(const std::string& root, diagnostics::Logger& logger, bool yes)
   std::string version = "0.1.0";
   std::string description = "";
   std::string license = "MIT";
-  std::string entry = "main.io";
+  std::string entry = "main.ts";
   std::string author = "";
 
   if (!yes) {

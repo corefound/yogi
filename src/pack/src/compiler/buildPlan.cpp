@@ -12,7 +12,7 @@ BuildPlan createBuildPlan(
   BuildStep linkStep;
   linkStep.kind = "link";
   linkStep.target = manifest.name;
-  linkStep.sources = {manifest.build && manifest.build->entry ? *manifest.build->entry : "src/main.ts"};
+  linkStep.sources = {manifest.build && manifest.build->entry ? *manifest.build->entry : "main.ts"};
   linkStep.outputPath = manifest.build && manifest.build->output ? *manifest.build->output : paths.destDir;
   plan.steps.push_back(linkStep);
   plan.outputPath = linkStep.outputPath;

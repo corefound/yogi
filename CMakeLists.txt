@@ -387,5 +387,13 @@ if(BUILD_TESTING)
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-break
                                 -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/break.cmake
                 )
+
+                add_test(
+                        NAME yogi_package_manager_init_build_run
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/package-manager-init-build-run
+                                -P ${CMAKE_SOURCE_DIR}/tests/package-manager/init_build_run.cmake
+                )
         endif()
 endif()
