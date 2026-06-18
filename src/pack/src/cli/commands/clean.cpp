@@ -2,6 +2,7 @@
 #include "fs/paths.hpp"
 #include "fs/layout.hpp"
 #include <filesystem>
+#include <vector>
 
 namespace yogi::cli {
 namespace stdfs = std::filesystem;

@@ -33,6 +33,7 @@ The compiler currently lowers source code through this pipeline:
 - [Variables](variables.md)
 - [Externs](externs.md)
 - [Loops and Aggregate Methods](loops-and-methods.md)
+- [Package Manager CLI](package-manager.md)
 
 ### Memory And Ownership
 

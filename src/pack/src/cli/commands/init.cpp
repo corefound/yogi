@@ -2,6 +2,8 @@
 #include "fs/paths.hpp"
 #include "fs/layout.hpp"
 #include "diagnostics/errors.hpp"
+#include "lockfile/types.hpp"
+#include "lockfile/writeYogiLog.hpp"
 #include <fstream>
 #include <filesystem>
 #include <nlohmann/json.hpp>
@@ -42,7 +44,7 @@ void initCommand(const std::string& root, diagnostics::Logger& logger, bool yes)
   std::string version = "0.1.0";
   std::string description = "";
   std::string license = "MIT";
-  std::string entry = "main.ts";
+  std::string entry = "main.io";
   std::string author = "";
 
   if (!yes) {
@@ -60,6 +62,11 @@ void initCommand(const std::string& root, diagnostics::Logger& logger, bool yes)
 
   std::string mainTs = root + "/" + entry;
 
+  std::error_code rootError;
+  stdfs::create_directories(root, rootError);
+  if (rootError)
+    throw diagnostics::fileSystemError(root, rootError.message());
+
   fs::ensureDirectories(paths);
 
   nlohmann::json manifest;
@@ -72,7 +79,23 @@ void initCommand(const std::string& root, diagnostics::Logger& logger, bool yes)
   manifest["build"]["output"] = "dist";
   std::ofstream(paths.manifestPath) << manifest.dump(2);
 
+  const auto mainPath = stdfs::path(mainTs);
+  if (mainPath.has_parent_path()) {
+    std::error_code parentError;
+    stdfs::create_directories(mainPath.parent_path(), parentError);
+    if (parentError)
+      throw diagnostics::fileSystemError(mainPath.parent_path().string(), parentError.message());
+  }
+
   std::ofstream mainFile(mainTs);
+  mainFile
+    << "function main(): number {\n"
+    << "    return 0\n"
+    << "}\n";
+
+  lockfile::Lockfile emptyLock;
+  emptyLock.version = "1";
+  lockfile::writeYogiLog(paths.lockfilePath, emptyLock);
 
   fs::createGitignore(paths);
   fs::createBinSymlinks(paths);

@@ -3,7 +3,9 @@
 #include <vector>
 #include <filesystem>
 #include <cstdlib>
+#include <algorithm>
 
+#include "compilerDriver.h"
 #include "diagnostics/logger.hpp"
 #include "diagnostics/errors.hpp"
 #include "registry/fetchPackage.hpp"
@@ -20,16 +22,24 @@
 static void printHelp() {
   std::cerr << "Yogi Package Manager" << std::endl;
   std::cerr << "Usage: yogi <command> [options]" << std::endl;
+  std::cerr << "       yogi <file.io>" << std::endl;
   std::cerr << std::endl;
   std::cerr << "Commands:" << std::endl;
+  std::cerr << "  <file.io>    Compile a single Yogi source file" << std::endl;
+  std::cerr << "    yogi main.io" << std::endl;
   std::cerr << "  init         Initialize a new Yogi project" << std::endl;
   std::cerr << "    yogi init" << std::endl;
   std::cerr << "  install      Install project dependencies" << std::endl;
   std::cerr << "    yogi install" << std::endl;
   std::cerr << "  build        Build the project" << std::endl;
   std::cerr << "    yogi build" << std::endl;
-  std::cerr << "  run          Build and run the project" << std::endl;
+  std::cerr << "  run          Build and run the project or a source file" << std::endl;
   std::cerr << "    yogi run [-- args...]" << std::endl;
+  std::cerr << "    yogi run main.io [-- args...]" << std::endl;
+  std::cerr << "  start        Alias for run" << std::endl;
+  std::cerr << "    yogi start" << std::endl;
+  std::cerr << "  compile      Compile a source file" << std::endl;
+  std::cerr << "    yogi compile main.io" << std::endl;
   std::cerr << "  clean        Clean build artifacts" << std::endl;
   std::cerr << "    yogi clean" << std::endl;
   std::cerr << "  login        Authenticate with GitHub" << std::endl;
@@ -46,6 +56,49 @@ static void printVersion() {
   std::cerr << "yogi version 0.1.0" << std::endl;
 }
 
+static bool isYogiSourceFile(const std::string& value) {
+  const auto extension = std::filesystem::path(value).extension().string();
+  return extension == ".io" || extension == ".tx" || extension == ".ts";
+}
+
+static std::string quoteShellArg(const std::string& value) {
+  std::string quoted = "'";
+
+  for (char ch : value) {
+    if (ch == '\'') {
+      quoted += "'\\''";
+    } else {
+      quoted += ch;
+    }
+  }
+
+  quoted += "'";
+  return quoted;
+}
+
+static int compileAndRunSource(const std::string& sourceFile, const std::vector<std::string>& passthroughArgs) {
+  const int compileResult = yogi::core::runCompiler(sourceFile);
+
+  if (compileResult != 0) {
+    return compileResult;
+  }
+
+  auto sourcePath = std::filesystem::absolute(sourceFile);
+  const auto executable = sourcePath.parent_path() / "packages" / ".cache" / "yogi";
+
+  if (!std::filesystem::exists(executable)) {
+    std::cerr << "Error: expected executable was not generated: " << executable << std::endl;
+    return 1;
+  }
+
+  std::string command = quoteShellArg(executable.string());
+  for (const auto& arg : passthroughArgs) {
+    command += " " + quoteShellArg(arg);
+  }
+
+  return std::system(command.c_str());
+}
+
 int main(int argc, char* argv[]) {
   std::vector<std::string> args;
   for (int i = 1; i < argc; i++)
@@ -59,6 +112,10 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string& command = args[0];
+
+  if (isYogiSourceFile(command)) {
+    return yogi::core::runCompiler(command);
+  }
 
   if (command == "--help" || command == "-h") {
     printHelp();
@@ -104,15 +161,26 @@ int main(int argc, char* argv[]) {
   try {
     if (command == "init") {
       yogi::cli::initCommand(root, logger, yes);
+    } else if (command == "compile") {
+      if (args.size() < 2) {
+        std::cerr << "Usage: yogi compile <file.io>" << std::endl;
+        return 1;
+      }
+      return yogi::core::runCompiler(args[1]);
     } else if (command == "install") {
       yogi::cli::installCommand(root, logger);
     } else if (command == "build") {
       yogi::cli::buildCommand(root, logger);
-    } else if (command == "run") {
+    } else if (command == "run" || command == "start") {
       auto ddash = std::find(args.begin(), args.end(), "--");
       std::vector<std::string> passthroughArgs;
       if (ddash != args.end())
         passthroughArgs.assign(ddash + 1, args.end());
+
+      if (args.size() >= 2 && args[1] != "--" && isYogiSourceFile(args[1])) {
+        return compileAndRunSource(args[1], passthroughArgs);
+      }
+
       yogi::cli::runCommand(root, logger, passthroughArgs);
     } else if (command == "clean") {
       yogi::cli::cleanCommand(root, logger);

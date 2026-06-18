@@ -24,6 +24,8 @@ yarn.lock
 /cmake-build-*/
 libs/uni-algo/
 /trash/
+src/pack/build/
+src/pack/CMakeFiles/
 ./tests/packages/*
 ./inputs/packages/*
 sir.json

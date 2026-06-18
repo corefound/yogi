@@ -153,9 +153,15 @@ endif()
 # ============================================================
 #                  SOURCES
 # ============================================================
-file(GLOB_RECURSE PROD_SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
+file(GLOB_RECURSE PROD_SOURCES
+        "${CMAKE_SOURCE_DIR}/src/core/*.cpp"
+        "${CMAKE_SOURCE_DIR}/src/pack/src/*.cpp"
+)
 file(GLOB_RECURSE LLVM_SOURCE_FILES "${CMAKE_SOURCE_DIR}/src/core/llvm/*.cpp")
-list(FILTER PROD_SOURCES EXCLUDE REGEX "^${CMAKE_SOURCE_DIR}/src/runtime/.*")
+list(REMOVE_ITEM PROD_SOURCES
+        "${CMAKE_SOURCE_DIR}/src/core/yogi.cpp"
+        "${CMAKE_SOURCE_DIR}/src/pack/src/cli/main.cpp"
+)
 
 set_source_files_properties(
         ${LLVM_SOURCE_FILES}
@@ -171,6 +177,7 @@ add_subdirectory(src/runtime)
 #                     EXECUTABLE
 # ============================================================
 add_executable(${PROJECT_NAME}
+        ${CMAKE_SOURCE_DIR}/src/pack/src/cli/main.cpp
         ${CMAKE_SOURCE_DIR}/src/core/yogi.cpp
         ${PROD_SOURCES}
 )
@@ -179,6 +186,8 @@ add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CORE_DIR}
         ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src/pack/include
+        ${CMAKE_SOURCE_DIR}/src/pack/src
         ${CMAKE_SOURCE_DIR}/tools/flatbuffers/include
         ${LIBS_DIR}
 )
