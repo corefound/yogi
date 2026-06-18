@@ -561,6 +561,7 @@ namespace yogi::core::llvm::internal {
 		::llvm::Type *targetType = types.lower(assignment->type());
 		const Yogi::Sir::TypeRef *targetSemanticType = assignment->type();
 		::llvm::Value *target = nullptr;
+		bool targetIsGlobal = false;
 
 		if (context.locals.contains(name)) {
 			target = context.locals[name];
@@ -569,6 +570,7 @@ namespace yogi::core::llvm::internal {
 				targetSemanticType = context.localTypes[name];
 			}
 		} else if (context.globals.contains(name)) {
+			targetIsGlobal = true;
 			target = context.globals[name];
 			targetType = context.globals[name]->getValueType();
 			if (context.globalTypes.contains(name)) {
@@ -586,9 +588,50 @@ namespace yogi::core::llvm::internal {
 			targetSemanticType,
 			targetSemanticType
 		);
+
+		const auto targetKind = resolvedTypeKind(targetSemanticType);
+		const auto targetIsAggregate =
+			targetKind == Yogi::Sir::TypeKind_array_type ||
+			targetKind == Yogi::Sir::TypeKind_tuple_type ||
+			targetKind == Yogi::Sir::TypeKind_type_literal ||
+			targetKind == Yogi::Sir::TypeKind_type_reference;
+
+		if (targetIsGlobal && targetIsAggregate && targetType->isPointerTy()) {
+			auto *previousValue = context.builder.CreateLoad(
+				targetType,
+				target,
+				sanitizeSymbol(name) + ".global.previous"
+			);
+			auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
+			auto *isReplacement = context.builder.CreateICmpNE(previousValue, value);
+			auto *shouldDestroyPrevious = context.builder.CreateAnd(
+				hasPrevious,
+				isReplacement,
+				sanitizeSymbol(name) + ".global.should_destroy"
+			);
+			auto *currentBlock = context.builder.GetInsertBlock();
+			auto *function = currentBlock->getParent();
+			auto *destroyBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				sanitizeSymbol(name) + ".global.replace.destroy",
+				function
+			);
+			auto *storeBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				sanitizeSymbol(name) + ".global.replace.store",
+				function
+			);
+
+			context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, storeBlock);
+			context.builder.SetInsertPoint(destroyBlock);
+			destroyEscapedAggregate(targetSemanticType, previousValue);
+			context.builder.CreateBr(storeBlock);
+			context.builder.SetInsertPoint(storeBlock);
+		}
+
 		context.builder.CreateStore(value, target);
 
-		if (context.globals.contains(name)) {
+		if (targetIsGlobal) {
 			const auto rightName = identifierName(assignment->right());
 			if (!rightName.empty()) {
 				context.deactivateAggregateOwner(rightName);

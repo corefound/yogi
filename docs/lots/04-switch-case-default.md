@@ -2,7 +2,7 @@
 
 ## Anchored Summary
 
-**Status**: ✅ Semantic analysis + LLVM lowering done. Now supports JavaScript/TypeScript-style fall-through semantics. Shared switch scope. Cleanup-slot safety for aggregates across fallthrough paths. Audit at `docs/audit/switch-case-default-audit.md`.
+**Status**: ✅ Semantic analysis + LLVM lowering done. Now supports JavaScript/TypeScript-style fall-through semantics. Shared switch scope. Cleanup-slot safety for aggregates across fallthrough paths. Audit at `docs/audit/control-flow/switch-case-default-audit.md`.
 
 **Semantic** (`if.ts:243-305`):
 - `visitSwitchStatement`: validates expression/case types are `number`, detects duplicate `default`, allows `default` in any position, enters a single shared `BlockStatement` scope for the entire switch body (not per-clause scopes)
@@ -23,7 +23,7 @@
 
 **Known limitation (pre-existing)**: `statementTerminatesBlock` used `blockTerminates` (counts `break` as terminating) instead of `blockAlwaysReturns` for switch clauses → **FIXED 2026-06-17**. This caused statements after a `switch` inside a loop body to be silently dropped.
 
-**Full audit**: `docs/audit/switch-case-default-audit.md` — complete coverage table (45+ items), scenario verifications, limitations, and recommended follow-up tests.
+**Full audit**: `docs/audit/control-flow/switch-case-default-audit.md` — complete coverage table (45+ items), scenario verifications, limitations, and recommended follow-up tests.
 
 ## Switch Ownership and Cleanup Edge Cases
 

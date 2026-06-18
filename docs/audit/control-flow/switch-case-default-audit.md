@@ -28,6 +28,11 @@
 > - Cleanup-only cases (declared but never used) remain valid
 > - `switchBodyDeclClause`, `switchBodyCurrentClause`, and `switchBodyScopeId` state fields added to `base.ts`
 > - Test suite: `switch_definite_assignment` (12 scenarios, including nested switch tracking and explicit block redeclaration)
+>
+> **Aggregate assignment audit split:**
+> - General `target = source` aggregate ownership is documented in `docs/memory/aggregate-assignment.md`
+> - Coverage table lives in `docs/audit/memory/aggregate-assignment-ownership-audit.md`
+> - Test suite: `tests/runtime/sessions/03-memory-management/aggregate_assignment_ownership.cmake`
 
 ---
 
@@ -59,7 +64,7 @@
 ### 1.3 Default clause
 
 | Feature / Case | Status | Test? | Notes |
-|---|---|---|---|---|
+|---|---|---|---|
 | default can appear in any position | ✅ | 🟡 | `if.ts` — `default must be last` check removed |
 | duplicate default → error | ✅ | 🟡 | `if.ts` — still enforced |
 | default as failure target for unmatched cases | ✅ | 🟡 | Default is **not a comparison check** — no `default.check` block exists. The last case check branches to the default body directly as its no-match target |
@@ -103,7 +108,7 @@
 | local aggregate → cleaned up at switch.end (fall-through) | ✅ | ✅ | `lowerSwitch` calls `emitLocalCleanupsFrom` at switch.end |
 | local aggregate inside default → cleaned up | ✅ | 🟡 | Same code path as case |
 | aggregate returned from case → NOT cleaned up locally | ✅ | 🟡 | `deactivateAggregateOwner` + `emitLocalCleanups` skips inactive |
-| aggregate escaped to global → NOT cleaned up locally | ⚠️ | ❌ | `lowerAggregateAssignment` handles property targets; plain identifier path needs verification |
+| aggregate escaped to global → NOT cleaned up locally | ✅ | ✅ | Plain identifier path covered by `yogi_pipeline_aggregate_assignment_ownership`; general ownership rules live in memory docs |
 | **cleanupSlot path safety** — aggregate never initialized (direct entry to later case) | ✅ | ✅ | Slot zero-initialized at function entry; null-check skips cleanup |
 | **cleanupSlot clearing** — slot nulled after cleanup for loop safety | ✅ | 🟡 | After `dropLocalAggregate`/`destroyEscapedAggregate`, a null store is emitted into the slot to prevent stale pointer on next loop iteration |
 | **cleanupSlot does not protect reads** — definite assignment check is separate | ✅ | ✅ | cleanupSlot only prevents cleanup of uninitialized aggregates. Definite assignment (diagnostic in `visitIdentifierExpression`) prevents unsafe reads. Both are needed for fall-through safety |
@@ -266,14 +271,14 @@ function test(x: number): void {
 }
 ```
 
-**Semantic**: The `AggregateAssignmentExpression` semantic analysis should mark `scores` as moved.
+**Semantic**: The assignment marks `scores` as escaped/moved into module storage.
 
 **Lowering**:
-- `lowerAggregateAssignment` handles property/element access targets
-- For property targets where the object is a global: calls `deactivateAggregateOwner(rightName)` → `scores` deactivated ✅
-- Plain identifier targets (`saved = scores`): depends on `lowerAssignment` path
+- Plain identifier targets (`saved = scores`) use `lowerAssignment`
+- `lowerAssignment` detects the target is a global and calls `deactivateAggregateOwner(rightName)` → `scores` deactivated
+- If `saved` already owned an aggregate, the previous global value is destroyed before the replacement is stored
 
-**Verdict**: ⚠️ Needs review. Property-escape case is handled. Plain identifier-to-identifier path needs verification.
+**Verdict**: ✅ Correct and covered by `yogi_pipeline_aggregate_assignment_ownership`. See `docs/audit/memory/aggregate-assignment-ownership-audit.md`.
 
 ---
 
@@ -287,9 +292,19 @@ function test(x: number): void {
 
 **2026-06-17**: Replaced dual `switchFrames`/`loopFrames` stacks with single unified `breakFrames` stack. `lowerBreak` now pops `breakFrames.back()`, which is always the innermost break-targetable construct.
 
-### 3.2 Escape-to-global for plain identifier aggregate assignment
+### 3.2 Escape-to-global for plain identifier aggregate assignment ✅ FIXED / VERIFIED
 
-`lowerAggregateAssignment` (valueLowerer.cpp:520-557) handles property/element access targets, but the path for plain identifier-to-identifier aggregate assignment (`saved = scores` where both are identifiers) in the aggregate case needs separate verification.
+`lowerAggregateAssignment` handles property/element access targets. Plain identifier-to-identifier aggregate assignment (`saved = scores`) uses `lowerAssignment`, and is now covered by the memory-management suite:
+
+```txt
+tests/runtime/sessions/03-memory-management/aggregate_assignment_ownership.cmake
+```
+
+The dedicated audit lives at:
+
+```txt
+docs/audit/memory/aggregate-assignment-ownership-audit.md
+```
 
 ### 3.3 Fall-through supported (no longer a limitation)
 

@@ -3,6 +3,11 @@
 /build/
 ./.DS_Store
 
+node_modules/
+yarn.lock
+
+*.db
+
 /tools/typescript/
 /tools/flatbuffers/
 /tools/llvm-project/

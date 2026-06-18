@@ -27,18 +27,39 @@ The compiler currently lowers source code through this pipeline:
 
 ## Documents
 
+### Frontend And Language Semantics
+
 - [Frontend Pipeline](frontend-pipeline.md)
 - [Variables](variables.md)
 - [Externs](externs.md)
+- [Loops and Aggregate Methods](loops-and-methods.md)
+
+### Memory And Ownership
+
 - [Memory Model](memory-model.md)
 - [Function Ownership](ownership.md)
+- [Aggregate Assignment Ownership](memory/aggregate-assignment.md)
 - [Move-State Validation](move-state-validation.md)
 - [Destructor Scheduling](destructor-scheduling.md)
-- [Loops and Aggregate Methods](loops-and-methods.md)
+
+### Runtime
+
 - [Runtime Debug Ownership](runtime-debug.md)
 - [Runtime Allocator](runtime-allocator.md)
 - [Runtime Memory Telemetry](runtime-memory-telemetry.md)
+
+### Backend
+
 - [Backend and LLVM](backend-llvm.md)
+
+### Testing
+
+- [Runtime Test Organization](testing/runtime-test-organization.md)
+
+### Audits
+
+- [Switch/Case/Default Audit](audit/control-flow/switch-case-default-audit.md)
+- [Aggregate Assignment Ownership Audit](audit/memory/aggregate-assignment-ownership-audit.md)
 
 These docs describe the current implementation plus the intended direction when
 a feature is still partial.

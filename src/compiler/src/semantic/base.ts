@@ -21,6 +21,7 @@ export class BaseSemantic {
     public switchBodyDeclClause: Map<string, number> | null = null;
     public switchBodyCurrentClause: number = -1;
     public switchBodyScopeId: number | null = null;
+    public switchBodyKnownEntryClause: number | null = null;
 
     public globalScope: Scope;
     public currentScope: Scope;
@@ -917,11 +918,19 @@ export class BaseSemantic {
             this.throwError(message, node.position, node.fullSource ?? node.source ?? node.raw, node);
         }
 
+        const switchDeclClause = this.switchBodyDeclClause?.get(identifierName);
+        const switchMayEnterAfterDeclaration =
+            this.switchBodyKnownEntryClause === null ||
+            (
+                switchDeclClause !== undefined &&
+                this.switchBodyKnownEntryClause > switchDeclClause
+            );
+
         if (
-            this.switchBodyDeclClause &&
             symbol.scopeId === this.switchBodyScopeId &&
-            this.switchBodyDeclClause.has(identifierName) &&
-            this.switchBodyDeclClause.get(identifierName)! < this.switchBodyCurrentClause
+            switchDeclClause !== undefined &&
+            switchDeclClause < this.switchBodyCurrentClause &&
+            switchMayEnterAfterDeclaration
         ) {
             const message =
                 `variable ${Helpers.RED}'${identifierName}'${Helpers.RESET} may be used before initialization`;

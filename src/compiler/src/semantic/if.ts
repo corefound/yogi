@@ -260,6 +260,7 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             const previousSwitchBodyDeclClause = this.switchBodyDeclClause;
             const previousSwitchBodyCurrentClause = this.switchBodyCurrentClause;
             const previousSwitchBodyScopeId = this.switchBodyScopeId;
+            const previousSwitchBodyKnownEntryClause = this.switchBodyKnownEntryClause;
             let afterState: Map<number, any> = beforeMoveState;
 
             // Shared scope for the entire switch body (JS/TS-compatible)
@@ -273,6 +274,10 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 this.switchBodyScopeId = switchBodyScopeId;
                 const clauseList = node.cases ?? [];
                 const numClauses = clauseList.length;
+                this.switchBodyKnownEntryClause = this.findKnownSwitchEntryClause(
+                    expression,
+                    clauseList,
+                );
 
                 // Pre-collect variable declarations for each clause
                 for (let clauseIdx = 0; clauseIdx < numClauses; clauseIdx++) {
@@ -306,6 +311,7 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                 this.switchBodyDeclClause = previousSwitchBodyDeclClause;
                 this.switchBodyCurrentClause = previousSwitchBodyCurrentClause;
                 this.switchBodyScopeId = previousSwitchBodyScopeId;
+                this.switchBodyKnownEntryClause = previousSwitchBodyKnownEntryClause;
                 this.exitScope();
             }
 
@@ -428,6 +434,49 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             ) {
                 return;
             }
+        }
+
+        public findKnownSwitchEntryClause(expression: any, clauses: any[]): number | null {
+            const switchValue = this.knownNumberLiteralValue(expression);
+
+            if (switchValue === null) {
+                return null;
+            }
+
+            let defaultIndex: number | null = null;
+
+            for (let index = 0; index < clauses.length; index++) {
+                const clause = clauses[index];
+
+                if (clause.kind === Kinds.ControlFlow.DefaultClause) {
+                    defaultIndex = index;
+                    continue;
+                }
+
+                if (this.knownNumberLiteralValue(clause.expression) === switchValue) {
+                    return index;
+                }
+            }
+
+            return defaultIndex;
+        }
+
+        public knownNumberLiteralValue(node: any): number | null {
+            if (!node) {
+                return null;
+            }
+
+            if (
+                typeof node.value === "number" &&
+                (
+                    node.kind === Kinds.Literals.NumberLiteral ||
+                    node.kind === Kinds.Sir.NumberConstant
+                )
+            ) {
+                return node.value;
+            }
+
+            return null;
         }
 
         public isNumberType(type: any): boolean {
