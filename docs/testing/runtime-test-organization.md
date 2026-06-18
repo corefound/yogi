@@ -38,6 +38,7 @@ Examples:
 - `array_methods.cmake`
 - `array_copy_splice_methods.cmake`
 - `array_with_range.cmake`
+- `array_named_callbacks.cmake`
 - `dynamic_expressions.cmake`
 
 Memory ownership tests belong in:

@@ -10,6 +10,7 @@
 #include <llvm/IR/Function.h>
 
 #include <limits>
+#include <tuple>
 
 namespace yogi::core::llvm::internal {
 
@@ -228,6 +229,43 @@ namespace yogi::core::llvm::internal {
 			const auto *argument = arguments->Get(index);
 			return lower(argument, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(argument));
 		};
+		const auto getCallbackFunction = [&]() -> ::llvm::Function * {
+			const auto *callbackArgument = arguments && arguments->size() > 0
+				? arguments->Get(0)
+				: nullptr;
+			const auto *identifier = callbackArgument ? callbackArgument->identifier() : nullptr;
+
+			if (!identifier || !identifier->qualified_name()) {
+				return nullptr;
+			}
+
+			const auto callbackName = "_yogi_fn_" + sanitizeSymbol(fbString(identifier->qualified_name()));
+			return context.module->getFunction(callbackName);
+		};
+		const auto callbackAcceptsIndex = [&](::llvm::Function *function) {
+			return function && function->arg_size() > 1;
+		};
+		const auto callCallback = [&](::llvm::Function *function, ::llvm::Value *boxedElement, ::llvm::Value *index, const Yogi::Sir::TypeRef *elementType) -> ::llvm::Value * {
+			std::vector<::llvm::Value *> callbackArguments;
+			auto *element = unboxAny(boxedElement, elementType);
+			auto *firstParameterType = function->getFunctionType()->getParamType(0);
+			callbackArguments.push_back(cast(element, firstParameterType, elementType, elementType));
+
+			if (callbackAcceptsIndex(function)) {
+				auto *indexValue = context.builder.CreateUIToFP(
+					index,
+					::llvm::Type::getDoubleTy(context.llvmContext),
+					"array.callback.index"
+				);
+				callbackArguments.push_back(indexValue);
+			}
+
+			if (function->getReturnType()->isVoidTy()) {
+				return context.builder.CreateCall(function, callbackArguments);
+			}
+
+			return context.builder.CreateCall(function, callbackArguments, "array.callback.result");
+		};
 		const auto createInsertArray = [&](flatbuffers::uoffset_t startIndex) -> ::llvm::Value * {
 			const auto count = arguments && arguments->size() > startIndex
 				? arguments->size() - startIndex
@@ -257,6 +295,36 @@ namespace yogi::core::llvm::internal {
 			}
 
 			return inserted;
+		};
+		const auto createCallbackLoop = [&](const std::string &name, ::llvm::Value *array, const Yogi::Sir::TypeRef *elementType) {
+			auto *function = context.builder.GetInsertBlock()->getParent();
+			auto *condition = ::llvm::BasicBlock::Create(context.llvmContext, name + ".condition", function);
+			auto *body = ::llvm::BasicBlock::Create(context.llvmContext, name + ".body", function);
+			auto *after = ::llvm::BasicBlock::Create(context.llvmContext, name + ".after", function);
+			auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+			auto *zero = ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 0);
+
+			context.builder.CreateBr(condition);
+			context.builder.SetInsertPoint(condition);
+			auto *index = context.builder.CreatePHI(::llvm::Type::getInt64Ty(context.llvmContext), 2, name + ".index");
+			index->addIncoming(zero, condition->getSinglePredecessor());
+			auto *inBounds = context.builder.CreateICmpULT(index, length, name + ".in.bounds");
+			context.builder.CreateCondBr(inBounds, body, after);
+			context.builder.SetInsertPoint(body);
+
+			return std::tuple<::llvm::BasicBlock *, ::llvm::BasicBlock *, ::llvm::PHINode *, ::llvm::Value *>{
+				condition,
+				after,
+				index,
+				length
+			};
+		};
+		const auto continueCallbackLoop = [&](::llvm::BasicBlock *condition, ::llvm::PHINode *index) {
+			auto *one = ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 1);
+			auto *nextIndex = context.builder.CreateAdd(index, one, "array.callback.next");
+			auto *continueBlock = context.builder.GetInsertBlock();
+			context.builder.CreateBr(condition);
+			index->addIncoming(nextIndex, continueBlock);
 		};
 
 		if (methodName == "push") {
@@ -556,6 +624,139 @@ namespace yogi::core::llvm::internal {
 				expectedSemanticType ? expectedSemanticType : call->type(),
 				call->type()
 			);
+		}
+
+		if (
+			methodName == "forEach" ||
+			methodName == "map" ||
+			methodName == "filter" ||
+			methodName == "some" ||
+			methodName == "every" ||
+			methodName == "find" ||
+			methodName == "findIndex"
+		) {
+			auto *callback = getCallbackFunction();
+			if (!callback) {
+				return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
+			}
+
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			const auto *arrayType = valueSemanticType(callee->object());
+			const auto *elementType = arrayType && arrayType->element_type()
+				? arrayType->element_type()
+				: call->type();
+			auto *returnType = expectedType ? expectedType : types.lower(call->type());
+
+			if (methodName == "map" || methodName == "filter") {
+				auto *result = callRuntime(
+					"yogi_array_create",
+					opaquePointer(),
+					{::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 0)}
+				);
+				auto [condition, after, index, _] = createCallbackLoop("array." + methodName, array, elementType);
+				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
+				auto *callbackResult = callCallback(callback, boxedElement, index, elementType);
+
+				if (methodName == "map") {
+					const auto *mappedType = call->type() && call->type()->element_type()
+						? call->type()->element_type()
+						: nullptr;
+					auto *boxedMapped = boxAny(callbackResult, mappedType);
+					callRuntime("yogi_array_push", ::llvm::Type::getInt64Ty(context.llvmContext), {result, boxedMapped});
+				} else {
+					auto *keep = toBoolean(callbackResult);
+					auto *pushBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.filter.push", context.builder.GetInsertBlock()->getParent());
+					auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.filter.continue", context.builder.GetInsertBlock()->getParent());
+					context.builder.CreateCondBr(keep, pushBlock, continueBlock);
+					context.builder.SetInsertPoint(pushBlock);
+					callRuntime("yogi_array_push", ::llvm::Type::getInt64Ty(context.llvmContext), {result, boxedElement});
+					context.builder.CreateBr(continueBlock);
+					context.builder.SetInsertPoint(continueBlock);
+				}
+
+				continueCallbackLoop(condition, index);
+				context.builder.SetInsertPoint(after);
+				return cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+			}
+
+			if (methodName == "forEach") {
+				auto [condition, after, index, _] = createCallbackLoop("array.forEach", array, elementType);
+				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
+				callCallback(callback, boxedElement, index, elementType);
+				continueCallbackLoop(condition, index);
+				context.builder.SetInsertPoint(after);
+				return types.zero(returnType);
+			}
+
+			if (methodName == "some" || methodName == "every") {
+				auto [condition, after, index, _] = createCallbackLoop("array." + methodName, array, elementType);
+				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
+				auto *callbackResult = callCallback(callback, boxedElement, index, elementType);
+				auto *predicate = toBoolean(callbackResult);
+				auto *foundBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".short", context.builder.GetInsertBlock()->getParent());
+				auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".continue", context.builder.GetInsertBlock()->getParent());
+
+				if (methodName == "some") {
+					context.builder.CreateCondBr(predicate, foundBlock, continueBlock);
+				} else {
+					context.builder.CreateCondBr(predicate, continueBlock, foundBlock);
+				}
+
+				context.builder.SetInsertPoint(foundBlock);
+				auto *shortValue = ::llvm::ConstantInt::get(::llvm::Type::getInt1Ty(context.llvmContext), methodName == "some");
+				context.builder.CreateBr(after);
+				auto *shortBlock = context.builder.GetInsertBlock();
+
+				context.builder.SetInsertPoint(continueBlock);
+				continueCallbackLoop(condition, index);
+
+				context.builder.SetInsertPoint(after);
+				auto *result = context.builder.CreatePHI(::llvm::Type::getInt1Ty(context.llvmContext), 2, "array.callback.boolean");
+				result->addIncoming(::llvm::ConstantInt::get(::llvm::Type::getInt1Ty(context.llvmContext), methodName == "every"), condition);
+				result->addIncoming(shortValue, shortBlock);
+				return cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+			}
+
+			if (methodName == "find" || methodName == "findIndex") {
+				auto *defaultFindValue = methodName == "find"
+					? callRuntime("yogi_any_undefined", opaquePointer(), {})
+					: nullptr;
+				auto [condition, after, index, _] = createCallbackLoop("array." + methodName, array, elementType);
+				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
+				auto *callbackResult = callCallback(callback, boxedElement, index, elementType);
+				auto *predicate = toBoolean(callbackResult);
+				auto *foundBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".found", context.builder.GetInsertBlock()->getParent());
+				auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".continue", context.builder.GetInsertBlock()->getParent());
+				context.builder.CreateCondBr(predicate, foundBlock, continueBlock);
+
+				context.builder.SetInsertPoint(foundBlock);
+				::llvm::Value *foundValue = boxedElement;
+				if (methodName == "findIndex") {
+					foundValue = context.builder.CreateUIToFP(
+						index,
+						::llvm::Type::getDoubleTy(context.llvmContext),
+						"array.findIndex.value"
+					);
+				}
+				context.builder.CreateBr(after);
+				auto *foundIncoming = context.builder.GetInsertBlock();
+
+				context.builder.SetInsertPoint(continueBlock);
+				continueCallbackLoop(condition, index);
+
+				context.builder.SetInsertPoint(after);
+				if (methodName == "findIndex") {
+					auto *result = context.builder.CreatePHI(::llvm::Type::getDoubleTy(context.llvmContext), 2, "array.findIndex.result");
+					result->addIncoming(numberConstant(-1), condition);
+					result->addIncoming(foundValue, foundIncoming);
+					return cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				}
+
+				auto *result = context.builder.CreatePHI(opaquePointer(), 2, "array.find.result");
+				result->addIncoming(defaultFindValue, condition);
+				result->addIncoming(foundValue, foundIncoming);
+				return cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+			}
 		}
 
 		if (methodName == "slice") {

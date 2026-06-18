@@ -203,6 +203,13 @@ function values:
 | `toReversed()` | no | `T[]` |
 | `toSpliced(start, deleteCount?, ...items)` | no | `T[]` |
 | `with(index, value)` | no | `T[]` |
+| `forEach(callback)` | no | `void` |
+| `map(callback)` | no | `U[]` |
+| `filter(callback)` | no | `T[]` |
+| `some(callback)` | no | `boolean` |
+| `every(callback)` | no | `boolean` |
+| `find(callback)` | no | `T | undefined` |
+| `findIndex(callback)` | no | `number` |
 
 Mutating methods require a mutable, non-readonly dynamic array. Tuples reject
 mutating methods because their length and element layout are fixed.
@@ -211,6 +218,19 @@ mutating methods because their length and element layout are fixed.
 JavaScript index rules that matter for this stage. `with` supports negative
 indexes and aborts with a runtime range diagnostic when the normalized index is
 outside the array.
+
+Callback methods currently accept named function references:
+
+```ts
+function doubleValue(value: number): number {
+    return value * 2
+}
+
+let doubled: number[] = scores.map(doubleValue)
+```
+
+Inline arrow callbacks are parsed, but semantic analysis rejects them until
+Yogi has `FunctionExpression` SIR and LLVM lowering.
 
 ## Example
 
@@ -255,8 +275,9 @@ This lot is still not a full control-flow analysis engine. Remaining loop work:
 - `do while`.
 - `for of` and `for in`.
 - Loop-carried type narrowing.
-- Callback-based array methods such as `map`, `filter`, `reduce`, `find`,
-  `some`, and `every`.
+- Inline callback expressions, closures, and callback methods that still need
+  accumulator or iterator semantics such as `reduce`, `reduceRight`, `flatMap`,
+  `findLast`, and `findLastIndex`.
 - Comparator/string-dependent methods such as `sort`, `toSorted`, and `join`.
 - Object helper methods.
 

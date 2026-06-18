@@ -260,7 +260,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const receiver = this.visitNode(rawCallee.object);
             const receiverType = this.resolveType(receiver?.declaredType ?? receiver?.type);
             const methodName = rawCallee.property;
-            const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
+            const callbackMethods = new Set(["forEach", "map", "filter", "some", "every", "find", "findIndex"]);
+            const args = (node.arguments ?? []).map((argument: any, index: number) => {
+                if (callbackMethods.has(methodName) && index === 0 && argument?.kind === Kinds.Functions.FunctionExpression) {
+                    return argument;
+                }
+
+                return this.visitNode(argument);
+            });
             const source = node.fullSource ?? node.source ?? rawCallee.source;
 
             // Validate receiver is an array or tuple
@@ -292,6 +299,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 toReversed: () => this.validateAndCreateToReversedCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 toSpliced: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, receiverType, methodName, args, source, false),
                 with: () => this.validateAndCreateWithCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                forEach: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                map: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                filter: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                some: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                every: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                find: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                findIndex: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
             };
 
             if (!methodHandlers[methodName]) {
@@ -904,6 +918,125 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.arrayReturnType(receiverType),
                 methodName,
             );
+        }
+
+        public validateAndCreateCallbackArrayCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 1, 1);
+
+            const callback = args[0];
+            if (callback?.kind !== Kinds.Expressions.IdentifierExpression) {
+                const message =
+                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} currently expects a named callback function`;
+
+                callback.arrowLength = callback?.source?.length ?? 1;
+                this.throwError(message, callback?.position ?? node.position, source, callback ?? node);
+            }
+
+            const callbackName = callback.value ?? callback.name ?? callback.raw;
+            const symbol = this.resolveSymbol(callbackName);
+
+            if (!symbol || symbol.kind !== Kinds.ScopeSymbols.Function) {
+                const message =
+                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback ` +
+                    `${Helpers.RED}'${callbackName}'${Helpers.RESET} is not a function`;
+
+                callback.arrowLength = callbackName?.length ?? 1;
+                this.throwError(message, callback.position ?? node.position, source, callback);
+            }
+
+            const params = symbol.node?.params ?? [];
+            if (params.length < 1 || params.length > 2) {
+                const message =
+                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback ` +
+                    `${Helpers.BLUE}'${callbackName}'${Helpers.RESET} must accept value or value/index parameters`;
+
+                callback.arrowLength = callbackName?.length ?? 1;
+                this.throwError(message, callback.position ?? node.position, source, callback);
+            }
+
+            const elementType = this.arrayReadableElementType(receiverType);
+            const valueParamType = params[0]?.type;
+
+            if (!this.isTypeAssignable(valueParamType, elementType)) {
+                const message =
+                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback value parameter must accept ` +
+                    `${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                    `${Helpers.RED}'${valueParamType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                callback.arrowLength = callbackName?.length ?? 1;
+                this.throwError(message, callback.position ?? node.position, source, callback);
+            }
+
+            if (params[1] && this.resolveType(params[1].type)?.kind !== Kinds.Types.NumberType) {
+                const message =
+                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback index parameter must be ` +
+                    `${Helpers.BLUE}'number'${Helpers.RESET}`;
+
+                callback.arrowLength = callbackName?.length ?? 1;
+                this.throwError(message, callback.position ?? node.position, source, callback);
+            }
+
+            const callbackReturnType = this.toSerializableType(symbol.node?.returnType ?? {
+                kind: Kinds.Types.UnknownType,
+                raw: "unknown",
+            });
+            const booleanType = { kind: Kinds.Types.BooleanType, raw: "boolean" };
+            const numberType = { kind: Kinds.Types.NumberType, raw: "number" };
+            let returnType: any = { kind: Kinds.Types.VoidType, raw: "void" };
+
+            if (methodName === "map") {
+                if (callbackReturnType?.kind === Kinds.Types.VoidType) {
+                    const message =
+                        `array method ${Helpers.BLUE}'map'${Helpers.RESET} callback must return a value`;
+
+                    callback.arrowLength = callbackName?.length ?? 1;
+                    this.throwError(message, callback.position ?? node.position, source, callback);
+                }
+
+                returnType = {
+                    kind: Kinds.Types.ArrayType,
+                    raw: `${callbackReturnType?.raw ?? "unknown"}[]`,
+                    elementType: callbackReturnType,
+                    readonly: false,
+                };
+            } else if (methodName === "filter") {
+                this.validateCallbackBooleanReturn(node, methodName, callback, callbackName, callbackReturnType, source);
+                returnType = this.arrayReturnType(receiverType);
+            } else if (methodName === "some" || methodName === "every") {
+                this.validateCallbackBooleanReturn(node, methodName, callback, callbackName, callbackReturnType, source);
+                returnType = booleanType;
+            } else if (methodName === "find") {
+                this.validateCallbackBooleanReturn(node, methodName, callback, callbackName, callbackReturnType, source);
+                returnType = this.arrayElementOrUndefinedType(receiverType);
+            } else if (methodName === "findIndex") {
+                this.validateCallbackBooleanReturn(node, methodName, callback, callbackName, callbackReturnType, source);
+                returnType = numberType;
+            } else if (methodName === "forEach") {
+                returnType = { kind: Kinds.Types.VoidType, raw: "void" };
+            }
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                returnType,
+                methodName,
+            );
+        }
+
+        public validateCallbackBooleanReturn(node: any, methodName: string, callback: any, callbackName: string, callbackReturnType: any, source: string): void {
+            if (this.resolveType(callbackReturnType)?.kind === Kinds.Types.BooleanType) {
+                return;
+            }
+
+            const message =
+                `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback ` +
+                `${Helpers.BLUE}'${callbackName}'${Helpers.RESET} must return ${Helpers.BLUE}'boolean'${Helpers.RESET}, got ` +
+                `${Helpers.RED}'${callbackReturnType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+            callback.arrowLength = callbackName?.length ?? 1;
+            this.throwError(message, callback.position ?? node.position, source, callback);
         }
 
         public removeNullishFromType(type: any): any {

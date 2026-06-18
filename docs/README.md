@@ -60,6 +60,7 @@ The compiler currently lowers source code through this pipeline:
 - [Non-Callback Array Methods](lots/05-array-methods-without-callbacks.md)
 - [Array Copy and Splice Methods](lots/06-array-copy-splice-methods.md)
 - [Array With and Range Diagnostics](lots/07-array-with-range-diagnostics.md)
+- [Array Named Callback Methods](lots/08-array-named-callback-methods.md)
 
 ### To Do
 

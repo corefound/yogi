@@ -65,6 +65,17 @@ export function FunctionVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             };
         }
 
+        visitArrowFunction(node: ts.ArrowFunction) {
+            return {
+                kind: Kinds.Functions.FunctionExpression,
+                params: node.parameters.map(param => this.visitFunctionParameter(param)),
+                returnType: this.visitType(node.type),
+                body: this.visitFunctionBody(node.body),
+                source: node.getText(),
+                position: this.getNodePosistion(node)
+            };
+        }
+
         // -----------------------------------
         // PARAMS
         // -----------------------------------

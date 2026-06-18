@@ -193,6 +193,52 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toContain("replacement value");
   });
 
+  test("validates named callback array builtin methods", () => {
+    const root = createProject({
+      "main.io": `
+        function doubleValue(value: number): number {
+            return value * 2
+        }
+
+        function isLarge(value: number, index: number): boolean {
+            return value + index > 3
+        }
+
+        function consume(value: number): void {
+            print(value)
+        }
+
+        let scores: number[] = [1, 2, 3]
+        let doubled: number[] = scores.map(doubleValue)
+        let filtered: number[] = scores.filter(isLarge)
+        let hasLarge: boolean = scores.some(isLarge)
+        let allLarge: boolean = scores.every(isLarge)
+        let found: number | undefined = scores.find(isLarge)
+        let foundIndex: number = scores.findIndex(isLarge)
+        scores.forEach(consume)
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects unsupported inline callback array methods", () => {
+    const root = createProject({
+      "main.io": `
+        let scores: number[] = [1, 2, 3]
+        let doubled: number[] = scores.map((value: number): number => value * 2)
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("named callback function");
+  });
+
   test("rejects reassignment to const variables", () => {
     const root = createProject({
       "main.io": `
