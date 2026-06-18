@@ -31,7 +31,7 @@ the object file consumed by the final link step.
 The backend links module object files into a final executable:
 
 ```text
-packages/.cache/yogi
+packages/.cache/bin/main
 ```
 
 LLD is used through the LLVM toolchain configured by CMake. External links from
@@ -54,6 +54,7 @@ Runtime responsibilities currently include:
 - Array element storage.
 - Aggregate descriptor initialization and cleanup.
 - Allocator abstraction.
+- Builtin `print(...)` output.
 
 Examples of runtime calls emitted by aggregate lowering:
 
@@ -68,6 +69,10 @@ yogi_array_init
 yogi_array_set
 yogi_array_get
 yogi_array_drop
+yogi_print_number
+yogi_print_boolean
+yogi_print_string
+yogi_print_any
 ```
 
 ## Function Visibility

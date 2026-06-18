@@ -15,7 +15,7 @@ if(NOT YOGI_RESULT EQUAL 0)
 endif()
 
 set(IR_FILE "${TEST_WORK_DIR}/packages/.cache/modules/main.io/main.ll")
-set(EXECUTABLE_FILE "${TEST_WORK_DIR}/packages/.cache/yogi")
+set(EXECUTABLE_FILE "${TEST_WORK_DIR}/packages/.cache/bin/main")
 
 if(NOT EXISTS "${IR_FILE}")
 	message(FATAL_ERROR "expected IR file ${IR_FILE}")

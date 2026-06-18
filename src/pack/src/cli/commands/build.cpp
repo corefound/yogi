@@ -30,6 +30,7 @@ void buildCommand(const std::string& root, diagnostics::Logger& logger) {
     logger.warn("No lockfile found; continuing because the project has no dependencies.");
 
   fs::ensureDirectories(paths);
+  fs::createBinSymlinks(paths);
 
   std::error_code ec;
   stdfs::create_directories(paths.destDir, ec);
@@ -50,7 +51,7 @@ void buildCommand(const std::string& root, diagnostics::Logger& logger) {
 
   logger.info(result.stdout);
 
-  const auto cacheExecutable = stdfs::path(paths.cacheDir) / "yogi";
+  const auto cacheExecutable = stdfs::path(paths.cacheDir) / "bin" / stdfs::path(entry).stem();
   if (!stdfs::exists(cacheExecutable))
     throw diagnostics::missingBuildOutput(cacheExecutable.string());
 

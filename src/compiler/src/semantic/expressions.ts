@@ -243,6 +243,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 qualifiedName: symbol.qualifiedName,
                 external,
                 effectSummary,
+                builtinMethod: symbol.node?.builtinMethod,
             };
         }
 

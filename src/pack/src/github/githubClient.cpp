@@ -346,6 +346,17 @@ void GitHubClient::checkGitHubError(const HttpResponse& response, const std::str
     }
   }
   if (response.status == 422) {
+    if (
+      context == "create release" &&
+      (
+        response.body.find("already_exists") != std::string::npos ||
+        response.body.find("already exists") != std::string::npos
+      )
+    ) {
+      throw diagnostics::publishFailed(
+        "GitHub release already exists. Each package version can only be published once.");
+    }
+
     throw diagnostics::publishFailed("GitHub rejected " + context + ": " + response.body);
   }
   if (response.status >= 400) {

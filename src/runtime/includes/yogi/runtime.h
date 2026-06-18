@@ -29,6 +29,11 @@ void *yogi_any_to_null(void *value);
 void *yogi_any_to_undefined(void *value);
 bool yogi_any_is_nullish(void *value);
 
+void yogi_print_number(double value);
+void yogi_print_boolean(bool value);
+void yogi_print_string(const char *value);
+void yogi_print_any(void *value);
+
 void *yogi_object_create(void);
 unsigned long long yogi_object_sizeof(void);
 void yogi_object_init(void *object);

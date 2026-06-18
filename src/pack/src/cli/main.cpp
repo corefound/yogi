@@ -18,6 +18,8 @@
 #include "cli/commands/logout.hpp"
 #include "cli/commands/whoami.hpp"
 #include "cli/commands/publish.hpp"
+#include "fs/layout.hpp"
+#include "fs/paths.hpp"
 
 static void printHelp() {
   std::cerr << "Yogi Package Manager" << std::endl;
@@ -76,15 +78,29 @@ static std::string quoteShellArg(const std::string& value) {
   return quoted;
 }
 
+static std::filesystem::path cacheExecutableForSource(const std::string& sourceFile) {
+  const auto sourcePath = std::filesystem::absolute(sourceFile);
+  return sourcePath.parent_path() / "packages" / ".cache" / "bin" / sourcePath.stem();
+}
+
+static void ensurePackageToolingForSource(const std::string& sourceFile) {
+  const auto sourcePath = std::filesystem::absolute(sourceFile);
+  const auto paths = yogi::fs::resolveProjectPaths(sourcePath.parent_path().string());
+
+  yogi::fs::ensureDirectories(paths);
+  yogi::fs::createBinSymlinks(paths);
+}
+
 static int compileAndRunSource(const std::string& sourceFile, const std::vector<std::string>& passthroughArgs) {
+  ensurePackageToolingForSource(sourceFile);
+
   const int compileResult = yogi::core::runCompiler(sourceFile);
 
   if (compileResult != 0) {
     return compileResult;
   }
 
-  auto sourcePath = std::filesystem::absolute(sourceFile);
-  const auto executable = sourcePath.parent_path() / "packages" / ".cache" / "yogi";
+  const auto executable = cacheExecutableForSource(sourceFile);
 
   if (!std::filesystem::exists(executable)) {
     std::cerr << "Error: expected executable was not generated: " << executable << std::endl;
@@ -114,6 +130,7 @@ int main(int argc, char* argv[]) {
   const std::string& command = args[0];
 
   if (isYogiSourceFile(command)) {
+    ensurePackageToolingForSource(command);
     return yogi::core::runCompiler(command);
   }
 
@@ -166,6 +183,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: yogi compile <file.ts>" << std::endl;
         return 1;
       }
+      ensurePackageToolingForSource(args[1]);
       return yogi::core::runCompiler(args[1]);
     } else if (command == "install") {
       yogi::cli::installCommand(root, logger);

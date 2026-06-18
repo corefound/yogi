@@ -41,6 +41,76 @@ export class BaseSemantic {
         this.currentScope = this.globalScope;
     }
 
+    public installBuiltins() {
+        if (this.globalScope.hasLocal("print")) {
+            return;
+        }
+
+        const anyType = {
+            kind: Kinds.Types.AnyType,
+            raw: "any",
+        };
+        const voidType = {
+            kind: Kinds.Types.VoidType,
+            raw: "void",
+        };
+        const printNode = {
+            kind: Kinds.Functions.FunctionDeclaration,
+            name: "print",
+            builtinMethod: "print",
+            params: [
+                {
+                    kind: Kinds.Functions.FunctionParameter,
+                    name: "value",
+                    type: anyType,
+                    source: "value: any",
+                },
+            ],
+            returnType: voidType,
+            type: {
+                kind: Kinds.Types.FunctionType,
+                raw: "(value: any) => void",
+                parameters: [
+                    {
+                        name: "value",
+                        type: anyType,
+                    },
+                ],
+                returnType: voidType,
+            },
+        };
+        const effectSummary: Types.Sir.SemanticFunctionEffectSummary = {
+            parameterEffects: [
+                {
+                    index: 0,
+                    returns: false,
+                    stores: false,
+                    escapes: false,
+                    mutates: false,
+                    consumes: false,
+                },
+            ],
+            returnsAggregate: false,
+        };
+
+        const symbol = this.defineSymbol({
+            kind: Kinds.ScopeSymbols.Function,
+            name: "print",
+            linkageName: null,
+            qualifiedName: "@builtin:print",
+            type: printNode.type,
+            mutable: false,
+            trusted: true,
+            effectSummary,
+            node: {
+                ...printNode,
+                effectSummary,
+            },
+        });
+
+        this.functionEffectSummaries.set(symbol.id, effectSummary);
+    }
+
     public createSymbolId() {
         return this.symbolId++;
     }

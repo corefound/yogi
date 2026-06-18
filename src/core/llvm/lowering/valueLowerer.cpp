@@ -83,6 +83,10 @@ namespace yogi::core::llvm::internal {
 		::llvm::Type *expectedType,
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
+		if (fbString(call->builtin_method()) == "print") {
+			return lowerPrintCall(call, expectedType, expectedSemanticType);
+		}
+
 		if (call->callee() && call->callee()->property_access()) {
 			return lowerBuiltinMethodCall(call, expectedType, expectedSemanticType);
 		}
@@ -144,6 +148,62 @@ namespace yogi::core::llvm::internal {
 
 		auto *result = context.builder.CreateCall(function, arguments, sanitizeSymbol(functionName) + ".call");
 		return cast(result, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
+	}
+
+	::llvm::Value *ValueLowerer::lowerPrintCall(
+		const Yogi::Sir::CallExpression *call,
+		::llvm::Type *expectedType,
+		const Yogi::Sir::TypeRef *expectedSemanticType
+	) {
+		const auto *argument = call->arguments() && call->arguments()->size() > 0
+			? call->arguments()->Get(0)
+			: nullptr;
+		const auto *argumentSemanticType = valueSemanticType(argument);
+		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
+
+		if (!argument) {
+			auto *empty = context.builder.CreateGlobalString("");
+			return callRuntime("yogi_print_string", voidType, {empty});
+		}
+
+		switch (resolvedTypeKind(argumentSemanticType)) {
+			case Yogi::Sir::TypeKind_number_type: {
+				auto *value = lower(argument, ::llvm::Type::getDoubleTy(context.llvmContext), argumentSemanticType);
+				return callRuntime("yogi_print_number", voidType, {toNumber(value)});
+			}
+
+			case Yogi::Sir::TypeKind_boolean_type: {
+				auto *value = lower(argument, ::llvm::Type::getInt1Ty(context.llvmContext), argumentSemanticType);
+				return callRuntime("yogi_print_boolean", voidType, {toBoolean(value)});
+			}
+
+			case Yogi::Sir::TypeKind_string_type: {
+				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
+				return callRuntime("yogi_print_string", voidType, {value});
+			}
+
+			case Yogi::Sir::TypeKind_any_type: {
+				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
+				return callRuntime("yogi_print_any", voidType, {value});
+			}
+
+			case Yogi::Sir::TypeKind_null_type: {
+				auto *value = context.builder.CreateGlobalString("null");
+				return callRuntime("yogi_print_string", voidType, {value});
+			}
+
+			case Yogi::Sir::TypeKind_undefined_type: {
+				auto *value = context.builder.CreateGlobalString("undefined");
+				return callRuntime("yogi_print_string", voidType, {value});
+			}
+
+			default: {
+				auto *value = context.builder.CreateGlobalString("[aggregate]");
+				return callRuntime("yogi_print_string", voidType, {value});
+			}
+		}
+
+		return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
 	}
 
 	::llvm::Value *ValueLowerer::lowerBuiltinMethodCall(

@@ -27,7 +27,7 @@ function(run_valid_case case_name source_text)
 		message(FATAL_ERROR "${case_name} should compile\nstdout:\n${compile_stdout}\nstderr:\n${compile_stderr}")
 	endif()
 
-	set(executable "${case_dir}/packages/.cache/yogi")
+	set(executable "${case_dir}/packages/.cache/bin/main")
 	set(ir "${case_dir}/packages/.cache/modules/main.io/main.ll")
 	set(object "${case_dir}/packages/.cache/modules/main.io/main.o")
 

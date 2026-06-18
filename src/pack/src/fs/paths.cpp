@@ -6,7 +6,7 @@ ProjectPaths resolveProjectPaths(const std::string& root) {
   ProjectPaths p;
   p.root = root;
   p.manifestPath = root + "/yogi.json";
-  p.lockfilePath = root + "/yogi.log";
+  p.lockfilePath = root + "/yogi.lock";
   p.packagesDir = root + "/packages";
   p.binDir = root + "/packages/bin";
   p.libsDir = root + "/packages/libs";

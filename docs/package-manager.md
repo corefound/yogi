@@ -27,10 +27,14 @@ packages/.cache/modules/<module>/ast.fb
 packages/.cache/modules/<module>/sir.fb
 packages/.cache/modules/<module>/<module>.ll
 packages/.cache/modules/<module>/<module>.o
-packages/.cache/yogi
+packages/.cache/bin/main
+packages/bin/yogi
 ```
 
-`yogi run main.ts` compiles the file and then executes `packages/.cache/yogi`.
+`yogi run main.ts` compiles the file and then executes
+`packages/.cache/bin/main`. The cached executable is the user's program. The
+`packages/bin/yogi` entry is the package-manager/compiler tool symlink, so the
+two paths should not share the same name.
 
 ## Project Mode
 
@@ -38,7 +42,7 @@ packages/.cache/yogi
 
 ```txt
 yogi.json
-yogi.log
+yogi.lock
 main.ts
 packages/
 .gitignore
@@ -69,8 +73,8 @@ The manifest points at that file:
 
 | Command | Meaning today | Output |
 |---|---|---|
-| `yogi compile main.ts` | Ahead-of-time compile a single source file | `packages/.cache/yogi` next to the source |
-| `yogi main.ts` | Shorthand for single-file compile | `packages/.cache/yogi` next to the source |
+| `yogi compile main.ts` | Ahead-of-time compile a single source file | `packages/.cache/bin/main` next to the source |
+| `yogi main.ts` | Shorthand for single-file compile | `packages/.cache/bin/main` next to the source |
 | `yogi build` | Ahead-of-time build the current package project | `dist/<package-name>` |
 | `yogi run` | Build the project, then execute `dist/<package-name>` | executable process result |
 | `yogi run main.ts` | Compile a single source file, then execute its cache binary | executable process result |
@@ -86,7 +90,7 @@ native executable.
 compiler driver, and copies the linked executable from:
 
 ```txt
-packages/.cache/yogi
+packages/.cache/bin/main
 ```
 
 to:
@@ -95,7 +99,7 @@ to:
 dist/<package-name>
 ```
 
-Projects with dependencies still use `yogi.log`. Projects with no dependencies
+Projects with dependencies still use `yogi.lock`. Projects with no dependencies
 can build with the empty lockfile created by `yogi init`.
 
 ## Packages
@@ -114,7 +118,7 @@ but it still needs the real GitHub release download path:
 3. download the release archive
 4. verify checksum
 5. unpack into `packages/libs/<package>/<version>/`
-6. write `yogi.log`
+6. write `yogi.lock`
 7. expose installed package modules/libs to the compiler during `build`
 
 ## Run
@@ -132,6 +136,43 @@ Use `--` to pass runtime arguments:
 ```sh
 yogi run -- arg1 arg2
 ```
+
+## Builtin Print
+
+The first global builtin used for pipeline testing is:
+
+```ts
+print(value)
+```
+
+It accepts one value and currently prints `number`, `boolean`, `string`,
+`null`, `undefined`, and `any` values through the runtime. This is intentionally
+small; it gives executable programs visible output while the standard library is
+still being designed.
+
+Example:
+
+```ts
+function main(): number {
+    print("hello from yogi")
+    print(42)
+    return 0
+}
+```
+
+The native entrypoint initializes modules, calls the Yogi `main()` function when
+the entry module defines one with no parameters, and then runs module cleanup.
+
+## Publish
+
+`yogi publish` treats each package version as immutable. Before creating or
+pushing a release tag, the CLI checks GitHub for the release tag derived from
+`yogi.json` (`v<version>`). If the release already exists, publish fails with a
+clear error instead of overwriting it.
+
+The GitHub client also treats a duplicate-release `422` response from the create
+release API as a publish error. That second check protects against races where
+the release appears after the preflight check.
 
 ## Compiler Integration
 

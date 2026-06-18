@@ -17,11 +17,12 @@ const scc = scanner.sortModules(graph);
 const visitor = new Visitor();
 const semanticModules = new Map<string, Types.SemanticModuleInfo>();
 const entryPath = path.resolve(process.cwd(), process.argv[2]);
+const entryOutputName = path.basename(entryPath, path.extname(entryPath));
 
 // Program
 const meta: Types.GlobalMetaInput = {
   rootPath,
-  outputPath: path.join(cachePath, "yogi"),
+  outputPath: path.join(cachePath, "bin", entryOutputName),
   cachePath,
   modules: [],
   links: []

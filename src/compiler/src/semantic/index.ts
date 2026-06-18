@@ -35,6 +35,7 @@ export class Semantic extends applySemanticMixins(
         this.modulePath = modulePath
         this.modules = modulePath.modules ?? new Map();
         this.sourceText = fs.readFileSync(modulePath.absolutePath, "utf8");
+        this.installBuiltins();
     }
 
     public analyze(ast: any[]) {

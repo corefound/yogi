@@ -24,7 +24,7 @@ if(NOT valid_compile_result EQUAL 0)
 	message(FATAL_ERROR "valid pipeline compile failed:\n${valid_compile_stderr}")
 endif()
 
-set(VALID_EXECUTABLE "${TEST_WORK_DIR}/packages/.cache/yogi")
+set(VALID_EXECUTABLE "${TEST_WORK_DIR}/packages/.cache/bin/main")
 set(VALID_IR "${TEST_WORK_DIR}/packages/.cache/modules/main.io/main.ll")
 set(VALID_OBJECT "${TEST_WORK_DIR}/packages/.cache/modules/main.io/main.o")
 
@@ -79,7 +79,7 @@ if(NOT invalid_compile_result EQUAL 0)
 	message(FATAL_ERROR "invalid-cast program should compile before runtime validation:\n${invalid_compile_stderr}")
 endif()
 
-set(INVALID_EXECUTABLE "${INVALID_DIR}/packages/.cache/yogi")
+set(INVALID_EXECUTABLE "${INVALID_DIR}/packages/.cache/bin/main")
 
 execute_process(
 	COMMAND "${INVALID_EXECUTABLE}"

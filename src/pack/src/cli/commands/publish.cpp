@@ -108,6 +108,12 @@ namespace yogi::cli {
 			}
 		}
 
+		if (auto existingRelease = client.getReleaseByTag(token->username, manifest.name, tag, token->accessToken)) {
+			throw diagnostics::publishFailed(
+				"release " + tag + " already exists at " + existingRelease->htmlUrl + ". "
+				"Each version can only be published once.");
+		}
+
 		// Remove stale local and remote tags if they exist from a previous failed run
 		// runInDir(root, "git tag -d " + shellEscape(tag) + " 2>/dev/null; true");
 		// runInDir(root, "git push origin :refs/tags/" + shellEscape(tag) + " 2>/dev/null; true");

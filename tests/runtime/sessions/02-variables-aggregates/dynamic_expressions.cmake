@@ -24,7 +24,7 @@ if(NOT compile_result EQUAL 0)
 	message(FATAL_ERROR "dynamic expression pipeline compile failed:\n${compile_stderr}")
 endif()
 
-set(EXECUTABLE "${TEST_WORK_DIR}/packages/.cache/yogi")
+set(EXECUTABLE "${TEST_WORK_DIR}/packages/.cache/bin/main")
 set(IR "${TEST_WORK_DIR}/packages/.cache/modules/main.io/main.ll")
 set(OBJECT "${TEST_WORK_DIR}/packages/.cache/modules/main.io/main.o")
 
