@@ -285,6 +285,12 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 lastIndexOf: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, receiverType, methodName, args, source, "number"),
                 reverse: () => this.validateAndCreateReverseCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 slice: () => this.validateAndCreateSliceCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                concat: () => this.validateAndCreateConcatCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                fill: () => this.validateAndCreateFillCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                copyWithin: () => this.validateAndCreateCopyWithinCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                splice: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, receiverType, methodName, args, source, true),
+                toReversed: () => this.validateAndCreateToReversedCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                toSpliced: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, receiverType, methodName, args, source, false),
             };
 
             if (!methodHandlers[methodName]) {
@@ -728,6 +734,151 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             args.forEach((argument: any) => {
                 this.validateNumberArrayMethodArgument(node, methodName, argument, source, "index");
             });
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                this.arrayReturnType(receiverType),
+                methodName,
+            );
+        }
+
+        public validateArrayElementValue(node: any, methodName: string, argument: any, elementType: any, source: string, label = "value"): void {
+            const actualType = argument?.type;
+
+            if (this.isTypeAssignable(elementType, actualType)) {
+                return;
+            }
+
+            const message =
+                `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                `${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET} ${label}, got ` +
+                `${Helpers.RED}'${actualType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+            argument.arrowLength = argument.source?.length ?? 1;
+            this.throwError(message, argument.position ?? node.position, source, argument);
+        }
+
+        public validateConcatArgument(node: any, methodName: string, argument: any, elementType: any, source: string): void {
+            const actualType = this.resolveType(argument?.type);
+
+            if (actualType?.kind === Kinds.Types.ArrayType) {
+                if (this.isTypeAssignable(elementType, actualType.elementType)) {
+                    return;
+                }
+            } else if (actualType?.kind === Kinds.Types.TupleType) {
+                const compatible = (actualType.elements ?? []).every((item: any) => {
+                    return this.isTypeAssignable(elementType, item);
+                });
+
+                if (compatible) {
+                    return;
+                }
+            } else if (this.isTypeAssignable(elementType, actualType)) {
+                return;
+            }
+
+            const message =
+                `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                `${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET} values or arrays, got ` +
+                `${Helpers.RED}'${actualType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+            argument.arrowLength = argument.source?.length ?? 1;
+            this.throwError(message, argument.position ?? node.position, source, argument);
+        }
+
+        public validateAndCreateConcatCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            const elementType = this.arrayReadableElementType(receiverType);
+
+            args.forEach((argument: any) => {
+                this.validateConcatArgument(node, methodName, argument, elementType, source);
+            });
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                this.arrayReturnType(receiverType),
+                methodName,
+            );
+        }
+
+        public validateAndCreateFillCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 1, 3);
+            this.validateArrayElementValue(node, methodName, args[0], this.arrayReadableElementType(receiverType), source);
+
+            if (args[1]) {
+                this.validateNumberArrayMethodArgument(node, methodName, args[1], source, "start");
+            }
+
+            if (args[2]) {
+                this.validateNumberArrayMethodArgument(node, methodName, args[2], source, "end");
+            }
+
+            return this.createArrayBuiltinCall(node, rawCallee, receiver, args, receiverType, methodName);
+        }
+
+        public validateAndCreateCopyWithinCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 2, 3);
+
+            args.forEach((argument: any) => {
+                this.validateNumberArrayMethodArgument(node, methodName, argument, source, "index");
+            });
+
+            return this.createArrayBuiltinCall(node, rawCallee, receiver, args, receiverType, methodName);
+        }
+
+        public validateAndCreateSpliceCall(
+            node: any,
+            rawCallee: any,
+            receiver: any,
+            receiverType: any,
+            methodName: string,
+            args: any[],
+            source: string,
+            mutating: boolean,
+        ): any {
+            if (mutating) {
+                this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+            }
+
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 1, Number.MAX_SAFE_INTEGER);
+            this.validateNumberArrayMethodArgument(node, methodName, args[0], source, "start");
+
+            if (args[1]) {
+                this.validateNumberArrayMethodArgument(node, methodName, args[1], source, "deleteCount");
+            }
+
+            const elementType = this.arrayReadableElementType(receiverType);
+            args.slice(2).forEach((argument: any) => {
+                this.validateArrayElementValue(node, methodName, argument, elementType, source, "insert value");
+            });
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                this.arrayReturnType(receiverType),
+                methodName,
+                mutating
+                    ? [{
+                        index: 0,
+                        escapes: false,
+                        mutates: true,
+                        consumes: false,
+                    }]
+                    : [],
+            );
+        }
+
+        public validateAndCreateToReversedCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
 
             return this.createArrayBuiltinCall(
                 node,

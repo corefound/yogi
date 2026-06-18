@@ -58,6 +58,11 @@ The compiler currently lowers source code through this pipeline:
 - [Array Serialization](lots/02-array-serialization.md)
 - [Runtime Array Lowering](lots/03-array-pop-at-lowering.md)
 - [Non-Callback Array Methods](lots/05-array-methods-without-callbacks.md)
+- [Array Copy and Splice Methods](lots/06-array-copy-splice-methods.md)
+
+### To Do
+
+- [Arrays](todo/arrays.md)
 
 ### Testing
 

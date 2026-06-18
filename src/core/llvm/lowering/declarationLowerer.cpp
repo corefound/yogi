@@ -81,11 +81,22 @@ namespace yogi::core::llvm::internal {
 				kind == Yogi::Sir::TypeKind_tuple_type ||
 				kind == Yogi::Sir::TypeKind_type_literal;
 		};
+		const auto receiverReturningArrayMethod = [](const Yogi::Sir::ValueRef *value) {
+			const auto *call = value ? value->call() : nullptr;
+			if (!call || !call->builtin_method()) {
+				return false;
+			}
+
+			const auto method = fbString(call->builtin_method());
+			return method == "array.reverse" ||
+				method == "array.fill" ||
+				method == "array.copyWithin";
+		};
 		const auto isOwnedAggregateInitializer =
 			variable->value() &&
 			(
 				values.isAggregateLiteral(variable->value()) ||
-				variable->value()->call()
+				(variable->value()->call() && !receiverReturningArrayMethod(variable->value()))
 			);
 		const auto isLocalStackAggregate =
 			!isGlobalVariable &&
@@ -144,6 +155,13 @@ namespace yogi::core::llvm::internal {
 		} else if (isAggregateType(variable->type())) {
 			if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
 				context.aliasAggregateOwner(name, fbString(identifier->name()));
+			} else if (const auto *call = variable->value() ? variable->value()->call() : nullptr) {
+				const auto *property = call->callee() ? call->callee()->property_access() : nullptr;
+				const auto *receiver = property && property->object() ? property->object()->identifier() : nullptr;
+
+				if (receiverReturningArrayMethod(variable->value()) && receiver) {
+					context.aliasAggregateOwner(name, fbString(receiver->name()));
+				}
 			}
 		}
 	}

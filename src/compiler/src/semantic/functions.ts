@@ -472,6 +472,9 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         "array.shift",
                         "array.unshift",
                         "array.reverse",
+                        "array.fill",
+                        "array.copyWithin",
+                        "array.splice",
                     ]);
                     const mutatingPropertyMethods = new Set([
                         "push",
@@ -479,6 +482,9 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         "shift",
                         "unshift",
                         "reverse",
+                        "fill",
+                        "copyWithin",
+                        "splice",
                     ]);
 
                     if (

@@ -191,11 +191,17 @@ function values:
 | `shift()` | yes | `T | undefined` |
 | `unshift(...values)` | yes | `number` |
 | `reverse()` | yes | `T[]` |
+| `fill(value, start?, end?)` | yes | `T[]` |
+| `copyWithin(target, start, end?)` | yes | `T[]` |
+| `splice(start, deleteCount?, ...items)` | yes | `T[]` |
 | `at(index)` | no | `T | undefined` |
 | `includes(value, fromIndex?)` | no | `boolean` |
 | `indexOf(value, fromIndex?)` | no | `number` |
 | `lastIndexOf(value, fromIndex?)` | no | `number` |
 | `slice(start?, end?)` | no | `T[]` |
+| `concat(...values)` | no | `T[]` |
+| `toReversed()` | no | `T[]` |
+| `toSpliced(start, deleteCount?, ...items)` | no | `T[]` |
 
 Mutating methods require a mutable, non-readonly dynamic array. Tuples reject
 mutating methods because their length and element layout are fixed.
@@ -249,7 +255,8 @@ This lot is still not a full control-flow analysis engine. Remaining loop work:
 - Loop-carried type narrowing.
 - Callback-based array methods such as `map`, `filter`, `reduce`, `find`,
   `some`, and `every`.
-- Comparator/string-dependent methods such as `sort` and `join`.
+- Range-error-sensitive methods such as `with`.
+- Comparator/string-dependent methods such as `sort`, `toSorted`, and `join`.
 - Object helper methods.
 
 The current behavior is enough for normal `while`, `for`, `break`, `continue`,

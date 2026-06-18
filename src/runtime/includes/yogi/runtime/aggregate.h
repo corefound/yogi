@@ -53,6 +53,14 @@ namespace yogi::runtime {
 			long long indexOf(void *value, double fromIndex) const;
 			long long lastIndexOf(void *value, double fromIndex) const;
 			void reverse();
+			ArrayValue *clone() const;
+			void appendArray(const ArrayValue *source);
+			void insert(std::size_t index, void *value);
+			void fill(void *value, double start, double end);
+			void copyWithin(double target, double start, double end);
+			ArrayValue *splice(double start, double deleteCount, const ArrayValue *inserted);
+			ArrayValue *toReversed() const;
+			ArrayValue *toSpliced(double start, double deleteCount, const ArrayValue *inserted) const;
 			ArrayValue *slice(double start, double end) const;
 			void destroy();
 

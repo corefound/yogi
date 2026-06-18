@@ -81,6 +81,20 @@ namespace yogi::runtime {
 			return shifted <= 0 ? 0 : static_cast<std::size_t>(shifted);
 		}
 
+		std::size_t normalizeDeleteCount(double value, std::size_t available) {
+			const auto integer = toInteger(value);
+
+			if (integer <= 0 || std::isnan(integer)) {
+				return 0;
+			}
+
+			if (std::isinf(integer)) {
+				return integer > 0 ? available : 0;
+			}
+
+			return std::min<std::size_t>(static_cast<std::size_t>(integer), available);
+		}
+
 		const AnyValue *asAny(void *value) {
 			return value ? AnyValue::require(value, "any") : nullptr;
 		}
@@ -413,6 +427,144 @@ namespace yogi::runtime {
 		}
 	}
 
+	ArrayValue *ArrayValue::clone() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array clone after destroy/drop", "array value");
+
+		auto *result = ArrayValue::create(elementCount);
+
+		for (std::size_t index = 0; index < elementCount; ++index) {
+			result->elements[index] = elements[index] ? elements[index] : AnyValue::undefined();
+		}
+
+		return result;
+	}
+
+	void ArrayValue::appendArray(const ArrayValue *source) {
+		OwnershipTracker::assertLiveAggregate(this, "array append after destroy/drop", "array value");
+
+		if (!source) {
+			return;
+		}
+
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(source), "array append source after destroy/drop", "array value");
+
+		for (std::size_t index = 0; index < source->elementCount; ++index) {
+			push(source->elements[index] ? source->elements[index] : AnyValue::undefined());
+		}
+	}
+
+	void ArrayValue::insert(std::size_t index, void *value) {
+		OwnershipTracker::assertLiveAggregate(this, "array insert after destroy/drop", "array value");
+
+		const auto target = std::min<std::size_t>(index, elementCount);
+		ensureCapacity(elementCount + 1);
+
+		for (std::size_t position = elementCount; position > target; --position) {
+			elements[position] = elements[position - 1];
+		}
+
+		elements[target] = value ? value : AnyValue::undefined();
+		++elementCount;
+	}
+
+	void ArrayValue::fill(void *value, double start, double end) {
+		OwnershipTracker::assertLiveAggregate(this, "array fill after destroy/drop", "array value");
+
+		const auto from = normalizeSliceBound(start, elementCount, false);
+		const auto to = normalizeSliceBound(end, elementCount, true);
+
+		for (std::size_t index = from; index < to; ++index) {
+			elements[index] = value ? value : AnyValue::undefined();
+		}
+	}
+
+	void ArrayValue::copyWithin(double target, double start, double end) {
+		OwnershipTracker::assertLiveAggregate(this, "array copyWithin after destroy/drop", "array value");
+
+		const auto to = normalizeSliceBound(target, elementCount, false);
+		const auto from = normalizeSliceBound(start, elementCount, false);
+		const auto final = normalizeSliceBound(end, elementCount, true);
+
+		if (from >= final || to >= elementCount) {
+			return;
+		}
+
+		const auto count = std::min<std::size_t>(final - from, elementCount - to);
+		if (count == 0) {
+			return;
+		}
+
+		auto **buffer = static_cast<void **>(MemoryManager::allocate(sizeof(void *) * count, "array copyWithin buffer"));
+		for (std::size_t index = 0; index < count; ++index) {
+			buffer[index] = elements[from + index] ? elements[from + index] : AnyValue::undefined();
+		}
+
+		for (std::size_t index = 0; index < count; ++index) {
+			elements[to + index] = buffer[index];
+		}
+
+		MemoryManager::deallocate(buffer);
+	}
+
+	ArrayValue *ArrayValue::splice(double start, double deleteCount, const ArrayValue *inserted) {
+		OwnershipTracker::assertLiveAggregate(this, "array splice after destroy/drop", "array value");
+
+		if (inserted) {
+			OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(inserted), "array splice inserted after destroy/drop", "array value");
+		}
+
+		const auto startIndex = normalizeForwardStart(start, elementCount);
+		const auto removedCount = normalizeDeleteCount(deleteCount, elementCount - startIndex);
+		const auto insertedCount = inserted ? inserted->elementCount : 0;
+		auto *removed = ArrayValue::create(removedCount);
+
+		for (std::size_t index = 0; index < removedCount; ++index) {
+			removed->elements[index] = elements[startIndex + index] ? elements[startIndex + index] : AnyValue::undefined();
+		}
+
+		const auto tailStart = startIndex + removedCount;
+		const auto tailCount = elementCount - tailStart;
+		const auto newCount = elementCount - removedCount + insertedCount;
+		ensureCapacity(newCount);
+
+		if (insertedCount > removedCount) {
+			for (std::size_t offset = tailCount; offset > 0; --offset) {
+				elements[startIndex + insertedCount + offset - 1] = elements[tailStart + offset - 1];
+			}
+		} else if (insertedCount < removedCount) {
+			for (std::size_t offset = 0; offset < tailCount; ++offset) {
+				elements[startIndex + insertedCount + offset] = elements[tailStart + offset];
+			}
+		}
+
+		for (std::size_t index = 0; index < insertedCount; ++index) {
+			elements[startIndex + index] = inserted->elements[index] ? inserted->elements[index] : AnyValue::undefined();
+		}
+
+		for (std::size_t index = newCount; index < elementCount; ++index) {
+			elements[index] = AnyValue::undefined();
+		}
+
+		elementCount = newCount;
+
+		return removed;
+	}
+
+	ArrayValue *ArrayValue::toReversed() const {
+		auto *result = clone();
+		result->reverse();
+		return result;
+	}
+
+	ArrayValue *ArrayValue::toSpliced(double start, double deleteCount, const ArrayValue *inserted) const {
+		auto *result = clone();
+		auto *removed = result->splice(start, deleteCount, inserted);
+		removed->destroy();
+		OwnershipTracker::destroyHeapAggregate(removed, "array value");
+		yogi_free(removed);
+		return result;
+	}
+
 	ArrayValue *ArrayValue::slice(double start, double end) const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array slice after destroy/drop", "array value");
 
@@ -638,6 +790,80 @@ void yogi_array_reverse(void *array) {
 	}
 
 	static_cast<yogi::runtime::ArrayValue *>(array)->reverse();
+}
+
+void *yogi_array_clone(void *array) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->clone();
+}
+
+void yogi_array_append_array(void *array, void *source) {
+	if (!array || !source) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->appendArray(
+		static_cast<const yogi::runtime::ArrayValue *>(source)
+	);
+}
+
+void yogi_array_insert(void *array, unsigned long long index, void *value) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->insert(static_cast<std::size_t>(index), value);
+}
+
+void yogi_array_fill(void *array, void *value, double start, double end) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->fill(value, start, end);
+}
+
+void yogi_array_copy_within(void *array, double target, double start, double end) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->copyWithin(target, start, end);
+}
+
+void *yogi_array_splice(void *array, double start, double deleteCount, void *inserted) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<yogi::runtime::ArrayValue *>(array)->splice(
+		start,
+		deleteCount,
+		static_cast<const yogi::runtime::ArrayValue *>(inserted)
+	);
+}
+
+void *yogi_array_to_reversed(void *array) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->toReversed();
+}
+
+void *yogi_array_to_spliced(void *array, double start, double deleteCount, void *inserted) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->toSpliced(
+		start,
+		deleteCount,
+		static_cast<const yogi::runtime::ArrayValue *>(inserted)
+	);
 }
 
 void *yogi_array_slice(void *array, double start, double end) {

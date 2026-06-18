@@ -146,6 +146,25 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("validates array copy and splice builtin methods", () => {
+    const root = createProject({
+      "main.io": `
+        let scores: number[] = [1, 2, 3, 4]
+        scores.fill(9, 1, 3)
+        scores.copyWithin(0, 2, 4)
+        let merged: number[] = scores.concat([5, 6], 7)
+        let removed: number[] = scores.splice(1, 2, 8, 9)
+        let reversed: number[] = scores.toReversed()
+        let changed: number[] = scores.toSpliced(1, 1, 10)
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
   test("rejects reassignment to const variables", () => {
     const root = createProject({
       "main.io": `

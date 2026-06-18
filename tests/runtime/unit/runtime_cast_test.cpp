@@ -211,5 +211,43 @@ int main() {
 	yogi_array_destroy(methodsArray);
 	assert(yogi_debug_ownership_live_aggregates() == 0);
 
+	// Test array copy/splice family
+	void *copyArray = yogi_array_create(4);
+	yogi_array_set(copyArray, 0, yogi_any_from_number(1));
+	yogi_array_set(copyArray, 1, yogi_any_from_number(2));
+	yogi_array_set(copyArray, 2, yogi_any_from_number(3));
+	yogi_array_set(copyArray, 3, yogi_any_from_number(4));
+	yogi_array_fill(copyArray, yogi_any_from_number(9), 1, 3);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, 0)) == 1);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, 1)) == 9);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, 2)) == 9);
+	yogi_array_copy_within(copyArray, 0, 2, 4);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, 0)) == 9);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, 1)) == 4);
+	void *reversedCopy = yogi_array_to_reversed(copyArray);
+	assert(yogi_any_to_number(yogi_array_get(reversedCopy, 0)) == 4);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, 0)) == 9);
+
+	void *inserted = yogi_array_create(2);
+	yogi_array_set(inserted, 0, yogi_any_from_number(7));
+	yogi_array_set(inserted, 1, yogi_any_from_number(8));
+	void *removed = yogi_array_splice(copyArray, 1, 2, inserted);
+	assert(yogi_array_length(removed) == 2);
+	assert(yogi_any_to_number(yogi_array_get(removed, 0)) == 4);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, 1)) == 7);
+	void *splicedCopy = yogi_array_to_spliced(copyArray, 1, 1, inserted);
+	assert(yogi_any_to_number(yogi_array_get(splicedCopy, 1)) == 7);
+	assert(yogi_any_to_number(yogi_array_get(copyArray, 1)) == 7);
+	void *concatCopy = yogi_array_clone(copyArray);
+	yogi_array_append_array(concatCopy, inserted);
+	assert(yogi_array_length(concatCopy) == yogi_array_length(copyArray) + 2);
+	yogi_array_destroy(concatCopy);
+	yogi_array_destroy(splicedCopy);
+	yogi_array_destroy(removed);
+	yogi_array_destroy(inserted);
+	yogi_array_destroy(reversedCopy);
+	yogi_array_destroy(copyArray);
+	assert(yogi_debug_ownership_live_aggregates() == 0);
+
 	return 0;
 }

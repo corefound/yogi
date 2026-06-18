@@ -100,5 +100,6 @@ language features:
   `every`, `forEach`, `flatMap`.
 - Comparator-dependent methods: `sort`, `toSorted`.
 - String-dependent methods: `join`, `toString`.
-- Copying/splice family: `concat`, `splice`, `fill`, `copyWithin`, `with`,
-  `toReversed`, `toSpliced`.
+- Range-error-sensitive copy method: `with`.
+- Comparator/string-dependent methods: `sort`, `toSorted`, `join`, `toString`.
+- Callback/function-value methods listed above.

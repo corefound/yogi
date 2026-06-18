@@ -36,6 +36,7 @@ Examples:
 
 - `aggregates.cmake`
 - `array_methods.cmake`
+- `array_copy_splice_methods.cmake`
 - `dynamic_expressions.cmake`
 
 Memory ownership tests belong in:

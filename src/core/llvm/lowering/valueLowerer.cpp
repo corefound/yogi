@@ -228,6 +228,36 @@ namespace yogi::core::llvm::internal {
 			const auto *argument = arguments->Get(index);
 			return lower(argument, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(argument));
 		};
+		const auto createInsertArray = [&](flatbuffers::uoffset_t startIndex) -> ::llvm::Value * {
+			const auto count = arguments && arguments->size() > startIndex
+				? arguments->size() - startIndex
+				: 0;
+			auto *inserted = callRuntime(
+				"yogi_array_create",
+				opaquePointer(),
+				{::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), count)}
+			);
+
+			if (arguments) {
+				for (flatbuffers::uoffset_t index = startIndex; index < arguments->size(); ++index) {
+					const auto *argument = arguments->Get(index);
+					const auto *argumentSemanticType = valueSemanticType(argument);
+					auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+					auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
+					callRuntime(
+						"yogi_array_set",
+						::llvm::Type::getVoidTy(context.llvmContext),
+						{
+							inserted,
+							::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), index - startIndex),
+							boxedValue,
+						}
+					);
+				}
+			}
+
+			return inserted;
+		};
 
 		if (methodName == "push") {
 			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
@@ -383,12 +413,126 @@ namespace yogi::core::llvm::internal {
 			);
 		}
 
+		if (methodName == "concat") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *result = callRuntime("yogi_array_clone", opaquePointer(), {array});
+
+			if (arguments) {
+				for (flatbuffers::uoffset_t index = 0; index < arguments->size(); ++index) {
+					const auto *argument = arguments->Get(index);
+					const auto *argumentSemanticType = valueSemanticType(argument);
+					const auto argumentKind = resolvedTypeKind(argumentSemanticType);
+
+					if (
+						argumentKind == Yogi::Sir::TypeKind_array_type ||
+						argumentKind == Yogi::Sir::TypeKind_tuple_type
+					) {
+						auto *source = lower(argument, opaquePointer(), argumentSemanticType);
+						callRuntime("yogi_array_append_array", ::llvm::Type::getVoidTy(context.llvmContext), {result, source});
+						continue;
+					}
+
+					auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+					auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
+					callRuntime(
+						"yogi_array_push",
+						::llvm::Type::getInt64Ty(context.llvmContext),
+						{result, boxedValue}
+					);
+				}
+			}
+
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
 		if (methodName == "reverse") {
 			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
 			callRuntime("yogi_array_reverse", ::llvm::Type::getVoidTy(context.llvmContext), {array});
 
 			return cast(
 				array,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "fill") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			const auto *argument = arguments && argumentCount > 0
+				? arguments->Get(0)
+				: nullptr;
+			const auto *argumentSemanticType = valueSemanticType(argument);
+			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+			auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
+			auto *start = lowerNumberArgument(1, 0);
+			auto *end = lowerNumberArgument(2, std::numeric_limits<double>::infinity());
+
+			callRuntime(
+				"yogi_array_fill",
+				::llvm::Type::getVoidTy(context.llvmContext),
+				{array, boxedValue, start, end}
+			);
+
+			return cast(
+				array,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "copyWithin") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *target = lowerNumberArgument(0, 0);
+			auto *start = lowerNumberArgument(1, 0);
+			auto *end = lowerNumberArgument(2, std::numeric_limits<double>::infinity());
+
+			callRuntime(
+				"yogi_array_copy_within",
+				::llvm::Type::getVoidTy(context.llvmContext),
+				{array, target, start, end}
+			);
+
+			return cast(
+				array,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "splice" || methodName == "toSpliced") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *start = lowerNumberArgument(0, 0);
+			auto *deleteCount = lowerNumberArgument(1, std::numeric_limits<double>::infinity());
+			auto *inserted = createInsertArray(2);
+			auto *result = callRuntime(
+				methodName == "splice" ? "yogi_array_splice" : "yogi_array_to_spliced",
+				opaquePointer(),
+				{array, start, deleteCount, inserted}
+			);
+			callRuntime("yogi_array_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {inserted});
+
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "toReversed") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *result = callRuntime("yogi_array_to_reversed", opaquePointer(), {array});
+
+			return cast(
+				result,
 				expectedType ? expectedType : types.lower(call->type()),
 				expectedSemanticType ? expectedSemanticType : call->type(),
 				call->type()
