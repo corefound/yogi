@@ -179,6 +179,31 @@ Tuples currently share the same aggregate runtime representation as arrays, so
 their fixed length is read from the descriptor that was initialized from the
 tuple literal.
 
+## Non-Callback Array Methods
+
+Yogi now supports the array methods that can be expressed without callback
+function values:
+
+| Method | Mutates? | Return |
+| --- | --- | --- |
+| `push(value)` | yes | `number` |
+| `pop()` | yes | `T | undefined` |
+| `shift()` | yes | `T | undefined` |
+| `unshift(...values)` | yes | `number` |
+| `reverse()` | yes | `T[]` |
+| `at(index)` | no | `T | undefined` |
+| `includes(value, fromIndex?)` | no | `boolean` |
+| `indexOf(value, fromIndex?)` | no | `number` |
+| `lastIndexOf(value, fromIndex?)` | no | `number` |
+| `slice(start?, end?)` | no | `T[]` |
+
+Mutating methods require a mutable, non-readonly dynamic array. Tuples reject
+mutating methods because their length and element layout are fixed.
+
+`at`, `slice`, `includes`, `indexOf`, and `lastIndexOf` follow the JavaScript
+index rules that matter for this stage, including negative indexes for `at` and
+`slice`.
+
 ## Example
 
 ```ts
@@ -222,8 +247,11 @@ This lot is still not a full control-flow analysis engine. Remaining loop work:
 - `do while`.
 - `for of` and `for in`.
 - Loop-carried type narrowing.
-- Full JavaScript array method coverage and object helper methods.
+- Callback-based array methods such as `map`, `filter`, `reduce`, `find`,
+  `some`, and `every`.
+- Comparator/string-dependent methods such as `sort` and `join`.
+- Object helper methods.
 
 The current behavior is enough for normal `while`, `for`, `break`, `continue`,
-`array.push`, `array.pop`, `array.at`, and readonly `array.length`/`tuple.length`
+the non-callback array method set, and readonly `array.length`/`tuple.length`
 while preserving stack-first cleanup rules.

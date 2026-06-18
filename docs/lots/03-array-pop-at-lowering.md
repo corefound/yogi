@@ -86,7 +86,7 @@ El `builtinMethod` se serializa como string en `CallExpression.builtin_method`. 
 ```
 "push"  → yogi_array_push(array, boxedValue)    → i64 → f64
 "pop"   → yogi_array_pop(array)                 → AnyValue*
-"at"    → yogi_array_at(array, toIndex(index))  → AnyValue*
+"at"    → yogi_array_at_index(array, index)     → AnyValue*
 "length" property → yogi_array_length(array)    → i64 → f64
 ```
 
@@ -108,12 +108,13 @@ No boxing needed - `yogi_array_pop` ya devuelve `AnyValue*` (boxed). El `cast` a
 if (methodName == "at") {
     auto *array = lower(callee->object(), opaquePointer(), ...);
     auto *argumentValue = lower(argument, f64, ...);
-    auto *result = callRuntime("yogi_array_at", opaquePointer(), {array, toIndex(argumentValue)});
+    auto *result = callRuntime("yogi_array_at_index", opaquePointer(), {array, argumentValue});
     return cast(result, expectedType, expectedSemanticType, call->type());
 }
 ```
 
-El índice se convierte de `f64` → `i64` via `toIndex()` (CreateFPToUI).
+El índice se pasa como `f64` al runtime para poder aplicar semántica estilo
+JavaScript para índices negativos, por ejemplo `scores.at(-1)`.
 
 #### array.length / tuple.length
 
@@ -142,8 +143,8 @@ Para `scores.at(i)`:
 
 ```llvm
 %scores.load = load ptr, ptr %scores, align 8
-%yogi_array_at.call = call ptr @yogi_array_at(ptr %scores.load, i64 %numtoindextmp)
-ret ptr %yogi_array_at.call
+%yogi_array_at_index.call = call ptr @yogi_array_at_index(ptr %scores.load, double %index)
+ret ptr %yogi_array_at_index.call
 ```
 
 Para `scores.length`:
@@ -171,7 +172,7 @@ void *ArrayValue::pop() {
 }
 ```
 
-#### yogi_array_at
+#### yogi_array_at_index
 
 ```cpp
 void *ArrayValue::at(std::size_t index) const {
@@ -221,6 +222,6 @@ El schema FBS contiene una tabla `ArrayDeclaration` pero el compilador TypeScrip
 | Test | Coverage |
 |------|----------|
 | `runtime_cast_test` | `yogi_array_pop` en runtime C++: pop devuelve elementos en orden inverso, pop en vacío devuelve undefined |
-| `runtime_cast_test` | `yogi_array_at` en runtime C++: at devuelve elemento en rango, at fuera de rango devuelve undefined |
+| `runtime_cast_test` | `yogi_array_at_index` en runtime C++: at devuelve elemento en rango, índice negativo y undefined fuera de rango |
 | `runtime_cast_test` | `yogi_array_length` en runtime C++: refleja longitud inicial y cambios después de `pop` |
-| `pipeline_loops_and_methods` | Compilación end-to-end: IR contiene `yogi_array_pop`, `yogi_array_at`, `yogi_array_length`, y el ejecutable imprime resultados esperados |
+| `pipeline_loops_and_methods` | Compilación end-to-end: IR contiene `yogi_array_pop`, `yogi_array_at_index`, `yogi_array_length`, y el ejecutable imprime resultados esperados |

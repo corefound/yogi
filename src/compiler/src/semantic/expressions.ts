@@ -278,6 +278,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 push: () => this.validateAndCreatePushCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 pop: () => this.validateAndCreatePopCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 at: () => this.validateAndCreateAtCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                shift: () => this.validateAndCreateShiftCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                unshift: () => this.validateAndCreateUnshiftCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                includes: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, receiverType, methodName, args, source, "boolean"),
+                indexOf: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, receiverType, methodName, args, source, "number"),
+                lastIndexOf: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, receiverType, methodName, args, source, "number"),
+                reverse: () => this.validateAndCreateReverseCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                slice: () => this.validateAndCreateSliceCall(node, rawCallee, receiver, receiverType, methodName, args, source),
             };
 
             if (!methodHandlers[methodName]) {
@@ -505,6 +512,233 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
         }
 
+        public arrayReadableElementType(receiverType: any): any {
+            if (receiverType?.kind === Kinds.Types.ArrayType) {
+                return receiverType.elementType;
+            }
+
+            if (receiverType?.kind === Kinds.Types.TupleType) {
+                return this.createUnionType(receiverType.elements ?? []);
+            }
+
+            return { kind: Kinds.Types.UnknownType, raw: "unknown" };
+        }
+
+        public arrayReturnType(receiverType: any): any {
+            const elementType = this.arrayReadableElementType(receiverType);
+
+            return {
+                kind: Kinds.Types.ArrayType,
+                raw: `${elementType?.raw ?? "unknown"}[]`,
+                elementType,
+                readonly: false,
+            };
+        }
+
+        public arrayElementOrUndefinedType(receiverType: any): any {
+            const elementType = this.arrayReadableElementType(receiverType);
+
+            return {
+                kind: Kinds.Types.UnionType,
+                types: [elementType, { kind: Kinds.Types.UndefinedType, raw: "undefined" }],
+                raw: `${elementType?.raw ?? "unknown"} | undefined`,
+            };
+        }
+
+        public validateArrayMethodArgumentCount(node: any, methodName: string, args: any[], source: string, min: number, max: number): void {
+            if (args.length >= min && args.length <= max) {
+                return;
+            }
+
+            const expected = min === max ? `${min}` : `${min}-${max}`;
+            const noun = min === max && min === 1 ? "argument" : "arguments";
+            const message =
+                `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                `${Helpers.BLUE}'${expected}'${Helpers.RESET} ${noun}, got ${Helpers.RED}'${args.length}'${Helpers.RESET}`;
+
+            node.arrowLength = node.source?.length ?? methodName?.length ?? 1;
+            this.throwError(message, node.position, source, node);
+        }
+
+        public validateNumberArrayMethodArgument(node: any, methodName: string, argument: any, source: string, label: string): void {
+            const argumentType = argument?.type;
+
+            if (this.resolveType(argumentType)?.kind === Kinds.Types.NumberType) {
+                return;
+            }
+
+            const message =
+                `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                `${Helpers.BLUE}'number'${Helpers.RESET} ${label}, got ` +
+                `${Helpers.RED}'${argumentType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+            argument.arrowLength = argument.source?.length ?? 1;
+            this.throwError(message, argument.position ?? node.position, source, argument);
+        }
+
+        public validateMutableArrayReceiver(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, source: string): void {
+            if (receiverType?.kind === Kinds.Types.TupleType) {
+                const message =
+                    `tuple method ${Helpers.RED}'${methodName}'${Helpers.RESET} is not supported because tuple length is fixed`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            const root = this.getAggregateRootIdentifier(receiver);
+            const symbol = root ? this.resolveSymbol(root) : null;
+
+            if (symbol?.mutable !== true) {
+                const message =
+                    `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            if (this.isReadonlyType(receiverType)) {
+                const message =
+                    `cannot call mutating method ${Helpers.RED}'${methodName}'${Helpers.RESET} on readonly array`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+        }
+
+        public createArrayBuiltinCall(node: any, rawCallee: any, receiver: any, args: any[], type: any, methodName: string, argumentEffects: any[] = []): any {
+            return {
+                ...node,
+                kind: Kinds.Expressions.CallExpression,
+                callee: {
+                    ...rawCallee,
+                    object: receiver,
+                    type: {
+                        kind: Kinds.Types.FunctionType,
+                        raw: "Function",
+                    },
+                },
+                arguments: args,
+                argumentEffects,
+                type,
+                external: false,
+                builtinMethod: `array.${methodName}`,
+            };
+        }
+
+        public validateAndCreateShiftCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                this.arrayElementOrUndefinedType(receiverType),
+                methodName,
+            );
+        }
+
+        public validateAndCreateUnshiftCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+
+            const elementType = this.arrayReadableElementType(receiverType);
+
+            args.forEach((argument: any) => {
+                const actualType = argument?.type;
+
+                if (!this.isTypeAssignable(elementType, actualType)) {
+                    const message =
+                        `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                        `${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${actualType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    argument.arrowLength = argument.source?.length ?? 1;
+                    this.throwError(message, argument.position ?? node.position, source, argument);
+                }
+            });
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                { kind: Kinds.Types.NumberType, raw: "number" },
+                methodName,
+                args.map((_: any, index: number) => ({
+                    index,
+                    escapes: false,
+                    mutates: true,
+                    consumes: false,
+                })),
+            );
+        }
+
+        public validateAndCreateSearchCall(
+            node: any,
+            rawCallee: any,
+            receiver: any,
+            receiverType: any,
+            methodName: string,
+            args: any[],
+            source: string,
+            returnKind: "boolean" | "number",
+        ): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 1, 2);
+
+            const elementType = this.arrayReadableElementType(receiverType);
+            const searchType = args[0]?.type;
+
+            if (!this.isTypeAssignable(elementType, searchType)) {
+                const message =
+                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                    `${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET} search value, got ` +
+                    `${Helpers.RED}'${searchType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                args[0].arrowLength = args[0].source?.length ?? 1;
+                this.throwError(message, args[0].position ?? node.position, source, args[0]);
+            }
+
+            if (args[1]) {
+                this.validateNumberArrayMethodArgument(node, methodName, args[1], source, "fromIndex");
+            }
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                returnKind === "boolean"
+                    ? { kind: Kinds.Types.BooleanType, raw: "boolean" }
+                    : { kind: Kinds.Types.NumberType, raw: "number" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateReverseCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            return this.createArrayBuiltinCall(node, rawCallee, receiver, args, receiverType, methodName);
+        }
+
+        public validateAndCreateSliceCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 2);
+
+            args.forEach((argument: any) => {
+                this.validateNumberArrayMethodArgument(node, methodName, argument, source, "index");
+            });
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                this.arrayReturnType(receiverType),
+                methodName,
+            );
+        }
+
         public removeNullishFromType(type: any): any {
             const resolved = this.resolveType(type);
 
@@ -539,6 +773,50 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         ...node,
                         operand,
                         type: { kind: Kinds.Types.BooleanType, raw: "boolean" },
+                    };
+                }
+
+                if (node.operator === "+" || node.operator === "-") {
+                    if (this.resolveType(operand?.type)?.kind !== Kinds.Types.NumberType) {
+                        const message =
+                            `unary operator ${Helpers.RED}'${node.operator}'${Helpers.RESET} expects ` +
+                            `${Helpers.BLUE}'number'${Helpers.RESET}, got ` +
+                            `${Helpers.RED}'${operand?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                        node.arrowLength = node.operator?.length ?? 1;
+                        this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                    }
+
+                    if (node.operator === "+") {
+                        return operand;
+                    }
+
+                    if (operand.kind === Kinds.Sir.NumberConstant) {
+                        return {
+                            ...operand,
+                            raw: node.source ?? `-${operand.raw ?? operand.value}`,
+                            source: node.source ?? `-${operand.source ?? operand.value}`,
+                            value: -operand.value,
+                            position: node.position,
+                        };
+                    }
+
+                    return {
+                        kind: Kinds.Expressions.BinaryExpression,
+                        operator: "-",
+                        left: {
+                            kind: Kinds.Sir.NumberConstant,
+                            type: { kind: Kinds.Types.NumberType, raw: "number" },
+                            raw: "0",
+                            value: 0,
+                            source: "0",
+                            position: node.position,
+                        },
+                        right: operand,
+                        source: node.source,
+                        fullSource: node.fullSource ?? node.source,
+                        position: node.position,
+                        type: { kind: Kinds.Types.NumberType, raw: "number" },
                     };
                 }
 

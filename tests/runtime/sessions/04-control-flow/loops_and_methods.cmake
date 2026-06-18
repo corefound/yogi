@@ -124,7 +124,7 @@ foreach(symbol
 		for.inc
 		yogi_array_push
 		yogi_array_pop
-		yogi_array_at
+		yogi_array_at_index
 		yogi_array_length
 		yogi_array_drop)
 	if(NOT ir MATCHES "${symbol}")

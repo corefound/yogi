@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <limits>
 
 #ifndef YOGI_EXPECTED_ALLOCATOR
 #define YOGI_EXPECTED_ALLOCATOR "mimalloc"
@@ -180,9 +181,34 @@ int main() {
 	yogi_array_set(atArray, 1, yogi_any_from_number(200));
 	assert(yogi_any_to_number(yogi_array_at(atArray, 0)) == 100);
 	assert(yogi_any_to_number(yogi_array_at(atArray, 1)) == 200);
+	assert(yogi_any_to_number(yogi_array_at_index(atArray, -2)) == 200);
 	assert(yogi_any_is_nullish(yogi_array_at(atArray, 5)));
 	assert(yogi_any_is_nullish(yogi_array_at(atArray, 100)));
 	yogi_array_destroy(atArray);
+	assert(yogi_debug_ownership_live_aggregates() == 0);
+
+	// Test non-callback array methods
+	void *methodsArray = yogi_array_create(3);
+	yogi_array_set(methodsArray, 0, yogi_any_from_number(1));
+	yogi_array_set(methodsArray, 1, yogi_any_from_number(2));
+	yogi_array_set(methodsArray, 2, yogi_any_from_number(3));
+	assert(yogi_any_to_number(yogi_array_shift(methodsArray)) == 1);
+	assert(yogi_array_length(methodsArray) == 2);
+	assert(yogi_array_unshift(methodsArray, yogi_any_from_number(0)) == 3);
+	assert(yogi_any_to_number(yogi_array_get(methodsArray, 0)) == 0);
+	yogi_array_reverse(methodsArray);
+	assert(yogi_any_to_number(yogi_array_get(methodsArray, 0)) == 3);
+	assert(yogi_any_to_number(yogi_array_get(methodsArray, 1)) == 2);
+	assert(yogi_array_includes(methodsArray, yogi_any_from_number(2), 0));
+	assert(!yogi_array_includes(methodsArray, yogi_any_from_number(9), 0));
+	assert(yogi_array_index_of(methodsArray, yogi_any_from_number(2), 0) == 1);
+	assert(yogi_array_last_index_of(methodsArray, yogi_any_from_number(2), std::numeric_limits<double>::infinity()) == 1);
+	void *sliceArray = yogi_array_slice(methodsArray, 0, -1);
+	assert(yogi_array_length(sliceArray) == 2);
+	assert(yogi_any_to_number(yogi_array_get(sliceArray, 0)) == 3);
+	assert(yogi_any_to_number(yogi_array_get(sliceArray, 1)) == 2);
+	yogi_array_destroy(sliceArray);
+	yogi_array_destroy(methodsArray);
 	assert(yogi_debug_ownership_live_aggregates() == 0);
 
 	return 0;

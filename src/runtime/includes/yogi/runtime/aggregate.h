@@ -45,7 +45,15 @@ namespace yogi::runtime {
 			std::size_t push(void *value);
 			void *pop();
 			void *at(std::size_t index) const;
+			void *at(double index) const;
 			std::size_t length() const;
+			void *shift();
+			std::size_t unshift(void *value);
+			bool includes(void *value, double fromIndex) const;
+			long long indexOf(void *value, double fromIndex) const;
+			long long lastIndexOf(void *value, double fromIndex) const;
+			void reverse();
+			ArrayValue *slice(double start, double end) const;
 			void destroy();
 
 		private:

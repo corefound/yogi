@@ -26,7 +26,19 @@ tests/runtime/sessions/04-control-flow/
 
 ## Placement Rules
 
-Aggregate ownership tests belong in:
+Variable and aggregate value tests belong in:
+
+```txt
+tests/runtime/sessions/02-variables-aggregates/
+```
+
+Examples:
+
+- `aggregates.cmake`
+- `array_methods.cmake`
+- `dynamic_expressions.cmake`
+
+Memory ownership tests belong in:
 
 ```txt
 tests/runtime/sessions/03-memory-management/
@@ -94,4 +106,3 @@ runtime grows a direct test assertion API.
 CTest cases should write generated source files, cache folders, IR, object files,
 and executables under the provided `TEST_WORK_DIR`. Avoid writing test artifacts
 into source folders.
-

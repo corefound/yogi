@@ -9,6 +9,8 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 
+#include <limits>
+
 namespace yogi::core::llvm::internal {
 
 	namespace {
@@ -213,11 +215,24 @@ namespace yogi::core::llvm::internal {
 	) {
 		const auto *callee = call->callee()->property_access();
 		const auto methodName = fbString(callee->property());
+		const auto *arguments = call->arguments();
+		const auto argumentCount = arguments ? arguments->size() : 0;
+		const auto numberConstant = [&](double value) {
+			return ::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), value);
+		};
+		const auto lowerNumberArgument = [&](flatbuffers::uoffset_t index, double defaultValue) -> ::llvm::Value * {
+			if (!arguments || index >= arguments->size()) {
+				return numberConstant(defaultValue);
+			}
+
+			const auto *argument = arguments->Get(index);
+			return lower(argument, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(argument));
+		};
 
 		if (methodName == "push") {
 			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
-			const auto *argument = call->arguments() && call->arguments()->size() > 0
-				? call->arguments()->Get(0)
+			const auto *argument = arguments && argumentCount > 0
+				? arguments->Get(0)
 				: nullptr;
 			const auto *argumentSemanticType = valueSemanticType(argument);
 			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
@@ -231,6 +246,38 @@ namespace yogi::core::llvm::internal {
 				length,
 				::llvm::Type::getDoubleTy(context.llvmContext),
 				"array.push.length"
+			);
+
+			return cast(
+				asNumber,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "unshift") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+
+			if (arguments) {
+				for (auto index = arguments->size(); index > 0; --index) {
+					const auto *argument = arguments->Get(index - 1);
+					const auto *argumentSemanticType = valueSemanticType(argument);
+					auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+					auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
+					length = callRuntime(
+						"yogi_array_unshift",
+						::llvm::Type::getInt64Ty(context.llvmContext),
+						{array, boxedValue}
+					);
+				}
+			}
+
+			auto *asNumber = context.builder.CreateUIToFP(
+				length,
+				::llvm::Type::getDoubleTy(context.llvmContext),
+				"array.unshift.length"
 			);
 
 			return cast(
@@ -257,17 +304,105 @@ namespace yogi::core::llvm::internal {
 			);
 		}
 
+		if (methodName == "shift") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *result = callRuntime(
+				"yogi_array_shift",
+				opaquePointer(),
+				{array}
+			);
+
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
 		if (methodName == "at") {
 			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
-			const auto *argument = call->arguments() && call->arguments()->size() > 0
-				? call->arguments()->Get(0)
+			auto *argumentValue = lowerNumberArgument(0, 0);
+			auto *result = callRuntime(
+				"yogi_array_at_index",
+				opaquePointer(),
+				{array, argumentValue}
+			);
+
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "includes" || methodName == "indexOf" || methodName == "lastIndexOf") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			const auto *argument = arguments && argumentCount > 0
+				? arguments->Get(0)
 				: nullptr;
 			const auto *argumentSemanticType = valueSemanticType(argument);
-			auto *argumentValue = lower(argument, ::llvm::Type::getDoubleTy(context.llvmContext), argumentSemanticType);
+			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+			auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
+			auto *fromIndex = methodName == "lastIndexOf"
+				? lowerNumberArgument(1, std::numeric_limits<double>::infinity())
+				: lowerNumberArgument(1, 0);
+
+			if (methodName == "includes") {
+				auto *result = callRuntime(
+					"yogi_array_includes",
+					::llvm::Type::getInt1Ty(context.llvmContext),
+					{array, boxedValue, fromIndex}
+				);
+
+				return cast(
+					result,
+					expectedType ? expectedType : types.lower(call->type()),
+					expectedSemanticType ? expectedSemanticType : call->type(),
+					call->type()
+				);
+			}
+
 			auto *result = callRuntime(
-				"yogi_array_at",
+				methodName == "indexOf" ? "yogi_array_index_of" : "yogi_array_last_index_of",
+				::llvm::Type::getInt64Ty(context.llvmContext),
+				{array, boxedValue, fromIndex}
+			);
+			auto *asNumber = context.builder.CreateSIToFP(
+				result,
+				::llvm::Type::getDoubleTy(context.llvmContext),
+				"array.search.index"
+			);
+
+			return cast(
+				asNumber,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "reverse") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			callRuntime("yogi_array_reverse", ::llvm::Type::getVoidTy(context.llvmContext), {array});
+
+			return cast(
+				array,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "slice") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *start = lowerNumberArgument(0, 0);
+			auto *end = lowerNumberArgument(1, std::numeric_limits<double>::infinity());
+			auto *result = callRuntime(
+				"yogi_array_slice",
 				opaquePointer(),
-				{array, toIndex(argumentValue)}
+				{array, start, end}
 			);
 
 			return cast(

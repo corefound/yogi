@@ -125,6 +125,27 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("validates non-callback array builtin methods", () => {
+    const root = createProject({
+      "main.io": `
+        let scores: number[] = [1, 2, 3]
+        scores.unshift(0)
+        scores.reverse()
+        let shifted: number | undefined = scores.shift()
+        let hasTwo: boolean = scores.includes(2)
+        let firstTwo: number = scores.indexOf(2)
+        let lastTwo: number = scores.lastIndexOf(2)
+        let copy: number[] = scores.slice(0, -1)
+        let last: number | undefined = scores.at(-1)
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
   test("rejects reassignment to const variables", () => {
     const root = createProject({
       "main.io": `

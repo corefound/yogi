@@ -7,10 +7,121 @@
 #include "yogi/runtime/debug/ownership.h"
 #include "yogi/runtime/memory.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstring>
+#include <limits>
 #include <new>
 
 namespace yogi::runtime {
+
+	namespace {
+		double toInteger(double value) {
+			if (std::isnan(value)) {
+				return 0;
+			}
+
+			if (std::isinf(value)) {
+				return value;
+			}
+
+			return std::trunc(value);
+		}
+
+		std::size_t normalizeForwardStart(double fromIndex, std::size_t length) {
+			const auto integer = toInteger(fromIndex);
+
+			if (std::isinf(integer)) {
+				return integer > 0 ? length : 0;
+			}
+
+			if (integer >= 0) {
+				return std::min<std::size_t>(static_cast<std::size_t>(integer), length);
+			}
+
+			const auto shifted = static_cast<double>(length) + integer;
+			return shifted <= 0 ? 0 : static_cast<std::size_t>(shifted);
+		}
+
+		long long normalizeLastStart(double fromIndex, std::size_t length) {
+			if (length == 0) {
+				return -1;
+			}
+
+			const auto integer = toInteger(fromIndex);
+
+			if (std::isinf(integer)) {
+				return integer > 0 ? static_cast<long long>(length - 1) : -1;
+			}
+
+			if (integer >= 0) {
+				return std::min<long long>(static_cast<long long>(integer), static_cast<long long>(length - 1));
+			}
+
+			const auto shifted = static_cast<double>(length) + integer;
+			return shifted < 0 ? -1 : static_cast<long long>(shifted);
+		}
+
+		std::size_t normalizeSliceBound(double value, std::size_t length, bool defaultToLength) {
+			const auto integer = toInteger(value);
+
+			if (std::isinf(integer)) {
+				if (integer > 0) {
+					return defaultToLength ? length : length;
+				}
+
+				return 0;
+			}
+
+			if (integer >= 0) {
+				return std::min<std::size_t>(static_cast<std::size_t>(integer), length);
+			}
+
+			const auto shifted = static_cast<double>(length) + integer;
+			return shifted <= 0 ? 0 : static_cast<std::size_t>(shifted);
+		}
+
+		const AnyValue *asAny(void *value) {
+			return value ? AnyValue::require(value, "any") : nullptr;
+		}
+
+		bool strictEquals(void *left, void *right, bool sameValueZero) {
+			const auto *leftAny = asAny(left);
+			const auto *rightAny = asAny(right);
+
+			if (!leftAny || !rightAny || leftAny->tag() != rightAny->tag()) {
+				return false;
+			}
+
+			switch (leftAny->tag()) {
+				case YOGI_ANY_UNDEFINED:
+				case YOGI_ANY_NULL:
+					return true;
+
+				case YOGI_ANY_NUMBER: {
+					const auto leftNumber = leftAny->asNumber();
+					const auto rightNumber = rightAny->asNumber();
+
+					if (sameValueZero && std::isnan(leftNumber) && std::isnan(rightNumber)) {
+						return true;
+					}
+
+					return leftNumber == rightNumber;
+				}
+
+				case YOGI_ANY_BOOLEAN:
+					return leftAny->asBoolean() == rightAny->asBoolean();
+
+				case YOGI_ANY_STRING: {
+					const auto *leftString = leftAny->asString();
+					const auto *rightString = rightAny->asString();
+					return std::strcmp(leftString ? leftString : "", rightString ? rightString : "") == 0;
+				}
+			}
+
+			return false;
+		}
+	}
 
 	ObjectValue *ObjectValue::create() {
 		void *address = MemoryManager::allocate(sizeof(ObjectValue), "object value");
@@ -194,10 +305,127 @@ namespace yogi::runtime {
 		return elements[index] ? elements[index] : AnyValue::undefined();
 	}
 
+	void *ArrayValue::at(double index) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array at after destroy/drop", "array value");
+
+		if (elementCount == 0) {
+			return AnyValue::undefined();
+		}
+
+		const auto integer = toInteger(index);
+
+		if (std::isinf(integer)) {
+			return AnyValue::undefined();
+		}
+
+		const auto normalized = integer < 0
+			? static_cast<double>(elementCount) + integer
+			: integer;
+
+		if (normalized < 0 || normalized >= static_cast<double>(elementCount)) {
+			return AnyValue::undefined();
+		}
+
+		return at(static_cast<std::size_t>(normalized));
+	}
+
 	std::size_t ArrayValue::length() const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array length after destroy/drop", "array value");
 
 		return elementCount;
+	}
+
+	void *ArrayValue::shift() {
+		OwnershipTracker::assertLiveAggregate(this, "array shift after destroy/drop", "array value");
+
+		if (elementCount == 0) {
+			return AnyValue::undefined();
+		}
+
+		auto *result = elements[0];
+
+		for (std::size_t index = 1; index < elementCount; ++index) {
+			elements[index - 1] = elements[index];
+		}
+
+		--elementCount;
+		elements[elementCount] = AnyValue::undefined();
+
+		return result ? result : AnyValue::undefined();
+	}
+
+	std::size_t ArrayValue::unshift(void *value) {
+		OwnershipTracker::assertLiveAggregate(this, "array unshift after destroy/drop", "array value");
+
+		ensureCapacity(elementCount + 1);
+
+		for (std::size_t index = elementCount; index > 0; --index) {
+			elements[index] = elements[index - 1];
+		}
+
+		elements[0] = value ? value : AnyValue::undefined();
+		++elementCount;
+
+		return elementCount;
+	}
+
+	bool ArrayValue::includes(void *value, double fromIndex) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array includes after destroy/drop", "array value");
+
+		for (std::size_t index = normalizeForwardStart(fromIndex, elementCount); index < elementCount; ++index) {
+			if (strictEquals(elements[index], value, true)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	long long ArrayValue::indexOf(void *value, double fromIndex) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array indexOf after destroy/drop", "array value");
+
+		for (std::size_t index = normalizeForwardStart(fromIndex, elementCount); index < elementCount; ++index) {
+			if (strictEquals(elements[index], value, false)) {
+				return static_cast<long long>(index);
+			}
+		}
+
+		return -1;
+	}
+
+	long long ArrayValue::lastIndexOf(void *value, double fromIndex) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array lastIndexOf after destroy/drop", "array value");
+
+		for (auto index = normalizeLastStart(fromIndex, elementCount); index >= 0; --index) {
+			if (strictEquals(elements[static_cast<std::size_t>(index)], value, false)) {
+				return index;
+			}
+		}
+
+		return -1;
+	}
+
+	void ArrayValue::reverse() {
+		OwnershipTracker::assertLiveAggregate(this, "array reverse after destroy/drop", "array value");
+
+		for (std::size_t left = 0, right = elementCount; left < right && left < --right; ++left) {
+			std::swap(elements[left], elements[right]);
+		}
+	}
+
+	ArrayValue *ArrayValue::slice(double start, double end) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array slice after destroy/drop", "array value");
+
+		const auto from = normalizeSliceBound(start, elementCount, false);
+		const auto to = normalizeSliceBound(end, elementCount, true);
+		const auto count = to > from ? to - from : 0;
+		auto *result = ArrayValue::create(count);
+
+		for (std::size_t index = 0; index < count; ++index) {
+			result->elements[index] = elements[from + index] ? elements[from + index] : AnyValue::undefined();
+		}
+
+		return result;
 	}
 
 	void ArrayValue::ensureCapacity(std::size_t requiredCapacity) {
@@ -344,6 +572,14 @@ void *yogi_array_at(void *array, unsigned long long index) {
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->at(static_cast<std::size_t>(index));
 }
 
+void *yogi_array_at_index(void *array, double index) {
+	if (!array) {
+		return yogi_any_undefined();
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->at(index);
+}
+
 unsigned long long yogi_array_length(void *array) {
 	if (!array) {
 		return 0;
@@ -352,6 +588,64 @@ unsigned long long yogi_array_length(void *array) {
 	return static_cast<unsigned long long>(
 		static_cast<const yogi::runtime::ArrayValue *>(array)->length()
 	);
+}
+
+void *yogi_array_shift(void *array) {
+	if (!array) {
+		return yogi_any_undefined();
+	}
+
+	return static_cast<yogi::runtime::ArrayValue *>(array)->shift();
+}
+
+unsigned long long yogi_array_unshift(void *array, void *value) {
+	if (!array) {
+		return 0;
+	}
+
+	return static_cast<unsigned long long>(
+		static_cast<yogi::runtime::ArrayValue *>(array)->unshift(value)
+	);
+}
+
+bool yogi_array_includes(void *array, void *value, double fromIndex) {
+	if (!array) {
+		return false;
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->includes(value, fromIndex);
+}
+
+long long yogi_array_index_of(void *array, void *value, double fromIndex) {
+	if (!array) {
+		return -1;
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->indexOf(value, fromIndex);
+}
+
+long long yogi_array_last_index_of(void *array, void *value, double fromIndex) {
+	if (!array) {
+		return -1;
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->lastIndexOf(value, fromIndex);
+}
+
+void yogi_array_reverse(void *array) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->reverse();
+}
+
+void *yogi_array_slice(void *array, double start, double end) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->slice(start, end);
 }
 
 void yogi_array_drop(void *array) {

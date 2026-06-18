@@ -50,7 +50,15 @@ void *yogi_array_get(void *array, unsigned long long index);
 unsigned long long yogi_array_push(void *array, void *value);
 void *yogi_array_pop(void *array);
 void *yogi_array_at(void *array, unsigned long long index);
+void *yogi_array_at_index(void *array, double index);
 unsigned long long yogi_array_length(void *array);
+void *yogi_array_shift(void *array);
+unsigned long long yogi_array_unshift(void *array, void *value);
+bool yogi_array_includes(void *array, void *value, double fromIndex);
+long long yogi_array_index_of(void *array, void *value, double fromIndex);
+long long yogi_array_last_index_of(void *array, void *value, double fromIndex);
+void yogi_array_reverse(void *array);
+void *yogi_array_slice(void *array, double start, double end);
 void yogi_array_drop(void *array);
 void yogi_array_destroy(void *array);
 

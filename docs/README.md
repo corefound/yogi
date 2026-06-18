@@ -53,6 +53,12 @@ The compiler currently lowers source code through this pipeline:
 
 - [Backend and LLVM](backend-llvm.md)
 
+### Lots
+
+- [Array Serialization](lots/02-array-serialization.md)
+- [Runtime Array Lowering](lots/03-array-pop-at-lowering.md)
+- [Non-Callback Array Methods](lots/05-array-methods-without-callbacks.md)
+
 ### Testing
 
 - [Runtime Test Organization](testing/runtime-test-organization.md)

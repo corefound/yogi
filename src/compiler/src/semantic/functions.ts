@@ -466,11 +466,26 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 }
 
                 if (node.kind === Kinds.Expressions.CallExpression) {
+                    const mutatingArrayMethods = new Set([
+                        "array.push",
+                        "array.pop",
+                        "array.shift",
+                        "array.unshift",
+                        "array.reverse",
+                    ]);
+                    const mutatingPropertyMethods = new Set([
+                        "push",
+                        "pop",
+                        "shift",
+                        "unshift",
+                        "reverse",
+                    ]);
+
                     if (
-                        node.builtinMethod === "array.push" ||
+                        mutatingArrayMethods.has(node.builtinMethod) ||
                         (
                             node.callee?.kind === Kinds.Expressions.PropertyAccessExpression &&
-                            node.callee?.property === "push"
+                            mutatingPropertyMethods.has(node.callee?.property)
                         )
                     ) {
                         addMutatedIdentifier(node.callee?.object);
