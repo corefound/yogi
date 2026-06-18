@@ -273,3 +273,17 @@ function test(x: number, y: number): number {
     }
 }
 " "may be used before initialization")
+
+# 13. Grouped fall-through cases should count as always-returning
+run_valid_case("grouped_fallthrough_always_returns" "
+function test(x: number): number {
+    switch (x) {
+        case 1:
+        case 2:
+            return 10
+
+        default:
+            return 0
+    }
+}
+")

@@ -44,16 +44,17 @@ When a case matches, execution begins at that case and continues into subsequent
 
 ```ts
 case 1:
-    let scores: number[] = [1, 2, 3]
-    // fall through to case 2
 case 2:
-    console.log(scores[0])  // scores is visible (shared scope)
+case 3:
+    result = 10
     break
 ```
 
 - Each clause body that does not end with `break`/`return`/`continue` emits an explicit `br` to the next clause body in source order (or to `switch.end` if it is the last clause). LLVM BasicBlocks must always have a terminator — there is no implicit fall-through between blocks
 - `break`/`return`/`continue` are required to exit the switch early
 - Empty cases naturally group multiple values
+- A variable declared in `case 1` and read in `case 2` is rejected unless every
+  direct-entry path initializes it first; `case 2` can be entered directly
 
 ### 3. Cleanup before explicit break
 

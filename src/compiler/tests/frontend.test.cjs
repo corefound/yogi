@@ -734,4 +734,26 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toContain("may be used before initialization");
     expect(result.stderr).toContain("value");
   });
+
+  test("accepts grouped fallthrough switch as always-returning", () => {
+    const root = createProject({
+      "main.io": `
+        function grouped(x: number): number {
+          switch (x) {
+            case 1:
+            case 2:
+              return 10
+
+            default:
+              return 0
+          }
+        }
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
 });

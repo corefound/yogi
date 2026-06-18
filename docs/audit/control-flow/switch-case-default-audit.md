@@ -121,6 +121,7 @@
 | Feature / Case | Status | Test? | Notes |
 |---|---|---|---|
 | switch + default + all cases return → true | ✅ | 🟡 | `if.ts`; requires default + all bodies always-return |
+| switch + grouped empty cases fall through to return → true | ✅ | ✅ | `grouped_fallthrough_always_returns`; empty cases can fall into a returning body |
 | switch + no default + all cases return → false | ✅ | 🟡 | Fixed — `hasDefault` check added |
 | switch + default + some cases break (not return) → false | ✅ | 🟡 | Not all bodies always-return |
 | switch + default + default doesn't return → false | ✅ | 🟡 | `blockAlwaysReturns(default.body)` is false |

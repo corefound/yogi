@@ -626,13 +626,7 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             }
 
             if (node.kind === Kinds.Statements.SwitchStatement) {
-                const clauses = node.clauses ?? [];
-                const hasDefault = clauses.some(
-                    (c: any) => c.kind === Kinds.ControlFlow.DefaultClause,
-                );
-                return hasDefault && clauses.every(
-                    (clause: any) => this.blockAlwaysReturns(clause.body),
-                );
+                return this.switchAlwaysReturns(node.clauses ?? []);
             }
 
             return false;
@@ -646,13 +640,7 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             }
 
             if (node.kind === Kinds.Statements.SwitchStatement) {
-                const clauses = node.clauses ?? [];
-                const hasDefault = clauses.some(
-                    (c: any) => c.kind === Kinds.ControlFlow.DefaultClause,
-                );
-                return hasDefault && clauses.every(
-                    (clause: any) => this.blockAlwaysReturns(clause.body),
-                );
+                return this.switchAlwaysReturns(node.clauses ?? []);
             }
 
             return (
@@ -686,6 +674,40 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             }
 
             return statements.some((statement: any) => this.statementTerminatesBlock(statement));
+        }
+
+        public switchAlwaysReturns(clauses: any[]): boolean {
+            if (!Array.isArray(clauses) || clauses.length === 0) {
+                return false;
+            }
+
+            const hasDefault = clauses.some(
+                (clause: any) => clause.kind === Kinds.ControlFlow.DefaultClause,
+            );
+
+            if (!hasDefault) {
+                return false;
+            }
+
+            return clauses.every((_: any, entryIndex: number) =>
+                this.switchEntryAlwaysReturns(clauses, entryIndex),
+            );
+        }
+
+        public switchEntryAlwaysReturns(clauses: any[], entryIndex: number): boolean {
+            for (let index = entryIndex; index < clauses.length; index++) {
+                const body = clauses[index]?.body;
+
+                if (this.blockAlwaysReturns(body)) {
+                    return true;
+                }
+
+                if (this.blockTerminates(body)) {
+                    return false;
+                }
+            }
+
+            return false;
         }
     };
 }
