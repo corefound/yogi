@@ -217,6 +217,16 @@ describe("Yogi frontend semantic pipeline", () => {
     }));
     expect(readonlyArray.status).not.toBe(0);
     expect(readonlyArray.stderr).toContain("readonly");
+
+    const readonlyLength = runCompiler(createProject({
+      "main.io": `
+        let scores: number[] = [1, 2]
+        scores.length = 10
+      `,
+    }));
+    expect(readonlyLength.status).not.toBe(0);
+    expect(readonlyLength.stderr).toContain("readonly");
+    expect(readonlyLength.stderr).toContain("length");
   });
 
   test("supports object and tuple destructuring with explicit types", () => {

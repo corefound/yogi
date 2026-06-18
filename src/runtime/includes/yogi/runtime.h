@@ -50,6 +50,7 @@ void *yogi_array_get(void *array, unsigned long long index);
 unsigned long long yogi_array_push(void *array, void *value);
 void *yogi_array_pop(void *array);
 void *yogi_array_at(void *array, unsigned long long index);
+unsigned long long yogi_array_length(void *array);
 void yogi_array_drop(void *array);
 void yogi_array_destroy(void *array);
 

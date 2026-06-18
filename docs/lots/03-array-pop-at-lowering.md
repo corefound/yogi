@@ -1,8 +1,9 @@
-# Lot 03: Runtime Array Lowering (pop, at)
+# Lot 03: Runtime Array Lowering (pop, at, length)
 
 ## Objetivo
 
-Completar el pipeline de runtime y LLVM lowering para `array.pop()` y `array.at(i)`, que estaban analizados semánticamente pero no bajados a LLVM.
+Completar el pipeline de runtime y LLVM lowering para `array.pop()`,
+`array.at(i)`, y la propiedad readonly `array.length`/`tuple.length`.
 
 ## Gap Original
 
@@ -11,7 +12,8 @@ Completar el pipeline de runtime y LLVM lowering para `array.pop()` y `array.at(
 | `array.push(x)` | ✅ | ✅ | ✅ `yogi_array_push` |
 | `array.pop()` | ✅ | ❌ | ❌ |
 | `array.at(i)` | ✅ | ❌ | ❌ |
-| `array.length` | ✅ | ✅ (propiedad) | ❌ (se evalua en compile-time) |
+| `array.length` | ✅ | ❌ | ❌ |
+| `tuple.length` | ✅ | ❌ | ❌ |
 
 ## Pipeline
 
@@ -26,6 +28,11 @@ function last(): number | undefined {
 function getAt(i: number): number | undefined {
     let scores: number[] = [10, 20, 30]
     return scores.at(i)
+}
+
+function count(): number {
+    let scores: number[] = [10, 20, 30]
+    return scores.length
 }
 ```
 
@@ -55,6 +62,19 @@ function getAt(i: number): number | undefined {
 }
 ```
 
+`visitPropertyAccessExpression` trata `length` sobre arrays y tuples como una
+propiedad builtin readonly:
+
+```typescript
+{
+    kind: "PropertyAccessExpression",
+    property: "length",
+    type: { kind: "NumberType", raw: "number" },
+    readonly: true,
+    ...
+}
+```
+
 ### 3. FBS Serialization
 
 El `builtinMethod` se serializa como string en `CallExpression.builtin_method`. El C++ lo lee como `call->builtin_method()`.
@@ -67,6 +87,7 @@ El `builtinMethod` se serializa como string en `CallExpression.builtin_method`. 
 "push"  → yogi_array_push(array, boxedValue)    → i64 → f64
 "pop"   → yogi_array_pop(array)                 → AnyValue*
 "at"    → yogi_array_at(array, toIndex(index))  → AnyValue*
+"length" property → yogi_array_length(array)    → i64 → f64
 ```
 
 #### array.pop()
@@ -94,6 +115,19 @@ if (methodName == "at") {
 
 El índice se convierte de `f64` → `i64` via `toIndex()` (CreateFPToUI).
 
+#### array.length / tuple.length
+
+```cpp
+if (propertyName == "length" && (objectKind == array_type || objectKind == tuple_type)) {
+    auto *array = lower(access->object(), opaquePointer(), ...);
+    auto *length = callRuntime("yogi_array_length", i64, {array});
+    auto *asNumber = builder.CreateUIToFP(length, f64, "array.length");
+    return cast(asNumber, expectedType, expectedSemanticType, access->type());
+}
+```
+
+No usa `yogi_object_get`, porque `length` no es un campo dinámico de objeto.
+
 ### 5. LLVM IR Generado
 
 Para `scores.pop()`:
@@ -110,6 +144,15 @@ Para `scores.at(i)`:
 %scores.load = load ptr, ptr %scores, align 8
 %yogi_array_at.call = call ptr @yogi_array_at(ptr %scores.load, i64 %numtoindextmp)
 ret ptr %yogi_array_at.call
+```
+
+Para `scores.length`:
+
+```llvm
+%scores.load = load ptr, ptr %scores, align 8
+%array.length = call i64 @yogi_array_length(ptr %scores.load)
+%array.length1 = uitofp i64 %array.length to double
+ret double %array.length1
 ```
 
 ### 6. Runtime (`aggregate.cpp`)
@@ -138,9 +181,19 @@ void *ArrayValue::at(std::size_t index) const {
 }
 ```
 
+#### yogi_array_length
+
+```cpp
+std::size_t ArrayValue::length() const {
+    return elementCount;
+}
+```
+
 ## Cleanup
 
-El array descriptor se limpia normalmente via `yogi_array_drop` al final de su lifetime. `pop()` y `at()` no afectan el descriptor, solo mutan/leen el buffer interno.
+El array descriptor se limpia normalmente via `yogi_array_drop` al final de su
+lifetime. `pop()`, `at()`, y `length` no transfieren ownership. `pop()` muta el
+buffer, `at()` lee un elemento, y `length` lee el contador del descriptor.
 
 Ejemplo de LLVM con cleanup:
 
@@ -169,4 +222,5 @@ El schema FBS contiene una tabla `ArrayDeclaration` pero el compilador TypeScrip
 |------|----------|
 | `runtime_cast_test` | `yogi_array_pop` en runtime C++: pop devuelve elementos en orden inverso, pop en vacío devuelve undefined |
 | `runtime_cast_test` | `yogi_array_at` en runtime C++: at devuelve elemento en rango, at fuera de rango devuelve undefined |
-| `pipeline_loops_and_methods` | Compilación end-to-end: IR contiene `yogi_array_pop` y `yogi_array_at`, ejecutable corre sin error |
+| `runtime_cast_test` | `yogi_array_length` en runtime C++: refleja longitud inicial y cambios después de `pop` |
+| `pipeline_loops_and_methods` | Compilación end-to-end: IR contiene `yogi_array_pop`, `yogi_array_at`, `yogi_array_length`, y el ejecutable imprime resultados esperados |

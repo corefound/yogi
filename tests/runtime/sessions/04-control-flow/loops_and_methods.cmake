@@ -9,8 +9,82 @@ endif()
 file(REMOVE_RECURSE "${TEST_WORK_DIR}")
 file(MAKE_DIRECTORY "${TEST_WORK_DIR}")
 
-set(SOURCE "${TEST_WORK_DIR}/main.io")
-file(WRITE "${SOURCE}" "function grow(): number {\n    let scores: number[] = [1]\n    let i: number = 0\n\n    while (i < 3) {\n        scores.push(i)\n        i = i + 1\n    }\n\n    let total: number = 0\n\n    for (let j: number = 0; j < 4; j = j + 1) {\n        let scratch: number[] = [j]\n\n        if (j == 2) {\n            continue\n        }\n\n        total = total + scores[j] + scratch[0]\n\n        if (j == 3) {\n            break\n        }\n    }\n\n    return total\n}\n\nfunction getFirst(): number | undefined {\n    let scores: number[] = [100, 200]\n    return scores.at(0)\n}\n\nfunction popLast(): number | undefined {\n    let scores: number[] = [10, 20, 30]\n    return scores.pop()\n}\n\nlet value: number = grow()\nlet first: number | undefined = getFirst()\nlet last: number | undefined = popLast()\n")
+set(SOURCE "${TEST_WORK_DIR}/main.ts")
+file(WRITE "${SOURCE}" [=[
+function grow(): number {
+    let scores: number[] = [1]
+    let i: number = 0
+
+    while (i < 3) {
+        scores.push(i)
+        i = i + 1
+    }
+
+    let total: number = 0
+
+    for (let j: number = 0; j < scores.length; j = j + 1) {
+        let scratch: number[] = [j]
+
+        if (j == 2) {
+            continue
+        }
+
+        total = total + scores[j] + scratch[0]
+
+        if (j == 3) {
+            break
+        }
+    }
+
+    return total
+}
+
+function getFirst(): number | undefined {
+    let scores: number[] = [100, 200]
+    return scores.at(0)
+}
+
+function popLast(): number | undefined {
+    let scores: number[] = [10, 20, 30]
+    return scores.pop()
+}
+
+function lengthDrivenSum(): number {
+    let scores: number[] = [4, 5, 6]
+    let total: number = 0
+
+    for (let i: number = 0; i < scores.length; i = i + 1) {
+        total = total + scores[i]
+    }
+
+    return total
+}
+
+function mutateAndMeasure(): number {
+    let scores: number[] = [1, 2]
+    let before: number = scores.length
+    scores.push(3)
+    let afterPush: number = scores.length
+    scores.pop()
+    let afterPop: number = scores.length
+
+    return before * 100 + afterPush * 10 + afterPop
+}
+
+function tupleLength(): number {
+    let pair: [number, string] = [7, "ready"]
+    return pair.length
+}
+
+let value: number = grow()
+let first: number | undefined = getFirst()
+let last: number | undefined = popLast()
+
+print(value)
+print(lengthDrivenSum())
+print(mutateAndMeasure())
+print(tupleLength())
+]=])
 
 execute_process(
 	COMMAND "${YOGI_EXECUTABLE}" "${SOURCE}"
@@ -25,8 +99,8 @@ if(NOT compile_result EQUAL 0)
 endif()
 
 set(EXECUTABLE "${TEST_WORK_DIR}/packages/.cache/bin/main")
-set(IR "${TEST_WORK_DIR}/packages/.cache/modules/main.io/main.ll")
-set(OBJECT "${TEST_WORK_DIR}/packages/.cache/modules/main.io/main.o")
+set(IR "${TEST_WORK_DIR}/packages/.cache/modules/main.ts/main.ll")
+set(OBJECT "${TEST_WORK_DIR}/packages/.cache/modules/main.ts/main.o")
 
 if(NOT EXISTS "${EXECUTABLE}")
 	message(FATAL_ERROR "expected executable was not generated: ${EXECUTABLE}")
@@ -51,6 +125,7 @@ foreach(symbol
 		yogi_array_push
 		yogi_array_pop
 		yogi_array_at
+		yogi_array_length
 		yogi_array_drop)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected loops/methods IR to contain ${symbol}")
@@ -69,9 +144,14 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "loops and methods executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
+set(expected_stdout "7\n15\n232\n2\n")
+if(NOT run_stdout STREQUAL expected_stdout)
+	message(FATAL_ERROR "loops and methods executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
+endif()
+
 set(INVALID_DIR "${TEST_WORK_DIR}/invalid")
 file(MAKE_DIRECTORY "${INVALID_DIR}")
-set(INVALID_SOURCE "${INVALID_DIR}/main.io")
+set(INVALID_SOURCE "${INVALID_DIR}/main.ts")
 file(WRITE "${INVALID_SOURCE}" "let saved: number[] = [0]\n\nfunction save(scores: number[]): void {\n    saved = scores\n}\n\nfunction invalid(flag: boolean): number {\n    let local: number[] = [1, 2]\n\n    while (flag) {\n        save(local)\n        break\n    }\n\n    return local[0]\n}\n")
 
 execute_process(
@@ -88,4 +168,29 @@ endif()
 
 if(NOT invalid_stderr MATCHES "cannot use aggregate")
 	message(FATAL_ERROR "loop move-state invalid program did not report use-after-move:\n${invalid_stderr}")
+endif()
+
+set(READONLY_LENGTH_DIR "${TEST_WORK_DIR}/readonly-length")
+file(MAKE_DIRECTORY "${READONLY_LENGTH_DIR}")
+set(READONLY_LENGTH_SOURCE "${READONLY_LENGTH_DIR}/main.ts")
+file(WRITE "${READONLY_LENGTH_SOURCE}" "let scores: number[] = [1, 2]\nscores.length = 10\n")
+
+execute_process(
+	COMMAND "${YOGI_EXECUTABLE}" "${READONLY_LENGTH_SOURCE}"
+	WORKING_DIRECTORY "${READONLY_LENGTH_DIR}"
+	RESULT_VARIABLE readonly_length_result
+	OUTPUT_VARIABLE readonly_length_stdout
+	ERROR_VARIABLE readonly_length_stderr
+)
+
+if(readonly_length_result EQUAL 0)
+	message(FATAL_ERROR "array length readonly invalid program unexpectedly compiled\nstdout:\n${readonly_length_stdout}")
+endif()
+
+if(NOT readonly_length_stderr MATCHES "readonly")
+	message(FATAL_ERROR "array length readonly invalid program did not report readonly assignment:\n${readonly_length_stderr}")
+endif()
+
+if(NOT readonly_length_stderr MATCHES "length")
+	message(FATAL_ERROR "array length readonly invalid program did not point at length:\n${readonly_length_stderr}")
 endif()

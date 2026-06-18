@@ -194,6 +194,12 @@ namespace yogi::runtime {
 		return elements[index] ? elements[index] : AnyValue::undefined();
 	}
 
+	std::size_t ArrayValue::length() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array length after destroy/drop", "array value");
+
+		return elementCount;
+	}
+
 	void ArrayValue::ensureCapacity(std::size_t requiredCapacity) {
 		if (requiredCapacity <= elementCapacity) {
 			return;
@@ -336,6 +342,16 @@ void *yogi_array_at(void *array, unsigned long long index) {
 	}
 
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->at(static_cast<std::size_t>(index));
+}
+
+unsigned long long yogi_array_length(void *array) {
+	if (!array) {
+		return 0;
+	}
+
+	return static_cast<unsigned long long>(
+		static_cast<const yogi::runtime::ArrayValue *>(array)->length()
+	);
 }
 
 void yogi_array_drop(void *array) {

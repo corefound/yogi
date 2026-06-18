@@ -148,6 +148,37 @@ yogi_array_push(array, boxedValue)
 The runtime grows the array buffer as needed and returns the new length as a
 number-compatible value.
 
+## Array And Tuple Length
+
+Arrays and tuples expose a readonly `length` property:
+
+```ts
+let scores: number[] = [1, 2]
+let before: number = scores.length
+scores.push(3)
+let after: number = scores.length
+
+let pair: [number, string] = [7, "ready"]
+let fixed: number = pair.length
+```
+
+Semantic analysis treats `length` as a builtin property, not as an object field.
+It returns `number` and is readonly, so this is rejected:
+
+```ts
+scores.length = 10
+```
+
+The backend lowers `scores.length` and `pair.length` to:
+
+```text
+yogi_array_length(array)
+```
+
+Tuples currently share the same aggregate runtime representation as arrays, so
+their fixed length is read from the descriptor that was initialized from the
+tuple literal.
+
 ## Example
 
 ```ts
@@ -162,7 +193,7 @@ function grow(): number {
 
     let total: number = 0
 
-    for (let j: number = 0; j < 4; j = j + 1) {
+    for (let j: number = 0; j < scores.length; j = j + 1) {
         let scratch: number[] = [j]
 
         if (j == 2) {
@@ -191,7 +222,8 @@ This lot is still not a full control-flow analysis engine. Remaining loop work:
 - `do while`.
 - `for of` and `for in`.
 - Loop-carried type narrowing.
-- More aggregate methods such as `pop`, `at`, `length`, and object helpers.
+- Full JavaScript array method coverage and object helper methods.
 
 The current behavior is enough for normal `while`, `for`, `break`, `continue`,
-and `array.push` while preserving stack-first cleanup rules.
+`array.push`, `array.pop`, `array.at`, and readonly `array.length`/`tuple.length`
+while preserving stack-first cleanup rules.

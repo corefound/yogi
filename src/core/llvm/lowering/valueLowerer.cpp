@@ -554,8 +554,29 @@ namespace yogi::core::llvm::internal {
 		::llvm::Type *expectedType,
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
+		const auto propertyName = fbString(access->property());
+		const auto *objectSemanticType = valueSemanticType(access->object());
+		const auto objectKind = resolvedTypeKind(objectSemanticType);
+
+		if (
+			propertyName == "length" &&
+			(objectKind == Yogi::Sir::TypeKind_array_type || objectKind == Yogi::Sir::TypeKind_tuple_type)
+		) {
+			auto *array = lower(access->object(), opaquePointer(), objectSemanticType);
+			auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+			auto *asNumber = context.builder.CreateUIToFP(
+				length,
+				::llvm::Type::getDoubleTy(context.llvmContext),
+				"array.length"
+			);
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+
+			return cast(asNumber, targetType, targetSemanticType, access->type());
+		}
+
 		auto *object = lower(access->object(), opaquePointer(), valueSemanticType(access->object()));
-		auto *property = context.builder.CreateGlobalString(fbString(access->property()));
+		auto *property = context.builder.CreateGlobalString(propertyName);
 		auto *boxedValue = callRuntime("yogi_object_get", opaquePointer(), {object, property});
 		const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 		auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
