@@ -158,10 +158,13 @@ function main(): number {
     print(42)
     return 0
 }
+
+main()
 ```
 
-The native entrypoint initializes modules, calls the Yogi `main()` function when
-the entry module defines one with no parameters, and then runs module cleanup.
+The native entrypoint initializes modules and executes the entry file's top-level
+statements. `main` is just a normal function name; it runs only when the source
+calls it explicitly, and a file can use top-level code without declaring `main`.
 
 ## Publish
 

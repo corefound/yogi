@@ -33,7 +33,7 @@ foreach(path
 	endif()
 endforeach()
 
-file(WRITE "${PROJECT_DIR}/main.ts" "function main(): number {\n    print(\"hello from yogi\")\n    print(42)\n    return 0\n}\n")
+file(WRITE "${PROJECT_DIR}/main.ts" "function main(): number {\n    print(\"hello from yogi\")\n    print(42)\n    return 0\n}\n\nmain()\n")
 
 file(READ "${PROJECT_DIR}/yogi.json" manifest)
 if(NOT manifest MATCHES "\"entry\"[^\n]*\"main.ts\"")
@@ -86,7 +86,7 @@ endif()
 
 set(DIRECT_DIR "${TEST_WORK_DIR}/direct")
 file(MAKE_DIRECTORY "${DIRECT_DIR}")
-file(WRITE "${DIRECT_DIR}/main.ts" "function main(): number {\n    print(\"direct source run\")\n    return 0\n}\n")
+file(WRITE "${DIRECT_DIR}/main.ts" "function main(): number {\n    print(\"direct source run\")\n    return 0\n}\n\nmain()\n")
 
 execute_process(
 	COMMAND "${YOGI_EXECUTABLE}" run main.ts

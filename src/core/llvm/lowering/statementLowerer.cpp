@@ -131,29 +131,6 @@ namespace yogi::core::llvm::internal {
 			context.builder.CreateCall(initializer);
 		}
 
-		for (const auto *node: *context.sirModule->nodes()) {
-			const auto *userMain = node->value_as_FunctionDeclaration();
-
-			if (
-				!userMain ||
-				fbString(userMain->name()) != "main" ||
-				(userMain->parameters() && userMain->parameters()->size() > 0)
-			) {
-				continue;
-			}
-
-			auto *function = context.module->getFunction(
-				"_yogi_fn_" + sanitizeSymbol(fbString(userMain->qualified_name()))
-			);
-
-			if (!function) {
-				break;
-			}
-
-			context.builder.CreateCall(function);
-			break;
-		}
-
 		for (auto cleanupName = moduleCleanups.rbegin(); cleanupName != moduleCleanups.rend(); ++cleanupName) {
 			auto *cleanup = context.module->getFunction(*cleanupName);
 
