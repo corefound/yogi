@@ -1059,17 +1059,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, callback.position ?? callNode.position, source, callback);
             }
 
-            const statements = callback.body?.statements ?? [];
-            const onlyReturn = statements.length === 1 ? statements[0] : null;
-
-            if (!onlyReturn || onlyReturn.kind !== Kinds.Statements.ReturnStatement || onlyReturn.implicit !== true) {
-                const message =
-                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} inline callback currently supports expression-bodied arrows only`;
-
-                callback.arrowLength = callback.source?.length ?? 1;
-                this.throwError(message, callback.position ?? callNode.position, source, callback);
-            }
-
             const callbackName = `inline_callback_${this.createSymbolId()}`;
             this.enterScope();
             const callbackScopeId = this.getCurrentScopeId();

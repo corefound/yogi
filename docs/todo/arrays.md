@@ -46,10 +46,13 @@ known state instead of rediscovering gaps from the source code.
 - Callback methods with expression-bodied inline arrows:
   - `(value: T): U => expression`
   - `(value: T, index: number): U => expression`
+- Callback methods with block-bodied inline arrows:
+  - `(value: T): U => { let next: U = expression; return next }`
+  - sequential local declarations, assignments, calls, and explicit return
 
 ## In Progress / Next Lots
 
-- Block-bodied inline callbacks and local capture/closure semantics.
+- Local capture/closure semantics for inline callbacks.
 
 ## Future Work
 
@@ -60,7 +63,6 @@ known state instead of rediscovering gaps from the source code.
   - `findLastIndex`
   - `flatMap`
 - Inline callback forms that still need deeper function-expression lowering:
-  - block-bodied inline callbacks
   - closures that capture outer locals
 - Iterator-related methods:
   - `entries`
@@ -83,9 +85,8 @@ known state instead of rediscovering gaps from the source code.
   represented in semantic analysis and LLVM lowering. Named function references
   and expression-bodied inline arrows are now supported for the first callback
   batch.
-- Inline callbacks currently lower inside the array loop. Block-bodied callbacks
-  and captures should wait until Yogi has closure/lifetime rules for captured
-  locals.
+- Inline callbacks currently lower inside the array loop. Captures should wait
+  until Yogi has closure/lifetime rules for captured locals.
 - `find`, `at`, `pop`, and `shift` return `T | undefined`. They can now unbox
   into primitive contexts that explicitly expect `T`, and they can remain boxed
   when a variable explicitly stores the union.

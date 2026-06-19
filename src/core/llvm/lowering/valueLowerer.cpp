@@ -273,6 +273,7 @@ namespace yogi::core::llvm::internal {
 			auto previousLocalTypes = context.localTypes;
 			auto previousLocalTypeKinds = context.localTypeKinds;
 			const auto *parameters = inlineCallback->parameters();
+			auto *callbackReturnType = types.lower(inlineCallback->return_type());
 
 			if (parameters && parameters->size() > 0) {
 				const auto *parameter = parameters->Get(0);
@@ -300,13 +301,59 @@ namespace yogi::core::llvm::internal {
 				context.localTypeKinds[fbString(parameter->name())] = parameter->type()->kind();
 			}
 
-			const auto *statement = inlineCallback->body() && inlineCallback->body()->statements() && inlineCallback->body()->statements()->size() > 0
-				? inlineCallback->body()->statements()->Get(0)
-				: nullptr;
-			const auto *returnStatement = statement ? statement->value_as_ReturnStatement() : nullptr;
-			auto *result = returnStatement
-				? lower(returnStatement->value(), types.lower(inlineCallback->return_type()), inlineCallback->return_type())
-				: types.zero(types.lower(inlineCallback->return_type()));
+			::llvm::Value *result = types.zero(callbackReturnType);
+			const auto *statements = inlineCallback->body() ? inlineCallback->body()->statements() : nullptr;
+
+			if (statements) {
+				for (const auto *statement: *statements) {
+					if (!statement) {
+						continue;
+					}
+
+					if (const auto *variable = statement->value_as_VariableDeclaration()) {
+						auto *type = types.lower(variable->type());
+						auto *initializer = lower(variable->value(), type, variable->type());
+						auto *slot = context.createEntryAlloca(function, fbString(variable->name()), type);
+						context.builder.CreateStore(cast(initializer, type, variable->type(), variable->type()), slot);
+						context.locals[fbString(variable->name())] = slot;
+						context.localTypes[fbString(variable->name())] = variable->type();
+						context.localTypeKinds[fbString(variable->name())] = variable->type()->kind();
+						continue;
+					}
+
+					if (const auto *assignment = statement->value_as_AssignmentExpression()) {
+						lowerAssignment(assignment);
+						continue;
+					}
+
+					if (const auto *aggregateAssignment = statement->value_as_AggregateAssignmentExpression()) {
+						lowerAggregateAssignment(aggregateAssignment);
+						continue;
+					}
+
+					if (const auto *call = statement->value_as_CallExpression()) {
+						lowerCall(call, types.lower(call->type()), call->type());
+						continue;
+					}
+
+					if (const auto *binary = statement->value_as_BinaryExpression()) {
+						lowerBinary(binary, types.lower(binary->type()), binary->type());
+						continue;
+					}
+
+					if (const auto *conditional = statement->value_as_ConditionalExpression()) {
+						lowerConditional(conditional, types.lower(conditional->type()), conditional->type());
+						continue;
+					}
+
+					if (const auto *returnStatement = statement->value_as_ReturnStatement()) {
+						result = returnStatement->value()
+							? lower(returnStatement->value(), callbackReturnType, inlineCallback->return_type())
+							: types.zero(callbackReturnType);
+						break;
+					}
+				}
+			}
 
 			context.locals = previousLocals;
 			context.localTypes = previousLocalTypes;

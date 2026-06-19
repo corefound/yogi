@@ -14,7 +14,9 @@ This is TypeScript syntax, but Yogi keeps stricter semantics:
 
 - callback parameters must be explicitly typed
 - callback return type must be explicit
-- only expression-bodied callbacks are supported in this lot
+- expression-bodied callbacks are supported
+- block-bodied callbacks with sequential statements and explicit `return` are
+  supported
 - captures of outer locals are rejected for now
 
 ## Supported Forms
@@ -22,6 +24,10 @@ This is TypeScript syntax, but Yogi keeps stricter semantics:
 ```ts
 (value: T): U => expression
 (value: T, index: number): U => expression
+(value: T): U => {
+    let next: U = expression
+    return next
+}
 ```
 
 These work with:
@@ -62,28 +68,34 @@ implicit return expression, and uses that value as the callback result.
 This avoids a full closure implementation for now while still compiling useful
 TypeScript-style callback syntax end to end.
 
-## Current Limitations
+## Block Bodies
 
-Block-bodied callbacks are rejected:
+Block-bodied callbacks can declare local values and return explicitly:
 
 ```ts
 scores.map((value: number): number => {
-    return value + 1
+    let next: number = value + 1
+    return next
 })
 ```
 
-Callbacks that capture outer locals are also rejected:
+The callback return type remains mandatory. If the callback return type is not
+`void`, the body must contain a return value.
+
+## Current Limitations
+
+Callbacks that capture outer locals are rejected:
 
 ```ts
 let offset: number = 2
 scores.map((value: number): number => value + offset)
 ```
 
-Both features need real closure and lifetime rules before lowering to LLVM.
+Captures need real closure and lifetime rules before lowering to LLVM.
 
 ## Tests
 
 - `yogi_pipeline_array_inline_callbacks` validates inline callback semantic
   analysis, FlatBuffer serialization, LLVM lowering, executable output, and
-  diagnostics for unsupported captures/block bodies.
+  diagnostics for unsupported captures and missing block returns.
 - Frontend tests validate inline callback acceptance and current limitations.
