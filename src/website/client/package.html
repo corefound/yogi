@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>@core/http — Yogi Registry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;650;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  
+<header class="topbar">
+  <div class="container nav-inner">
+    <a class="brand" href="index.html"><span class="logo" aria-hidden="true">
+<svg viewBox="0 0 32 32" fill="none">
+  <path d="M16 2.7 28 9.5v13L16 29.3 4 22.5v-13L16 2.7Z" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M16 8.4 22.8 12.2v7.6L16 23.6l-6.8-3.8v-7.6L16 8.4Z" stroke="currentColor" stroke-width="1.8" opacity=".7"/>
+  <path d="M16 2.8v5.6M28 9.5l-5.2 2.7M4 9.5l5.2 2.7M16 23.6v5.5" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+</svg></span><span>Yogi Registry</span></a>
+    <nav class="nav-links" aria-label="Main navigation">
+      <a class="" href="index.html">Explore</a>
+      <a class="active" href="package.html">Packages</a>
+      <a href="#">Organizations</a>
+      <a class="" href="docs.html">Documentation</a>
+      <a href="#">Pricing</a>
+    </nav>
+    <div class="nav-actions">
+      <label class="search-mini">
+        <span>⌕</span>
+        <input placeholder="Search packages..." />
+        <span class="kbd">⌘ K</span>
+      </label>
+      <button class="icon-btn" aria-label="Toggle theme">☾</button>
+      <button class="icon-btn" aria-label="Notifications">♢</button>
+      <span class="avatar" aria-label="User profile"></span>
+      <button class="icon-btn mobile-menu" aria-label="Menu">☰</button>
+    </div>
+  </div>
+</header>
+
+  <main class="page-shell container">
+    <div class="breadcrumb">Packages <span>›</span> @core <span>›</span> http</div>
+
+    <section class="package-hero">
+      <div class="package-title-row">
+        <div class="big-package-icon">◎</div>
+        <div>
+          <h1>@core/http <span class="badge">v2.3.1</span></h1>
+          <p>Lightweight, composable HTTP client for Node.js and the browser.</p>
+          <div class="hero-meta"><span>@core</span><span class="badge">Maintainer</span><span>⇩ 1.28M weekly downloads</span></div>
+        </div>
+      </div>
+      <div class="actions-row">
+        <button class="btn">☆ Star 1.2k</button>
+        <button class="btn">◌ Follow 230</button>
+        <button class="btn">↗ Share</button>
+      </div>
+    </section>
+
+    <section class="install-panel">
+      <div class="tabs">
+        <button class="tab active" data-install-tab="install">Install</button>
+        <button class="tab" data-install-tab="usage">Usage</button>
+        <button class="tab" data-install-tab="cdn">CDN</button>
+      </div>
+      <div class="code-line" id="install-command"><span class="prompt">$</span>&nbsp; yogi add @core/http<button class="copy-btn" data-copy="#install-command">Copy</button></div>
+      <p style="color:var(--muted);margin:12px 0 0">Supports Node.js 16+ · ESM & CommonJS</p>
+    </section>
+
+    <div class="package-layout">
+      <section>
+        <div class="content-tabs">
+          <a class="active" href="#">README</a>
+          <a href="#">Versions <span class="badge">36</span></a>
+          <a href="#">Dependencies <span class="badge">12</span></a>
+          <a href="#">Dependents <span class="badge">812</span></a>
+          <a href="#">Security</a>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><small>Weekly Downloads</small><strong>1.28M</strong><div class="spark"></div></div>
+          <div class="metric"><small>Total Downloads</small><strong>48.6M</strong></div>
+          <div class="metric"><small>Current Version</small><strong>2.3.1</strong></div>
+          <div class="metric"><small>License</small><strong>MIT</strong></div>
+          <div class="metric"><small>Last Published</small><strong>2 days ago</strong></div>
+          <div class="metric"><small>Package Size</small><strong>42.6 kB</strong></div>
+        </div>
+
+        <article class="readme-card">
+          <h2>@core/http <span class="badge">build passing</span></h2>
+          <p style="color:var(--muted)">A tiny, composable HTTP client that works everywhere.</p>
+          <h3>✨ Features</h3>
+          <div class="feature-list">
+            <div>✓ Small and fast — zero dependencies, tree-shakable.</div>
+            <div>✓ Works in Node.js, Deno, Bun, and modern browsers.</div>
+            <div>✓ Promise-based API with async/await support.</div>
+            <div>✓ Interceptors, retries, timeouts, and cancellation.</div>
+            <div>✓ TypeScript-first with smart inference.</div>
+          </div>
+          <pre class="code-block" id="readme-example"><button class="copy-btn" data-copy="#readme-example">Copy</button>import { request } from '@core/http';
+
+const res = await request('https://api.yogi.dev/v1/users', {
+  method: 'GET',
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+
+const data = await res.json();</pre>
+        </article>
+      </section>
+
+      <aside>
+        <div class="side-card">
+          <h3>Package links</h3>
+          <a class="side-link" href="#">Repository <span>github.com/core/http ›</span></a>
+          <a class="side-link" href="#">Homepage <span>core.dev/http ›</span></a>
+          <a class="side-link" href="#">Documentation <span>docs.core.dev/http ›</span></a>
+        </div>
+        <div class="side-card">
+          <h3>Keywords</h3>
+          <div class="tags">
+            <span class="tag">http</span><span class="tag">client</span><span class="tag">fetch</span>
+            <span class="tag">promise</span><span class="tag">browser</span><span class="tag">node</span>
+            <span class="tag">typescript</span><span class="tag">isomorphic</span>
+          </div>
+        </div>
+        <div class="side-card">
+          <h3>Maintainers</h3>
+          <div class="maintainers">
+            <span class="mini-avatar"></span><span class="mini-avatar"></span><span class="mini-avatar"></span><span class="mini-avatar"></span><span class="tag">+3</span>
+          </div>
+        </div>
+        <div class="side-card">
+          <h3>Publish activity</h3>
+          <p style="color:var(--muted);margin:0">2 days ago<br/>Version 2.3.1</p>
+          <a class="link-blue" href="#">View full history →</a>
+        </div>
+      </aside>
+    </div>
+  </main>
+  
+<footer class="footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="index.html"><span class="logo" aria-hidden="true">
+<svg viewBox="0 0 32 32" fill="none">
+  <path d="M16 2.7 28 9.5v13L16 29.3 4 22.5v-13L16 2.7Z" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M16 8.4 22.8 12.2v7.6L16 23.6l-6.8-3.8v-7.6L16 8.4Z" stroke="currentColor" stroke-width="1.8" opacity=".7"/>
+  <path d="M16 2.8v5.6M28 9.5l-5.2 2.7M4 9.5l5.2 2.7M16 23.6v5.5" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+</svg></span><span>Yogi Registry</span></a>
+      <p>The modern package manager<br/>for developers and teams.</p>
+      <div class="socials"><span>⌘</span><span>𝕏</span><span>◈</span></div>
+    </div>
+    <div>
+      <h4>Product</h4>
+      <a href="index.html">Explore</a>
+      <a href="package.html">Packages</a>
+      <a href="#">Organizations</a>
+      <a href="#">Pricing</a>
+    </div>
+    <div>
+      <h4>Resources</h4>
+      <a href="docs.html">Documentation</a>
+      <a href="#">API Reference</a>
+      <a href="#">Changelog</a>
+      <a href="#">Status</a>
+    </div>
+    <div>
+      <h4>Community</h4>
+      <a href="#">GitHub</a>
+      <a href="#">Discussions</a>
+      <a href="#">Blog</a>
+      <a href="#">Contributing</a>
+    </div>
+    <div>
+      <p>© 2026 Yogi Registry. All rights reserved.</p>
+      <p><a href="#">Terms</a> <a href="#">Privacy</a> <a href="#">Security</a> <a href="#">Cookies</a></p>
+      <p>◎ English</p>
+    </div>
+  </div>
+</footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

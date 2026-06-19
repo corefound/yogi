@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Yogi Registry — Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;650;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  
+<header class="topbar">
+  <div class="container nav-inner">
+    <a class="brand" href="index.html"><span class="logo" aria-hidden="true">
+<svg viewBox="0 0 32 32" fill="none">
+  <path d="M16 2.7 28 9.5v13L16 29.3 4 22.5v-13L16 2.7Z" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M16 8.4 22.8 12.2v7.6L16 23.6l-6.8-3.8v-7.6L16 8.4Z" stroke="currentColor" stroke-width="1.8" opacity=".7"/>
+  <path d="M16 2.8v5.6M28 9.5l-5.2 2.7M4 9.5l5.2 2.7M16 23.6v5.5" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+</svg></span><span>Yogi Registry</span></a>
+    <nav class="nav-links" aria-label="Main navigation">
+      <a class="" href="index.html">Explore</a>
+      <a class="" href="package.html">Packages</a>
+      <a href="#">Organizations</a>
+      <a class="active" href="docs.html">Documentation</a>
+      <a href="#">Pricing</a>
+    </nav>
+    <div class="nav-actions">
+      <label class="search-mini">
+        <span>⌕</span>
+        <input placeholder="Search docs..." />
+        <span class="kbd">⌘ K</span>
+      </label>
+      <button class="icon-btn" aria-label="Toggle theme">☾</button>
+      <button class="icon-btn" aria-label="Notifications">♢</button>
+      <span class="avatar" aria-label="User profile"></span>
+      <button class="icon-btn mobile-menu" aria-label="Menu">☰</button>
+    </div>
+  </div>
+</header>
+
+  <main class="docs-page">
+    <aside class="docs-sidebar">
+      <div class="docs-group">
+        <div class="docs-group-title">Getting Started</div>
+        <a class="docs-link active" href="#">Introduction <span>•</span></a>
+        <a class="docs-link" href="#">Quickstart</a>
+        <a class="docs-link" href="#">FAQ</a>
+      </div>
+      <div class="docs-group">
+        <div class="docs-group-title">Guides</div>
+        <a class="docs-link" href="#">Workspaces</a>
+        <a class="docs-link" href="#">Dependencies</a>
+        <a class="docs-link" href="#">Access Tokens</a>
+        <a class="docs-link" href="#">CI/CD Integration</a>
+      </div>
+      <div class="docs-group">
+        <div class="docs-group-title">CLI</div>
+        <a class="docs-link" href="#">Overview</a>
+        <a class="docs-link" href="#">Commands</a>
+        <a class="docs-link" href="#">Configuration</a>
+      </div>
+      <div class="docs-group">
+        <div class="docs-group-title">Publishing</div>
+        <a class="docs-link" href="#">Publishing Packages</a>
+        <a class="docs-link" href="#">Package Versions</a>
+        <a class="docs-link" href="#">Dist-tags</a>
+      </div>
+      <div class="docs-group">
+        <div class="docs-group-title">Packages</div>
+        <a class="docs-link" href="#">Discover Packages</a>
+        <a class="docs-link" href="#">Versioning</a>
+        <a class="docs-link" href="#">Scopes</a>
+      </div>
+      <div class="docs-group">
+        <div class="docs-group-title">Organizations</div>
+        <a class="docs-link" href="#">Managing Organizations</a>
+        <a class="docs-link" href="#">Teams & Members</a>
+        <a class="docs-link" href="#">Roles & Permissions</a>
+      </div>
+      <a class="docs-link" href="#">Security</a>
+      <a class="docs-link" href="#">API Reference</a>
+      <a class="docs-link" href="#">Changelog</a>
+      <div class="side-card" style="margin-top:20px">
+        <h3>Yogi CLI</h3>
+        <p style="color:var(--muted);margin:0 0 12px">The fastest way to work with Yogi Registry.</p>
+        <a class="link-blue" href="#">View CLI Docs →</a>
+      </div>
+    </aside>
+
+    <article class="docs-main">
+      <div class="breadcrumb">Documentation <span>›</span> Getting Started <span>›</span> Introduction</div>
+      <h1>Getting Started</h1>
+      <p>Welcome to Yogi Registry. This guide helps you set up and start using the modern, secure package registry for your projects and teams.</p>
+
+      <div class="doc-feature-grid">
+        <div class="doc-tile"><span class="stat-icon">⬡</span><h3>Private by default</h3><p>Secure private packages with fine-grained access.</p></div>
+        <div class="doc-tile"><span class="stat-icon">⚡</span><h3>Blazing fast</h3><p>Global CDN and efficient package delivery.</p></div>
+        <div class="doc-tile"><span class="stat-icon">♙</span><h3>Team ready</h3><p>Organizations, roles, and collaboration built in.</p></div>
+        <div class="doc-tile"><span class="stat-icon">◇</span><h3>Trusted & reliable</h3><p>Immutable packages and audit-ready logs.</p></div>
+      </div>
+
+      <section id="installation" class="docs-section">
+        <h2>1. Installation</h2>
+        <p>Install the Yogi CLI to interact with the registry from your terminal.</p>
+        <div class="tabs"><button class="tab active">npm</button><button class="tab">Homebrew</button><button class="tab">Shell Script</button><button class="tab">Windows</button></div>
+        <pre class="code-block" id="docs-install"><button class="copy-btn" data-copy="#docs-install">Copy</button><span class="prompt">$</span> npm i -g @yogi/cli</pre>
+        <div class="note">ⓘ Note: Requires Node.js 16+ and an active Yogi Registry account.</div>
+      </section>
+
+      <section id="initialize" class="docs-section">
+        <h2>2. Initialize a project</h2>
+        <p>Initialize a new project and link it to your registry.</p>
+        <pre class="code-block" id="docs-init"><button class="copy-btn" data-copy="#docs-init">Copy</button><span class="prompt">$</span> yogi init
+<span class="prompt">$</span> yogi add @scope/package
+<span class="prompt">$</span> yogi add @scope/another-package@latest</pre>
+        <p>This creates a <span class="kbd">yogi.json</span> file in your project to manage dependencies and sources.</p>
+      </section>
+
+      <section id="publish" class="docs-section">
+        <h2>3. Publish a package</h2>
+        <p>Publish your package to share it with your team or the world.</p>
+        <pre class="code-block" id="docs-publish"><button class="copy-btn" data-copy="#docs-publish">Copy</button><span class="prompt">$</span> yogi publish</pre>
+        <div class="note success">✓ Your package is now live on Yogi Registry! <a class="link-blue" href="package.html">View your package →</a></div>
+      </section>
+
+      <section id="next" class="docs-section">
+        <h2>4. Next steps</h2>
+        <p>Dive deeper and customize Yogi Registry for your workflow.</p>
+        <div class="next-grid">
+          <a class="next-card" href="#"><div><strong>Explore CLI</strong><p>Learn all CLI commands and configuration options.</p></div><span>→</span></a>
+          <a class="next-card" href="#"><div><strong>Publishing Guide</strong><p>Best practices for publishing and versioning packages.</p></div><span>→</span></a>
+          <a class="next-card" href="#"><div><strong>API Reference</strong><p>Integrate Yogi Registry with your tools and platforms.</p></div><span>→</span></a>
+        </div>
+      </section>
+    </article>
+
+    <aside class="docs-toc">
+      <div class="toc-title">On this page</div>
+      <a class="active" href="#">Overview</a>
+      <a href="#installation">1. Installation</a>
+      <a href="#initialize">2. Initialize a project</a>
+      <a href="#publish">3. Publish a package</a>
+      <a href="#next">4. Next steps</a>
+
+      <div class="side-card quick-links">
+        <h3>Quick links</h3>
+        <a class="side-link" href="#">Yogi CLI Docs <span>↗</span></a>
+        <a class="side-link" href="#">Configuration <span>↗</span></a>
+        <a class="side-link" href="#">Publishing Guide <span>↗</span></a>
+        <a class="side-link" href="#">API Reference <span>↗</span></a>
+      </div>
+    </aside>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Yogi Registry — Explore Packages</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;650;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="container nav-inner">
+    <a class="brand" href="index.html">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none">
+          <path d="M16 2.7 28 9.5v13L16 29.3 4 22.5v-13L16 2.7Z" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M16 8.4 22.8 12.2v7.6L16 23.6l-6.8-3.8v-7.6L16 8.4Z" stroke="currentColor" stroke-width="1.8" opacity=".7"/>
+          <path d="M16 2.8v5.6M28 9.5l-5.2 2.7M4 9.5l5.2 2.7M16 23.6v5.5" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+        </svg>
+      </span>
+      <span>Yogi Registry</span>
+    </a>
+    <nav class="nav-links" aria-label="Main navigation">
+      <a class="active" href="index.html">Explore</a>
+      <a href="package.html">Packages</a>
+      <a href="#">Organizations</a>
+      <a href="docs.html">Documentation</a>
+      <a href="#">Pricing</a>
+    </nav>
+    <div class="nav-actions">
+      <label class="search-mini">
+        <span>⌕</span>
+        <input placeholder="Search packages..." />
+        <span class="kbd">⌘ K</span>
+      </label>
+      <button class="icon-btn" aria-label="Toggle theme">☾</button>
+      <button class="icon-btn" aria-label="Notifications">♢</button>
+      <span class="avatar" aria-label="User profile"></span>
+      <button class="icon-btn mobile-menu" aria-label="Menu">☰</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero-explore container">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <div class="eyebrow">◈ Trusted by developers worldwide</div>
+        <h1>Discover, install and publish <span>amazing</span> packages.</h1>
+        <p>Yogi Registry is a modern, secure and reliable package manager built for today’s developers and their teams.</p>
+
+        <label class="search-hero">
+          <span>⌕</span>
+          <input placeholder="Search packages..." />
+          <span class="kbd">⌘ K</span>
+        </label>
+
+        <div class="hero-actions">
+          <a class="btn primary" href="#trending">◉ Explore Packages</a>
+          <a class="btn" href="#">⇧ Publish Package</a>
+        </div>
+      </div>
+
+      <div class="hero-side">
+        <div class="stat-card">
+          <div class="top"><span class="stat-icon">⬡</span><span>Total Packages</span></div>
+          <strong>48,612</strong>
+          <small>Across all ecosystems</small>
+        </div>
+        <div class="stat-card">
+          <div class="top"><span class="stat-icon">⇩</span><span>Weekly Downloads</span></div>
+          <strong>12.8M</strong>
+          <small>By developers worldwide</small>
+        </div>
+        <div class="stat-card">
+          <div class="top"><span class="stat-icon">♙</span><span>Verified Organizations</span></div>
+          <strong>2,136</strong>
+          <small>Trusted teams and companies</small>
+        </div>
+        <div class="stat-card">
+          <div class="top"><span class="stat-icon">◔</span><span>Package Updates</span></div>
+          <strong>2,984</strong>
+          <small>New versions this week</small>
+        </div>
+        <div class="stat-card hero-side-wide">
+          <div>
+            <div class="top"><span class="stat-icon">♡</span><span>Built for developers, by developers.</span></div>
+          </div>
+          <div class="avatar-row">
+            <span class="mini-avatar"></span>
+            <span class="mini-avatar"></span>
+            <span class="mini-avatar"></span>
+            <span class="mini-avatar"></span>
+            <span class="mini-avatar"></span>
+            <span class="tag">+2.1k</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section container" id="trending">
+    <div class="section-head">
+      <div class="section-title"><span class="gradient-text">⌁</span><h2>Trending Packages</h2><small>Popular this week</small></div>
+      <a class="link-blue" href="package.html">View all trending →</a>
+    </div>
+    <div class="card-grid" style="grid-template-columns:repeat(5,1fr)">
+      <a class="package-card" href="package.html">
+        <div class="pkg-top"><span class="pkg-icon">~</span><div><div class="pkg-card-name">@core/http <span class="badge">Latest</span></div></div></div>
+        <p>Lightweight, composable HTTP client for Node.js and the browser.</p>
+        <div class="pkg-meta"><span>⇩ 1.28M</span><span>☆ 1.2k</span><span>v2.3.1</span></div>
+      </a>
+      <a class="package-card" href="package.html">
+        <div class="pkg-top"><span class="pkg-icon purple">Z</span><div><div class="pkg-card-name">zod <span class="badge">Latest</span></div></div></div>
+        <p>TypeScript-first schema validation with static type inference.</p>
+        <div class="pkg-meta"><span>⇩ 912K</span><span>☆ 9.1k</span><span>v3.22.4</span></div>
+      </a>
+      <a class="package-card" href="package.html">
+        <div class="pkg-top"><span class="pkg-icon">~</span><div><div class="pkg-card-name">tailwindcss <span class="badge">Latest</span></div></div></div>
+        <p>Utility-first CSS framework for rapidly building custom designs.</p>
+        <div class="pkg-meta"><span>⇩ 856K</span><span>☆ 21.4k</span><span>v3.4.3</span></div>
+      </a>
+      <a class="package-card" href="package.html">
+        <div class="pkg-top"><span class="pkg-icon dark">M</span><div><div class="pkg-card-name">drizzle-orm <span class="badge">Latest</span></div></div></div>
+        <p>Performant ORM for TypeScript and SQL databases.</p>
+        <div class="pkg-meta"><span>⇩ 643K</span><span>☆ 7.8k</span><span>v0.30.2</span></div>
+      </a>
+      <a class="package-card" href="package.html">
+        <div class="pkg-top"><span class="pkg-icon dark">✧</span><div><div class="pkg-card-name">lucide <span class="badge">Latest</span></div></div></div>
+        <p>Beautiful and consistent icon toolkit made by the community.</p>
+        <div class="pkg-meta"><span>⇩ 531K</span><span>☆ 8.3k</span><span>v0.386.0</span></div>
+      </a>
+    </div>
+  </section>
+
+  <section class="section container">
+    <div class="explore-section-grid">
+      <div>
+        <div class="section-head">
+          <div class="section-title"><h2>Popular Categories</h2><small>Browse by category</small></div>
+          <a class="link-blue" href="#">View all →</a>
+        </div>
+        <div class="category-row" style="grid-template-columns:repeat(2,1fr)">
+          <a class="category-card" href="#">◎ Web <span style="margin-left:auto;color:var(--muted-2)">8,923</span></a>
+          <a class="category-card" href="#">✦ AI <span style="margin-left:auto;color:var(--muted-2)">4,210</span></a>
+          <a class="category-card" href="#">▻ CLI <span style="margin-left:auto;color:var(--muted-2)">3,412</span></a>
+          <a class="category-card" href="#">▤ Database <span style="margin-left:auto;color:var(--muted-2)">2,984</span></a>
+          <a class="category-card" href="#">⚒ DevTools <span style="margin-left:auto;color:var(--muted-2)">3,812</span></a>
+          <a class="category-card" href="#">◇ Security <span style="margin-left:auto;color:var(--muted-2)">2,102</span></a>
+          <a class="category-card" href="#">◫ UI <span style="margin-left:auto;color:var(--muted-2)">4,623</span></a>
+          <a class="category-card" href="#">▣ Mobile <span style="margin-left:auto;color:var(--muted-2)">2,341</span></a>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head">
+          <div class="section-title"><h2>Verified Organizations</h2><small>Trusted teams building the ecosystem</small></div>
+          <a class="link-blue" href="#">View all →</a>
+        </div>
+        <div class="org-grid">
+          <a class="org-card" href="#"><div class="org-logo dark">▲</div><strong>vercel</strong><p>124 packages<br/>12.8M downloads</p></a>
+          <a class="org-card" href="#"><div class="org-logo green">⚡</div><strong>supabase</strong><p>89 packages<br/>8.4M downloads</p></a>
+          <a class="org-card" href="#"><div class="org-logo dark">◭</div><strong>prisma</strong><p>54 packages<br/>6.4M downloads</p></a>
+          <a class="org-card" href="#"><div class="org-logo red">⌁</div><strong>sentry</strong><p>67 packages<br/>5.6M downloads</p></a>
+          <a class="org-card" href="#"><div class="org-logo gold">◎</div><strong>tauri-apps</strong><p>45 packages<br/>3.1M downloads</p></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section container">
+    <div class="section-head">
+      <div class="section-title"><h2>Why Yogi Registry?</h2><small>Everything you need to build and ship with confidence.</small></div>
+    </div>
+    <div class="feature-band">
+      <div class="feature-item"><div class="stat-icon">◇</div><h3>Secure by default</h3><p>Every package is scanned for vulnerabilities and malicious code.</p></div>
+      <div class="feature-item"><div class="stat-icon">⚡</div><h3>Fast & reliable</h3><p>Global CDN, optimized installs and consistent uptime.</p></div>
+      <div class="feature-item"><div class="stat-icon">▤</div><h3>Great documentation</h3><p>Clear docs, examples and guides to help you move faster.</p></div>
+      <div class="feature-item"><div class="stat-icon">♙</div><h3>Built for teams</h3><p>Organization management, team access and audit logs.</p></div>
+      <div class="feature-item"><div class="stat-icon">◈</div><h3>Open & extensible</h3><p>Works with your favorite tools and CI/CD pipelines.</p></div>
+    </div>
+  </section>
+
+  <section class="section container">
+    <div class="callout-card">
+      <div>
+        <h3>Publish your first package</h3>
+        <p>Share your code with the world and start building your ecosystem.</p>
+      </div>
+      <a class="btn primary" href="#">Get Started Free</a>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container footer-grid">
+    <div>
+      <a class="brand" href="index.html">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M16 2.7 28 9.5v13L16 29.3 4 22.5v-13L16 2.7Z" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M16 8.4 22.8 12.2v7.6L16 23.6l-6.8-3.8v-7.6L16 8.4Z" stroke="currentColor" stroke-width="1.8" opacity=".7"/>
+            <path d="M16 2.8v5.6M28 9.5l-5.2 2.7M4 9.5l5.2 2.7M16 23.6v5.5" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+          </svg>
+        </span>
+        <span>Yogi Registry</span>
+      </a>
+      <p>The modern package manager<br/>for developers and teams.</p>
+      <div class="socials"><span>⌘</span><span>𝕏</span><span>◈</span></div>
+    </div>
+    <div>
+      <h4>Product</h4>
+      <a href="index.html">Explore</a>
+      <a href="package.html">Packages</a>
+      <a href="#">Organizations</a>
+      <a href="#">Pricing</a>
+    </div>
+    <div>
+      <h4>Resources</h4>
+      <a href="docs.html">Documentation</a>
+      <a href="#">API Reference</a>
+      <a href="#">Changelog</a>
+      <a href="#">Status</a>
+    </div>
+    <div>
+      <h4>Community</h4>
+      <a href="#">GitHub</a>
+      <a href="#">Discussions</a>
+      <a href="#">Blog</a>
+      <a href="#">Contributing</a>
+    </div>
+    <div>
+      <p>© 2026 Yogi Registry. All rights reserved.</p>
+      <p><a href="#">Terms</a> <a href="#">Privacy</a> <a href="#">Security</a> <a href="#">Cookies</a></p>
+      <p>◎ English</p>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
