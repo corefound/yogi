@@ -443,7 +443,19 @@ namespace yogi::core::llvm::internal {
 		const auto loopScopeStart = context.localAggregateCleanups.size();
 
 		if (statement->initializer()) {
-			lowerStatement(statement->initializer());
+			if (const auto *initializerBlock = statement->initializer()->value_as_BlockStatement()) {
+				if (initializerBlock->statements()) {
+					for (const auto *initializerStatement: *initializerBlock->statements()) {
+						if (context.builder.GetInsertBlock()->hasTerminator()) {
+							break;
+						}
+
+						lowerStatement(initializerStatement);
+					}
+				}
+			} else {
+				lowerStatement(statement->initializer());
+			}
 		}
 
 		auto *function = context.builder.GetInsertBlock()->getParent();

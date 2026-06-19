@@ -73,7 +73,6 @@ known state instead of rediscovering gaps from the source code.
 ## In Progress / Next Lots
 
 - Local capture/closure semantics for inline callbacks.
-- Real iterator protocol for `keys`, `values`, and `entries`.
 - Depth-aware semantic result typing for `flat(depth)` beyond the first static
   nesting level.
 
@@ -81,9 +80,9 @@ known state instead of rediscovering gaps from the source code.
 
 - Inline callback forms that still need deeper function-expression lowering:
   - closures that capture outer locals
-- Iterator objects and `for...of` integration. `keys`, `values`, and `entries`
-  currently materialize arrays because Yogi does not have the iterator protocol
-  yet.
+- Lazy iterator objects. `for...of` now works over arrays and array-producing
+  iterator methods, but `keys`, `values`, and `entries` still materialize
+  arrays because Yogi does not have lazy iterator objects yet.
 - Object stringification inside arrays. Primitive and nested array elements are
   stringified; object display should wait for object runtime formatting.
 

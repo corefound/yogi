@@ -53,6 +53,10 @@ The compiler currently lowers source code through this pipeline:
 
 - [Backend and LLVM](backend-llvm.md)
 
+### Control Flow
+
+- [Loops And Iterator Protocol](control-flow/loops.md)
+
 ### Lots
 
 - [Array Serialization](lots/02-array-serialization.md)
@@ -65,6 +69,7 @@ The compiler currently lowers source code through this pipeline:
 - [Array At And Richer Print](lots/10-array-at-and-print.md)
 - [Array Stringification And Ordering](lots/11-array-stringification-and-ordering.md)
 - [Array Completion](lots/12-array-completion.md)
+- [Iterator Protocol And Loops](lots/13-iterator-protocol-and-loops.md)
 
 ### To Do
 

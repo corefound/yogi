@@ -90,7 +90,8 @@ namespace yogi::core::llvm::internal {
 			const auto method = fbString(call->builtin_method());
 			return method == "array.reverse" ||
 				method == "array.fill" ||
-				method == "array.copyWithin";
+				method == "array.copyWithin" ||
+				method == "array.sort";
 		};
 		const auto isOwnedAggregateInitializer =
 			variable->value() &&

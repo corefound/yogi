@@ -408,6 +408,14 @@ if(BUILD_TESTING)
                 )
 
                 add_test(
+                        NAME yogi_pipeline_iterator_protocol
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-iterator-protocol
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/iterator_protocol.cmake
+                )
+
+                add_test(
                         NAME yogi_pipeline_switch
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>

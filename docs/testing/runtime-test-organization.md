@@ -68,6 +68,7 @@ Examples:
 - `switch_definite_assignment.cmake`
 - `break.cmake`
 - `loops_and_methods.cmake`
+- `iterator_protocol.cmake`
 
 If a test mixes memory and control flow, choose the folder by the primary
 question being protected:

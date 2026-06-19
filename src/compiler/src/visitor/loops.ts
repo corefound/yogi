@@ -4,6 +4,8 @@ import { Kinds } from "../helpers/types";
 
 export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase) {
     return class extends base {
+        public forOfCounter = 0;
+
         visitLoops(node: ts.Node) {
             if (ts.isWhileStatement(node)) {
                 return this.visitWhileStatement(node);
@@ -11,6 +13,10 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
 
             if (ts.isForStatement(node)) {
                 return this.visitForStatement(node);
+            }
+
+            if (ts.isForOfStatement(node)) {
+                return this.visitForOfStatement(node);
             }
 
             if (ts.isBreakStatement(node)) {
@@ -69,6 +75,183 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
             }
 
             return this.visitNode(initializer);
+        }
+
+        visitForOfStatement(node: ts.ForOfStatement) {
+            if (!ts.isVariableDeclarationList(node.initializer)) {
+                throw new Error("for...of initializer must declare a loop variable");
+            }
+
+            const declaration = node.initializer.declarations[0];
+            if (!declaration || !ts.isIdentifier(declaration.name)) {
+                throw new Error("for...of currently supports identifier loop bindings");
+            }
+
+            const elementType = declaration.type ? this.visitType(declaration.type) : null;
+            const iterableElementType = elementType ?? { kind: Kinds.Types.AnyType, raw: "any" };
+            const indexName = `__yogi_for_of_index_${this.forOfCounter}`;
+            const iterableName = `__yogi_for_of_iterable_${this.forOfCounter}`;
+            this.forOfCounter++;
+
+            const iterable = this.visitNode(node.expression);
+            const indexIdentifier = this.createSyntheticIdentifier(indexName, node);
+            const iterableIdentifier = this.createSyntheticIdentifier(iterableName, node.expression);
+            const arrayType = {
+                kind: Kinds.Types.ArrayType,
+                raw: `${iterableElementType.raw}[]`,
+                elementType: iterableElementType,
+                readonly: false,
+            };
+
+            const initializer = {
+                kind: Kinds.Statements.DeclarationStatement,
+                flag: "let",
+                export: false,
+                declare: false,
+                ambient: false,
+                emit: true,
+                declarations: [
+                    {
+                        kind: Kinds.Statements.VariableDeclaration,
+                        name: iterableName,
+                        flag: "let",
+                        export: false,
+                        declare: false,
+                        ambient: false,
+                        emit: true,
+                        definiteAssignment: false,
+                        type: arrayType,
+                        value: iterable,
+                        source: `${iterableName}: ${arrayType.raw} = ${node.expression.getText()}`,
+                        fullSource: node.getText(),
+                        position: this.getNodePosistion(node.expression),
+                    },
+                    {
+                        kind: Kinds.Statements.VariableDeclaration,
+                        name: indexName,
+                        flag: "let",
+                        export: false,
+                        declare: false,
+                        ambient: false,
+                        emit: true,
+                        definiteAssignment: false,
+                        type: { kind: Kinds.Types.NumberType, raw: "number" },
+                        value: {
+                            kind: Kinds.Literals.NumberLiteral,
+                            type: "number",
+                            value: 0,
+                            source: "0",
+                            position: this.getNodePosistion(node),
+                        },
+                        source: `${indexName}: number = 0`,
+                        fullSource: node.getText(),
+                        position: this.getNodePosistion(node),
+                    },
+                ],
+                source: `let ${iterableName}: ${arrayType.raw} = ${node.expression.getText()}, ${indexName}: number = 0`,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+
+            const condition = {
+                kind: Kinds.Expressions.BinaryExpression,
+                left: indexIdentifier,
+                operator: "<",
+                right: {
+                    kind: Kinds.Expressions.PropertyAccessExpression,
+                    object: iterableIdentifier,
+                    property: "length",
+                    optional: false,
+                    source: `${iterableName}.length`,
+                    position: this.getNodePosistion(node.expression),
+                },
+                source: `${indexName} < ${iterableName}.length`,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+
+            const incrementor = {
+                kind: Kinds.Expressions.BinaryExpression,
+                left: indexIdentifier,
+                operator: "=",
+                right: {
+                    kind: Kinds.Expressions.BinaryExpression,
+                    left: indexIdentifier,
+                    operator: "+",
+                    right: {
+                        kind: Kinds.Literals.NumberLiteral,
+                        type: "number",
+                        value: 1,
+                        source: "1",
+                        position: this.getNodePosistion(node),
+                    },
+                    source: `${indexName} + 1`,
+                    fullSource: node.getText(),
+                    position: this.getNodePosistion(node),
+                },
+                source: `${indexName} = ${indexName} + 1`,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+
+            const valueDeclaration = {
+                kind: Kinds.Statements.DeclarationStatement,
+                flag: node.initializer.flags & ts.NodeFlags.Const ? "const" : "let",
+                export: false,
+                declare: false,
+                ambient: false,
+                emit: true,
+                declarations: [{
+                    kind: Kinds.Statements.VariableDeclaration,
+                    name: declaration.name.getText(),
+                    flag: node.initializer.flags & ts.NodeFlags.Const ? "const" : "let",
+                    export: false,
+                    declare: false,
+                    ambient: false,
+                    emit: true,
+                    definiteAssignment: false,
+                    type: elementType,
+                    value: {
+                        kind: Kinds.Expressions.ElementAccessExpression,
+                        object: iterableIdentifier,
+                        index: indexIdentifier,
+                        optional: false,
+                        source: `${iterableName}[${indexName}]`,
+                        position: this.getNodePosistion(node.expression),
+                    },
+                    source: `${declaration.name.getText()}: ${elementType?.raw ?? "unknown"} = ${iterableName}[${indexName}]`,
+                    fullSource: node.getText(),
+                    position: this.getNodePosistion(declaration),
+                }],
+                source: `${declaration.name.getText()}: ${elementType?.raw ?? "unknown"} = ${iterableName}[${indexName}]`,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(declaration),
+            };
+            const body = this.visitLoopBody(node.statement);
+
+            return {
+                kind: Kinds.ControlFlow.ForStatement,
+                initializer,
+                condition,
+                incrementor,
+                body: {
+                    ...body,
+                    statements: [valueDeclaration, ...(body.statements ?? [])],
+                },
+                source: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        createSyntheticIdentifier(name: string, node: ts.Node) {
+            return {
+                kind: Kinds.Expressions.IdentifierExpression,
+                type: "identifier",
+                value: name,
+                source: name,
+                fullSource: node.getFullText(),
+                position: this.getNodePosistion(node),
+            };
         }
 
         visitLoopBody(statement: ts.Statement) {
