@@ -1,5 +1,6 @@
-import { GraphQLError } from 'graphql';
+import { GraphQLError, GraphQLResolveInfo } from 'graphql';
 import { Controllers } from '../controllers';
+import { getQueryResponseFields } from '../helpers';
 
 const type = () => {
     return `
@@ -93,8 +94,9 @@ const subscription = () => {
 
 const resolvers = {
     query: {
-        packages: async () => {
-            const result = await Controllers.Packages.getAllPackages();
+        packages: async (_: any, args: any, context: any, info: GraphQLResolveInfo) => {
+            const fields = getQueryResponseFields(info.fieldNodes, 'packages');
+            const result = await Controllers.Packages.getAllPackages(fields);
             return result.packages;
         },
     },

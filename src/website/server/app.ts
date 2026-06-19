@@ -36,7 +36,7 @@ db.authenticate().then(async () => {
         cors<cors.CorsRequest>({
             origin: "*",
         }),
-        // express.json(),
+        express.json(),
         expressMiddleware(server, {
             context: async ({ req }) => ({ req })
         })

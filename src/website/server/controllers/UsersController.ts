@@ -22,11 +22,12 @@ export class UsersController {
         }
     }
 
-    static async user(params: unknown) {
+    static async user(params: unknown, attributes: any = {}) {
         try {
             const parsed = GetUserSchema.parse(params);
             const user = await Models.Users.findOne({
-                where: { githubLogin: parsed.name }
+                where: { githubLogin: parsed.name },
+                attributes: [...attributes.user || []],
             });
 
             return { user };

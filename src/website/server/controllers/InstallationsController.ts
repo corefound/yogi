@@ -23,6 +23,21 @@ export class InstallationsController {
             return { error: String(error) };
         }
     }
+
+    static async getInstallation(installationId: number, attributes: any = {}) {
+        try {
+            const installation = await Models.InstallationsModel.findByPk(installationId, {
+                attributes: [...attributes.installation || []],
+                include: [{
+                    model: Models.PackageVersion, as: 'version',
+                    attributes: [...(attributes.packageVersion || [])],
+                }]
+            });
+            return { installation };
+        } catch (error) {
+            return { error: String(error) };
+        }
+    }
 }
 
 export default InstallationsController;

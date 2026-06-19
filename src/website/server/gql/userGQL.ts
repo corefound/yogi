@@ -1,5 +1,6 @@
-import { GraphQLError } from 'graphql';
+import { GraphQLError, GraphQLResolveInfo } from 'graphql';
 import { Controllers } from '../controllers';
+import { getQueryResponseFields } from '../helpers';
 
 const type = () => {
     return `
@@ -68,8 +69,10 @@ const subscription = () => {
 
 const resolvers = {
     query: {
-        user: async (_: any, args: { name: string }) => {
-            const result = await Controllers.Users.user({ name: args.name });
+        user: async (_: any, args: { name: string }, context: any, info: GraphQLResolveInfo) => {
+            const fields = getQueryResponseFields(info.fieldNodes, 'user');
+            const result = await Controllers.Users.user({ name: args.name }, fields);
+           
             if (result.error) {
                 const err = result.error as { message?: string };
                 throw new GraphQLError(err.message || 'User not found');

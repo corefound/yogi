@@ -2,8 +2,11 @@ import { Models } from "../models";
 import { CreatePackageSchema } from "../schemas";
 
 export class PackageController {
-    static async getAllPackages() {
-        const packages = await Models.Packages.findAll();
+    static async getAllPackages(attributes: any = {}) {
+        const packages = await Models.Packages.findAll({
+            attributes: [...attributes?.package || []],
+        });
+        
         return { packages };
     }
 

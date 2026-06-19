@@ -1,5 +1,6 @@
-import { GraphQLError } from 'graphql';
+import { GraphQLError, GraphQLResolveInfo } from 'graphql';
 import { Controllers } from '../controllers';
+import { getQueryResponseFields } from '../helpers';
 
 const type = () => {
     return `
@@ -18,6 +19,7 @@ const type = () => {
             assetNameMatched: Boolean
             assetIdMatched: Boolean
             assetSizeMatched: Boolean
+            version: SingleVersionType
             createdAt: String
             updatedAt: String
         }
@@ -64,7 +66,9 @@ const inputTypes = () => {
 };
 
 const query = () => {
-    return ``;
+    return `
+        installation(id: Int!): InstallationType
+    `;
 };
 
 const mutation = () => {
@@ -78,7 +82,16 @@ const subscription = () => {
 };
 
 const resolvers = {
-    query: {},
+    query: {
+        installation: async (_: any, args: { id: number }, context: any, info: GraphQLResolveInfo) => {
+            const fields = getQueryResponseFields(info.fieldNodes, 'installation');
+            const result = await Controllers.Installations.getInstallation(args.id, fields);
+            if (result.error) {
+                throw new GraphQLError(String(result.error));
+            }
+            return result.installation;
+        },
+    },
 
     mutation: {
         createInstallation: async (_: any, args: { input: Record<string, unknown> }) => {

@@ -3,17 +3,25 @@ import Users from './UsersModel';
 import PackageVersion from './PackageVersionModel';
 import InstallationsModel from './InstallationsModel';
 
-// User ↔ Package
-Packages.belongsTo(Users, { foreignKey: 'ownerId', as: 'owner' });
-Users.hasMany(Packages, { foreignKey: 'ownerId', as: 'packages' });
+// User ↔ Package using name as foreignKey
+Packages.belongsTo(Users, { foreignKey: 'name', as: 'owner' });
+Users.hasMany(Packages, { foreignKey: 'name', as: 'packages' });
+
 
 // Package ↔ PackageVersion
-PackageVersion.belongsTo(Packages, { foreignKey: 'packageId', as: 'package' });
-Packages.hasMany(PackageVersion, { foreignKey: 'packageId', as: 'versions' });
+Packages.hasMany(PackageVersion, {
+    foreignKey: "packageName", // columna en PackageVersion
+    sourceKey: "name",         // columna en Packages
+    as: "versions",
+});
 
-
+PackageVersion.belongsTo(Packages, {
+    foreignKey: "packageName", // columna en PackageVersion
+    targetKey: "name",         // columna en Packages
+    as: "package",
+});
 // Installations ↔ PackageVersion (via packageVersionId)
-InstallationsModel.belongsTo(PackageVersion, { foreignKey: 'packageVersionId', as: 'packageVersion' });
+InstallationsModel.belongsTo(PackageVersion, { foreignKey: 'packageVersionId', as: 'version' });
 PackageVersion.hasMany(InstallationsModel, { foreignKey: 'packageVersionId', as: 'installations' });
 
 export const Models = {

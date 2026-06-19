@@ -1,5 +1,7 @@
 import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLResolveInfo } from 'graphql';
 import { Models } from '../models';
+import { getQueryResponseFields } from '../helpers';
 import userGQL from "./userGQL";
 import packageGQL from "./packageGQL";
 import packageVersionGQL from "./packageVersionGQL";
@@ -33,7 +35,7 @@ if (mutations) {
         {},
         ...allGql.map(g => g.resolvers.mutation)
     );
-}
+} 
 
 if (subs) {
     resolverExtras.Subscription = Object.assign(
@@ -46,10 +48,15 @@ if (subs) {
 
 // UsersType → packages (as WithOutOwnerPackagesType, no owner recursion)
 resolverExtras.UsersType = {
-    packages: async (parent: any) => {
+    packages: async (parent: any, args: any, context: any, info: GraphQLResolveInfo) => {
+        const fields = getQueryResponseFields(info.fieldNodes, "packages");
         const user = await Models.Users.findOne({
             where: { githubLogin: parent.githubLogin },
-            include: [{ model: Models.Packages, as: 'packages' }]
+            attributes: ['id', ...(fields?.user || [])],
+            include: [{
+                model: Models.Packages, as: 'packages',
+                attributes: ['id', ...(fields?.packages || [])],
+            }]
         });
         return user?.packages || [];
     },
@@ -57,15 +64,26 @@ resolverExtras.UsersType = {
 
 // PackagesType → owner (as SingleUsersType, no packages recursion) + versions
 resolverExtras.PackagesType = {
-    owner: async (parent: any) => {
+    owner: async (parent: any, args: any, context: any, info: GraphQLResolveInfo) => {
+        const fields = getQueryResponseFields(info.fieldNodes, "packages");
+        const ownerFields = ['id', ...(fields?.user || [])];
         const pkg = await Models.Packages.findByPk(parent.id, {
-            include: [{ model: Models.Users, as: 'owner' }]
+            attributes: ['id', ...(fields?.package || [])],
+            include: [{
+                model: Models.Users, as: 'owner',
+                attributes: ownerFields,
+            }]
         });
         return pkg?.owner || null;
     },
-    versions: async (parent: any) => {
+    versions: async (parent: any, args: any, context: any, info: GraphQLResolveInfo) => {
+        const fields = getQueryResponseFields(info.fieldNodes, "versions");
         const pkg = await Models.Packages.findByPk(parent.id, {
-            include: [{ model: Models.PackageVersion, as: 'versions' }]
+            attributes: ['id'],
+            include: [{
+                model: Models.PackageVersion, as: 'versions',
+                attributes: ['id', ...(fields?.versions || [])],
+            }]
         });
         return pkg?.versions || [];
     },
@@ -73,25 +91,55 @@ resolverExtras.PackagesType = {
 
 // WithOutOwnerPackagesType → versions (no owner field)
 resolverExtras.WithOutOwnerPackagesType = {
-    versions: async (parent: any) => {
+    versions: async (parent: any, args: any, context: any, info: GraphQLResolveInfo) => {
+        const fields = getQueryResponseFields(info.fieldNodes, "versions");
         const pkg = await Models.Packages.findByPk(parent.id, {
-            include: [{ model: Models.PackageVersion, as: 'versions' }]
+            attributes: ['id', ...(fields?.package || [])],
+            include: [{
+                model: Models.PackageVersion, as: 'versions',
+                attributes: ['id', ...(fields?.versions || [])],
+            }]
         });
         return pkg?.versions || [];
     },
 };
 
+// WithoutPackagesVersionType → installations (no package field, avoids recursion)
+resolverExtras.WithoutPackagesVersionType = {
+    installations: async (parent: any, args: any, context: any, info: GraphQLResolveInfo) => {
+        const fields = getQueryResponseFields(info.fieldNodes, "installations");
+        const ver = await Models.PackageVersion.findByPk(parent.id, {
+            attributes: ['id', ...(fields?.version || [])],
+            include: [{
+                model: Models.InstallationsModel, as: 'installations',
+                attributes: ['id', ...(fields?.installations || [])],
+            }]
+        });
+        return ver?.installations || [];
+    },
+};
+
 // VersionType → package (as SinglePackagesType) + installations
 resolverExtras.VersionType = {
-    package: async (parent: any) => {
+    package: async (parent: any, args: any, context: any, info: GraphQLResolveInfo) => {
+        const fields = getQueryResponseFields(info.fieldNodes, "package");
         const ver = await Models.PackageVersion.findByPk(parent.id, {
-            include: [{ model: Models.Packages, as: 'package' }]
+            attributes: ['id', ...fields?.version || []],
+            include: [{
+                model: Models.Packages, as: 'package',
+                attributes: ['id', ...(fields?.package || [])],
+            }]
         });
         return ver?.package || null;
     },
-    installations: async (parent: any) => {
+    installations: async (parent: any, args: any, context: any, info: GraphQLResolveInfo) => {
+        const fields = getQueryResponseFields(info.fieldNodes, "installations");
         const ver = await Models.PackageVersion.findByPk(parent.id, {
-            include: [{ model: Models.InstallationsModel, as: 'installations' }]
+            attributes: ['id', ...(fields?.version || [])],
+            include: [{
+                model: Models.InstallationsModel, as: 'installations',
+                attributes: ['id', ...(fields?.installations || [])],
+            }]
         });
         return ver?.installations || [];
     },
@@ -102,4 +150,3 @@ export const resolvers = {
     Query: Object.assign({}, ...allGql.map(g => g.resolvers.query)),
     ...resolverExtras,
 }
-

@@ -1,5 +1,6 @@
-import { GraphQLError } from 'graphql';
+import { GraphQLError, GraphQLResolveInfo } from 'graphql';
 import { Controllers } from '../controllers';
+import { getQueryResponseFields } from '../helpers';
 
 const type = () => {
     return `
@@ -74,13 +75,13 @@ const inputTypes = () => {
 
 const query = () => {
     return `
-        packageVersion(packageName: String!, version: String!): VersionType
+        version(packageName: String!, version: String!): VersionType
     `;
 };
 
 const mutation = () => {
     return `
-        createPackageVersion(input: CreatePackageVersionInput!): VersionType
+        createVersion(input: CreatePackageVersionInput!): SingleVersionType
     `;
 };
 
@@ -90,11 +91,10 @@ const subscription = () => {
 
 const resolvers = {
     query: {
-        packageVersion: async (_: any, args: { packageName: string; version: string }) => {
-            const result = await Controllers.PackageVersion.version({
-                packageName: args.packageName,
-                version: args.version,
-            });
+        version: async (_: any, args: { packageName: string; version: string }, context: any, info: GraphQLResolveInfo) => {
+            const fields = getQueryResponseFields(info.fieldNodes, 'version');
+            const result = await Controllers.PackageVersion.version({ packageName: args.packageName, version: args.version, }, fields);
+            
             if (result.error) {
                 const err = result.error as { message?: string };
                 throw new GraphQLError(err.message || 'Package version not found');
@@ -104,7 +104,7 @@ const resolvers = {
     },
 
     mutation: {
-        createPackageVersion: async (_: any, args: { input: Record<string, unknown> }) => {
+        createVersion: async (_: any, args: { input: Record<string, unknown> }) => {
             const result = await Controllers.PackageVersion.createVersion(args.input);
             if (result.error) {
                 throw new GraphQLError(String(result.error));

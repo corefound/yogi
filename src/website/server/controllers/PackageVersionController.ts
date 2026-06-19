@@ -18,32 +18,29 @@ export class PackageVersionController {
         }
     }
 
-    static async version(params: unknown) {
+    static async version(params: unknown, attributes: any = {}) {
         try {
             const parsed = GetPackageVersionSchema.parse(params);
-            const pkg = await Models.Packages.findOne({
-                where: { name: parsed.packageName }
-            });
-            if (!pkg) {
-                return { error: { message: `Package "${parsed.packageName}" not found` } };
-            }
             const version = await Models.PackageVersion.findOne({
-                where: { packageId: pkg.id, version: parsed.version }
+                where: { packageName: parsed.packageName },
+                attributes: [...attributes.version || []],
+                include: [{
+                    model: Models.Packages, as: 'package',
+                    attributes: [...(attributes.package || [])],
+                }]
             });
-            if (!version) {
-                return { error: { message: `Version "${parsed.version}" not found for package "${parsed.packageName}"` } };
-            }
             return { version };
         } catch (error) {
             return { error };
         }
     }
 
-    static async versionsByPackage(packageId: number) {
+    static async versionsByPackage(packageName: string, attributes?: string[]) {
         try {
             const versions = await Models.PackageVersion.findAll({
-                where: { packageId },
-                order: [['publishedAt', 'DESC']]
+                where: { packageName },
+                attributes,
+                order: [['publishedAt', 'DESC']],
             });
             return { versions };
         } catch (error) {
