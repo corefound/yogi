@@ -924,37 +924,48 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             this.validateArrayMethodArgumentCount(node, methodName, args, source, 1, 1);
 
             const callback = args[0];
-            if (callback?.kind !== Kinds.Expressions.IdentifierExpression) {
+            const elementType = this.arrayReadableElementType(receiverType);
+            const semanticCallback = callback?.kind === Kinds.Functions.FunctionExpression
+                ? this.visitInlineCallbackFunctionExpression(node, methodName, callback, elementType, source)
+                : callback;
+
+            if (
+                semanticCallback?.kind !== Kinds.Expressions.IdentifierExpression &&
+                semanticCallback?.kind !== Kinds.Functions.FunctionExpression
+            ) {
                 const message =
                     `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} currently expects a named callback function`;
 
-                callback.arrowLength = callback?.source?.length ?? 1;
-                this.throwError(message, callback?.position ?? node.position, source, callback ?? node);
+                semanticCallback.arrowLength = semanticCallback?.source?.length ?? 1;
+                this.throwError(message, semanticCallback?.position ?? node.position, source, semanticCallback ?? node);
             }
 
-            const callbackName = callback.value ?? callback.name ?? callback.raw;
-            const symbol = this.resolveSymbol(callbackName);
+            const callbackName = semanticCallback.callbackName ?? semanticCallback.value ?? semanticCallback.name ?? semanticCallback.raw;
+            const symbol = semanticCallback.kind === Kinds.Expressions.IdentifierExpression
+                ? this.resolveSymbol(callbackName)
+                : null;
 
-            if (!symbol || symbol.kind !== Kinds.ScopeSymbols.Function) {
+            if (semanticCallback.kind === Kinds.Expressions.IdentifierExpression && (!symbol || symbol.kind !== Kinds.ScopeSymbols.Function)) {
                 const message =
                     `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback ` +
                     `${Helpers.RED}'${callbackName}'${Helpers.RESET} is not a function`;
 
-                callback.arrowLength = callbackName?.length ?? 1;
-                this.throwError(message, callback.position ?? node.position, source, callback);
+                semanticCallback.arrowLength = callbackName?.length ?? 1;
+                this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
             }
 
-            const params = symbol.node?.params ?? [];
+            const params = semanticCallback.kind === Kinds.Functions.FunctionExpression
+                ? semanticCallback.params ?? []
+                : symbol.node?.params ?? [];
             if (params.length < 1 || params.length > 2) {
                 const message =
                     `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback ` +
                     `${Helpers.BLUE}'${callbackName}'${Helpers.RESET} must accept value or value/index parameters`;
 
-                callback.arrowLength = callbackName?.length ?? 1;
-                this.throwError(message, callback.position ?? node.position, source, callback);
+                semanticCallback.arrowLength = callbackName?.length ?? 1;
+                this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
             }
 
-            const elementType = this.arrayReadableElementType(receiverType);
             const valueParamType = params[0]?.type;
 
             if (!this.isTypeAssignable(valueParamType, elementType)) {
@@ -963,8 +974,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     `${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
                     `${Helpers.RED}'${valueParamType?.raw ?? "unknown"}'${Helpers.RESET}`;
 
-                callback.arrowLength = callbackName?.length ?? 1;
-                this.throwError(message, callback.position ?? node.position, source, callback);
+                semanticCallback.arrowLength = callbackName?.length ?? 1;
+                this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
             }
 
             if (params[1] && this.resolveType(params[1].type)?.kind !== Kinds.Types.NumberType) {
@@ -972,11 +983,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback index parameter must be ` +
                     `${Helpers.BLUE}'number'${Helpers.RESET}`;
 
-                callback.arrowLength = callbackName?.length ?? 1;
-                this.throwError(message, callback.position ?? node.position, source, callback);
+                semanticCallback.arrowLength = callbackName?.length ?? 1;
+                this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
             }
 
-            const callbackReturnType = this.toSerializableType(symbol.node?.returnType ?? {
+            const callbackReturnType = this.toSerializableType(semanticCallback.returnType ?? symbol?.node?.returnType ?? {
                 kind: Kinds.Types.UnknownType,
                 raw: "unknown",
             });
@@ -989,8 +1000,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     const message =
                         `array method ${Helpers.BLUE}'map'${Helpers.RESET} callback must return a value`;
 
-                    callback.arrowLength = callbackName?.length ?? 1;
-                    this.throwError(message, callback.position ?? node.position, source, callback);
+                    semanticCallback.arrowLength = callbackName?.length ?? 1;
+                    this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
                 }
 
                 returnType = {
@@ -1019,7 +1030,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 node,
                 rawCallee,
                 receiver,
-                args,
+                [semanticCallback],
                 returnType,
                 methodName,
             );
@@ -1037,6 +1048,110 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             callback.arrowLength = callbackName?.length ?? 1;
             this.throwError(message, callback.position ?? node.position, source, callback);
+        }
+
+        public visitInlineCallbackFunctionExpression(callNode: any, methodName: string, callback: any, elementType: any, source: string): any {
+            if (!callback.returnType || callback.returnType.kind === Kinds.Types.UnTyped) {
+                const message =
+                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} inline callback must have an explicit return type`;
+
+                callback.arrowLength = callback.source?.length ?? 1;
+                this.throwError(message, callback.position ?? callNode.position, source, callback);
+            }
+
+            const statements = callback.body?.statements ?? [];
+            const onlyReturn = statements.length === 1 ? statements[0] : null;
+
+            if (!onlyReturn || onlyReturn.kind !== Kinds.Statements.ReturnStatement || onlyReturn.implicit !== true) {
+                const message =
+                    `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} inline callback currently supports expression-bodied arrows only`;
+
+                callback.arrowLength = callback.source?.length ?? 1;
+                this.throwError(message, callback.position ?? callNode.position, source, callback);
+            }
+
+            const callbackName = `inline_callback_${this.createSymbolId()}`;
+            this.enterScope();
+            const callbackScopeId = this.getCurrentScopeId();
+            const params = (callback.params ?? []).map((param: any) => {
+                return (this as any).visitFunctionParameterDeclaration(
+                    {
+                        ...callback,
+                        name: callbackName,
+                        fullSource: source,
+                    },
+                    param,
+                );
+            });
+
+            const body = (this as any).visitFunctionBody(callback.body);
+            this.validateInlineCallbackCaptures(body, callbackScopeId, callback, source);
+
+            const functionContext = {
+                ...callback,
+                name: callbackName,
+                params,
+                body,
+                returnType: callback.returnType,
+            };
+            (this as any).validateFunctionReturnType(functionContext);
+            const effectSummary = (this as any).analyzeAggregateEscapes(functionContext);
+            this.exitScope();
+
+            const functionType = {
+                kind: Kinds.Types.FunctionType,
+                raw: callback.source ?? "Function",
+                parameters: params,
+                returnType: callback.returnType,
+            };
+
+            return {
+                ...callback,
+                kind: Kinds.Functions.FunctionExpression,
+                callbackName,
+                params,
+                body,
+                returnType: this.toSerializableType(callback.returnType),
+                type: this.toSerializableType(functionType),
+                effectSummary,
+            };
+        }
+
+        public validateInlineCallbackCaptures(body: any, callbackScopeId: number, callback: any, source: string): void {
+            const visit = (node: any): void => {
+                if (!node || typeof node !== "object") {
+                    return;
+                }
+
+                if (Array.isArray(node)) {
+                    node.forEach(visit);
+                    return;
+                }
+
+                if (node.kind === Kinds.Expressions.IdentifierExpression) {
+                    const symbol = this.getSymbolById(node.symbolId);
+                    const capturesLocal =
+                        symbol &&
+                        (
+                            symbol.kind === Kinds.ScopeSymbols.Variable ||
+                            symbol.kind === Kinds.ScopeSymbols.Parameter
+                        ) &&
+                        symbol.scopeId !== callbackScopeId;
+
+                    if (capturesLocal) {
+                        const name = node.name ?? node.value ?? node.raw ?? "value";
+                        const message =
+                            `inline callbacks cannot capture local value ${Helpers.RED}'${name}'${Helpers.RESET} yet`;
+
+                        node.arrowLength = name.length;
+                        this.throwError(message, node.position ?? callback.position, source, node);
+                    }
+                }
+
+                Object.values(node).forEach(visit);
+            };
+
+            visit(body);
         }
 
         public removeNullishFromType(type: any): any {

@@ -242,16 +242,78 @@ namespace yogi::core::llvm::internal {
 			const auto callbackName = "_yogi_fn_" + sanitizeSymbol(fbString(identifier->qualified_name()));
 			return context.module->getFunction(callbackName);
 		};
-		const auto callbackAcceptsIndex = [&](::llvm::Function *function) {
-			return function && function->arg_size() > 1;
+		const auto getInlineCallback = [&]() -> const Yogi::Sir::FunctionExpression * {
+			const auto *callbackArgument = arguments && arguments->size() > 0
+				? arguments->Get(0)
+				: nullptr;
+
+			return callbackArgument ? callbackArgument->function_expression() : nullptr;
 		};
-		const auto callCallback = [&](::llvm::Function *function, ::llvm::Value *boxedElement, ::llvm::Value *index, const Yogi::Sir::TypeRef *elementType) -> ::llvm::Value * {
+		const auto callbackAcceptsIndex = [&](::llvm::Function *function, const Yogi::Sir::FunctionExpression *inlineCallback) {
+			if (function) {
+				return function->arg_size() > 1;
+			}
+
+			return inlineCallback && inlineCallback->parameters() && inlineCallback->parameters()->size() > 1;
+		};
+		const auto lowerInlineCallback = [&](const Yogi::Sir::FunctionExpression *inlineCallback, ::llvm::Value *boxedElement, ::llvm::Value *index, const Yogi::Sir::TypeRef *elementType) -> ::llvm::Value * {
+			auto *function = context.builder.GetInsertBlock()->getParent();
+			auto previousLocals = context.locals;
+			auto previousLocalTypes = context.localTypes;
+			auto previousLocalTypeKinds = context.localTypeKinds;
+			const auto *parameters = inlineCallback->parameters();
+
+			if (parameters && parameters->size() > 0) {
+				const auto *parameter = parameters->Get(0);
+				auto *value = unboxAny(boxedElement, elementType);
+				auto *slotType = types.lower(parameter->type());
+				auto *slot = context.createEntryAlloca(function, fbString(parameter->name()), slotType);
+				context.builder.CreateStore(cast(value, slotType, parameter->type(), elementType), slot);
+				context.locals[fbString(parameter->name())] = slot;
+				context.localTypes[fbString(parameter->name())] = parameter->type();
+				context.localTypeKinds[fbString(parameter->name())] = parameter->type()->kind();
+			}
+
+			if (parameters && parameters->size() > 1) {
+				const auto *parameter = parameters->Get(1);
+				auto *indexValue = context.builder.CreateUIToFP(
+					index,
+					::llvm::Type::getDoubleTy(context.llvmContext),
+					"array.callback.index"
+				);
+				auto *slotType = types.lower(parameter->type());
+				auto *slot = context.createEntryAlloca(function, fbString(parameter->name()), slotType);
+				context.builder.CreateStore(cast(indexValue, slotType, parameter->type(), parameter->type()), slot);
+				context.locals[fbString(parameter->name())] = slot;
+				context.localTypes[fbString(parameter->name())] = parameter->type();
+				context.localTypeKinds[fbString(parameter->name())] = parameter->type()->kind();
+			}
+
+			const auto *statement = inlineCallback->body() && inlineCallback->body()->statements() && inlineCallback->body()->statements()->size() > 0
+				? inlineCallback->body()->statements()->Get(0)
+				: nullptr;
+			const auto *returnStatement = statement ? statement->value_as_ReturnStatement() : nullptr;
+			auto *result = returnStatement
+				? lower(returnStatement->value(), types.lower(inlineCallback->return_type()), inlineCallback->return_type())
+				: types.zero(types.lower(inlineCallback->return_type()));
+
+			context.locals = previousLocals;
+			context.localTypes = previousLocalTypes;
+			context.localTypeKinds = previousLocalTypeKinds;
+
+			return result;
+		};
+		const auto callCallback = [&](::llvm::Function *function, const Yogi::Sir::FunctionExpression *inlineCallback, ::llvm::Value *boxedElement, ::llvm::Value *index, const Yogi::Sir::TypeRef *elementType) -> ::llvm::Value * {
+			if (inlineCallback) {
+				return lowerInlineCallback(inlineCallback, boxedElement, index, elementType);
+			}
+
 			std::vector<::llvm::Value *> callbackArguments;
 			auto *element = unboxAny(boxedElement, elementType);
 			auto *firstParameterType = function->getFunctionType()->getParamType(0);
 			callbackArguments.push_back(cast(element, firstParameterType, elementType, elementType));
 
-			if (callbackAcceptsIndex(function)) {
+			if (callbackAcceptsIndex(function, inlineCallback)) {
 				auto *indexValue = context.builder.CreateUIToFP(
 					index,
 					::llvm::Type::getDoubleTy(context.llvmContext),
@@ -636,7 +698,8 @@ namespace yogi::core::llvm::internal {
 			methodName == "findIndex"
 		) {
 			auto *callback = getCallbackFunction();
-			if (!callback) {
+			const auto *inlineCallback = getInlineCallback();
+			if (!callback && !inlineCallback) {
 				return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
 			}
 
@@ -655,7 +718,7 @@ namespace yogi::core::llvm::internal {
 				);
 				auto [condition, after, index, _] = createCallbackLoop("array." + methodName, array, elementType);
 				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
-				auto *callbackResult = callCallback(callback, boxedElement, index, elementType);
+				auto *callbackResult = callCallback(callback, inlineCallback, boxedElement, index, elementType);
 
 				if (methodName == "map") {
 					const auto *mappedType = call->type() && call->type()->element_type()
@@ -682,7 +745,7 @@ namespace yogi::core::llvm::internal {
 			if (methodName == "forEach") {
 				auto [condition, after, index, _] = createCallbackLoop("array.forEach", array, elementType);
 				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
-				callCallback(callback, boxedElement, index, elementType);
+				callCallback(callback, inlineCallback, boxedElement, index, elementType);
 				continueCallbackLoop(condition, index);
 				context.builder.SetInsertPoint(after);
 				return types.zero(returnType);
@@ -691,7 +754,7 @@ namespace yogi::core::llvm::internal {
 			if (methodName == "some" || methodName == "every") {
 				auto [condition, after, index, _] = createCallbackLoop("array." + methodName, array, elementType);
 				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
-				auto *callbackResult = callCallback(callback, boxedElement, index, elementType);
+				auto *callbackResult = callCallback(callback, inlineCallback, boxedElement, index, elementType);
 				auto *predicate = toBoolean(callbackResult);
 				auto *foundBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".short", context.builder.GetInsertBlock()->getParent());
 				auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".continue", context.builder.GetInsertBlock()->getParent());
@@ -723,7 +786,7 @@ namespace yogi::core::llvm::internal {
 					: nullptr;
 				auto [condition, after, index, _] = createCallbackLoop("array." + methodName, array, elementType);
 				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
-				auto *callbackResult = callCallback(callback, boxedElement, index, elementType);
+				auto *callbackResult = callCallback(callback, inlineCallback, boxedElement, index, elementType);
 				auto *predicate = toBoolean(callbackResult);
 				auto *foundBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".found", context.builder.GetInsertBlock()->getParent());
 				auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".continue", context.builder.GetInsertBlock()->getParent());
@@ -1701,6 +1764,10 @@ namespace yogi::core::llvm::internal {
 
 		if (const auto *assignment = value->aggregate_assignment()) {
 			return assignment->type();
+		}
+
+		if (const auto *functionExpression = value->function_expression()) {
+			return functionExpression->type();
 		}
 
 		if (const auto *call = value->call()) {

@@ -225,18 +225,51 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
-  test("rejects unsupported inline callback array methods", () => {
+  test("validates inline callback array builtin methods", () => {
     const root = createProject({
       "main.io": `
         let scores: number[] = [1, 2, 3]
         let doubled: number[] = scores.map((value: number): number => value * 2)
+        let filtered: number[] = scores.filter((value: number, index: number): boolean => value + index > 2)
+        let ok: boolean = scores.some((value: number): boolean => value > 2)
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects inline callback captures for now", () => {
+    const root = createProject({
+      "main.io": `
+        let offset: number = 2
+        let scores: number[] = [1, 2, 3]
+        let shifted: number[] = scores.map((value: number): number => value + offset)
       `,
     });
 
     const result = runCompiler(root);
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("named callback function");
+    expect(result.stderr).toContain("cannot capture");
+  });
+
+  test("rejects block-bodied inline callbacks for now", () => {
+    const root = createProject({
+      "main.io": `
+        let scores: number[] = [1, 2, 3]
+        let shifted: number[] = scores.map((value: number): number => {
+            return value + 1
+        })
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("expression-bodied");
   });
 
   test("rejects reassignment to const variables", () => {

@@ -61,6 +61,7 @@ The compiler currently lowers source code through this pipeline:
 - [Array Copy and Splice Methods](lots/06-array-copy-splice-methods.md)
 - [Array With and Range Diagnostics](lots/07-array-with-range-diagnostics.md)
 - [Array Named Callback Methods](lots/08-array-named-callback-methods.md)
+- [Array Inline Callback Expressions](lots/09-array-inline-callbacks.md)
 
 ### To Do
 

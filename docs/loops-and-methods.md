@@ -219,7 +219,8 @@ JavaScript index rules that matter for this stage. `with` supports negative
 indexes and aborts with a runtime range diagnostic when the normalized index is
 outside the array.
 
-Callback methods currently accept named function references:
+Callback methods currently accept named function references and expression-bodied
+inline arrows:
 
 ```ts
 function doubleValue(value: number): number {
@@ -227,10 +228,11 @@ function doubleValue(value: number): number {
 }
 
 let doubled: number[] = scores.map(doubleValue)
+let shifted: number[] = scores.map((value: number): number => value + 1)
 ```
 
-Inline arrow callbacks are parsed, but semantic analysis rejects them until
-Yogi has `FunctionExpression` SIR and LLVM lowering.
+Block-bodied callbacks and callbacks that capture outer locals are rejected
+until Yogi has closure/lifetime semantics for captured values.
 
 ## Example
 
@@ -275,7 +277,7 @@ This lot is still not a full control-flow analysis engine. Remaining loop work:
 - `do while`.
 - `for of` and `for in`.
 - Loop-carried type narrowing.
-- Inline callback expressions, closures, and callback methods that still need
+- Block-bodied inline callbacks, closures, and callback methods that still need
   accumulator or iterator semantics such as `reduce`, `reduceRight`, `flatMap`,
   `findLast`, and `findLastIndex`.
 - Comparator/string-dependent methods such as `sort`, `toSorted`, and `join`.

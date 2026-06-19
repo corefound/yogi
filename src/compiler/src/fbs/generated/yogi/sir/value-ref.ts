@@ -12,6 +12,7 @@ import { CallExpression } from '../../yogi/sir/call-expression.js';
 import { ConditionalExpression } from '../../yogi/sir/conditional-expression.js';
 import { Constant } from '../../yogi/sir/constant.js';
 import { ElementAccessExpression } from '../../yogi/sir/element-access-expression.js';
+import { FunctionExpression } from '../../yogi/sir/function-expression.js';
 import { IdentifierExpression } from '../../yogi/sir/identifier-expression.js';
 import { ObjectExpression } from '../../yogi/sir/object-expression.js';
 import { PropertyAccessExpression } from '../../yogi/sir/property-access-expression.js';
@@ -97,8 +98,13 @@ aggregateAssignment(obj?:AggregateAssignmentExpression):AggregateAssignmentExpre
   return offset ? (obj || new AggregateAssignmentExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+functionExpression(obj?:FunctionExpression):FunctionExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 28);
+  return offset ? (obj || new FunctionExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
 static startValueRef(builder:flatbuffers.Builder) {
-  builder.startObject(12);
+  builder.startObject(13);
 }
 
 static addKind(builder:flatbuffers.Builder, kindOffset:flatbuffers.Offset) {
@@ -147,6 +153,10 @@ static addElementAccess(builder:flatbuffers.Builder, elementAccessOffset:flatbuf
 
 static addAggregateAssignment(builder:flatbuffers.Builder, aggregateAssignmentOffset:flatbuffers.Offset) {
   builder.addFieldOffset(11, aggregateAssignmentOffset, 0);
+}
+
+static addFunctionExpression(builder:flatbuffers.Builder, functionExpressionOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(12, functionExpressionOffset, 0);
 }
 
 static endValueRef(builder:flatbuffers.Builder):flatbuffers.Offset {

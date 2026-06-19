@@ -352,6 +352,14 @@ if(BUILD_TESTING)
                 )
 
                 add_test(
+                        NAME yogi_pipeline_array_inline_callbacks
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-inline-callbacks
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_inline_callbacks.cmake
+                )
+
+                add_test(
                         NAME yogi_pipeline_escape_analysis
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>

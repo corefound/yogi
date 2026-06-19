@@ -14,9 +14,8 @@ let scores: number[] = [1, 2, 3]
 let doubled: number[] = scores.map(doubleValue)
 ```
 
-Inline callbacks such as `(value: number): number => value * 2` are parsed into
-the AST now, but they are intentionally rejected by semantic analysis until Yogi
-has a real `FunctionExpression` representation in SIR and LLVM lowering.
+Inline callbacks such as `(value: number): number => value * 2` are covered by
+Lot 09.
 
 ## Supported Methods
 
@@ -73,7 +72,7 @@ let firstIndex: number = scores.findIndex(isLarge)
 
 ## Current Limitations
 
-- Inline arrow callbacks are not lowered yet.
+- Block-bodied inline callbacks are not lowered yet.
 - Closures/captured outer locals are not modeled yet.
 - `reduce`, `reduceRight`, `findLast`, `findLastIndex`, and `flatMap` remain
   future work.

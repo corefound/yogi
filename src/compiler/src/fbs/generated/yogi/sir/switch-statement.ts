@@ -66,7 +66,15 @@ static addClauses(builder:flatbuffers.Builder, clausesOffset:flatbuffers.Offset)
   builder.addFieldOffset(1, clausesOffset, 0);
 }
 
-static startClausesVector(builder:flatbuffers.Builder, numElems: number) {
+static createClausesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startClausesVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 

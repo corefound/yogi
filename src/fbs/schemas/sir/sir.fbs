@@ -30,6 +30,7 @@ table ValueRef {
   property_access:PropertyAccessExpression;
   element_access:ElementAccessExpression;
   aggregate_assignment:AggregateAssignmentExpression;
+  function_expression:FunctionExpression;
 }
 
 table BinaryExpression {
@@ -269,6 +270,17 @@ table FunctionDeclaration {
   trusted:bool = true;
   linkage_name:string;
   qualified_name:string;
+  source:string;
+  position:SourcePosition;
+  effect_summary:FunctionEffectSummary;
+}
+
+table FunctionExpression {
+  callback_name:string;
+  parameters:[FunctionParameter];
+  return_type:TypeRef;
+  body:BlockStatement;
+  type:TypeRef;
   source:string;
   position:SourcePosition;
   effect_summary:FunctionEffectSummary;

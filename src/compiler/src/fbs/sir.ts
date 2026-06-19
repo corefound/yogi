@@ -43,6 +43,7 @@ import {
     ContinueStatement,
     DefaultClause,
     FunctionDeclaration,
+    FunctionExpression,
     FunctionParameter,
     FunctionEffectSummary,
     ParameterEffect,
@@ -556,6 +557,9 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const aggregateAssignment = node.kind === "AggregateAssignmentExpression"
                 ? this.createAggregateAssignmentExpression(builder, node)
                 : 0;
+            const functionExpression = (node as any).kind === "FunctionExpression"
+                ? this.createFunctionExpression(builder, node)
+                : 0;
 
             if (
                 !constant &&
@@ -568,7 +572,8 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 !object &&
                 !propertyAccess &&
                 !elementAccess &&
-                !aggregateAssignment
+                !aggregateAssignment &&
+                !functionExpression
             ) {
                 throw new Error(`Unsupported semantic value kind: ${(node as { kind: string }).kind}`);
             }
@@ -618,6 +623,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (aggregateAssignment) {
                 ValueRef.addAggregateAssignment(builder, aggregateAssignment);
+            }
+
+            if (functionExpression) {
+                ValueRef.addFunctionExpression(builder, functionExpression);
             }
 
             return ValueRef.endValueRef(builder);
@@ -1271,6 +1280,39 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             FunctionDeclaration.addEffectSummary(builder, effectSummary);
 
             return FunctionDeclaration.endFunctionDeclaration(builder);
+        }
+
+        static createFunctionExpression(
+            builder: fbs.Builder,
+            expression: any,
+        ): fbs.Offset {
+            const callbackName = builder.createString(expression.callbackName ?? "");
+            const returnType = this.createTypeRef(builder, expression.returnType);
+            const body = this.createBlockStatement(builder, expression.body);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? expression.callbackName ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+            const effectSummary = this.createFunctionEffectSummary(builder, expression.effectSummary);
+
+            const parameterOffsets = (expression.params ?? []).map((parameter: any) => {
+                return this.createFunctionParameter(builder, parameter);
+            });
+
+            const parametersVector = createVector(builder, parameterOffsets, (length) => {
+                FunctionExpression.startParametersVector(builder, length);
+            });
+
+            FunctionExpression.startFunctionExpression(builder);
+            FunctionExpression.addCallbackName(builder, callbackName);
+            FunctionExpression.addParameters(builder, parametersVector);
+            FunctionExpression.addReturnType(builder, returnType);
+            FunctionExpression.addBody(builder, body);
+            FunctionExpression.addType(builder, type);
+            FunctionExpression.addSource(builder, source);
+            FunctionExpression.addPosition(builder, position);
+            FunctionExpression.addEffectSummary(builder, effectSummary);
+
+            return FunctionExpression.endFunctionExpression(builder);
         }
 
         static createExternDeclaration(

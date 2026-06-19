@@ -11,37 +11,25 @@ file(MAKE_DIRECTORY "${TEST_WORK_DIR}")
 
 set(SOURCE "${TEST_WORK_DIR}/main.ts")
 file(WRITE "${SOURCE}" [=[
-function doubleValue(value: number): number {
-    return value * 2
-}
-
-function isLarge(value: number, index: number): boolean {
-    return value + index > 3
-}
-
-function consume(value: number): void {
-    print(value)
-}
-
 function mapBatch(): number {
     let scores: number[] = [1, 2, 3]
-    let doubled: number[] = scores.map(doubleValue)
+    let doubled: number[] = scores.map((value: number): number => value * 2)
 
     return doubled[0] * 100 + doubled[1] * 10 + doubled[2]
 }
 
 function filterBatch(): number {
     let scores: number[] = [1, 2, 3]
-    let filtered: number[] = scores.filter(isLarge)
+    let filtered: number[] = scores.filter((value: number, index: number): boolean => value + index > 3)
 
     return filtered[0] * 10 + filtered.length
 }
 
 function predicateBatch(): number {
     let scores: number[] = [1, 2, 3]
-    let hasLarge: boolean = scores.some(isLarge)
-    let allLarge: boolean = scores.every(isLarge)
-    let foundIndex: number = scores.findIndex(isLarge)
+    let hasLarge: boolean = scores.some((value: number): boolean => value > 2)
+    let allLarge: boolean = scores.every((value: number): boolean => value > 0)
+    let foundIndex: number = scores.findIndex((value: number, index: number): boolean => value + index > 3)
     let hasScore: number = hasLarge ? 1 : 0
     let allScore: number = allLarge ? 1 : 0
 
@@ -50,21 +38,15 @@ function predicateBatch(): number {
 
 function findBatch(): number {
     let scores: number[] = [1, 2, 3]
-    let found: number | undefined = scores.find(isLarge)
+    let found: number | undefined = scores.find((value: number): boolean => value > 2)
 
-    return scores.findIndex(isLarge)
-}
-
-function forEachBatch(): void {
-    let scores: number[] = [1, 2, 3]
-    scores.forEach(consume)
+    return scores.findIndex((value: number): boolean => value > 2)
 }
 
 print(mapBatch())
 print(filterBatch())
 print(predicateBatch())
 print(findBatch())
-forEachBatch()
 ]=])
 
 execute_process(
@@ -76,7 +58,7 @@ execute_process(
 )
 
 if(NOT compile_result EQUAL 0)
-	message(FATAL_ERROR "array named callbacks pipeline compile failed:\nstdout:\n${compile_stdout}\nstderr:\n${compile_stderr}")
+	message(FATAL_ERROR "array inline callbacks pipeline compile failed:\nstdout:\n${compile_stdout}\nstderr:\n${compile_stderr}")
 endif()
 
 set(EXECUTABLE "${TEST_WORK_DIR}/packages/.cache/bin/main")
@@ -100,12 +82,9 @@ file(READ "${IR}" ir)
 foreach(symbol
 		yogi_array_get
 		yogi_array_push
-		yogi_array_create
-		_yogi_fn_main.ts_doubleValue
-		_yogi_fn_main.ts_isLarge
-		_yogi_fn_main.ts_consume)
+		yogi_array_create)
 	if(NOT ir MATCHES "${symbol}")
-		message(FATAL_ERROR "expected array named callbacks IR to contain ${symbol}")
+		message(FATAL_ERROR "expected array inline callbacks IR to contain ${symbol}")
 	endif()
 endforeach()
 
@@ -118,12 +97,12 @@ execute_process(
 )
 
 if(NOT run_result EQUAL 0)
-	message(FATAL_ERROR "array named callbacks executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
+	message(FATAL_ERROR "array inline callbacks executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "246\n31\n102\n2\n1\n2\n3\n")
+set(expected_stdout "246\n31\n112\n2\n")
 if(NOT run_stdout STREQUAL expected_stdout)
-	message(FATAL_ERROR "array named callbacks executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
+	message(FATAL_ERROR "array inline callbacks executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
 function(expect_invalid case_name source expected)
@@ -150,7 +129,13 @@ function(expect_invalid case_name source expected)
 endfunction()
 
 expect_invalid(
-	bad_predicate_return
-	"function bad(value: number): number {\n    return value\n}\nlet scores: number[] = [1, 2]\nlet ok: boolean = scores.some(bad)\n"
-	"must return"
+	inline_capture
+	"let offset: number = 2\nlet scores: number[] = [1, 2]\nlet shifted: number[] = scores.map((value: number): number => value + offset)\n"
+	"cannot capture"
+)
+
+expect_invalid(
+	block_body
+	"let scores: number[] = [1, 2]\nlet shifted: number[] = scores.map((value: number): number => {\n    return value + 1\n})\n"
+	"expression-bodied"
 )

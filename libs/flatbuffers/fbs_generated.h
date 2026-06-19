@@ -165,6 +165,15 @@ struct BreakStatementBuilder;
 struct ContinueStatement;
 struct ContinueStatementBuilder;
 
+struct CaseClause;
+struct CaseClauseBuilder;
+
+struct DefaultClause;
+struct DefaultClauseBuilder;
+
+struct SwitchStatement;
+struct SwitchStatementBuilder;
+
 struct FunctionParameter;
 struct FunctionParameterBuilder;
 
@@ -177,12 +186,8 @@ struct FunctionEffectSummaryBuilder;
 struct FunctionDeclaration;
 struct FunctionDeclarationBuilder;
 
-struct CaseClause;
-struct CaseClauseBuilder;
-struct DefaultClause;
-struct DefaultClauseBuilder;
-struct SwitchStatement;
-struct SwitchStatementBuilder;
+struct FunctionExpression;
+struct FunctionExpressionBuilder;
 
 struct SirNode;
 struct SirNodeBuilder;
@@ -451,7 +456,7 @@ inline const SirNodeValue (&EnumValuesSirNodeValue())[26] {
 }
 
 inline const char * const *EnumNamesSirNodeValue() {
-  static const char * const names[24] = {
+  static const char * const names[27] = {
     "NONE",
     "Constant",
     "ExternDeclaration",
@@ -473,6 +478,9 @@ inline const char * const *EnumNamesSirNodeValue() {
     "ForStatement",
     "BreakStatement",
     "ContinueStatement",
+    "CaseClause",
+    "DefaultClause",
+    "SwitchStatement",
     "FunctionDeclaration",
     "ArrayDeclaration",
     nullptr
@@ -568,6 +576,18 @@ template<> struct SirNodeValueTraits<Yogi::Sir::BreakStatement> {
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ContinueStatement> {
   static const SirNodeValue enum_value = SirNodeValue_ContinueStatement;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::CaseClause> {
+  static const SirNodeValue enum_value = SirNodeValue_CaseClause;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::DefaultClause> {
+  static const SirNodeValue enum_value = SirNodeValue_DefaultClause;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::SwitchStatement> {
+  static const SirNodeValue enum_value = SirNodeValue_SwitchStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::FunctionDeclaration> {
@@ -2722,7 +2742,8 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_OBJECT = 20,
     VT_PROPERTY_ACCESS = 22,
     VT_ELEMENT_ACCESS = 24,
-    VT_AGGREGATE_ASSIGNMENT = 26
+    VT_AGGREGATE_ASSIGNMENT = 26,
+    VT_FUNCTION_EXPRESSION = 28
   };
   const ::flatbuffers::String *kind() const {
     return GetPointer<const ::flatbuffers::String *>(VT_KIND);
@@ -2760,6 +2781,9 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::AggregateAssignmentExpression *aggregate_assignment() const {
     return GetPointer<const Yogi::Sir::AggregateAssignmentExpression *>(VT_AGGREGATE_ASSIGNMENT);
   }
+  const Yogi::Sir::FunctionExpression *function_expression() const {
+    return GetPointer<const Yogi::Sir::FunctionExpression *>(VT_FUNCTION_EXPRESSION);
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -2787,6 +2811,8 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyTable(element_access()) &&
            VerifyOffset(verifier, VT_AGGREGATE_ASSIGNMENT) &&
            verifier.VerifyTable(aggregate_assignment()) &&
+           VerifyOffset(verifier, VT_FUNCTION_EXPRESSION) &&
+           verifier.VerifyTable(function_expression()) &&
            verifier.EndTable();
   }
 };
@@ -2831,6 +2857,9 @@ struct ValueRefBuilder {
   void add_aggregate_assignment(::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment) {
     fbb_.AddOffset(ValueRef::VT_AGGREGATE_ASSIGNMENT, aggregate_assignment);
   }
+  void add_function_expression(::flatbuffers::Offset<Yogi::Sir::FunctionExpression> function_expression) {
+    fbb_.AddOffset(ValueRef::VT_FUNCTION_EXPRESSION, function_expression);
+  }
   explicit ValueRefBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -2855,8 +2884,10 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRef(
     ::flatbuffers::Offset<Yogi::Sir::ObjectExpression> object = 0,
     ::flatbuffers::Offset<Yogi::Sir::PropertyAccessExpression> property_access = 0,
     ::flatbuffers::Offset<Yogi::Sir::ElementAccessExpression> element_access = 0,
-    ::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment = 0,
+    ::flatbuffers::Offset<Yogi::Sir::FunctionExpression> function_expression = 0) {
   ValueRefBuilder builder_(_fbb);
+  builder_.add_function_expression(function_expression);
   builder_.add_aggregate_assignment(aggregate_assignment);
   builder_.add_element_access(element_access);
   builder_.add_property_access(property_access);
@@ -2885,7 +2916,8 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
     ::flatbuffers::Offset<Yogi::Sir::ObjectExpression> object = 0,
     ::flatbuffers::Offset<Yogi::Sir::PropertyAccessExpression> property_access = 0,
     ::flatbuffers::Offset<Yogi::Sir::ElementAccessExpression> element_access = 0,
-    ::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment = 0,
+    ::flatbuffers::Offset<Yogi::Sir::FunctionExpression> function_expression = 0) {
   auto kind__ = kind ? _fbb.CreateString(kind) : 0;
   return Yogi::Sir::CreateValueRef(
       _fbb,
@@ -2900,7 +2932,8 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
       object,
       property_access,
       element_access,
-      aggregate_assignment);
+      aggregate_assignment,
+      function_expression);
 }
 
 struct BinaryExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
@@ -5428,8 +5461,8 @@ inline ::flatbuffers::Offset<SwitchStatement> CreateSwitchStatementDirect(
     const std::vector<::flatbuffers::Offset<Yogi::Sir::SirNode>> *clauses = nullptr,
     const char *source = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
-  auto source__ = source ? _fbb.CreateString(source) : 0;
   auto clauses__ = clauses ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::SirNode>>(*clauses) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
   return Yogi::Sir::CreateSwitchStatement(
       _fbb,
       expression,
@@ -5979,6 +6012,152 @@ inline ::flatbuffers::Offset<FunctionDeclaration> CreateFunctionDeclarationDirec
       trusted,
       linkage_name__,
       qualified_name__,
+      source__,
+      position,
+      effect_summary);
+}
+
+struct FunctionExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef FunctionExpressionBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_CALLBACK_NAME = 4,
+    VT_PARAMETERS = 6,
+    VT_RETURN_TYPE = 8,
+    VT_BODY = 10,
+    VT_TYPE = 12,
+    VT_SOURCE = 14,
+    VT_POSITION = 16,
+    VT_EFFECT_SUMMARY = 18
+  };
+  const ::flatbuffers::String *callback_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_CALLBACK_NAME);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::FunctionParameter>> *parameters() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::FunctionParameter>> *>(VT_PARAMETERS);
+  }
+  const Yogi::Sir::TypeRef *return_type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_RETURN_TYPE);
+  }
+  const Yogi::Sir::BlockStatement *body() const {
+    return GetPointer<const Yogi::Sir::BlockStatement *>(VT_BODY);
+  }
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  const Yogi::Sir::FunctionEffectSummary *effect_summary() const {
+    return GetPointer<const Yogi::Sir::FunctionEffectSummary *>(VT_EFFECT_SUMMARY);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_CALLBACK_NAME) &&
+           verifier.VerifyString(callback_name()) &&
+           VerifyOffset(verifier, VT_PARAMETERS) &&
+           verifier.VerifyVector(parameters()) &&
+           verifier.VerifyVectorOfTables(parameters()) &&
+           VerifyOffset(verifier, VT_RETURN_TYPE) &&
+           verifier.VerifyTable(return_type()) &&
+           VerifyOffset(verifier, VT_BODY) &&
+           verifier.VerifyTable(body()) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           VerifyOffset(verifier, VT_EFFECT_SUMMARY) &&
+           verifier.VerifyTable(effect_summary()) &&
+           verifier.EndTable();
+  }
+};
+
+struct FunctionExpressionBuilder {
+  typedef FunctionExpression Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_callback_name(::flatbuffers::Offset<::flatbuffers::String> callback_name) {
+    fbb_.AddOffset(FunctionExpression::VT_CALLBACK_NAME, callback_name);
+  }
+  void add_parameters(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::FunctionParameter>>> parameters) {
+    fbb_.AddOffset(FunctionExpression::VT_PARAMETERS, parameters);
+  }
+  void add_return_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> return_type) {
+    fbb_.AddOffset(FunctionExpression::VT_RETURN_TYPE, return_type);
+  }
+  void add_body(::flatbuffers::Offset<Yogi::Sir::BlockStatement> body) {
+    fbb_.AddOffset(FunctionExpression::VT_BODY, body);
+  }
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(FunctionExpression::VT_TYPE, type);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(FunctionExpression::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(FunctionExpression::VT_POSITION, position);
+  }
+  void add_effect_summary(::flatbuffers::Offset<Yogi::Sir::FunctionEffectSummary> effect_summary) {
+    fbb_.AddOffset(FunctionExpression::VT_EFFECT_SUMMARY, effect_summary);
+  }
+  explicit FunctionExpressionBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<FunctionExpression> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<FunctionExpression>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<FunctionExpression> CreateFunctionExpression(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> callback_name = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::FunctionParameter>>> parameters = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> return_type = 0,
+    ::flatbuffers::Offset<Yogi::Sir::BlockStatement> body = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    ::flatbuffers::Offset<Yogi::Sir::FunctionEffectSummary> effect_summary = 0) {
+  FunctionExpressionBuilder builder_(_fbb);
+  builder_.add_effect_summary(effect_summary);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_type(type);
+  builder_.add_body(body);
+  builder_.add_return_type(return_type);
+  builder_.add_parameters(parameters);
+  builder_.add_callback_name(callback_name);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<FunctionExpression> CreateFunctionExpressionDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *callback_name = nullptr,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::FunctionParameter>> *parameters = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> return_type = 0,
+    ::flatbuffers::Offset<Yogi::Sir::BlockStatement> body = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    ::flatbuffers::Offset<Yogi::Sir::FunctionEffectSummary> effect_summary = 0) {
+  auto callback_name__ = callback_name ? _fbb.CreateString(callback_name) : 0;
+  auto parameters__ = parameters ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::FunctionParameter>>(*parameters) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateFunctionExpression(
+      _fbb,
+      callback_name__,
+      parameters__,
+      return_type,
+      body,
+      type,
       source__,
       position,
       effect_summary);

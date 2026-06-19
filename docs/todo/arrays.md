@@ -38,10 +38,13 @@ known state instead of rediscovering gaps from the source code.
   - `findIndex`
   - `some`
   - `every`
+- Callback methods with expression-bodied inline arrows:
+  - `(value: T): U => expression`
+  - `(value: T, index: number): U => expression`
 
 ## In Progress / Next Lots
 
-- Inline callback/function-expression support for callback-based array methods.
+- Block-bodied inline callbacks and local capture/closure semantics.
 
 ## Future Work
 
@@ -51,9 +54,7 @@ known state instead of rediscovering gaps from the source code.
   - `findLast`
   - `findLastIndex`
   - `flatMap`
-- Inline callback forms:
-  - `(value: T): U => ...`
-  - `(value: T, index: number): U => ...`
+- Inline callback forms that still need deeper function-expression lowering:
   - block-bodied inline callbacks
   - closures that capture outer locals
 - Iterator-related methods:
@@ -72,8 +73,11 @@ known state instead of rediscovering gaps from the source code.
 
 - Callback methods should wait until function values or callable references are
   represented in semantic analysis and LLVM lowering. Named function references
-  are now supported for the first callback batch; inline callbacks still need a
-  real `FunctionExpression` SIR/lowering model.
+  and expression-bodied inline arrows are now supported for the first callback
+  batch.
+- Inline callbacks currently lower inside the array loop. Block-bodied callbacks
+  and captures should wait until Yogi has closure/lifetime rules for captured
+  locals.
 - `find` returns `T | undefined`. The method is lowered and executable, but
   ergonomic consumption of the returned union still depends on stronger
   union-narrowing/cast behavior.
