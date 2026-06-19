@@ -29,10 +29,6 @@ export class UsersController {
                 where: { githubLogin: parsed.name }
             });
 
-            if (!user) {
-                return { error: { message: `User "${parsed.name}" not found` } };
-            }
-
             return { user };
         } catch (error) {
             return { error };

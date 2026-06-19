@@ -4,8 +4,11 @@ import {
     InferAttributes,
     InferCreationAttributes,
     CreationOptional,
+    NonAttribute,
 } from "sequelize";
 
+import type Users from "./UsersModel";
+import type PackageVersion from "./PackageVersionModel";
 import { db } from "../config/db";
 
 export type PackageVisibility = "public" | "private";
@@ -28,7 +31,10 @@ class Packages extends Model<InferAttributes<Packages>, InferCreationAttributes<
 
     declare totalInstalls: CreationOptional<number>;
     declare totalVersions: CreationOptional<number>
-    
+
+    // Association mixins
+    declare owner?: NonAttribute<Users>;
+    declare versions?: NonAttribute<PackageVersion[]>;
 }
 
 Packages.init(

@@ -1,4 +1,5 @@
-import { DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional } from "sequelize";
+import { DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional, NonAttribute } from "sequelize";
+import type Packages from "./PackagesModel";
 import { db } from "../config/db";
 
 export type UserRole = "user" | "admin";
@@ -15,6 +16,9 @@ class Users extends Model<InferAttributes<Users>, InferCreationAttributes<Users>
     declare role: CreationOptional<UserRole>;
     declare status: CreationOptional<UserStatus>;
     declare lastLoginAt: Date | null;
+
+    // Association mixins
+    declare packages?: NonAttribute<Packages[]>;
 }
 
 Users.init({
