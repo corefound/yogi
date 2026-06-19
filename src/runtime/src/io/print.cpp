@@ -14,6 +14,8 @@ void printLine(const char *value) {
     std::fputc('\n', stdout);
 }
 
+void printArrayInline(void *value);
+
 void printAnyInline(void *value) {
     if(!value) {
         std::fputs("null", stdout);
@@ -42,7 +44,32 @@ void printAnyInline(void *value) {
     case YOGI_ANY_STRING:
         std::fputs(anyValue->asString() ? anyValue->asString() : "", stdout);
         break;
+
+    case YOGI_ANY_ARRAY:
+        printArrayInline(anyValue->asArray());
+        break;
     }
+}
+
+void printArrayInline(void *value) {
+    if(!value) {
+        std::fputs("null", stdout);
+        return;
+    }
+
+    const auto *array = static_cast<const yogi::runtime::ArrayValue *>(value);
+    std::fputc('[', stdout);
+
+    const auto length = array->length();
+    for(std::size_t index = 0; index < length; ++index) {
+        if(index > 0) {
+            std::fputs(", ", stdout);
+        }
+
+        printAnyInline(array->get(index));
+    }
+
+    std::fputc(']', stdout);
 }
 }
 
@@ -70,19 +97,8 @@ extern "C" {
             return;
         }
 
-        const auto *array = static_cast<const yogi::runtime::ArrayValue *>(value);
-        std::fputc('[', stdout);
-
-        const auto length = array->length();
-        for(std::size_t index = 0; index < length; ++index) {
-            if(index > 0) {
-                std::fputs(", ", stdout);
-            }
-
-            printAnyInline(array->get(index));
-        }
-
-        std::fputs("]\n", stdout);
+        printArrayInline(value);
+        std::fputc('\n', stdout);
     }
 
 }

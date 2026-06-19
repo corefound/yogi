@@ -168,6 +168,9 @@ namespace yogi::runtime {
 					const auto *rightString = rightAny->asString();
 					return std::strcmp(leftString ? leftString : "", rightString ? rightString : "") == 0;
 				}
+
+				case YOGI_ANY_ARRAY:
+					return leftAny->asArray() == rightAny->asArray();
 			}
 
 			return false;
@@ -176,6 +179,24 @@ namespace yogi::runtime {
 		std::size_t numberStringLength(double value) {
 			char buffer[64];
 			return static_cast<std::size_t>(std::snprintf(buffer, sizeof(buffer), "%.15g", value));
+		}
+
+		std::size_t anyStringLength(void *value, bool emptyForNullish);
+		char *appendAnyString(char *target, void *value, bool emptyForNullish);
+
+		std::size_t arrayStringLength(const ArrayValue *array) {
+			if (!array) {
+				return 0;
+			}
+
+			const auto length = array->length();
+			std::size_t total = length > 0 ? length - 1 : 0;
+
+			for (std::size_t index = 0; index < length; ++index) {
+				total += anyStringLength(array->get(index), true);
+			}
+
+			return total;
 		}
 
 		std::size_t anyStringLength(void *value, bool emptyForNullish) {
@@ -200,6 +221,9 @@ namespace yogi::runtime {
 
 				case YOGI_ANY_STRING:
 					return std::strlen(any->asString() ? any->asString() : "");
+
+				case YOGI_ANY_ARRAY:
+					return arrayStringLength(static_cast<const ArrayValue *>(any->asArray()));
 			}
 
 			return 0;
@@ -236,6 +260,24 @@ namespace yogi::runtime {
 
 				case YOGI_ANY_STRING:
 					return appendText(target, any->asString() ? any->asString() : "");
+
+				case YOGI_ANY_ARRAY: {
+					const auto *array = static_cast<const ArrayValue *>(any->asArray());
+					if (!array) {
+						return target;
+					}
+
+					const auto length = array->length();
+					for (std::size_t index = 0; index < length; ++index) {
+						if (index > 0) {
+							target = appendText(target, ",");
+						}
+
+						target = appendAnyString(target, array->get(index), true);
+					}
+
+					return target;
+				}
 			}
 
 			return target;
@@ -711,6 +753,59 @@ namespace yogi::runtime {
 		return result;
 	}
 
+	ArrayValue *ArrayValue::flat(std::size_t depth) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array flat after destroy/drop", "array value");
+
+		auto *result = ArrayValue::create(0);
+
+		for (std::size_t index = 0; index < elementCount; ++index) {
+			const auto *any = elements[index] ? AnyValue::require(elements[index], "any") : nullptr;
+			if (depth > 0 && any && any->tag() == YOGI_ANY_ARRAY) {
+				auto *child = static_cast<const ArrayValue *>(any->asArray());
+				auto *flattened = child ? child->flat(depth - 1) : ArrayValue::create(0);
+				result->appendArray(flattened);
+				flattened->destroy();
+				OwnershipTracker::destroyHeapAggregate(flattened, "array value");
+				yogi_free(flattened);
+				continue;
+			}
+
+			result->push(elements[index] ? elements[index] : AnyValue::undefined());
+		}
+
+		return result;
+	}
+
+	ArrayValue *ArrayValue::keys() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array keys after destroy/drop", "array value");
+
+		auto *result = ArrayValue::create(elementCount);
+		for (std::size_t index = 0; index < elementCount; ++index) {
+			result->elements[index] = AnyValue::fromNumber(static_cast<double>(index));
+		}
+
+		return result;
+	}
+
+	ArrayValue *ArrayValue::values() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array values after destroy/drop", "array value");
+		return clone();
+	}
+
+	ArrayValue *ArrayValue::entries() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array entries after destroy/drop", "array value");
+
+		auto *result = ArrayValue::create(elementCount);
+		for (std::size_t index = 0; index < elementCount; ++index) {
+			auto *entry = ArrayValue::create(2);
+			entry->elements[0] = AnyValue::fromNumber(static_cast<double>(index));
+			entry->elements[1] = elements[index] ? elements[index] : AnyValue::undefined();
+			result->elements[index] = AnyValue::fromArray(entry);
+		}
+
+		return result;
+	}
+
 	const char *ArrayValue::join(const char *separator) const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array join after destroy/drop", "array value");
 
@@ -1058,6 +1153,38 @@ void *yogi_array_slice(void *array, double start, double end) {
 	}
 
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->slice(start, end);
+}
+
+void *yogi_array_flat(void *array, unsigned long long depth) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->flat(static_cast<std::size_t>(depth));
+}
+
+void *yogi_array_keys(void *array) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->keys();
+}
+
+void *yogi_array_values(void *array) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->values();
+}
+
+void *yogi_array_entries(void *array) {
+	if (!array) {
+		return yogi_array_create(0);
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->entries();
 }
 
 const char *yogi_array_join(void *array, const char *separator) {

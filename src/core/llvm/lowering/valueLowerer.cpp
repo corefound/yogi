@@ -752,7 +752,7 @@ namespace yogi::core::llvm::internal {
 			);
 		}
 
-		if (methodName == "join" || methodName == "toString") {
+		if (methodName == "join" || methodName == "toString" || methodName == "toLocaleString") {
 			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
 
 			if (methodName == "join") {
@@ -784,18 +784,135 @@ namespace yogi::core::llvm::internal {
 
 		if (methodName == "sort" || methodName == "toSorted") {
 			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *targetArray = array;
 
-			if (methodName == "sort") {
-				callRuntime("yogi_array_sort", ::llvm::Type::getVoidTy(context.llvmContext), {array});
+			if (methodName == "toSorted") {
+				targetArray = callRuntime("yogi_array_clone", opaquePointer(), {array});
+			}
+
+			if (arguments && arguments->size() > 0) {
+				auto *callback = getCallbackFunction();
+				const auto *inlineCallback = getInlineCallback();
+				if (!callback && !inlineCallback) {
+					return cast(
+						targetArray,
+						expectedType ? expectedType : types.lower(call->type()),
+						expectedSemanticType ? expectedSemanticType : call->type(),
+						call->type()
+					);
+				}
+
+				const auto *arrayType = valueSemanticType(callee->object());
+				const auto *elementType = arrayType && arrayType->element_type()
+					? arrayType->element_type()
+					: call->type();
+				auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {targetArray});
+				auto *function = context.builder.GetInsertBlock()->getParent();
+				auto *outerCondition = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.outer.condition", function);
+				auto *outerBody = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.outer.body", function);
+				auto *innerCondition = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.inner.condition", function);
+				auto *innerBody = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.inner.body", function);
+				auto *swapBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.swap", function);
+				auto *innerContinue = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.inner.continue", function);
+				auto *outerContinue = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.outer.continue", function);
+				auto *after = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.after", function);
+				auto *zero = ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 0);
+				auto *one = ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 1);
+
+				context.builder.CreateBr(outerCondition);
+				context.builder.SetInsertPoint(outerCondition);
+				auto *outerIndex = context.builder.CreatePHI(::llvm::Type::getInt64Ty(context.llvmContext), 2, "array.sort.i");
+				outerIndex->addIncoming(zero, outerCondition->getSinglePredecessor());
+				auto *outerInBounds = context.builder.CreateICmpULT(outerIndex, length, "array.sort.outer.in.bounds");
+				context.builder.CreateCondBr(outerInBounds, outerBody, after);
+
+				context.builder.SetInsertPoint(outerBody);
+				context.builder.CreateBr(innerCondition);
+
+				context.builder.SetInsertPoint(innerCondition);
+				auto *innerIndex = context.builder.CreatePHI(::llvm::Type::getInt64Ty(context.llvmContext), 2, "array.sort.j");
+				innerIndex->addIncoming(zero, outerBody);
+				auto *nextInnerIndex = context.builder.CreateAdd(innerIndex, one, "array.sort.j.next");
+				auto *innerInBounds = context.builder.CreateICmpULT(nextInnerIndex, length, "array.sort.inner.in.bounds");
+				context.builder.CreateCondBr(innerInBounds, innerBody, outerContinue);
+
+				context.builder.SetInsertPoint(innerBody);
+				auto *leftBoxed = callRuntime("yogi_array_get", opaquePointer(), {targetArray, innerIndex});
+				auto *rightBoxed = callRuntime("yogi_array_get", opaquePointer(), {targetArray, nextInnerIndex});
+				auto *leftValue = unboxAny(leftBoxed, elementType);
+				auto *rightValue = unboxAny(rightBoxed, elementType);
+				auto *compareResult = callCallback(
+					callback,
+					inlineCallback,
+					{
+						{leftValue, elementType},
+						{rightValue, elementType},
+					}
+				);
+				auto *shouldSwap = context.builder.CreateFCmpOGT(
+					toNumber(compareResult),
+					::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), 0.0),
+					"array.sort.should.swap"
+				);
+				context.builder.CreateCondBr(shouldSwap, swapBlock, innerContinue);
+
+				context.builder.SetInsertPoint(swapBlock);
+				callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray, innerIndex, rightBoxed});
+				callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray, nextInnerIndex, leftBoxed});
+				context.builder.CreateBr(innerContinue);
+
+				context.builder.SetInsertPoint(innerContinue);
+				innerIndex->addIncoming(nextInnerIndex, innerContinue);
+				context.builder.CreateBr(innerCondition);
+
+				context.builder.SetInsertPoint(outerContinue);
+				auto *outerNext = context.builder.CreateAdd(outerIndex, one, "array.sort.i.next");
+				outerIndex->addIncoming(outerNext, outerContinue);
+				context.builder.CreateBr(outerCondition);
+
+				context.builder.SetInsertPoint(after);
 				return cast(
-					array,
+					targetArray,
 					expectedType ? expectedType : types.lower(call->type()),
 					expectedSemanticType ? expectedSemanticType : call->type(),
 					call->type()
 				);
 			}
 
-			auto *result = callRuntime("yogi_array_to_sorted", opaquePointer(), {array});
+			if (methodName == "sort") {
+				callRuntime("yogi_array_sort", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray});
+				return cast(
+					targetArray,
+					expectedType ? expectedType : types.lower(call->type()),
+					expectedSemanticType ? expectedSemanticType : call->type(),
+					call->type()
+				);
+			}
+
+			callRuntime("yogi_array_sort", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray});
+			return cast(
+				targetArray,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "flat" || methodName == "keys" || methodName == "values" || methodName == "entries") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			::llvm::Value *result = nullptr;
+
+			if (methodName == "flat") {
+				auto *depth = toIndex(lowerNumberArgument(0, 1));
+				result = callRuntime("yogi_array_flat", opaquePointer(), {array, depth});
+			} else if (methodName == "keys") {
+				result = callRuntime("yogi_array_keys", opaquePointer(), {array});
+			} else if (methodName == "values") {
+				result = callRuntime("yogi_array_values", opaquePointer(), {array});
+			} else {
+				result = callRuntime("yogi_array_entries", opaquePointer(), {array});
+			}
+
 			return cast(
 				result,
 				expectedType ? expectedType : types.lower(call->type()),
@@ -1922,6 +2039,10 @@ namespace yogi::core::llvm::internal {
 				return callRuntime("yogi_any_from_string", opaquePointer(), {stringValue});
 			}
 
+			case Yogi::Sir::TypeKind_array_type:
+			case Yogi::Sir::TypeKind_tuple_type:
+				return callRuntime("yogi_any_from_array", opaquePointer(), {value});
+
 			case Yogi::Sir::TypeKind_null_type:
 				return callRuntime("yogi_any_null", opaquePointer(), {});
 
@@ -1947,6 +2068,10 @@ namespace yogi::core::llvm::internal {
 
 			case Yogi::Sir::TypeKind_string_type:
 				return callRuntime("yogi_any_to_string", opaquePointer(), {value});
+
+			case Yogi::Sir::TypeKind_array_type:
+			case Yogi::Sir::TypeKind_tuple_type:
+				return callRuntime("yogi_any_to_array", opaquePointer(), {value});
 
 			case Yogi::Sir::TypeKind_null_type:
 				return callRuntime("yogi_any_to_null", opaquePointer(), {value});

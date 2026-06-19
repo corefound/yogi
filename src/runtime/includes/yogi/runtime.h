@@ -14,6 +14,7 @@ enum YogiAnyTag {
 	YOGI_ANY_NUMBER = 2,
 	YOGI_ANY_BOOLEAN = 3,
 	YOGI_ANY_STRING = 4,
+	YOGI_ANY_ARRAY = 5,
 };
 
 void *yogi_any_undefined(void);
@@ -21,10 +22,12 @@ void *yogi_any_null(void);
 void *yogi_any_from_number(double value);
 void *yogi_any_from_boolean(bool value);
 void *yogi_any_from_string(const char *value);
+void *yogi_any_from_array(void *value);
 
 double yogi_any_to_number(void *value);
 bool yogi_any_to_boolean(void *value);
 const char *yogi_any_to_string(void *value);
+void *yogi_any_to_array(void *value);
 void *yogi_any_to_null(void *value);
 void *yogi_any_to_undefined(void *value);
 bool yogi_any_is_nullish(void *value);
@@ -69,6 +72,10 @@ void *yogi_array_to_reversed(void *array);
 void *yogi_array_to_spliced(void *array, double start, double deleteCount, void *inserted);
 void *yogi_array_with(void *array, double index, void *value);
 void *yogi_array_slice(void *array, double start, double end);
+void *yogi_array_flat(void *array, unsigned long long depth);
+void *yogi_array_keys(void *array);
+void *yogi_array_values(void *array);
+void *yogi_array_entries(void *array);
 const char *yogi_array_join(void *array, const char *separator);
 const char *yogi_array_to_string(void *array);
 void yogi_array_sort(void *array);

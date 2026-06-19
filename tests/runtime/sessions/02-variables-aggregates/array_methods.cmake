@@ -57,6 +57,7 @@ function stringBatch(): void {
     let scores: number[] = [3, 1, 20]
     print(scores.join("-"))
     print(scores.toString())
+    print(scores.toLocaleString())
 }
 
 function sortBatch(): number {
@@ -73,6 +74,38 @@ function toSortedBatch(): number {
     return sorted[0] * 10000 + sorted[1] * 1000 + sorted[2] * 10 + scores[0]
 }
 
+function comparatorSortBatch(): number {
+    let scores: number[] = [3, 1, 20]
+    scores.sort((left: number, right: number): number => {
+        return left - right
+    })
+
+    return scores[0] * 100 + scores[1] * 10 + scores[2]
+}
+
+function comparatorToSortedBatch(): number {
+    let scores: number[] = [3, 1, 20]
+    let sorted: number[] = scores.toSorted((left: number, right: number): number => right - left)
+
+    return sorted[0] * 10000 + sorted[1] * 1000 + sorted[2] * 10 + scores[0]
+}
+
+function flatBatch(): number {
+    let nested: number[][] = [[1, 2], [3, 4]]
+    let flat: number[] = nested.flat(1)
+
+    return flat[0] * 1000 + flat[1] * 100 + flat[2] * 10 + flat[3]
+}
+
+function iteratorBatch(): number {
+    let scores: number[] = [5, 6, 7]
+    let keys: number[] = scores.keys()
+    let values: number[] = scores.values()
+    let entries: [number, number][] = scores.entries()
+
+    return keys[2] * 10000 + values[1] * 1000 + entries[1][0] * 100 + entries[1][1]
+}
+
 print(mutationBatch())
 print(searchBatch())
 print(sliceBatch())
@@ -82,6 +115,10 @@ printArrayBatch()
 stringBatch()
 print(sortBatch())
 print(toSortedBatch())
+print(comparatorSortBatch())
+print(comparatorToSortedBatch())
+print(flatBatch())
+print(iteratorBatch())
 ]=])
 
 execute_process(
@@ -127,7 +164,11 @@ foreach(symbol
 		yogi_array_join
 		yogi_array_to_string
 		yogi_array_sort
-		yogi_array_to_sorted
+		yogi_array_clone
+		yogi_array_flat
+		yogi_array_keys
+		yogi_array_values
+		yogi_array_entries
 		yogi_array_destroy)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected array methods IR to contain ${symbol}")
@@ -146,7 +187,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array methods executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "213\n10133\n243\n8\n[4, 5, 6]\n3-1-20\n3,1,20\n303\n30033\n")
+set(expected_stdout "213\n10133\n243\n8\n[4, 5, 6]\n3-1-20\n3,1,20\n3,1,20\n303\n30033\n150\n203013\n1234\n26106\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array methods executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -202,4 +243,10 @@ expect_invalid(
 	join_separator_type
 	"let scores: number[] = [1, 2]\nlet text: string = scores.join(1)\n"
 	"separator"
+)
+
+expect_invalid(
+	sort_compare_return
+	"let scores: number[] = [1, 2]\nscores.sort((left: number, right: number): boolean => true)\n"
+	"must return"
 )

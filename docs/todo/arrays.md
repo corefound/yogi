@@ -27,6 +27,7 @@ known state instead of rediscovering gaps from the source code.
   - `includes`
   - `indexOf`
   - `join`
+  - `toLocaleString`
   - `lastIndexOf`
   - `slice`
   - `toString`
@@ -34,11 +35,21 @@ known state instead of rediscovering gaps from the source code.
   - `toSpliced`
   - `toSorted`
   - `with`
+  - `flat`
+  - `keys`
+  - `values`
+  - `entries`
 - Copy/mutation methods:
   - `fill`
   - `copyWithin`
   - `splice`
   - `sort`
+- Comparator overloads:
+  - `sort(compareFn)`
+  - `toSorted(compareFn)`
+- Recursive aggregate printing:
+  - arrays containing arrays
+  - arrays containing primitive values
 - Callback methods with named function references:
   - `forEach`
   - `map`
@@ -62,23 +73,19 @@ known state instead of rediscovering gaps from the source code.
 ## In Progress / Next Lots
 
 - Local capture/closure semantics for inline callbacks.
+- Real iterator protocol for `keys`, `values`, and `entries`.
+- Depth-aware semantic result typing for `flat(depth)` beyond the first static
+  nesting level.
 
 ## Future Work
 
 - Inline callback forms that still need deeper function-expression lowering:
   - closures that capture outer locals
-- Iterator-related methods:
-  - `entries`
-  - `keys`
-  - `values`
-- Comparator overloads:
-  - `sort(compareFn)`
-  - `toSorted(compareFn)`
-- Structural methods that need deeper array/object semantics:
-  - `flat`
-- Recursive aggregate printing:
-  - arrays containing arrays
-  - arrays containing objects
+- Iterator objects and `for...of` integration. `keys`, `values`, and `entries`
+  currently materialize arrays because Yogi does not have the iterator protocol
+  yet.
+- Object stringification inside arrays. Primitive and nested array elements are
+  stringified; object display should wait for object runtime formatting.
 
 ## Notes
 
@@ -91,8 +98,12 @@ known state instead of rediscovering gaps from the source code.
 - `find`, `at`, `pop`, and `shift` return `T | undefined`. They can now unbox
   into primitive contexts that explicitly expect `T`, and they can remain boxed
   when a variable explicitly stores the union.
-- `sort()` and `toSorted()` currently use the JavaScript-style default string
-  ordering for primitive array elements. Comparator callbacks are still pending.
+- `sort()` and `toSorted()` support JavaScript-style default string ordering and
+  comparator callbacks that return `number`.
+- `flat(depth)` honors the runtime depth argument. Semantic typing currently
+  flattens one known static level, which is correct for the supported tests but
+  should become depth-aware once Yogi has stronger compile-time numeric literal
+  evaluation.
 - `with` now uses runtime range diagnostics. Future range-sensitive APIs should
   reuse the same `yogi runtime range error` path unless Yogi later adds
   catchable exceptions.

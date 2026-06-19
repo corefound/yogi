@@ -28,6 +28,10 @@ void *yogi_any_from_string(const char *value) {
 	return yogi::runtime::AnyValue::fromString(value);
 }
 
+void *yogi_any_from_array(void *value) {
+	return yogi::runtime::AnyValue::fromArray(value);
+}
+
 double yogi_any_to_number(void *value) {
 	return yogi::runtime::AnyValue::require(value, "number")->asNumber();
 }
@@ -38,6 +42,10 @@ bool yogi_any_to_boolean(void *value) {
 
 const char *yogi_any_to_string(void *value) {
 	return yogi::runtime::AnyValue::require(value, "string")->asString();
+}
+
+void *yogi_any_to_array(void *value) {
+	return yogi::runtime::AnyValue::require(value, "array")->asArray();
 }
 
 void *yogi_any_to_null(void *value) {

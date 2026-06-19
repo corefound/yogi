@@ -273,6 +273,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 "flatMap",
                 "reduce",
                 "reduceRight",
+                "sort",
+                "toSorted",
             ]);
             const args = (node.arguments ?? []).map((argument: any, index: number) => {
                 if (callbackMethods.has(methodName) && index === 0 && argument?.kind === Kinds.Functions.FunctionExpression) {
@@ -314,8 +316,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 with: () => this.validateAndCreateWithCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 join: () => this.validateAndCreateJoinCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 toString: () => this.validateAndCreateToStringCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                toLocaleString: () => this.validateAndCreateToStringCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 sort: () => this.validateAndCreateSortCall(node, rawCallee, receiver, receiverType, methodName, args, source, true),
                 toSorted: () => this.validateAndCreateSortCall(node, rawCallee, receiver, receiverType, methodName, args, source, false),
+                flat: () => this.validateAndCreateFlatCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                keys: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                values: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                entries: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 forEach: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 map: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 filter: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
@@ -963,10 +970,57 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
         }
 
         public validateAndCreateSortCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string, mutating: boolean): any {
-            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 1);
 
             if (mutating) {
                 this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+            }
+
+            if (args[0]) {
+                const callback = args[0];
+                if (callback?.kind !== Kinds.Expressions.IdentifierExpression && callback?.kind !== Kinds.Functions.FunctionExpression) {
+                    const message = `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} compare function must be callable`;
+                    callback.arrowLength = callback?.source?.length ?? 1;
+                    this.throwError(message, callback?.position ?? node.position, source, callback ?? node);
+                }
+
+                const elementType = this.arrayReadableElementType(receiverType);
+                const semanticCallback = callback.kind === Kinds.Functions.FunctionExpression
+                    ? this.visitInlineCallbackFunctionExpression(node, methodName, callback, elementType, source)
+                    : callback;
+                const callbackName = semanticCallback.callbackName ?? semanticCallback.value ?? semanticCallback.name ?? semanticCallback.raw;
+                const symbol = semanticCallback.kind === Kinds.Expressions.IdentifierExpression
+                    ? this.resolveSymbol(callbackName)
+                    : null;
+
+                if (semanticCallback.kind === Kinds.Expressions.IdentifierExpression && (!symbol || symbol.kind !== Kinds.ScopeSymbols.Function)) {
+                    const message = `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} compare function is not callable`;
+                    semanticCallback.arrowLength = callbackName?.length ?? 1;
+                    this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
+                }
+
+                const params = semanticCallback.kind === Kinds.Functions.FunctionExpression
+                    ? semanticCallback.params ?? []
+                    : symbol.node?.params ?? [];
+
+                if (params.length !== 2 || !this.isTypeAssignable(params[0]?.type, elementType) || !this.isTypeAssignable(params[1]?.type, elementType)) {
+                    const message = `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} compare function must accept two ${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET} values`;
+                    semanticCallback.arrowLength = callbackName?.length ?? 1;
+                    this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
+                }
+
+                const callbackReturnType = this.toSerializableType(semanticCallback.returnType ?? symbol?.node?.returnType ?? {
+                    kind: Kinds.Types.UnknownType,
+                    raw: "unknown",
+                });
+
+                if (this.resolveType(callbackReturnType)?.kind !== Kinds.Types.NumberType) {
+                    const message = `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} compare function must return ${Helpers.BLUE}'number'${Helpers.RESET}`;
+                    semanticCallback.arrowLength = callbackName?.length ?? 1;
+                    this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
+                }
+
+                args = [semanticCallback];
             }
 
             return this.createArrayBuiltinCall(
@@ -977,6 +1031,62 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.arrayReturnType(receiverType),
                 methodName,
             );
+        }
+
+        public validateAndCreateFlatCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 1);
+
+            if (args[0] && this.resolveType(args[0].type)?.kind !== Kinds.Types.NumberType) {
+                const message = `array method ${Helpers.BLUE}'flat'${Helpers.RESET} depth must be ${Helpers.BLUE}'number'${Helpers.RESET}`;
+                args[0].arrowLength = args[0].source?.length ?? 1;
+                this.throwError(message, args[0].position ?? node.position, source, args[0]);
+            }
+
+            const elementType = this.arrayReadableElementType(receiverType);
+            const flattenedType = this.resolveType(elementType)?.kind === Kinds.Types.ArrayType ||
+                this.resolveType(elementType)?.kind === Kinds.Types.TupleType
+                    ? this.arrayReadableElementType(this.resolveType(elementType))
+                    : elementType;
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                {
+                    kind: Kinds.Types.ArrayType,
+                    raw: `${flattenedType?.raw ?? "unknown"}[]`,
+                    elementType: flattenedType,
+                    readonly: false,
+                },
+                methodName,
+            );
+        }
+
+        public validateAndCreateIteratorArrayCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            const elementType = this.arrayReadableElementType(receiverType);
+            const numberType = { kind: Kinds.Types.NumberType, raw: "number" };
+            let returnType: any = { kind: Kinds.Types.ArrayType, raw: "number[]", elementType: numberType, readonly: false };
+
+            if (methodName === "values") {
+                returnType = this.arrayReturnType(receiverType);
+            } else if (methodName === "entries") {
+                const entryType = {
+                    kind: Kinds.Types.TupleType,
+                    raw: `[number, ${elementType?.raw ?? "unknown"}]`,
+                    elements: [numberType, elementType],
+                };
+                returnType = {
+                    kind: Kinds.Types.ArrayType,
+                    raw: `${entryType.raw}[]`,
+                    elementType: entryType,
+                    readonly: false,
+                };
+            }
+
+            return this.createArrayBuiltinCall(node, rawCallee, receiver, args, returnType, methodName);
         }
 
         public validateAndCreateWithCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {

@@ -64,6 +64,7 @@ The compiler currently lowers source code through this pipeline:
 - [Array Inline Callback Expressions](lots/09-array-inline-callbacks.md)
 - [Array At And Richer Print](lots/10-array-at-and-print.md)
 - [Array Stringification And Ordering](lots/11-array-stringification-and-ordering.md)
+- [Array Completion](lots/12-array-completion.md)
 
 ### To Do
 

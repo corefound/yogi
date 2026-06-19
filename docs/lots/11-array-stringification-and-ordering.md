@@ -41,13 +41,14 @@ print(values)
 // [1, 20, 3]
 ```
 
-Comparator overloads are still future work:
+Comparator overloads were added in the next array lot:
 
 ```ts
 values.sort((a: number, b: number): number => a - b)
 ```
 
-That path needs comparator lowering into runtime/native sorting.
+See [Array Completion](12-array-completion.md) for comparator lowering,
+`flat(depth)`, and iterator-shaped methods.
 
 ## Tests
 

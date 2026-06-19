@@ -63,6 +63,10 @@ namespace yogi::runtime {
 			ArrayValue *toSpliced(double start, double deleteCount, const ArrayValue *inserted) const;
 			ArrayValue *with(double index, void *value) const;
 			ArrayValue *slice(double start, double end) const;
+			ArrayValue *flat(std::size_t depth) const;
+			ArrayValue *keys() const;
+			ArrayValue *values() const;
+			ArrayValue *entries() const;
 			const char *join(const char *separator) const;
 			const char *toString() const;
 			void sort();
