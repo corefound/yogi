@@ -108,6 +108,7 @@ namespace yogi::core::llvm::internal {
 			);
 			::llvm::Value *isNullish(::llvm::Value *value);
 			::llvm::Value *toIndex(::llvm::Value *value);
+			::llvm::Value *toStringValue(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType);
 			::llvm::Value *boxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType);
 			::llvm::Value *unboxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *targetSemanticType);
 			::llvm::Value *unboxArrayElement(

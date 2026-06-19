@@ -40,6 +40,9 @@ void yogi_print_array(void *value);
 
 unsigned long long yogi_string_length(const char *value);
 const char *yogi_string_at(const char *value, unsigned long long index);
+const char *yogi_string_concat(const char *left, const char *right);
+const char *yogi_string_from_number(double value);
+const char *yogi_string_from_boolean(bool value);
 
 void *yogi_object_create(void);
 unsigned long long yogi_object_sizeof(void);

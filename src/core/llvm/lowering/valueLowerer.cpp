@@ -1699,6 +1699,14 @@ namespace yogi::core::llvm::internal {
 		auto *left = lower(binary->left(), types.lower(leftSemanticType), leftSemanticType);
 		auto *right = lower(binary->right(), types.lower(rightSemanticType), rightSemanticType);
 
+		if (op == "+" && resolvedTypeKind(binary->type()) == Yogi::Sir::TypeKind_string_type) {
+			return callRuntime(
+				"yogi_string_concat",
+				opaquePointer(),
+				{toStringValue(left, leftSemanticType), toStringValue(right, rightSemanticType)}
+			);
+		}
+
 		if (op == "+") return context.builder.CreateFAdd(toNumber(left), toNumber(right), "addtmp");
 		if (op == "-") return context.builder.CreateFSub(toNumber(left), toNumber(right), "subtmp");
 		if (op == "*") return context.builder.CreateFMul(toNumber(left), toNumber(right), "multmp");
@@ -1943,6 +1951,22 @@ namespace yogi::core::llvm::internal {
 		}
 
 		return ::llvm::ConstantInt::getFalse(context.llvmContext);
+	}
+
+	::llvm::Value *ValueLowerer::toStringValue(
+		::llvm::Value *value,
+		const Yogi::Sir::TypeRef *sourceSemanticType
+	) {
+		switch (resolvedTypeKind(sourceSemanticType)) {
+			case Yogi::Sir::TypeKind_string_type:
+				return value;
+			case Yogi::Sir::TypeKind_number_type:
+				return callRuntime("yogi_string_from_number", opaquePointer(), {toNumber(value)});
+			case Yogi::Sir::TypeKind_boolean_type:
+				return callRuntime("yogi_string_from_boolean", opaquePointer(), {toBoolean(value)});
+			default:
+				return context.builder.CreateGlobalString("");
+		}
 	}
 
 	::llvm::Value *ValueLowerer::isNullish(::llvm::Value *value) {

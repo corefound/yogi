@@ -41,7 +41,7 @@ export function LiteralsVisitor<TBase extends Constructor<BaseVisitor>>(Base: TB
                 };
             }
 
-            if (ts.isStringLiteral(node)) {
+            if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
                 return {
                     kind: Kinds.Literals.StringLiteral,
                     type: "string",

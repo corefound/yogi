@@ -25,6 +25,9 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 			if (ts.isConditionalExpression(node))
 				return this.visitConditionalExpression(node);
 
+			if (ts.isTemplateExpression(node))
+				return this.visitTemplateExpression(node);
+
 			if (ts.isCallExpression(node)) return this.visitCallExpression(node);
 
 			if (ts.isBinaryExpression(node)) return this.visitBinaryExpression(node);
@@ -111,6 +114,41 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 				fullSource: node.getFullText(),
 				position: this.getNodePosistion(node),
 			};
+		}
+
+		visitTemplateExpression(node: ts.TemplateExpression) {
+			const makeString = (value: string, source: string, positionNode: ts.Node) => ({
+				kind: Kinds.Literals.StringLiteral,
+				type: "string",
+				value,
+				source,
+				position: this.getNodePosistion(positionNode),
+			});
+			const concat = (left: any, right: any, source: string, positionNode: ts.Node) => ({
+				kind: Kinds.Expressions.BinaryExpression,
+				left,
+				operator: "+",
+				right,
+				source,
+				fullSource: node.getFullText(),
+				position: this.getNodePosistion(positionNode),
+			});
+			let expression: any = makeString(node.head.text, node.head.getText(), node.head);
+
+			for (const span of node.templateSpans) {
+				expression = concat(expression, this.visitNode(span.expression), node.getText(), span.expression);
+
+				if (span.literal.text.length > 0) {
+					expression = concat(
+						expression,
+						makeString(span.literal.text, span.literal.getText(), span.literal),
+						node.getText(),
+						span.literal,
+					);
+				}
+			}
+
+			return expression;
 		}
 
 		visitBinaryExpression(node: ts.BinaryExpression) {

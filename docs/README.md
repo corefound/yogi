@@ -70,6 +70,7 @@ The compiler currently lowers source code through this pipeline:
 - [Array Stringification And Ordering](lots/11-array-stringification-and-ordering.md)
 - [Array Completion](lots/12-array-completion.md)
 - [Iterator Protocol And Loops](lots/13-iterator-protocol-and-loops.md)
+- [String Operators And Template Literals](lots/14-string-operators-and-template-literals.md)
 
 ### To Do
 

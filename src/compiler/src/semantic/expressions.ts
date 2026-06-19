@@ -366,7 +366,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const root = this.getAggregateRootIdentifier(receiver);
             const symbol = root ? this.resolveSymbol(root) : null;
 
-            if (symbol?.mutable !== true) {
+            if (root && symbol?.mutable !== true) {
                 const message =
                     `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
 
@@ -454,7 +454,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const root = this.getAggregateRootIdentifier(receiver);
             const symbol = root ? this.resolveSymbol(root) : null;
 
-            if (symbol?.mutable !== true) {
+            if (root && symbol?.mutable !== true) {
                 const message =
                     `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
 
@@ -638,7 +638,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const root = this.getAggregateRootIdentifier(receiver);
             const symbol = root ? this.resolveSymbol(root) : null;
 
-            if (symbol?.mutable !== true) {
+            if (root && symbol?.mutable !== true) {
                 const message =
                     `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
 
@@ -1957,7 +1957,25 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             return done({ kind: Kinds.Types.NumberType, raw: "number" });
                         }
 
-                        if (isString(leftType) && isString(rightType)) {
+                        if (
+                            isString(leftType) &&
+                            (
+                                isString(rightType) ||
+                                isNumber(rightType) ||
+                                isBoolean(rightType)
+                            )
+                        ) {
+                            return done({ kind: Kinds.Types.StringType, raw: "string" });
+                        }
+
+                        if (
+                            isString(rightType) &&
+                            (
+                                isString(leftType) ||
+                                isNumber(leftType) ||
+                                isBoolean(leftType)
+                            )
+                        ) {
                             return done({ kind: Kinds.Types.StringType, raw: "string" });
                         }
 
