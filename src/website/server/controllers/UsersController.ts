@@ -22,7 +22,7 @@ export class UsersController {
         }
     }
 
-    static async getUserByName(params: unknown) {
+    static async user(params: unknown) {
         try {
             const parsed = GetUserSchema.parse(params);
             const user = await Models.Users.findOne({

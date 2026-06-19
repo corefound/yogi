@@ -5,7 +5,7 @@ const methodHandlers: Record<string, (body: any) => Promise<any>> = {
     "create_package": Controllers.Packages.createPackage,
     "create_user": Controllers.Users.createUser,
     "yogi.login": Controllers.Auth.login,
-    "get_user_by_name": Controllers.Users.getUserByName,
+    "get_user_by_name": Controllers.Users.user,
 };
 
 export class RpcHandlers {
