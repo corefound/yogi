@@ -71,6 +71,14 @@ for (let entry: [number, number] of values.entries()) {
 }
 ```
 
+Destructuring bindings are supported when the binding has an explicit type:
+
+```ts
+for (let [index, value]: [number, number] of values.entries()) {
+    print(index + value)
+}
+```
+
 ## Lowering Model
 
 The visitor desugars `for...of` into the existing `for` pipeline:
@@ -115,12 +123,20 @@ for (let score: number of makeScores()) {
 `makeScores()` is evaluated once, stored in a hidden loop temp, and the temp is
 destroyed after the loop.
 
+Mutating array methods that return the receiver, such as `sort()`, are aliases:
+
+```ts
+let values: number[] = [3, 1, 20]
+let sorted: number[] = values.sort()
+```
+
+`values` and `sorted` point at the same array. Module cleanup detects this and
+destroys the aggregate once.
+
 ## Current Limits
 
-- `for...of` currently supports identifier loop bindings.
-- Destructuring loop bindings such as `for (let [index, value] of entries)` are
-  future work.
+- `for...of` supports identifier, array destructuring, and object destructuring
+  loop bindings with explicit type annotations.
 - `keys`, `values`, and `entries` currently return arrays, not lazy iterator
   objects.
 - Strings are not iterable yet.
-

@@ -11,6 +11,9 @@ file(MAKE_DIRECTORY "${TEST_WORK_DIR}")
 
 set(SOURCE "${TEST_WORK_DIR}/main.ts")
 file(WRITE "${SOURCE}" [=[
+let moduleValues: number[] = [3, 1, 20]
+let moduleSorted: number[] = moduleValues.sort()
+
 function sumValues(): number {
     let values: number[] = [3, 1, 20]
     let total: number = 0
@@ -50,6 +53,17 @@ function sumEntries(): number {
 
     for (let entry: [number, number] of values.entries()) {
         total = total + entry[0] + entry[1]
+    }
+
+    return total
+}
+
+function destructuredEntries(): number {
+    let values: number[] = [3, 1, 20]
+    let total: number = 0
+
+    for (let [index, value]: [number, number] of values.entries()) {
+        total = total + index * 10 + value
     }
 
     return total
@@ -97,10 +111,12 @@ function sortAlias(): number {
     return sorted[0] * 100 + values[1] * 10 + sorted[2]
 }
 
+print(moduleSorted)
 print(sumValues())
 print(sumKeys())
 print(sumMaterializedValues())
 print(sumEntries())
+print(destructuredEntries())
 print(breakAndContinue())
 print(returnedIterable())
 print(sortAlias())
@@ -163,7 +179,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "iterator protocol executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "24\n3\n24\n27\n8\n15\n[1, 20, 3]\n303\n")
+set(expected_stdout "[1, 20, 3]\n24\n3\n24\n27\n54\n8\n15\n[1, 20, 3]\n303\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "iterator protocol executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

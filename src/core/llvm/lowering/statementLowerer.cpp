@@ -77,6 +77,7 @@ namespace yogi::core::llvm::internal {
 		auto *entry = ::llvm::BasicBlock::Create(context.llvmContext, "entry", function);
 		context.builder.SetInsertPoint(entry);
 		context.pushMemoryContext("$module.cleanup");
+		std::vector<::llvm::Value *> destroyedAggregates;
 
 		for (const auto *node: *context.sirModule->nodes()) {
 			const auto *variable = node->value_as_VariableDeclaration();
@@ -87,7 +88,33 @@ namespace yogi::core::llvm::internal {
 
 			auto *global = context.globals[fbString(variable->name())];
 			auto *value = context.builder.CreateLoad(global->getValueType(), global);
-			values.destroyEscapedAggregate(variable->type(), value);
+			if (value->getType()->isPointerTy()) {
+				auto *isNull = context.builder.CreateIsNull(value);
+				::llvm::Value *alreadyDestroyed = ::llvm::ConstantInt::getFalse(context.llvmContext);
+
+				for (auto *destroyed: destroyedAggregates) {
+					alreadyDestroyed = context.builder.CreateOr(
+						alreadyDestroyed,
+						context.builder.CreateICmpEQ(value, destroyed)
+					);
+				}
+
+				auto *shouldDestroy = context.builder.CreateAnd(
+					context.builder.CreateNot(isNull),
+					context.builder.CreateNot(alreadyDestroyed)
+				);
+				auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "module.cleanup.destroy", function);
+				auto *skipBlock = ::llvm::BasicBlock::Create(context.llvmContext, "module.cleanup.skip", function);
+
+				context.builder.CreateCondBr(shouldDestroy, destroyBlock, skipBlock);
+				context.builder.SetInsertPoint(destroyBlock);
+				values.destroyEscapedAggregate(variable->type(), value);
+				context.builder.CreateBr(skipBlock);
+				context.builder.SetInsertPoint(skipBlock);
+				destroyedAggregates.push_back(value);
+			} else {
+				values.destroyEscapedAggregate(variable->type(), value);
+			}
 			context.builder.CreateStore(::llvm::Constant::getNullValue(global->getValueType()), global);
 		}
 

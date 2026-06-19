@@ -83,8 +83,15 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
             }
 
             const declaration = node.initializer.declarations[0];
-            if (!declaration || !ts.isIdentifier(declaration.name)) {
-                throw new Error("for...of currently supports identifier loop bindings");
+            if (
+                !declaration ||
+                (
+                    !ts.isIdentifier(declaration.name) &&
+                    !ts.isArrayBindingPattern(declaration.name) &&
+                    !ts.isObjectBindingPattern(declaration.name)
+                )
+            ) {
+                throw new Error("for...of currently supports identifier and destructuring loop bindings");
             }
 
             const elementType = declaration.type ? this.visitType(declaration.type) : null;
@@ -194,39 +201,20 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                 position: this.getNodePosistion(node),
             };
 
-            const valueDeclaration = {
-                kind: Kinds.Statements.DeclarationStatement,
-                flag: node.initializer.flags & ts.NodeFlags.Const ? "const" : "let",
-                export: false,
-                declare: false,
-                ambient: false,
-                emit: true,
-                declarations: [{
-                    kind: Kinds.Statements.VariableDeclaration,
-                    name: declaration.name.getText(),
-                    flag: node.initializer.flags & ts.NodeFlags.Const ? "const" : "let",
-                    export: false,
-                    declare: false,
-                    ambient: false,
-                    emit: true,
-                    definiteAssignment: false,
-                    type: elementType,
-                    value: {
-                        kind: Kinds.Expressions.ElementAccessExpression,
-                        object: iterableIdentifier,
-                        index: indexIdentifier,
-                        optional: false,
-                        source: `${iterableName}[${indexName}]`,
-                        position: this.getNodePosistion(node.expression),
-                    },
-                    source: `${declaration.name.getText()}: ${elementType?.raw ?? "unknown"} = ${iterableName}[${indexName}]`,
-                    fullSource: node.getText(),
-                    position: this.getNodePosistion(declaration),
-                }],
-                source: `${declaration.name.getText()}: ${elementType?.raw ?? "unknown"} = ${iterableName}[${indexName}]`,
-                fullSource: node.getText(),
-                position: this.getNodePosistion(declaration),
+            const valueAccess = {
+                kind: Kinds.Expressions.ElementAccessExpression,
+                object: iterableIdentifier,
+                index: indexIdentifier,
+                optional: false,
+                source: `${iterableName}[${indexName}]`,
+                position: this.getNodePosistion(node.expression),
             };
+            const valueDeclarations = this.createForOfValueDeclarations(
+                node,
+                declaration,
+                elementType,
+                valueAccess,
+            );
             const body = this.visitLoopBody(node.statement);
 
             return {
@@ -236,7 +224,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                 incrementor,
                 body: {
                     ...body,
-                    statements: [valueDeclaration, ...(body.statements ?? [])],
+                    statements: [...valueDeclarations, ...(body.statements ?? [])],
                 },
                 source: node.getText(),
                 position: this.getNodePosistion(node),
@@ -252,6 +240,90 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                 fullSource: node.getFullText(),
                 position: this.getNodePosistion(node),
             };
+        }
+
+        createForOfValueDeclarations(
+            node: ts.ForOfStatement,
+            declaration: ts.VariableDeclaration,
+            elementType: any,
+            valueAccess: any,
+        ) {
+            const flag = node.initializer.flags & ts.NodeFlags.Const ? "const" : "let";
+            const base = {
+                flag,
+                export: false,
+                declare: false,
+                ambient: false,
+                emit: true,
+                definiteAssignment: false,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(declaration),
+            };
+
+            if (ts.isIdentifier(declaration.name)) {
+                return [{
+                    kind: Kinds.Statements.DeclarationStatement,
+                    flag,
+                    export: false,
+                    declare: false,
+                    ambient: false,
+                    emit: true,
+                    declarations: [{
+                        kind: Kinds.Statements.VariableDeclaration,
+                        ...base,
+                        name: declaration.name.getText(),
+                        type: elementType,
+                        value: valueAccess,
+                        source: `${declaration.name.getText()}: ${elementType?.raw ?? "unknown"} = ${valueAccess.source}`,
+                    }],
+                    source: `${declaration.name.getText()}: ${elementType?.raw ?? "unknown"} = ${valueAccess.source}`,
+                    fullSource: node.getText(),
+                    position: this.getNodePosistion(declaration),
+                }];
+            }
+
+            const tempName = `__yogi_for_of_value_${this.forOfCounter++}`;
+            const tempIdentifier = this.createSyntheticIdentifier(tempName, declaration);
+            const tempDeclaration = {
+                kind: Kinds.Statements.DeclarationStatement,
+                flag: "let",
+                export: false,
+                declare: false,
+                ambient: false,
+                emit: true,
+                declarations: [{
+                    kind: Kinds.Statements.VariableDeclaration,
+                    ...base,
+                    flag: "let",
+                    name: tempName,
+                    type: elementType,
+                    value: valueAccess,
+                    source: `${tempName}: ${elementType?.raw ?? "unknown"} = ${valueAccess.source}`,
+                }],
+                source: `${tempName}: ${elementType?.raw ?? "unknown"} = ${valueAccess.source}`,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(declaration),
+            };
+            const visitor = this as any;
+            const bindingDeclarations = ts.isArrayBindingPattern(declaration.name)
+                ? visitor.expandArrayBindingPattern(declaration.name, elementType, tempIdentifier, base)
+                : visitor.expandObjectBindingPattern(declaration.name, elementType, tempIdentifier, base);
+
+            return [
+                tempDeclaration,
+                {
+                    kind: Kinds.Statements.DeclarationStatement,
+                    flag,
+                    export: false,
+                    declare: false,
+                    ambient: false,
+                    emit: true,
+                    declarations: bindingDeclarations,
+                    source: declaration.name.getText(),
+                    fullSource: node.getText(),
+                    position: this.getNodePosistion(declaration),
+                },
+            ];
         }
 
         visitLoopBody(statement: ts.Statement) {

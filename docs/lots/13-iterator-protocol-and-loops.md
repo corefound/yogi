@@ -19,7 +19,8 @@ Expected output:
 ```
 
 `sort()` mutates and returns the same array. `sorted` must be treated as an
-alias of `values`, not as a second owner.
+alias of `values`, not as a second owner. This applies to local variables and
+module-level globals.
 
 ## Added Behavior
 
@@ -37,6 +38,12 @@ It also works with the currently materialized iterator methods:
 for (let key: number of values.keys()) {}
 for (let value: number of values.values()) {}
 for (let entry: [number, number] of values.entries()) {}
+```
+
+Entries can be destructured directly:
+
+```ts
+for (let [index, value]: [number, number] of values.entries()) {}
 ```
 
 `break` and `continue` use the same cleanup machinery as classic loops.
@@ -58,6 +65,12 @@ for (let value of values) {}
 The element type must match the iterable element type. For example, iterating a
 `number[]` with a `string` loop variable is rejected.
 
+Destructuring loop bindings also require an explicit destructuring type:
+
+```ts
+for (let [index, value]: [number, number] of values.entries()) {}
+```
+
 ## Lowering
 
 The visitor desugars `for...of` into a normal `for` statement with hidden
@@ -69,16 +82,21 @@ The generated iterable temp lives for the entire loop lifetime. This was
 important for array-producing iterator methods such as `values.keys()`, because
 the result must not be destroyed before the first condition check.
 
+Module cleanup now tracks aggregate pointers already destroyed during cleanup.
+If two module globals alias the same aggregate, cleanup clears both globals but
+destroys the underlying aggregate only once.
+
 ## Tests
 
 `yogi_pipeline_iterator_protocol` covers:
 
 - direct array `for...of`
 - `for...of` over `keys()`
+- `for...of` over `values()`
 - `for...of` over `entries()`
+- destructured `entries()` loop bindings
 - `break` and `continue`
 - returned aggregate used as iterable
-- `let sorted: number[] = values.sort()` alias ownership
+- local and module-level `let sorted: number[] = values.sort()` alias ownership
 - missing loop variable type diagnostics
 - wrong loop variable element type diagnostics
-
