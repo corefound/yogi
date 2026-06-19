@@ -101,8 +101,10 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
             this.forOfCounter++;
 
             const iterable = this.visitNode(node.expression);
+            const useDirectIterable = ts.isIdentifier(node.expression) || ts.isStringLiteral(node.expression);
             const indexIdentifier = this.createSyntheticIdentifier(indexName, node);
             const iterableIdentifier = this.createSyntheticIdentifier(iterableName, node.expression);
+            const iterableReference = useDirectIterable ? iterable : iterableIdentifier;
             const arrayType = {
                 kind: Kinds.Types.ArrayType,
                 raw: `${iterableElementType.raw}[]`,
@@ -118,7 +120,10 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                 ambient: false,
                 emit: true,
                 declarations: [
-                    {
+                    ...(
+                        useDirectIterable
+                            ? []
+                            : [{
                         kind: Kinds.Statements.VariableDeclaration,
                         name: iterableName,
                         flag: "let",
@@ -132,7 +137,8 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                         source: `${iterableName}: ${arrayType.raw} = ${node.expression.getText()}`,
                         fullSource: node.getText(),
                         position: this.getNodePosistion(node.expression),
-                    },
+                    }]
+                    ),
                     {
                         kind: Kinds.Statements.VariableDeclaration,
                         name: indexName,
@@ -166,10 +172,10 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                 operator: "<",
                 right: {
                     kind: Kinds.Expressions.PropertyAccessExpression,
-                    object: iterableIdentifier,
+                    object: iterableReference,
                     property: "length",
                     optional: false,
-                    source: `${iterableName}.length`,
+                    source: `${useDirectIterable ? node.expression.getText() : iterableName}.length`,
                     position: this.getNodePosistion(node.expression),
                 },
                 source: `${indexName} < ${iterableName}.length`,
@@ -203,10 +209,10 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
 
             const valueAccess = {
                 kind: Kinds.Expressions.ElementAccessExpression,
-                object: iterableIdentifier,
+                object: iterableReference,
                 index: indexIdentifier,
                 optional: false,
-                source: `${iterableName}[${indexName}]`,
+                source: `${useDirectIterable ? node.expression.getText() : iterableName}[${indexName}]`,
                 position: this.getNodePosistion(node.expression),
             };
             const valueDeclarations = this.createForOfValueDeclarations(

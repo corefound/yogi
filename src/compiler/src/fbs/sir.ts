@@ -523,6 +523,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 return ValueRef.endValueRef(builder);
             }
 
+            if ((node as any).kind === "ParenthesizedExpression") {
+                return this.createValueRef(builder, (node as any).expression ?? null);
+            }
+
             const kind = builder.createString(node.kind);
             const constant = this.isSemanticConstant(node)
                 ? this.visitSemanticConstant(builder, node)

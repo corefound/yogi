@@ -5,6 +5,9 @@
 
 #include "yogi/runtime/any.h"
 #include "yogi/runtime/errors.h"
+#include "yogi/runtime/memory.h"
+
+#include <cstring>
 
 extern "C" {
 
@@ -63,6 +66,25 @@ bool yogi_any_is_nullish(void *value) {
 
 	const auto *anyValue = static_cast<const yogi::runtime::AnyValue *>(value);
 	return anyValue->isNullish();
+}
+
+unsigned long long yogi_string_length(const char *value) {
+	return static_cast<unsigned long long>(std::strlen(value ? value : ""));
+}
+
+const char *yogi_string_at(const char *value, unsigned long long index) {
+	const auto *text = value ? value : "";
+	const auto length = std::strlen(text);
+	auto *result = static_cast<char *>(yogi::runtime::MemoryManager::allocate(2, "runtime string"));
+
+	if (index >= length) {
+		result[0] = '\0';
+		return result;
+	}
+
+	result[0] = text[index];
+	result[1] = '\0';
+	return result;
 }
 
 void yogi_runtime_abort_cast(const char *fromType, const char *toType) {

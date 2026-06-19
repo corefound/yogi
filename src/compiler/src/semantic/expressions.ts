@@ -1502,7 +1502,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             // Handle array.length and tuple.length - special built-in properties
             if (node.property === "length") {
-                if (objectType?.kind === Kinds.Types.ArrayType || objectType?.kind === Kinds.Types.TupleType) {
+                if (
+                    objectType?.kind === Kinds.Types.ArrayType ||
+                    objectType?.kind === Kinds.Types.TupleType ||
+                    objectType?.kind === Kinds.Types.StringType
+                ) {
                     return {
                         ...node,
                         object,
@@ -1613,6 +1617,36 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     index,
                     type: objectType.elementType,
                     readonly: objectType.readonly === true,
+                };
+            }
+
+            if (objectType?.kind === Kinds.Types.StringType) {
+                if (index?.type?.kind !== Kinds.Types.NumberType) {
+                    const message =
+                        `string index must be ${Helpers.BLUE}'number'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${index?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                if (node.optional === true) {
+                    const message =
+                        `dynamic optional element access ${Helpers.RED}'${node.source}'${Helpers.RESET} is not lowerable yet`;
+
+                    node.arrowLength = node.source?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                return {
+                    ...node,
+                    object,
+                    index,
+                    type: {
+                        kind: Kinds.Types.StringType,
+                        raw: "string",
+                    },
+                    readonly: true,
                 };
             }
 

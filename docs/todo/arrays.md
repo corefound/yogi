@@ -83,6 +83,8 @@ known state instead of rediscovering gaps from the source code.
 - Lazy iterator objects. `for...of` now works over arrays and array-producing
   iterator methods, but `keys`, `values`, and `entries` still materialize
   arrays because Yogi does not have lazy iterator objects yet.
+- String concatenation and broader string methods. Strings can be indexed and
+  iterated by character, but `left + right` for strings is not implemented yet.
 - Object stringification inside arrays. Primitive and nested array elements are
   stringified; object display should wait for object runtime formatting.
 

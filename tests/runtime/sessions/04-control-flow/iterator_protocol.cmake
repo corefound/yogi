@@ -63,10 +63,22 @@ function destructuredEntries(): number {
     let total: number = 0
 
     for (let [index, value]: [number, number] of values.entries()) {
-        total = total + index * 10 + value
+        total = (total + index * 10) + value
     }
 
     return total
+}
+
+function stringIteration(): number {
+    let text: string = "yogi"
+    let count: number = 0
+
+    for (let ch: string of text) {
+        print(ch)
+        count = count + 1
+    }
+
+    return count
 }
 
 function breakAndContinue(): number {
@@ -117,6 +129,7 @@ print(sumKeys())
 print(sumMaterializedValues())
 print(sumEntries())
 print(destructuredEntries())
+print(stringIteration())
 print(breakAndContinue())
 print(returnedIterable())
 print(sortAlias())
@@ -161,7 +174,9 @@ foreach(symbol
 		yogi_array_keys
 		yogi_array_values
 		yogi_array_entries
-		yogi_array_sort)
+		yogi_array_sort
+		yogi_string_length
+		yogi_string_at)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected iterator protocol IR to contain ${symbol}")
 	endif()
@@ -179,7 +194,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "iterator protocol executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "[1, 20, 3]\n24\n3\n24\n27\n54\n8\n15\n[1, 20, 3]\n303\n")
+set(expected_stdout "[1, 20, 3]\n24\n3\n24\n27\n54\ny\no\ng\ni\n4\n8\n15\n[1, 20, 3]\n303\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "iterator protocol executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

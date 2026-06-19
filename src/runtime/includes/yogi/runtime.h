@@ -38,6 +38,9 @@ void yogi_print_string(const char *value);
 void yogi_print_any(void *value);
 void yogi_print_array(void *value);
 
+unsigned long long yogi_string_length(const char *value);
+const char *yogi_string_at(const char *value, unsigned long long index);
+
 void *yogi_object_create(void);
 unsigned long long yogi_object_sizeof(void);
 void yogi_object_init(void *object);

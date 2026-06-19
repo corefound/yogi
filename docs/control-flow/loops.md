@@ -21,7 +21,7 @@ initializer are cleaned after `for.end`, not before the first condition check.
 
 ## For Of
 
-`for...of` is supported for arrays and array-producing methods:
+`for...of` is supported for arrays, strings, and array-producing methods:
 
 ```ts
 let total: number = 0
@@ -46,6 +46,16 @@ This is rejected:
 ```ts
 for (let value of values) {
     print(value)
+}
+```
+
+Strings are indexable and iterable:
+
+```ts
+let text: string = "yogi"
+
+for (let ch: string of text) {
+    print(ch)
 }
 ```
 
@@ -139,4 +149,6 @@ destroys the aggregate once.
   loop bindings with explicit type annotations.
 - `keys`, `values`, and `entries` currently return arrays, not lazy iterator
   objects.
-- Strings are not iterable yet.
+- String concatenation is not part of this iterator lot yet. String iteration
+  can read and print characters; concatenating them into a new string is tracked
+  as string-method work.

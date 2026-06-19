@@ -1503,6 +1503,20 @@ namespace yogi::core::llvm::internal {
 			return cast(asNumber, targetType, targetSemanticType, access->type());
 		}
 
+		if (propertyName == "length" && objectKind == Yogi::Sir::TypeKind_string_type) {
+			auto *text = lower(access->object(), opaquePointer(), objectSemanticType);
+			auto *length = callRuntime("yogi_string_length", ::llvm::Type::getInt64Ty(context.llvmContext), {text});
+			auto *asNumber = context.builder.CreateUIToFP(
+				length,
+				::llvm::Type::getDoubleTy(context.llvmContext),
+				"string.length"
+			);
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+
+			return cast(asNumber, targetType, targetSemanticType, access->type());
+		}
+
 		auto *object = lower(access->object(), opaquePointer(), valueSemanticType(access->object()));
 		auto *property = context.builder.CreateGlobalString(propertyName);
 		auto *boxedValue = callRuntime("yogi_object_get", opaquePointer(), {object, property});
@@ -1517,7 +1531,19 @@ namespace yogi::core::llvm::internal {
 		::llvm::Type *expectedType,
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
-		auto *array = lower(access->object(), opaquePointer(), valueSemanticType(access->object()));
+		const auto *objectSemanticType = valueSemanticType(access->object());
+		const auto objectKind = resolvedTypeKind(objectSemanticType);
+		if (objectKind == Yogi::Sir::TypeKind_string_type) {
+			auto *text = lower(access->object(), opaquePointer(), objectSemanticType);
+			auto *indexValue = lower(access->index(), ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(access->index()));
+			auto *character = callRuntime("yogi_string_at", opaquePointer(), {text, toIndex(indexValue)});
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+
+			return cast(character, targetType, targetSemanticType, targetSemanticType);
+		}
+
+		auto *array = lower(access->object(), opaquePointer(), objectSemanticType);
 		auto *indexValue = lower(access->index(), ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(access->index()));
 		auto *boxedValue = callRuntime("yogi_array_get", opaquePointer(), {array, toIndex(indexValue)});
 		const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();

@@ -40,6 +40,14 @@ for (let value: number of values.values()) {}
 for (let entry: [number, number] of values.entries()) {}
 ```
 
+Strings can be iterated by character:
+
+```ts
+for (let ch: string of "yogi") {
+    print(ch)
+}
+```
+
 Entries can be destructured directly:
 
 ```ts
@@ -91,6 +99,7 @@ destroys the underlying aggregate only once.
 `yogi_pipeline_iterator_protocol` covers:
 
 - direct array `for...of`
+- string `for...of`
 - `for...of` over `keys()`
 - `for...of` over `values()`
 - `for...of` over `entries()`
@@ -100,3 +109,4 @@ destroys the underlying aggregate only once.
 - local and module-level `let sorted: number[] = values.sort()` alias ownership
 - missing loop variable type diagnostics
 - wrong loop variable element type diagnostics
+- parenthesized arithmetic inside destructured entry loops
