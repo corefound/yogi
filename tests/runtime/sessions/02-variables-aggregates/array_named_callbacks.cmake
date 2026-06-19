@@ -23,6 +23,18 @@ function consume(value: number): void {
     print(value)
 }
 
+function reduceTotal(total: number, value: number, index: number): number {
+    return total + value + index
+}
+
+function reduceRightDigits(total: number, value: number): number {
+    return total * 10 + value
+}
+
+function pairValue(value: number): number[] {
+    return [value, value + 10]
+}
+
 function mapBatch(): number {
     let scores: number[] = [1, 2, 3]
     let doubled: number[] = scores.map(doubleValue)
@@ -60,11 +72,23 @@ function forEachBatch(): void {
     scores.forEach(consume)
 }
 
+function remainingNamedBatch(): number {
+    let scores: number[] = [1, 2, 3, 4]
+    let reduced: number = scores.reduce(reduceTotal, 0)
+    let reducedRight: number = scores.reduceRight(reduceRightDigits, 0)
+    let last: number | undefined = scores.findLast(isLarge)
+    let lastIndex: number = scores.findLastIndex(isLarge)
+    let expanded: number[] = scores.flatMap(pairValue)
+
+    return reduced * 1000000 + reducedRight * 100 + lastIndex * 10 + expanded.length
+}
+
 print(mapBatch())
 print(filterBatch())
 print(predicateBatch())
 print(findBatch())
 forEachBatch()
+print(remainingNamedBatch())
 ]=])
 
 execute_process(
@@ -103,7 +127,10 @@ foreach(symbol
 		yogi_array_create
 		_yogi_fn_main.ts_doubleValue
 		_yogi_fn_main.ts_isLarge
-		_yogi_fn_main.ts_consume)
+		_yogi_fn_main.ts_consume
+		_yogi_fn_main.ts_reduceTotal
+		_yogi_fn_main.ts_reduceRightDigits
+		_yogi_fn_main.ts_pairValue)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected array named callbacks IR to contain ${symbol}")
 	endif()
@@ -121,7 +148,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array named callbacks executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "246\n31\n102\n2\n1\n2\n3\n")
+set(expected_stdout "246\n31\n102\n2\n1\n2\n3\n16432138\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array named callbacks executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

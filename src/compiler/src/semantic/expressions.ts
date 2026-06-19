@@ -260,7 +260,20 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const receiver = this.visitNode(rawCallee.object);
             const receiverType = this.resolveType(receiver?.declaredType ?? receiver?.type);
             const methodName = rawCallee.property;
-            const callbackMethods = new Set(["forEach", "map", "filter", "some", "every", "find", "findIndex"]);
+            const callbackMethods = new Set([
+                "forEach",
+                "map",
+                "filter",
+                "some",
+                "every",
+                "find",
+                "findIndex",
+                "findLast",
+                "findLastIndex",
+                "flatMap",
+                "reduce",
+                "reduceRight",
+            ]);
             const args = (node.arguments ?? []).map((argument: any, index: number) => {
                 if (callbackMethods.has(methodName) && index === 0 && argument?.kind === Kinds.Functions.FunctionExpression) {
                     return argument;
@@ -306,6 +319,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 every: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 find: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 findIndex: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                findLast: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                findLastIndex: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                flatMap: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                reduce: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                reduceRight: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
             };
 
             if (!methodHandlers[methodName]) {
@@ -921,7 +939,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
         }
 
         public validateAndCreateCallbackArrayCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
-            this.validateArrayMethodArgumentCount(node, methodName, args, source, 1, 1);
+            const isReduce = methodName === "reduce" || methodName === "reduceRight";
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 1, isReduce ? 2 : 1);
 
             const callback = args[0];
             const elementType = this.arrayReadableElementType(receiverType);
@@ -957,16 +976,19 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const params = semanticCallback.kind === Kinds.Functions.FunctionExpression
                 ? semanticCallback.params ?? []
                 : symbol.node?.params ?? [];
-            if (params.length < 1 || params.length > 2) {
+            const minParams = isReduce ? 2 : 1;
+            const maxParams = isReduce ? 3 : 2;
+
+            if (params.length < minParams || params.length > maxParams) {
                 const message =
                     `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback ` +
-                    `${Helpers.BLUE}'${callbackName}'${Helpers.RESET} must accept value or value/index parameters`;
+                    `${Helpers.BLUE}'${callbackName}'${Helpers.RESET} has an unsupported parameter list`;
 
                 semanticCallback.arrowLength = callbackName?.length ?? 1;
                 this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
             }
 
-            const valueParamType = params[0]?.type;
+            const valueParamType = isReduce ? params[1]?.type : params[0]?.type;
 
             if (!this.isTypeAssignable(valueParamType, elementType)) {
                 const message =
@@ -978,7 +1000,9 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
             }
 
-            if (params[1] && this.resolveType(params[1].type)?.kind !== Kinds.Types.NumberType) {
+            const indexParam = isReduce ? params[2] : params[1];
+
+            if (indexParam && this.resolveType(indexParam.type)?.kind !== Kinds.Types.NumberType) {
                 const message =
                     `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback index parameter must be ` +
                     `${Helpers.BLUE}'number'${Helpers.RESET}`;
@@ -995,6 +1019,32 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const numberType = { kind: Kinds.Types.NumberType, raw: "number" };
             let returnType: any = { kind: Kinds.Types.VoidType, raw: "void" };
 
+            if (isReduce) {
+                const accumulatorType = args[1]?.type ?? elementType;
+                const accumulatorParamType = params[0]?.type;
+
+                if (!this.isTypeAssignable(accumulatorParamType, accumulatorType)) {
+                    const message =
+                        `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} accumulator parameter must accept ` +
+                        `${Helpers.BLUE}'${accumulatorType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${accumulatorParamType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    semanticCallback.arrowLength = callbackName?.length ?? 1;
+                    this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
+                }
+
+                if (!this.isTypeAssignable(accumulatorType, callbackReturnType)) {
+                    const message =
+                        `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback must return ` +
+                        `${Helpers.BLUE}'${accumulatorType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${callbackReturnType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    semanticCallback.arrowLength = callbackName?.length ?? 1;
+                    this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
+                }
+
+                returnType = accumulatorType;
+            } else
             if (methodName === "map") {
                 if (callbackReturnType?.kind === Kinds.Types.VoidType) {
                     const message =
@@ -1010,16 +1060,34 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     elementType: callbackReturnType,
                     readonly: false,
                 };
+            } else if (methodName === "flatMap") {
+                const resolvedReturn = this.resolveType(callbackReturnType);
+
+                if (resolvedReturn?.kind !== Kinds.Types.ArrayType && resolvedReturn?.kind !== Kinds.Types.TupleType) {
+                    const message =
+                        `array method ${Helpers.BLUE}'flatMap'${Helpers.RESET} callback must return an array`;
+
+                    semanticCallback.arrowLength = callbackName?.length ?? 1;
+                    this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
+                }
+
+                const mappedElementType = this.arrayReadableElementType(resolvedReturn);
+                returnType = {
+                    kind: Kinds.Types.ArrayType,
+                    raw: `${mappedElementType?.raw ?? "unknown"}[]`,
+                    elementType: mappedElementType,
+                    readonly: false,
+                };
             } else if (methodName === "filter") {
                 this.validateCallbackBooleanReturn(node, methodName, callback, callbackName, callbackReturnType, source);
                 returnType = this.arrayReturnType(receiverType);
             } else if (methodName === "some" || methodName === "every") {
                 this.validateCallbackBooleanReturn(node, methodName, callback, callbackName, callbackReturnType, source);
                 returnType = booleanType;
-            } else if (methodName === "find") {
+            } else if (methodName === "find" || methodName === "findLast") {
                 this.validateCallbackBooleanReturn(node, methodName, callback, callbackName, callbackReturnType, source);
                 returnType = this.arrayElementOrUndefinedType(receiverType);
-            } else if (methodName === "findIndex") {
+            } else if (methodName === "findIndex" || methodName === "findLastIndex") {
                 this.validateCallbackBooleanReturn(node, methodName, callback, callbackName, callbackReturnType, source);
                 returnType = numberType;
             } else if (methodName === "forEach") {

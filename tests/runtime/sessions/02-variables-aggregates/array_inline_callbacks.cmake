@@ -69,11 +69,33 @@ function blockBodyBatch(): number {
     return doubled[0] * 10000 + doubled[1] * 1000 + doubled[2] * 100 + filtered.length * 10 + foundIndex + hasScore + allScore
 }
 
+function remainingCallbackBatch(): number {
+    let scores: number[] = [1, 2, 3, 4]
+    let reduced: number = scores.reduce((total: number, value: number, index: number): number => {
+        return total + value + index
+    }, 0)
+    let reducedRight: number = scores.reduceRight((total: number, value: number): number => {
+        return total * 10 + value
+    }, 0)
+    let last: number | undefined = scores.findLast((value: number): boolean => {
+        return value < 4
+    })
+    let lastIndex: number = scores.findLastIndex((value: number, index: number): boolean => {
+        return value + index < 5
+    })
+    let expanded: number[] = scores.flatMap((value: number): number[] => {
+        return [value, value + 10]
+    })
+
+    return reduced * 1000000 + reducedRight * 100 + lastIndex * 10 + expanded.length
+}
+
 print(mapBatch())
 print(filterBatch())
 print(predicateBatch())
 print(findBatch())
 print(blockBodyBatch())
+print(remainingCallbackBatch())
 ]=])
 
 execute_process(
@@ -128,6 +150,7 @@ if(NOT run_result EQUAL 0)
 endif()
 
 set(expected_stdout "246\n31\n112\n2\n27024\n")
+set(expected_stdout "${expected_stdout}16432118\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array inline callbacks executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -165,4 +188,10 @@ expect_invalid(
 	block_body_missing_return
 	"let scores: number[] = [1, 2]\nlet shifted: number[] = scores.map((value: number): number => {\n    let shifted: number = value + 1\n})\n"
 	"must return"
+)
+
+expect_invalid(
+	flat_map_non_array
+	"let scores: number[] = [1, 2]\nlet shifted: number[] = scores.flatMap((value: number): number => value + 1)\n"
+	"must return an array"
 )

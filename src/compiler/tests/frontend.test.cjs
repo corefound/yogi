@@ -236,6 +236,11 @@ describe("Yogi frontend semantic pipeline", () => {
         })
         let filtered: number[] = scores.filter((value: number, index: number): boolean => value + index > 2)
         let ok: boolean = scores.some((value: number): boolean => value > 2)
+        let last: number | undefined = scores.findLast((value: number): boolean => value < 3)
+        let lastIndex: number = scores.findLastIndex((value: number): boolean => value < 3)
+        let expanded: number[] = scores.flatMap((value: number): number[] => [value, value + 1])
+        let total: number = scores.reduce((accumulator: number, value: number): number => accumulator + value, 0)
+        let totalRight: number = scores.reduceRight((accumulator: number, value: number): number => accumulator + value, 0)
       `,
     });
 

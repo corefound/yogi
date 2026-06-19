@@ -41,8 +41,13 @@ known state instead of rediscovering gaps from the source code.
   - `filter`
   - `find`
   - `findIndex`
+  - `findLast`
+  - `findLastIndex`
   - `some`
   - `every`
+  - `reduce`
+  - `reduceRight`
+  - `flatMap`
 - Callback methods with expression-bodied inline arrows:
   - `(value: T): U => expression`
   - `(value: T, index: number): U => expression`
@@ -56,12 +61,6 @@ known state instead of rediscovering gaps from the source code.
 
 ## Future Work
 
-- Callback/function-value methods that still need more semantic machinery:
-  - `reduce`
-  - `reduceRight`
-  - `findLast`
-  - `findLastIndex`
-  - `flatMap`
 - Inline callback forms that still need deeper function-expression lowering:
   - closures that capture outer locals
 - Iterator-related methods:
@@ -91,6 +90,8 @@ known state instead of rediscovering gaps from the source code.
   into primitive contexts that explicitly expect `T`, and they can remain boxed
   when a variable explicitly stores the union.
 - `sort` and `join` should wait until string runtime semantics are stronger.
+- `sort` and `toSorted` need comparator lowering plus runtime/native sorting
+  semantics; they are intentionally not part of the callback loop batch yet.
 - `with` now uses runtime range diagnostics. Future range-sensitive APIs should
   reuse the same `yogi runtime range error` path unless Yogi later adds
   catchable exceptions.

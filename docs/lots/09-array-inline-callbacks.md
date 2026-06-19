@@ -40,6 +40,11 @@ some
 every
 find
 findIndex
+findLast
+findLastIndex
+flatMap
+reduce
+reduceRight
 ```
 
 Predicate methods still require a `boolean` return type.
