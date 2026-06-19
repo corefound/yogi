@@ -38,15 +38,27 @@ function sliceBatch(): number {
     return middle[0] * 100 + middle[2] * 10 + middle.length
 }
 
+function directAtBatch(): void {
+    let scores: number[] = [8, 9, 10]
+    print(scores.at(0))
+}
+
 function negativeAtBatch(): void {
     let scores: number[] = [5, 6, 7]
     let last: number | undefined = scores.at(-1)
 }
 
+function printArrayBatch(): void {
+    let scores: number[] = [4, 5, 6]
+    print(scores)
+}
+
 print(mutationBatch())
 print(searchBatch())
 print(sliceBatch())
+directAtBatch()
 negativeAtBatch()
+printArrayBatch()
 ]=])
 
 execute_process(
@@ -88,6 +100,7 @@ foreach(symbol
 		yogi_array_reverse
 		yogi_array_slice
 		yogi_array_at_index
+		yogi_print_array
 		yogi_array_destroy)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected array methods IR to contain ${symbol}")
@@ -106,7 +119,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array methods executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "213\n10133\n243\n")
+set(expected_stdout "213\n10133\n243\n8\n[4, 5, 6]\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array methods executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

@@ -33,7 +33,7 @@ foreach(path
 	endif()
 endforeach()
 
-file(WRITE "${PROJECT_DIR}/main.ts" "function main(): number {\n    print(\"hello from yogi\")\n    print(42)\n    return 0\n}\n\nmain()\n")
+file(WRITE "${PROJECT_DIR}/main.ts" "function main(): number {\n    let scores: number[] = [7, 8, 9]\n    print(\"hello from yogi\")\n    print(42)\n    print(true)\n    print(scores)\n    print(scores.at(0))\n    return 0\n}\n\nmain()\n")
 
 file(READ "${PROJECT_DIR}/yogi.json" manifest)
 if(NOT manifest MATCHES "\"entry\"[^\n]*\"main.ts\"")
@@ -82,6 +82,18 @@ endif()
 
 if(NOT run_stdout MATCHES "42")
 	message(FATAL_ERROR "expected yogi run to print number output\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
+endif()
+
+if(NOT run_stdout MATCHES "true")
+	message(FATAL_ERROR "expected yogi run to print boolean output\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
+endif()
+
+if(NOT run_stdout MATCHES "\\[7, 8, 9\\]")
+	message(FATAL_ERROR "expected yogi run to print array output\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
+endif()
+
+if(NOT run_stdout MATCHES "7")
+	message(FATAL_ERROR "expected yogi run to print array at output\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
 set(DIRECT_DIR "${TEST_WORK_DIR}/direct")

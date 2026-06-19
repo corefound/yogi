@@ -190,6 +190,17 @@ namespace yogi::core::llvm::internal {
 				return callRuntime("yogi_print_any", voidType, {value});
 			}
 
+			case Yogi::Sir::TypeKind_union_type: {
+				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
+				return callRuntime("yogi_print_any", voidType, {value});
+			}
+
+			case Yogi::Sir::TypeKind_array_type:
+			case Yogi::Sir::TypeKind_tuple_type: {
+				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
+				return callRuntime("yogi_print_array", voidType, {value});
+			}
+
 			case Yogi::Sir::TypeKind_null_type: {
 				auto *value = context.builder.CreateGlobalString("null");
 				return callRuntime("yogi_print_string", voidType, {value});
@@ -456,10 +467,12 @@ namespace yogi::core::llvm::internal {
 				{array}
 			);
 
+			auto *targetType = expectedType ? expectedType : types.lower(call->type());
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
 			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
+				unboxArrayElement(result, targetType, targetSemanticType, call->type()),
+				targetType,
+				targetSemanticType,
 				call->type()
 			);
 		}
@@ -472,10 +485,12 @@ namespace yogi::core::llvm::internal {
 				{array}
 			);
 
+			auto *targetType = expectedType ? expectedType : types.lower(call->type());
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
 			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
+				unboxArrayElement(result, targetType, targetSemanticType, call->type()),
+				targetType,
+				targetSemanticType,
 				call->type()
 			);
 		}
@@ -489,10 +504,12 @@ namespace yogi::core::llvm::internal {
 				{array, argumentValue}
 			);
 
+			auto *targetType = expectedType ? expectedType : types.lower(call->type());
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
 			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
+				unboxArrayElement(result, targetType, targetSemanticType, call->type()),
+				targetType,
+				targetSemanticType,
 				call->type()
 			);
 		}
@@ -818,7 +835,13 @@ namespace yogi::core::llvm::internal {
 				auto *result = context.builder.CreatePHI(opaquePointer(), 2, "array.find.result");
 				result->addIncoming(defaultFindValue, condition);
 				result->addIncoming(foundValue, foundIncoming);
-				return cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
+				return cast(
+					unboxArrayElement(result, returnType, targetSemanticType, call->type()),
+					returnType,
+					targetSemanticType,
+					call->type()
+				);
 			}
 		}
 
@@ -1606,6 +1629,15 @@ namespace yogi::core::llvm::internal {
 			return unboxAny(value, targetSemanticType);
 		}
 
+		if (
+			sourceSemanticType &&
+			sourceSemanticType->kind() == Yogi::Sir::TypeKind_union_type &&
+			value->getType()->isPointerTy() &&
+			!targetType->isPointerTy()
+		) {
+			return unboxAny(value, targetSemanticType);
+		}
+
 		if (value->getType() == targetType) {
 			return value;
 		}
@@ -1699,6 +1731,29 @@ namespace yogi::core::llvm::internal {
 			default:
 				return value;
 		}
+	}
+
+	::llvm::Value *ValueLowerer::unboxArrayElement(
+		::llvm::Value *value,
+		::llvm::Type *targetType,
+		const Yogi::Sir::TypeRef *targetSemanticType,
+		const Yogi::Sir::TypeRef *sourceSemanticType
+	) {
+		if (!value || !targetType || !value->getType()->isPointerTy() || targetType->isPointerTy()) {
+			return value;
+		}
+
+		if (
+			sourceSemanticType &&
+			(
+				sourceSemanticType->kind() == Yogi::Sir::TypeKind_union_type ||
+				sourceSemanticType->kind() == Yogi::Sir::TypeKind_any_type
+			)
+		) {
+			return unboxAny(value, targetSemanticType);
+		}
+
+		return value;
 	}
 
 	::llvm::Value *ValueLowerer::callRuntime(

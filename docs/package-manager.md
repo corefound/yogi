@@ -146,16 +146,19 @@ print(value)
 ```
 
 It accepts one value and currently prints `number`, `boolean`, `string`,
-`null`, `undefined`, and `any` values through the runtime. This is intentionally
-small; it gives executable programs visible output while the standard library is
-still being designed.
+`null`, `undefined`, `any`, arrays, and tuples through the runtime. This is
+intentionally small; it gives executable programs visible output while the
+standard library is still being designed.
 
 Example:
 
 ```ts
 function main(): number {
+    let scores: number[] = [7, 8, 9]
     print("hello from yogi")
     print(42)
+    print(scores)
+    print(scores.at(0))
     return 0
 }
 

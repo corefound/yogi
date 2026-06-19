@@ -3,6 +3,7 @@
 
 #include "yogi/runtime.h"
 
+#include "yogi/runtime/aggregate.h"
 #include "yogi/runtime/any.h"
 
 #include <cstdio>
@@ -11,6 +12,37 @@ namespace {
 void printLine(const char *value) {
     std::fputs(value ? value : "", stdout);
     std::fputc('\n', stdout);
+}
+
+void printAnyInline(void *value) {
+    if(!value) {
+        std::fputs("null", stdout);
+        return;
+    }
+
+    const auto *anyValue = yogi::runtime::AnyValue::require(value, "any");
+
+    switch(anyValue->tag()) {
+    case YOGI_ANY_UNDEFINED:
+        std::fputs("undefined", stdout);
+        break;
+
+    case YOGI_ANY_NULL:
+        std::fputs("null", stdout);
+        break;
+
+    case YOGI_ANY_NUMBER:
+        std::printf("%.15g", anyValue->asNumber());
+        break;
+
+    case YOGI_ANY_BOOLEAN:
+        std::fputs(anyValue->asBoolean() ? "true" : "false", stdout);
+        break;
+
+    case YOGI_ANY_STRING:
+        std::fputs(anyValue->asString() ? anyValue->asString() : "", stdout);
+        break;
+    }
 }
 }
 
@@ -28,34 +60,29 @@ extern "C" {
     }
 
     void yogi_print_any(void *value) {
+        printAnyInline(value);
+        std::fputc('\n', stdout);
+    }
+
+    void yogi_print_array(void *value) {
         if(!value) {
             printLine("null");
             return;
         }
 
-        const auto *anyValue = yogi::runtime::AnyValue::require(value, "any");
+        const auto *array = static_cast<const yogi::runtime::ArrayValue *>(value);
+        std::fputc('[', stdout);
 
-        switch(anyValue->tag()) {
-        case YOGI_ANY_UNDEFINED:
-            printLine("undefined");
-            break;
+        const auto length = array->length();
+        for(std::size_t index = 0; index < length; ++index) {
+            if(index > 0) {
+                std::fputs(", ", stdout);
+            }
 
-        case YOGI_ANY_NULL:
-            printLine("null");
-            break;
-
-        case YOGI_ANY_NUMBER:
-            std::printf("%.15g\n", anyValue->asNumber());
-            break;
-
-        case YOGI_ANY_BOOLEAN:
-            printLine(anyValue->asBoolean() ? "true" : "false");
-            break;
-
-        case YOGI_ANY_STRING:
-            printLine(anyValue->asString());
-            break;
+            printAnyInline(array->get(index));
         }
+
+        std::fputs("]\n", stdout);
     }
 
 }

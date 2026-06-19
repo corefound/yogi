@@ -110,6 +110,12 @@ namespace yogi::core::llvm::internal {
 			::llvm::Value *toIndex(::llvm::Value *value);
 			::llvm::Value *boxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType);
 			::llvm::Value *unboxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *targetSemanticType);
+			::llvm::Value *unboxArrayElement(
+				::llvm::Value *value,
+				::llvm::Type *targetType,
+				const Yogi::Sir::TypeRef *targetSemanticType,
+				const Yogi::Sir::TypeRef *sourceSemanticType
+			);
 			::llvm::Value *callRuntime(
 				const std::string &name,
 				::llvm::Type *returnType,

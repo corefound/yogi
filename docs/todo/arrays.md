@@ -9,6 +9,11 @@ known state instead of rediscovering gaps from the source code.
 - Array literals and explicit `T[]` declarations.
 - Tuple literals and explicit tuple declarations.
 - Index access: `scores[0]`.
+- Array element return unboxing for primitive contexts:
+  - `scores.at(0)`
+  - `scores.pop()`
+  - `scores.shift()`
+  - `scores.find(callback)`
 - Readonly `length` on arrays and tuples.
 - Mutating methods:
   - `push`
@@ -68,6 +73,9 @@ known state instead of rediscovering gaps from the source code.
   - `toSorted`
 - Structural methods that need deeper array/object semantics:
   - `flat`
+- Recursive aggregate printing:
+  - arrays containing arrays
+  - arrays containing objects
 
 ## Notes
 
@@ -78,9 +86,9 @@ known state instead of rediscovering gaps from the source code.
 - Inline callbacks currently lower inside the array loop. Block-bodied callbacks
   and captures should wait until Yogi has closure/lifetime rules for captured
   locals.
-- `find` returns `T | undefined`. The method is lowered and executable, but
-  ergonomic consumption of the returned union still depends on stronger
-  union-narrowing/cast behavior.
+- `find`, `at`, `pop`, and `shift` return `T | undefined`. They can now unbox
+  into primitive contexts that explicitly expect `T`, and they can remain boxed
+  when a variable explicitly stores the union.
 - `sort` and `join` should wait until string runtime semantics are stronger.
 - `with` now uses runtime range diagnostics. Future range-sensitive APIs should
   reuse the same `yogi runtime range error` path unless Yogi later adds

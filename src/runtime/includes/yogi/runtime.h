@@ -33,6 +33,7 @@ void yogi_print_number(double value);
 void yogi_print_boolean(bool value);
 void yogi_print_string(const char *value);
 void yogi_print_any(void *value);
+void yogi_print_array(void *value);
 
 void *yogi_object_create(void);
 unsigned long long yogi_object_sizeof(void);
