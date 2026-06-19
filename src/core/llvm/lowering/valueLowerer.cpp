@@ -752,6 +752,58 @@ namespace yogi::core::llvm::internal {
 			);
 		}
 
+		if (methodName == "join" || methodName == "toString") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+
+			if (methodName == "join") {
+				::llvm::Value *separator = nullptr;
+				if (arguments && arguments->size() > 0) {
+					const auto *argument = arguments->Get(0);
+					separator = lower(argument, opaquePointer(), valueSemanticType(argument));
+				} else {
+					separator = context.builder.CreateGlobalString(",");
+				}
+
+				auto *result = callRuntime("yogi_array_join", opaquePointer(), {array, separator});
+				return cast(
+					result,
+					expectedType ? expectedType : types.lower(call->type()),
+					expectedSemanticType ? expectedSemanticType : call->type(),
+					call->type()
+				);
+			}
+
+			auto *result = callRuntime("yogi_array_to_string", opaquePointer(), {array});
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "sort" || methodName == "toSorted") {
+			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+
+			if (methodName == "sort") {
+				callRuntime("yogi_array_sort", ::llvm::Type::getVoidTy(context.llvmContext), {array});
+				return cast(
+					array,
+					expectedType ? expectedType : types.lower(call->type()),
+					expectedSemanticType ? expectedSemanticType : call->type(),
+					call->type()
+				);
+			}
+
+			auto *result = callRuntime("yogi_array_to_sorted", opaquePointer(), {array});
+			return cast(
+				result,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
 		if (methodName == "with") {
 			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
 			auto *index = lowerNumberArgument(0, 0);

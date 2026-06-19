@@ -53,12 +53,35 @@ function printArrayBatch(): void {
     print(scores)
 }
 
+function stringBatch(): void {
+    let scores: number[] = [3, 1, 20]
+    print(scores.join("-"))
+    print(scores.toString())
+}
+
+function sortBatch(): number {
+    let scores: number[] = [3, 1, 20]
+    scores.sort()
+
+    return scores[0] * 100 + scores[1] * 10 + scores[2]
+}
+
+function toSortedBatch(): number {
+    let scores: number[] = [3, 1, 20]
+    let sorted: number[] = scores.toSorted()
+
+    return sorted[0] * 10000 + sorted[1] * 1000 + sorted[2] * 10 + scores[0]
+}
+
 print(mutationBatch())
 print(searchBatch())
 print(sliceBatch())
 directAtBatch()
 negativeAtBatch()
 printArrayBatch()
+stringBatch()
+print(sortBatch())
+print(toSortedBatch())
 ]=])
 
 execute_process(
@@ -101,6 +124,10 @@ foreach(symbol
 		yogi_array_slice
 		yogi_array_at_index
 		yogi_print_array
+		yogi_array_join
+		yogi_array_to_string
+		yogi_array_sort
+		yogi_array_to_sorted
 		yogi_array_destroy)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected array methods IR to contain ${symbol}")
@@ -119,7 +146,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array methods executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "213\n10133\n243\n8\n[4, 5, 6]\n")
+set(expected_stdout "213\n10133\n243\n8\n[4, 5, 6]\n3-1-20\n3,1,20\n303\n30033\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array methods executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -163,4 +190,16 @@ expect_invalid(
 	tuple_mutation
 	"let pair: [number, string] = [1, \"ready\"]\npair.unshift(0)\n"
 	"tuple"
+)
+
+expect_invalid(
+	sort_const
+	"const scores: number[] = [3, 1]\nscores.sort()\n"
+	"immutable"
+)
+
+expect_invalid(
+	join_separator_type
+	"let scores: number[] = [1, 2]\nlet text: string = scores.join(1)\n"
+	"separator"
 )

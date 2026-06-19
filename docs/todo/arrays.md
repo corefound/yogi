@@ -26,15 +26,19 @@ known state instead of rediscovering gaps from the source code.
   - `concat`
   - `includes`
   - `indexOf`
+  - `join`
   - `lastIndexOf`
   - `slice`
+  - `toString`
   - `toReversed`
   - `toSpliced`
+  - `toSorted`
   - `with`
 - Copy/mutation methods:
   - `fill`
   - `copyWithin`
   - `splice`
+  - `sort`
 - Callback methods with named function references:
   - `forEach`
   - `map`
@@ -67,11 +71,9 @@ known state instead of rediscovering gaps from the source code.
   - `entries`
   - `keys`
   - `values`
-- String/comparator-dependent methods:
-  - `join`
-  - `toString`
-  - `sort`
-  - `toSorted`
+- Comparator overloads:
+  - `sort(compareFn)`
+  - `toSorted(compareFn)`
 - Structural methods that need deeper array/object semantics:
   - `flat`
 - Recursive aggregate printing:
@@ -89,9 +91,8 @@ known state instead of rediscovering gaps from the source code.
 - `find`, `at`, `pop`, and `shift` return `T | undefined`. They can now unbox
   into primitive contexts that explicitly expect `T`, and they can remain boxed
   when a variable explicitly stores the union.
-- `sort` and `join` should wait until string runtime semantics are stronger.
-- `sort` and `toSorted` need comparator lowering plus runtime/native sorting
-  semantics; they are intentionally not part of the callback loop batch yet.
+- `sort()` and `toSorted()` currently use the JavaScript-style default string
+  ordering for primitive array elements. Comparator callbacks are still pending.
 - `with` now uses runtime range diagnostics. Future range-sensitive APIs should
   reuse the same `yogi runtime range error` path unless Yogi later adds
   catchable exceptions.

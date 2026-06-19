@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <new>
@@ -170,6 +171,87 @@ namespace yogi::runtime {
 			}
 
 			return false;
+		}
+
+		std::size_t numberStringLength(double value) {
+			char buffer[64];
+			return static_cast<std::size_t>(std::snprintf(buffer, sizeof(buffer), "%.15g", value));
+		}
+
+		std::size_t anyStringLength(void *value, bool emptyForNullish) {
+			if (!value) {
+				return emptyForNullish ? 0 : 4;
+			}
+
+			const auto *any = AnyValue::require(value, "any");
+
+			switch (any->tag()) {
+				case YOGI_ANY_UNDEFINED:
+					return emptyForNullish ? 0 : 9;
+
+				case YOGI_ANY_NULL:
+					return emptyForNullish ? 0 : 4;
+
+				case YOGI_ANY_NUMBER:
+					return numberStringLength(any->asNumber());
+
+				case YOGI_ANY_BOOLEAN:
+					return any->asBoolean() ? 4 : 5;
+
+				case YOGI_ANY_STRING:
+					return std::strlen(any->asString() ? any->asString() : "");
+			}
+
+			return 0;
+		}
+
+		char *appendText(char *target, const char *value) {
+			const auto length = std::strlen(value ? value : "");
+			std::memcpy(target, value ? value : "", length);
+			return target + length;
+		}
+
+		char *appendAnyString(char *target, void *value, bool emptyForNullish) {
+			if (!value) {
+				return emptyForNullish ? target : appendText(target, "null");
+			}
+
+			const auto *any = AnyValue::require(value, "any");
+
+			switch (any->tag()) {
+				case YOGI_ANY_UNDEFINED:
+					return emptyForNullish ? target : appendText(target, "undefined");
+
+				case YOGI_ANY_NULL:
+					return emptyForNullish ? target : appendText(target, "null");
+
+				case YOGI_ANY_NUMBER: {
+					char buffer[64];
+					std::snprintf(buffer, sizeof(buffer), "%.15g", any->asNumber());
+					return appendText(target, buffer);
+				}
+
+				case YOGI_ANY_BOOLEAN:
+					return appendText(target, any->asBoolean() ? "true" : "false");
+
+				case YOGI_ANY_STRING:
+					return appendText(target, any->asString() ? any->asString() : "");
+			}
+
+			return target;
+		}
+
+		int compareAnyAsString(void *left, void *right) {
+			const auto leftLength = anyStringLength(left, false);
+			const auto rightLength = anyStringLength(right, false);
+			auto *leftText = static_cast<char *>(MemoryManager::allocate(leftLength + 1, "sort compare string"));
+			auto *rightText = static_cast<char *>(MemoryManager::allocate(rightLength + 1, "sort compare string"));
+			*appendAnyString(leftText, left, false) = '\0';
+			*appendAnyString(rightText, right, false) = '\0';
+			const auto result = std::strcmp(leftText, rightText);
+			MemoryManager::deallocate(leftText);
+			MemoryManager::deallocate(rightText);
+			return result;
 		}
 	}
 
@@ -629,6 +711,53 @@ namespace yogi::runtime {
 		return result;
 	}
 
+	const char *ArrayValue::join(const char *separator) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array join after destroy/drop", "array value");
+
+		const auto *delimiter = separator ? separator : ",";
+		const auto delimiterLength = std::strlen(delimiter);
+		std::size_t totalLength = elementCount > 0 ? delimiterLength * (elementCount - 1) : 0;
+
+		for (std::size_t index = 0; index < elementCount; ++index) {
+			totalLength += anyStringLength(elements[index], true);
+		}
+
+		auto *result = static_cast<char *>(MemoryManager::allocate(totalLength + 1, "runtime string"));
+		auto *cursor = result;
+
+		for (std::size_t index = 0; index < elementCount; ++index) {
+			if (index > 0) {
+				std::memcpy(cursor, delimiter, delimiterLength);
+				cursor += delimiterLength;
+			}
+
+			cursor = appendAnyString(cursor, elements[index], true);
+		}
+
+		*cursor = '\0';
+		return result;
+	}
+
+	const char *ArrayValue::toString() const {
+		return join(",");
+	}
+
+	void ArrayValue::sort() {
+		OwnershipTracker::assertLiveAggregate(this, "array sort after destroy/drop", "array value");
+
+		std::sort(elements, elements + elementCount, [](void *left, void *right) {
+			return compareAnyAsString(left, right) < 0;
+		});
+	}
+
+	ArrayValue *ArrayValue::toSorted() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array toSorted after destroy/drop", "array value");
+
+		auto *result = clone();
+		result->sort();
+		return result;
+	}
+
 	void ArrayValue::ensureCapacity(std::size_t requiredCapacity) {
 		if (requiredCapacity <= elementCapacity) {
 			return;
@@ -929,6 +1058,38 @@ void *yogi_array_slice(void *array, double start, double end) {
 	}
 
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->slice(start, end);
+}
+
+const char *yogi_array_join(void *array, const char *separator) {
+	if (!array) {
+		return "";
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->join(separator);
+}
+
+const char *yogi_array_to_string(void *array) {
+	if (!array) {
+		return "";
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->toString();
+}
+
+void yogi_array_sort(void *array) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->sort();
+}
+
+void *yogi_array_to_sorted(void *array) {
+	if (!array) {
+		return nullptr;
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->toSorted();
 }
 
 void yogi_array_drop(void *array) {

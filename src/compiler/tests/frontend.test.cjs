@@ -241,6 +241,10 @@ describe("Yogi frontend semantic pipeline", () => {
         let expanded: number[] = scores.flatMap((value: number): number[] => [value, value + 1])
         let total: number = scores.reduce((accumulator: number, value: number): number => accumulator + value, 0)
         let totalRight: number = scores.reduceRight((accumulator: number, value: number): number => accumulator + value, 0)
+        let joined: string = scores.join("-")
+        let text: string = scores.toString()
+        let sorted: number[] = scores.toSorted()
+        scores.sort()
       `,
     });
 

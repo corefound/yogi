@@ -312,6 +312,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 toReversed: () => this.validateAndCreateToReversedCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 toSpliced: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, receiverType, methodName, args, source, false),
                 with: () => this.validateAndCreateWithCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                join: () => this.validateAndCreateJoinCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                toString: () => this.validateAndCreateToStringCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                sort: () => this.validateAndCreateSortCall(node, rawCallee, receiver, receiverType, methodName, args, source, true),
+                toSorted: () => this.validateAndCreateSortCall(node, rawCallee, receiver, receiverType, methodName, args, source, false),
                 forEach: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 map: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 filter: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
@@ -912,6 +916,58 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
         public validateAndCreateToReversedCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
             this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                this.arrayReturnType(receiverType),
+                methodName,
+            );
+        }
+
+        public validateAndCreateJoinCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 1);
+
+            if (args[0] && this.resolveType(args[0].type)?.kind !== Kinds.Types.StringType) {
+                const message =
+                    `array method ${Helpers.BLUE}'join'${Helpers.RESET} separator must be ` +
+                    `${Helpers.BLUE}'string'${Helpers.RESET}`;
+
+                args[0].arrowLength = args[0].source?.length ?? 1;
+                this.throwError(message, args[0].position ?? node.position, source, args[0]);
+            }
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                { kind: Kinds.Types.StringType, raw: "string" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateToStringCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                { kind: Kinds.Types.StringType, raw: "string" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateSortCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string, mutating: boolean): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            if (mutating) {
+                this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+            }
 
             return this.createArrayBuiltinCall(
                 node,
