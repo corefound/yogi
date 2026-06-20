@@ -1,0 +1,81 @@
+POST http://localhost:3456/rpc HTTP/1.1
+Content-Type: application/json
+
+{
+    "method": "get_user_by_name",
+    "params": {
+        "name": "anton"
+    }
+}
+
+###
+POST http://localhost:3456/rpc HTTP/1.1
+Content-Type: application/json
+
+{
+    "method": "yogi.login",
+    "params": {
+        "githubClientId": "brayhandeaza"
+    }
+}
+
+###
+POST http://localhost:3456/rpc HTTP/1.1
+Content-Type: application/json
+
+{
+    "method": "get_all_packages",
+    "params": {
+        "limit": 10,
+        "offset": 0
+    }
+}
+
+###
+POST http://localhost:3456/rpc HTTP/1.1
+Content-Type: application/json
+
+{
+    "method": "create_installation",
+    "params": {
+        "packageId": 1,
+        "packageVersionId": 1,
+        "eventType": "install",
+        "platform": "darwin",
+        "arch": "arm64",
+        "os": "macOS",
+        "yogiVersion": "1.0.0",
+        "status": "completed",
+        "sha256Matched": true,
+        "releaseIdMatched": true,
+        "assetNameMatched": true,
+        "assetIdMatched": true,
+        "assetSizeMatched": true
+    }
+}
+
+###
+POST http://localhost:3456/rpc HTTP/1.1
+Content-Type: application/json
+
+{
+    "method": "update_installation",
+    "params": {
+        "id": 1,
+        "input": {
+            "status": "failed"
+        }
+    }
+}
+
+###
+POST http://localhost:3456/rpc HTTP/1.1
+Content-Type: application/json
+
+{
+    "method": "get_all_installations",
+    "params": {
+        "limit": 20,
+        "offset": 0
+    }
+}

@@ -14,12 +14,12 @@
     "skipLibCheck": true,
     "noImplicitAny": true,
 
-    "rootDir": "./",
+    "rootDir": "./src",
 
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     }
   },
-  "include": ["**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "tests", "**/*.io"]
 }

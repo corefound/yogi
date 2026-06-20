@@ -2,9 +2,10 @@
   "name": "yogi-registry-server",
   "version": "1.0.0",
   "description": "Yogi package registry server",
-  "main": "app.ts",
+  "main": "src/app.ts",
   "scripts": {
-    "start": "node app.ts"
+    "start": "tsx src/app.ts",
+    "dev": "tsx watch src/app.ts"
   },
   "dependencies": {
     "@apollo/server": "^5.5.1",
@@ -15,17 +16,26 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "better-sqlite3": "^12.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "graphql": "^17.0.1",
     "graphql-type-json": "^0.3.2",
     "ioredis": "^5.11.1",
     "jsonrpc-lite": "^2.2.0",
+    "jsonwebtoken": "^9.0.3",
     "keyv": "^5.2.1",
+    "pg": "^8.22.0",
+    "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.8",
     "short-uuid": "^6.0.3",
     "sqlite3": "^6.0.1",
     "tsx": "^4.22.4",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/jsonwebtoken": "^9.0.10"
   }
 }
