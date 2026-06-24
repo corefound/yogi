@@ -1,6 +1,7 @@
 import { GraphQLError, GraphQLResolveInfo } from 'graphql';
 import { Controllers } from '../controllers';
 import { getQueryResponseFields } from '../helpers';
+import { wrapCache } from '../lib/redis-cache';
 
 const type = () => {
     return `
@@ -94,9 +95,12 @@ const resolvers = {
             return result.user;
         },
         users: async (_: any, args: { limit?: number; offset?: number; role?: string }, context: any, info: GraphQLResolveInfo) => {
-            const fields = getQueryResponseFields(info.fieldNodes, 'users');
-            const result = await Controllers.Users.getUsers(args, fields);
-            return result.users;
+            const cacheKey = `gql: users:${ args.role ?? 'all' }:${ args.limit ?? 'all' }:${ args.offset ?? '0' }`;
+            return wrapCache(cacheKey, 60, async () => {
+                const fields = getQueryResponseFields(info.fieldNodes, 'users');
+                const result = await Controllers.Users.getUsers(args, fields);
+                return result.users;
+            });
         },
     },
 
