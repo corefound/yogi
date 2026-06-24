@@ -65,7 +65,7 @@ const inputTypes = () => {
 const query = () => {
     return `
         user(name: String!): UsersType
-        users(limit: Int, offset: Int): [UsersType]
+        users(limit: Int, offset: Int, role: String): [UsersType]
     `;
 };
 
@@ -93,7 +93,7 @@ const resolvers = {
             }
             return result.user;
         },
-        users: async (_: any, args: { limit?: number; offset?: number }, context: any, info: GraphQLResolveInfo) => {
+        users: async (_: any, args: { limit?: number; offset?: number; role?: string }, context: any, info: GraphQLResolveInfo) => {
             const fields = getQueryResponseFields(info.fieldNodes, 'users');
             const result = await Controllers.Users.getUsers(args, fields);
             return result.users;

@@ -2,7 +2,7 @@ import { DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOpt
 import type Packages from "./PackagesModel";
 import { db } from "../config/db";
 
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "maintainer";
 export type UserStatus = "active" | "suspended" | "deleted";
 
 class Users extends Model<InferAttributes<Users>, InferCreationAttributes<Users>> {

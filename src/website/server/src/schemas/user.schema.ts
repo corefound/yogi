@@ -7,7 +7,7 @@ export const CreateUserSchema = z.object({
     avatarUrl: z.string().max(512).optional(),
     profileUrl: z.string().max(512).optional(),
     email: z.string().max(255).optional(),
-    role: z.enum(["user", "admin"]).optional().default("user"),
+    role: z.enum(["user", "admin", "maintainer"]).optional().default("user"),
     status: z.enum(["active", "suspended", "deleted"]).optional().default("active"),
     lastLoginAt: z.date().optional(),
 });
@@ -26,7 +26,7 @@ export const UpdateUserSchema = z.object({
     avatarUrl: z.string().max(512).optional(),
     profileUrl: z.string().max(512).optional(),
     email: z.string().max(255).optional(),
-    role: z.enum(["user", "admin"]).optional(),
+    role: z.enum(["user", "admin", "maintainer"]).optional(),
     status: z.enum(["active", "suspended", "deleted"]).optional(),
     lastLoginAt: z.date().optional(),
 });

@@ -1,12 +1,16 @@
+import { Op } from "sequelize";
 import { Models } from "../models";
 import { CreateUserSchema, type CreateUserInput, GetUserSchema, UpdateUserSchema, type UpdateUserInput } from "../schemas/user.schema";
 
 export class UsersController {
-    static async getUsers(params: { limit?: number; offset?: number } = {}, attributes: any = {}) {
-        const { limit, offset } = params;
+    static async getUsers(params: { limit?: number; offset?: number; role?: string } = {}, attributes: any = {}) {
+        const { limit, offset, role } = params;
         const attrs = [...(attributes.user || [])];
+        const where: any = {};
+        if (role) where.role = role;
         const users = await Models.Users.findAll({
             ...(attrs.length ? { attributes: attrs } : {}),
+            where: Object.keys(where).length ? where : undefined,
             limit: limit ? Math.min(limit, 100) : undefined,
             offset: offset ?? undefined,
         });

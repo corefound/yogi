@@ -97,6 +97,30 @@ export interface GetPopularOrganizationsData {
   popularOrganizations: Organization[]
 }
 
+export interface User {
+  id: number
+  githubLogin: string
+  displayName?: string
+  avatarUrl?: string
+  role: string
+}
+
+export interface GetUsersData {
+  users: User[]
+}
+
+export const GET_USERS = gql`
+  query GetUsers($limit: Int, $role: String) {
+    users(limit: $limit, role: $role) {
+      id
+      githubLogin
+      displayName
+      avatarUrl
+      role
+    }
+  }
+`
+
 export interface SearchResult {
   packages: Package[]
   organizations: Organization[]

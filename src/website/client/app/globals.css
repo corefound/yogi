@@ -1305,6 +1305,18 @@ img.avatar {
   border-radius: 50%;
   background: linear-gradient(135deg, #d6b09c, #344b65);
   border: 1px solid rgba(255, 255, 255, 0.13);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.mini-avatar img,
+img.mini-avatar {
+  object-fit: cover;
+  background: none;
 }
 
 /* Documentation */

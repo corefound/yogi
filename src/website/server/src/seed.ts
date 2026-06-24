@@ -325,6 +325,34 @@ async function seed() {
     } as any)
     console.log(`Created user: ${mobileUser.githubLogin} (id=${mobileUser.id})`)
 
+    // ── Maintainer users ─────────────────────────────────────
+    const maintainers = [
+        { githubUserId: '200', githubLogin: 'alice', displayName: 'Alice Johnson' },
+        { githubUserId: '201', githubLogin: 'bob', displayName: 'Bob Chen' },
+        { githubUserId: '202', githubLogin: 'carol', displayName: 'Carol Martinez' },
+        { githubUserId: '203', githubLogin: 'dave', displayName: 'Dave Kim' },
+        { githubUserId: '204', githubLogin: 'eve', displayName: 'Eve Thompson' },
+        { githubUserId: '205', githubLogin: 'frank', displayName: 'Frank Garcia' },
+        { githubUserId: '206', githubLogin: 'grace', displayName: 'Grace Patel' },
+        { githubUserId: '207', githubLogin: 'henry', displayName: 'Henry Wilson' },
+        { githubUserId: '208', githubLogin: 'iris', displayName: 'Iris Anderson' },
+        { githubUserId: '209', githubLogin: 'jack', displayName: 'Jack Brown' },
+    ]
+
+    const maintainerUsers: any[] = []
+    for (const m of maintainers) {
+        const user = await Models.Users.create({
+            ...m,
+            avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(m.displayName)}&background=random&color=fff&size=64`,
+            profileUrl: null,
+            email: null,
+            role: 'maintainer',
+            status: 'active',
+        } as any)
+        maintainerUsers.push(user)
+        console.log(`Created maintainer: ${user.githubLogin} (id=${user.id})`)
+    }
+
     // ── Additional Organizations ──────────────────────────────
     const securityOrg = await Models.Organizations.create({
         name: 'security', displayName: 'Security Tools',
