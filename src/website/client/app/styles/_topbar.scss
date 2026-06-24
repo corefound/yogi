@@ -1,0 +1,178 @@
+[data-theme="light"] .topbar {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme="light"] .kbd {
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .icon-btn {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .github-btn {
+  background: #f6f8fa;
+  color: #1f2328;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .github-btn:hover {
+  background: #e8ebee;
+}
+
+[data-theme="light"] .avatar {
+  background:
+    radial-gradient(ellipse at 30% 20%, #d4e0f0, #b0c8e0),
+    linear-gradient(135deg, #c8d8ea, #a0b8d0);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 68px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(6, 8, 11, 0.86);
+  backdrop-filter: blur(20px);
+}
+
+.nav-inner {
+  height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 760;
+  letter-spacing: -0.03em;
+  font-size: 20px;
+  white-space: nowrap;
+}
+
+.logo {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: var(--blue-2);
+}
+
+.logo svg {
+  width: 100%;
+  height: 100%;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-links a {
+  color: var(--muted);
+  padding: 23px 14px 21px;
+  border-bottom: 2px solid transparent;
+  font-size: 15px;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+  color: var(--text);
+  border-bottom-color: var(--blue);
+}
+
+.nav-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  background: rgba(12, 22, 36, 0.76);
+  color: var(--muted);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, #f3d6c4 0 18%, transparent 19%),
+    radial-gradient(circle at 50% 75%, #335577 0 28%, transparent 29%),
+    linear-gradient(135deg, #253b56, #101c2d);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+img.avatar {
+  object-fit: cover;
+  background: none;
+}
+
+.nav-user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.logout-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.logout-btn:hover {
+  opacity: 1;
+}
+
+.github-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #24292e;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.github-btn:hover {
+  background: #2c3138;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.mobile-menu {
+  display: none;
+}
+
+.yogi-logo {
+  width: 33px;
+  height: 38px;
+  background-size: contain;
+}

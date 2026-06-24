@@ -109,6 +109,22 @@ export interface GetUsersData {
   users: User[]
 }
 
+export interface GetMaintainersData {
+  gayMaintainers: User[]
+}
+
+export const GET_MAINTAINERS = gql`
+  query GetMaintainers {
+    gayMaintainers {
+      id
+      githubLogin
+      displayName
+      avatarUrl
+      role
+    }
+  }
+`
+
 export const GET_USERS = gql`
   query GetUsers($limit: Int, $role: String) {
     users(limit: $limit, role: $role) {

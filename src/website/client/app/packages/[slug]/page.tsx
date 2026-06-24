@@ -92,6 +92,65 @@ function timeAgo(date: string | null | undefined): string {
   return moment(Number(date)).fromNow()
 }
 
+function platformIcon(platform: string): React.ReactNode {
+  const base = platform.split('-')[0]
+  const icons: Record<string, React.ReactNode> = {
+    node: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+        <path d="M2 17l10 5 10-5" />
+        <path d="M2 12l10 5 10-5" />
+      </svg>
+    ),
+    browser: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="2" y1="12" x2="22" y2="12" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      </svg>
+    ),
+    deno: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+        <line x1="9" y1="9" x2="9.01" y2="9" />
+        <line x1="15" y1="9" x2="15.01" y2="9" />
+      </svg>
+    ),
+    bun: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 6v.01" />
+        <path d="M12 10v.01" />
+        <path d="M12 14v.01" />
+      </svg>
+    ),
+    macos: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <path d="M12 8l-4 6h8l-4-6z" />
+      </svg>
+    ),
+    linux: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 20l4-12 4 12" />
+        <path d="M4 20h16" />
+      </svg>
+    ),
+    win32: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3l7 1v6H3V3zm0 12h7v6l-7 1v-7zm9-6l9-1v7h-9V9zm9 6h-9v7l9 1v-8z" />
+      </svg>
+    ),
+  }
+  return icons[base] || (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
+      <rect x="9" y="9" width="6" height="6" />
+    </svg>
+  )
+}
+
 export default function PackageSlugPage() {
   const params = useParams()
   const slug = params.slug as string
@@ -301,9 +360,15 @@ export default function PackageSlugPage() {
               <h1>{pkg.name}</h1>
               <p>{pkg.description || 'No description available.'}</p>
               <div className="hero-meta">
-                {/* {pkg.owner && <span>{pkg.owner.githubLogin || pkg.owner.displayName}</span>}
-                <span className="badge">Maintainer</span> */}
-                {/* <span>{formatInstalls(pkg.weeklyDownloads || 0)} weekly downloads</span> */}
+                {pkg.platforms && pkg.platforms.length > 0 && (
+                  <div className="tags" style={{ marginTop: 4 }}>
+                    {pkg.platforms.map((platform) => (
+                      <span className="tag" key={platform} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        {platformIcon(platform)} {platform}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

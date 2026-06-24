@@ -10,7 +10,7 @@ import {
 	GET_TRENDING_PACKAGES,
 	GET_POPULAR_ORGANIZATIONS,
 	GET_CATEGORIES_LIST,
-	GET_USERS,
+	GET_MAINTAINERS,
 	type Package,
 	type Metric,
 	type Organization,
@@ -18,7 +18,7 @@ import {
 	type GetTrendingPackagesData,
 	type GetMetricsData,
 	type GetPopularOrganizationsData,
-	type GetUsersData,
+	type GetMaintainersData,
 	type GetCategoriesListData,
 	type Category,
 } from '@/lib/queries'
@@ -78,7 +78,11 @@ export default function Home() {
 	const trendingQuery = useQuery<GetTrendingPackagesData>(GET_TRENDING_PACKAGES, { variables: { limit: 4 }, fetchPolicy: 'cache-first' })
 	const orgsQuery = useQuery<GetPopularOrganizationsData>(GET_POPULAR_ORGANIZATIONS, { variables: { limit: 3 }, fetchPolicy: 'cache-first' })
 	const categoriesQuery = useQuery<GetCategoriesListData>(GET_CATEGORIES_LIST, { variables: { limit: 4 }, fetchPolicy: 'cache-first' })
-	const maintainersQuery = useQuery<GetUsersData>(GET_USERS, { variables: { role: 'maintainer', limit: 10 }, fetchPolicy: 'cache-first' })
+	const maintainersQuery = useQuery<GetMaintainersData>(GET_MAINTAINERS, { fetchPolicy: 'cache-first' })
+
+	useEffect(() => {
+		console.log({ maintainersQuery })
+	}, [])
 
 	useEffect(() => {
 		if (metricsQuery.error) console.error('metrics error:', metricsQuery.error)
@@ -90,7 +94,7 @@ export default function Home() {
 	const metrics: Metric[] = metricsQuery.data?.metrics || []
 	const packages: Package[] = trendingQuery.data?.trendingPackages || []
 	const orgs: Organization[] = orgsQuery.data?.popularOrganizations || []
-	const maintainers: User[] = maintainersQuery.data?.users || []
+	const maintainers: User[] = maintainersQuery.data?.gayMaintainers || []
 	const categoriesData = categoriesQuery.data?.categoriesList
 	const categories: Category[] = categoriesData?.categories || []
 	const remainingCount = categoriesData?.remainingPackageCount || 0
@@ -145,7 +149,7 @@ export default function Home() {
 								</div>
 							))}
 
-							<div className="stat-card hero-side-wide">
+							<a href="/maintainers" className="stat-card hero-side-wide hover">
 								<div>
 									<div className="top">
 										<span className="stat-icon">♡</span>
@@ -160,7 +164,7 @@ export default function Home() {
 									</div>
 								) : maintainers.length > 0 ? (
 									<div className="avatar-row">
-										{maintainers.slice(0, 5).map((user) => (
+										{maintainers.slice(0, 4).map((user) => (
 											user.avatarUrl ? (
 												<img key={user.id} className="mini-avatar" src={user.avatarUrl} alt={user.displayName || user.githubLogin} title={user.displayName || user.githubLogin} />
 											) : (
@@ -170,11 +174,11 @@ export default function Home() {
 											)
 										))}
 										{maintainers.length > 5 && (
-											<span className="tag">+{maintainers.length - 5}</span>
+											<span className="tag">+{maintainers.length - 4}</span>
 										)}
 									</div>
 								) : null}
-							</div>
+							</a>
 						</div>
 					</div>
 				</section>
@@ -246,9 +250,8 @@ export default function Home() {
 							<div className="section-head">
 								<div className="section-title">
 									<h2>Popular Organizations</h2>
-									<small>Teams with the most downloaded packages</small>
+									<a className="link-blue" href="/organizations">View all →</a>
 								</div>
-								<a className="link-blue" href="/organizations">View all →</a>
 							</div>
 							<div className="org-grid">
 								{orgsQuery.loading && <p style={{ color: 'var(--muted)' }}>Loading...</p>}

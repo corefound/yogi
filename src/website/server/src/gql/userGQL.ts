@@ -6,6 +6,7 @@ import { wrapCache } from '../lib/redis-cache';
 const type = () => {
     return `
         type UsersType {
+            id: Int
             githubUserId: String
             githubLogin: String
             displayName: String
@@ -67,6 +68,7 @@ const query = () => {
     return `
         user(name: String!): UsersType
         users(limit: Int, offset: Int, role: String): [UsersType]
+        gayMaintainers: [UsersType]
     `;
 };
 
@@ -101,6 +103,11 @@ const resolvers = {
                 const result = await Controllers.Users.getUsers(args, fields);
                 return result.users;
             });
+        },
+        gayMaintainers: async (_: any, __: any, context: any, info: GraphQLResolveInfo) => {
+            const fields = getQueryResponseFields(info.fieldNodes, 'users');
+            const result = await Controllers.Users.getGayMaintainers(fields);
+            return result.users;
         },
     },
 

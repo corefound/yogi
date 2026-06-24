@@ -3,6 +3,15 @@ import { Models } from "../models";
 import { CreateUserSchema, type CreateUserInput, GetUserSchema, UpdateUserSchema, type UpdateUserInput } from "../schemas/user.schema";
 
 export class UsersController {
+    static async getGayMaintainers(attributes: any = {}) {
+        const attrs = [...(attributes.user || [])];
+        const users = await Models.Users.findAll({
+            ...(attrs.length ? { attributes: attrs } : {}),
+            where: { role: 'maintainer' },
+        });
+        return { users };
+    }
+
     static async getUsers(params: { limit?: number; offset?: number; role?: string } = {}, attributes: any = {}) {
         const { limit, offset, role } = params;
         const attrs = [...(attributes.user || [])];

@@ -1,0 +1,194 @@
+[data-theme="light"] .docs-link:hover,
+[data-theme="light"] .docs-link.active {
+  background: rgba(58, 139, 255, 0.08);
+}
+
+[data-theme="light"] .note {
+  border: 1px solid rgba(58, 139, 255, 0.25);
+  background: rgba(58, 139, 255, 0.06);
+  color: #1f2328;
+}
+
+[data-theme="light"] .success {
+  border-color: rgba(45, 180, 90, 0.3);
+  background: rgba(45, 180, 90, 0.08);
+  color: #166b3a;
+}
+
+.docs-page {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 240px;
+  gap: 42px;
+  width: min(1500px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 60px;
+}
+
+.docs-sidebar,
+.docs-toc {
+  position: sticky;
+  top: 88px;
+  align-self: start;
+  max-height: calc(100vh - 104px);
+  overflow: auto;
+}
+
+.docs-sidebar {
+  border-right: 1px solid var(--border);
+  padding-right: 18px;
+}
+
+.docs-group {
+  padding: 0 0 17px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-group-title {
+  color: var(--muted-2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.docs-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-radius: 9px;
+  margin: 2px 0;
+}
+
+.docs-link:hover,
+.docs-link.active {
+  background: rgba(59, 139, 255, 0.11);
+  color: var(--text);
+}
+
+.docs-main {
+  min-width: 0;
+}
+
+.docs-main h1 {
+  font-size: clamp(36px, 5vw, 54px);
+  letter-spacing: -0.06em;
+  margin: 10px 0 12px;
+}
+
+.docs-main > p {
+  color: var(--muted);
+  font-size: 17px;
+  max-width: 760px;
+  line-height: 1.65;
+}
+
+.doc-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 24px 0 32px;
+}
+
+.doc-tile {
+  padding: 18px;
+}
+
+.doc-tile .stat-icon {
+  margin-bottom: 14px;
+}
+
+.doc-tile h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.doc-tile p {
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.docs-section {
+  margin-top: 30px;
+}
+
+.docs-section h2 {
+  margin-bottom: 8px;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+
+.docs-section p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.note {
+  border: 1px solid rgba(67, 147, 255, 0.32);
+  background: rgba(40, 111, 215, 0.08);
+  color: #cfe8ff;
+  padding: 12px 14px;
+  border-radius: 11px;
+  margin-top: 12px;
+}
+
+.success {
+  border-color: rgba(92, 217, 118, 0.32);
+  background: rgba(64, 190, 95, 0.09);
+  color: #caf6d0;
+}
+
+.next-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.next-card {
+  padding: 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.next-card p {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+.docs-toc {
+  border-left: 1px solid var(--border);
+  padding-left: 20px;
+}
+
+.toc-title {
+  color: var(--muted-2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.docs-toc a {
+  display: block;
+  color: var(--muted);
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.docs-toc a.active {
+  color: var(--blue-2);
+}
+
+.quick-links {
+  margin-top: 34px;
+}
+
+.quick-links .side-link {
+  font-size: 14px;
+}
