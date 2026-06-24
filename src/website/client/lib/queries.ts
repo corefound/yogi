@@ -93,6 +93,62 @@ export interface GetOrganizationsData {
   organizations: Organization[]
 }
 
+export interface GetPopularOrganizationsData {
+  popularOrganizations: Organization[]
+}
+
+export interface SearchResult {
+  packages: Package[]
+  organizations: Organization[]
+}
+
+export interface GetSearchData {
+  search: SearchResult
+}
+
+export const SEARCH = gql`
+  query Search($query: String!, $limit: Int) {
+    search(query: $query, limit: $limit) {
+      packages {
+        id
+        name
+        description
+        owner {
+          githubLogin
+          displayName
+        }
+      }
+      organizations {
+        id
+        name
+        displayName
+        description
+      }
+    }
+  }
+`
+
+export interface GetOrganizationDetailData {
+  organization: Organization
+}
+
+export interface Category {
+  name: string
+  slug: string
+  packageCount: number
+}
+
+export interface GetCategoriesData {
+  categories: Category[]
+}
+
+export interface GetCategoriesListData {
+  categoriesList: {
+    categories: Category[]
+    remainingPackageCount: number
+  }
+}
+
 export interface GetTrendingPackagesData {
   trendingPackages: Package[]
 }
@@ -103,6 +159,68 @@ export const GET_METRICS = gql`
       key
       value
       label
+    }
+  }
+`
+
+export const GET_CATEGORIES = gql`
+  query GetCategories {
+    categories {
+      name
+      slug
+      packageCount
+    }
+  }
+`
+
+export const GET_CATEGORIES_LIST = gql`
+  query GetCategoriesList($limit: Int) {
+    categoriesList(limit: $limit) {
+      categories {
+        name
+        slug
+        packageCount
+      }
+      remainingPackageCount
+    }
+  }
+`
+
+export interface GetCategoryData {
+  category: Category
+}
+
+export interface GetPackagesByCategoryData {
+  packagesByCategory: Package[]
+  category?: Category
+}
+
+export const GET_CATEGORY = gql`
+  query GetCategory($slug: String!) {
+    category(slug: $slug) {
+      name
+      slug
+      packageCount
+    }
+  }
+`
+
+export const GET_PACKAGES_BY_CATEGORY = gql`
+  query GetPackagesByCategory($slug: String!) {
+    packagesByCategory(slug: $slug) {
+      id
+      name
+      fullName
+      description
+      totalDownloads
+      weeklyDownloads
+      versionsCount
+      license
+      keywords
+      owner {
+        githubLogin
+        displayName
+      }
     }
   }
 `
@@ -136,6 +254,42 @@ export const GET_ORGANIZATIONS = gql`
       packages {
         fullName
         totalDownloads
+      }
+    }
+  }
+`
+
+export const GET_POPULAR_ORGANIZATIONS = gql`
+  query GetPopularOrganizations($limit: Int) {
+    popularOrganizations(limit: $limit) {
+      id
+      name
+      displayName
+      description
+      packages {
+        fullName
+        totalDownloads
+        weeklyDownloads
+      }
+    }
+  }
+`
+
+export const GET_ORGANIZATION_DETAIL = gql`
+  query GetOrganizationDetail($name: String!) {
+    organization(name: $name) {
+      id
+      name
+      displayName
+      description
+      packages {
+        id
+        name
+        fullName
+        description
+        totalDownloads
+        weeklyDownloads
+        versionsCount
       }
     }
   }

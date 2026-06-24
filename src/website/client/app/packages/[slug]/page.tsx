@@ -238,12 +238,12 @@ export default function PackageSlugPage() {
   const metrics = [
     {
       lavel: 'Weekly Downloads',
-      value: formatInstalls(pkg.weeklyDownloads) || '0',
+      value: pkg.weeklyDownloads?.toLocaleString("en-US") || '0',
       spark: "spark"
     },
     {
       lavel: 'Total Downloads',
-      value: formatInstalls(pkg.totalDownloads) || '0',
+      value: pkg.totalDownloads?.toLocaleString("en-US") || '0',
       spark: "spark"
     },
     {
@@ -338,7 +338,7 @@ export default function PackageSlugPage() {
               {metrics.map((metric) => (
                 <div className="metric">
                   <small>{metric.lavel}</small>
-                  <strong>{metric.value}</strong>
+                  <strong style={{ fontSize: 14 }}>{metric.value}</strong>
                   {/* {metric.spark ? <TinyAreaChart /> : null} */}
                 </div>
               ))}
@@ -404,8 +404,8 @@ export default function PackageSlugPage() {
               ) : null}
               {pkg.homepageUrl ? (
                 <a className="side-link" href={pkg.homepageUrl} target="_blank" rel="noopener noreferrer">
-                  <FaGlobe size={22} />
-                  <span>{truncateText(pkg.homepageUrl?.replace(/https?:\/\//, '').replace(/http?:\/\//, '') || "", 30)} ›</span>
+                  <FaGlobe color="var(--text)" size={22} />
+                  <span style={{ color: 'var(--text)' }}>{truncateText(pkg.homepageUrl?.replace(/https?:\/\//, '').replace(/http?:\/\//, '') || "", 30)} ›</span>
                 </a>
               ) : null}
             </div>

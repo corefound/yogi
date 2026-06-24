@@ -10,7 +10,7 @@ export default function Footer() {
 				<div className="footer-copy ">
 					<Link className="brand" href="/">
 						<div className="footer-inner">
-							<Image className="yogi-logo" quality={100} src={logo} alt="Yogi Registry" />
+							<Image className="yogi-logo" src={logo} alt="Yogi Registry" />
 							<span style={{ fontFamily: "sans-serif" }}>Yogi</span>
 						</div>
 					</Link>
