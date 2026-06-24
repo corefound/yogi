@@ -20,6 +20,29 @@ export class OrganizationController {
         return { organizations };
     }
 
+    static async getPopularOrganizations(params: { limit?: number } = {}, attributes: any = {}) {
+        const { limit } = params;
+
+        const orgs = await Models.Organizations.findAll({
+            include: [{
+                model: Models.Packages,
+                as: 'packages',
+                attributes: ['weeklyDownloads', 'totalDownloads'],
+                required: false,
+            }],
+        });
+
+        const sorted = orgs
+            .map(org => ({
+                ...org.toJSON(),
+                totalWeeklyDownloads: (org.packages || []).reduce((sum, p: any) => sum + (p.weeklyDownloads || 0), 0),
+            }))
+            .sort((a, b) => b.totalWeeklyDownloads - a.totalWeeklyDownloads)
+            .slice(0, limit || 3);
+
+        return { organizations: sorted };
+    }
+
     static async getOrganization(params: unknown, attributes: any = {}) {
         try {
             const parsed = GetOrganizationSchema.parse(params);

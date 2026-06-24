@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Op } from 'sequelize';
 import { db } from './config/db';
-import { redis } from './config/redis';
+import { redis, isRedisAvailable, keyvRedis } from './config/redis';
 import { RpcHandlers } from './routes/rpc';
 import { ApolloServer } from '@apollo/server';
 import { typeDefs, resolvers } from './gql';
@@ -15,6 +15,8 @@ import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHt
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { expressMiddleware } from '@as-integrations/express5';
 import { Models } from './models';
+import { KeyvAdapter } from "@apollo/utils.keyvadapter";
+
 
 const PORT = process.env.PORT || 3456;
 const app = express();
@@ -65,9 +67,9 @@ async function createSession(sid: string, userId: number, token: string, req: ex
         createdAt: new Date().toISOString(),
     };
 
-    if (redis) {
+    if (isRedisAvailable()) {
         try {
-            await redis.setex(redisKey(sid), SESSION_TTL, JSON.stringify(data));
+            await redis!.setex(redisKey(sid), SESSION_TTL, JSON.stringify(data));
             return;
         } catch (err) {
             console.error('Redis setex error, falling back to PG:', err);
@@ -87,9 +89,9 @@ async function createSession(sid: string, userId: number, token: string, req: ex
 }
 
 async function validateSession(sid: string, userId: number): Promise<boolean> {
-    if (redis) {
+    if (isRedisAvailable()) {
         try {
-            const raw = await redis.get(redisKey(sid));
+            const raw = await redis!.get(redisKey(sid));
             if (!raw) return false;
             const data: SessionData = JSON.parse(raw);
             return data.userId === userId;
@@ -111,9 +113,9 @@ async function validateSession(sid: string, userId: number): Promise<boolean> {
 }
 
 async function touchSession(sid: string): Promise<void> {
-    if (redis) {
+    if (isRedisAvailable()) {
         try {
-            await redis.expire(redisKey(sid), SESSION_TTL);
+            await redis!.expire(redisKey(sid), SESSION_TTL);
             return;
         } catch (err) {
             console.error('Redis expire error, falling back to PG:', err);
@@ -128,9 +130,9 @@ async function touchSession(sid: string): Promise<void> {
 }
 
 async function revokeSession(sid: string): Promise<void> {
-    if (redis) {
+    if (isRedisAvailable()) {
         try {
-            await redis.del(redisKey(sid));
+            await redis!.del(redisKey(sid));
             return;
         } catch (err) {
             console.error('Redis del error, falling back to PG:', err);
@@ -302,10 +304,13 @@ app.post('/auth/logout', async (req, res) => {
 });
 
 // ── GraphQL & RPC ───────────────────────────────────────────
+
+
 const server = new ApolloServer({
     typeDefs,
     resolvers,
     csrfPrevention: false,
+    cache: new KeyvAdapter(keyvRedis),
     plugins: [
         ApolloServerPluginDrainHttpServer({ httpServer }),
         ApolloServerPluginLandingPageLocalDefault({ embed: true }),

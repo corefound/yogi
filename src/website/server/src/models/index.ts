@@ -5,6 +5,7 @@ import InstallationsModel from './InstallationsModel';
 import Organizations from './OrganizationsModel';
 import Metrics from './MetricsModel';
 import Sessions from './SessionsModel';
+import Categories from './CategoriesModel';
 
 // ── Packages ↔ Users ──────────────────────────────────────
 Packages.belongsTo(Users, { foreignKey: 'ownerUserId', as: 'owner' });
@@ -57,4 +58,5 @@ export const Models = {
     Organizations,
     Metrics,
     Sessions,
+    Categories,
 }

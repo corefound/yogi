@@ -1,3 +1,4 @@
+import { Op, Sequelize } from "sequelize";
 import { Models } from "../models";
 import {
     CreatePackageSchema,
@@ -10,12 +11,89 @@ import {
 } from "../schemas/package.schema";
 
 export class PackageController {
+    static slugify(name: string): string {
+        return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    }
+
+    static async syncCategories(): Promise<void> {
+        const packages = await Models.Packages.findAll({
+            where: { status: 'active', visibility: 'public' },
+            attributes: ['keywords'],
+            raw: true,
+        });
+
+        const categoryMap = new Map<string, number>();
+        for (const pkg of packages) {
+            const keywords: string[] = (pkg as any).keywords || [];
+            const seen = new Set<string>();
+            for (const kw of keywords) {
+                if (!seen.has(kw)) {
+                    seen.add(kw);
+                    categoryMap.set(kw, (categoryMap.get(kw) || 0) + 1);
+                }
+            }
+        }
+
+        const now = new Date();
+        const entries = Array.from(categoryMap.entries());
+
+        for (const [name, count] of entries) {
+            const slug = this.slugify(name);
+            await Models.Categories.upsert({
+                name,
+                slug,
+                packageCount: count,
+                createdAt: now,
+                updatedAt: now,
+            } as any);
+        }
+
+        const activeSlugs = entries.map(([name]) => this.slugify(name));
+        if (activeSlugs.length > 0) {
+            await Models.Categories.destroy({
+                where: {
+                    slug: { [Op.notIn]: activeSlugs },
+                },
+            });
+        }
+    }
+
+    static async getCategories(params: { limit?: number } = {}, attributes: any = {}) {
+        const count = await Models.Categories.count();
+        if (count === 0) {
+            await this.syncCategories();
+        }
+
+        const categories = await Models.Categories.findAll({
+            order: [['packageCount', 'DESC']],
+        });
+
+        let resultCategories = categories.map(c => ({
+            name: c.name,
+            slug: c.slug,
+            packageCount: c.packageCount,
+        }));
+
+        let remainingPackageCount = 0;
+        if (params.limit && params.limit > 0) {
+            remainingPackageCount = resultCategories
+                .slice(params.limit)
+                .reduce((sum, c) => sum + c.packageCount, 0);
+            resultCategories = resultCategories.slice(0, params.limit);
+        }
+
+        return {
+            categories: resultCategories,
+            remainingPackageCount,
+        };
+    }
+    
     static async getTrendingPackages(params: { limit?: number } = {}, attributes: any = {}) {
         const { limit } = params;
         const attrs = [...(attributes?.packages || [])];
         const packages = await Models.Packages.findAll({
             ...(attrs.length ? { attributes: attrs } : {}),
-            limit: limit ? Math.min(limit, 50) : 10,
+            limit: Math.min(limit ?? 4, 4),
             order: [['weeklyDownloads', 'DESC']],
         });
         return { packages };
@@ -137,6 +215,83 @@ export class PackageController {
         } catch (error) {
             return { error };
         }
+    }
+
+    static async getCategory(params: { slug: string }) {
+        const category = await Models.Categories.findOne({
+            where: { slug: params.slug },
+        });
+        if (!category) return null;
+        return {
+            name: category.name,
+            slug: category.slug,
+            packageCount: category.packageCount,
+        };
+    }
+
+    static async search(params: { query: string; limit?: number }, attributes: any = {}) {
+        const { query, limit } = params;
+        const searchLimit = Math.min(limit ?? 5, 10);
+        const like = `%${query}%`;
+
+        const packages = await Models.Packages.findAll({
+            where: {
+                status: 'active',
+                visibility: 'public',
+                [Op.or]: [
+                    { name: { [Op.iLike]: like } },
+                    { fullName: { [Op.iLike]: like } },
+                    { description: { [Op.iLike]: like } },
+                ],
+            },
+            limit: searchLimit,
+            order: [['weeklyDownloads', 'DESC']],
+        });
+
+        const organizations = await Models.Organizations.findAll({
+            where: {
+                status: 'active',
+                [Op.or]: [
+                    { name: { [Op.iLike]: like } },
+                    { displayName: { [Op.iLike]: like } },
+                    { description: { [Op.iLike]: like } },
+                ],
+            },
+            limit: searchLimit,
+        });
+
+        return { packages, organizations };
+    }
+
+    static async getPackagesByCategory(params: { slug: string }, attributes: any = {}) {
+        const category = await Models.Categories.findOne({
+            where: { slug: params.slug },
+        });
+        if (!category) return { packages: [], category: null };
+
+        let attrs = [...(attributes?.packagesByCategory || [])];
+        const essential = ['id', 'ownerUserId'].filter(f => !attrs.includes(f));
+        if (essential.length && attrs.length) {
+            attrs.push(...essential);
+        }
+
+        const packages = await Models.Packages.findAll({
+            ...(attrs.length ? { attributes: attrs } : {}),
+            where: {
+                status: 'active',
+                visibility: 'public',
+                [Op.and]: Sequelize.literal(`keywords ? '${category.name.replace(/'/g, "''")}'`),
+            },
+        });
+
+        return {
+            packages,
+            category: {
+                name: category.name,
+                slug: category.slug,
+                packageCount: category.packageCount,
+            },
+        };
     }
 }
 

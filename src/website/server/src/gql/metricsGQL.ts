@@ -1,5 +1,6 @@
 import { GraphQLError } from 'graphql';
 import { Controllers } from '../controllers';
+import { wrapCache, delCacheByPattern } from '../lib/redis-cache';
 
 const type = () => {
     return `
@@ -56,16 +57,20 @@ const subscription = () => {
 const resolvers = {
     query: {
         metrics: async () => {
-            const result = await Controllers.Metrics.getAllMetrics();
-            return result.metrics;
+            return wrapCache('gql:metrics', 30, async () => {
+                const result = await Controllers.Metrics.getAllMetrics();
+                return result.metrics;
+            });
         },
         metric: async (_: any, args: { key: string }) => {
-            const result = await Controllers.Metrics.getMetric(args.key);
-            if (result.error) {
-                const err = result.error as { message?: string };
-                throw new GraphQLError(err.message || 'Metric not found');
-            }
-            return result.metric;
+            return wrapCache(`gql:metric:${args.key}`, 60, async () => {
+                const result = await Controllers.Metrics.getMetric(args.key);
+                if (result.error) {
+                    const err = result.error as { message?: string };
+                    throw new GraphQLError(err.message || 'Metric not found');
+                }
+                return result.metric;
+            });
         },
     },
 
@@ -75,6 +80,7 @@ const resolvers = {
             if (result.error) {
                 throw new GraphQLError(String(result.error));
             }
+            await delCacheByPattern('gql:metrics*');
             return result.metric;
         },
         updateMetric: async (_: any, args: { key: string; input: Record<string, unknown> }) => {
@@ -83,6 +89,7 @@ const resolvers = {
                 const err = result.error as { message?: string };
                 throw new GraphQLError(err.message || 'Update failed');
             }
+            await delCacheByPattern('gql:metrics*');
             return result.metric;
         },
         upsertMetric: async (_: any, args: { input: Record<string, unknown> }) => {
@@ -90,6 +97,7 @@ const resolvers = {
             if (result.error) {
                 throw new GraphQLError(String(result.error));
             }
+            await delCacheByPattern('gql:metrics*');
             return result.metric;
         },
         deleteMetric: async (_: any, args: { key: string }) => {
@@ -98,6 +106,7 @@ const resolvers = {
                 const err = result.error as { message?: string };
                 throw new GraphQLError(err.message || 'Delete failed');
             }
+            await delCacheByPattern('gql:metrics*');
             return result.success;
         },
         refreshMetrics: async () => {
@@ -105,6 +114,7 @@ const resolvers = {
             if (result.error) {
                 throw new GraphQLError(String(result.error));
             }
+            await delCacheByPattern('gql:metrics*');
             return result.metrics;
         },
     },

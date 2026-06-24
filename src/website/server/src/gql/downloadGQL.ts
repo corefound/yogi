@@ -1,5 +1,6 @@
 import { GraphQLError } from 'graphql';
 import { Controllers } from '../controllers';
+import { wrapCache, delCacheByPattern } from '../lib/redis-cache';
 
 const type = () => {
     return `
@@ -45,12 +46,16 @@ const subscription = () => {
 const resolvers = {
     query: {
         downloadStats: async (_: any, args: { input: Record<string, unknown> }) => {
-            const result = await Controllers.Downloads.getDownloadStats(args.input);
-            if (result.error) {
-                const err = result.error as { message?: string };
-                throw new GraphQLError(err.message || 'Failed to get download stats');
-            }
-            return result;
+            const pkgId = (args.input as any).packageId;
+            const period = (args.input as any).period || 'all';
+            return wrapCache(`gql:downloadStats:${pkgId}:${period}`, 30, async () => {
+                const result = await Controllers.Downloads.getDownloadStats(args.input);
+                if (result.error) {
+                    const err = result.error as { message?: string };
+                    throw new GraphQLError(err.message || 'Failed to get download stats');
+                }
+                return result;
+            });
         },
     },
 
@@ -60,6 +65,13 @@ const resolvers = {
             if (result.error) {
                 const err = result.error as { message?: string };
                 throw new GraphQLError(err.message || 'Failed to record download');
+            }
+            const pkgId = (args.input as any).packageId;
+            await delCacheByPattern('gql:downloadStats:*');
+            if (pkgId) {
+                await delCacheByPattern('gql:package:*');
+                await delCacheByPattern('gql:packages:*');
+                await delCacheByPattern('gql:trendingPackages:*');
             }
             return result.success;
         },
