@@ -3,29 +3,34 @@
 import { useEffect } from 'react'
 import { useQuery } from '@apollo/client/react'
 import TopBar from '@/components/TopBar'
+import SearchAutocomplete from '@/components/SearchAutocomplete'
 import Footer from '@/components/Footer'
 import {
 	GET_METRICS,
 	GET_TRENDING_PACKAGES,
-	GET_ORGANIZATIONS,
+	GET_POPULAR_ORGANIZATIONS,
+	GET_CATEGORIES_LIST,
 	type Package,
 	type Metric,
 	type Organization,
 	type GetTrendingPackagesData,
 	type GetMetricsData,
-	type GetOrganizationsData,
+	type GetPopularOrganizationsData,
+	type GetCategoriesListData,
+	type Category,
 } from '@/lib/queries'
+import { IoCloudDownloadSharp } from "react-icons/io5";
 
-const categories = [
-	{ icon: '◎', name: 'Web', count: '8,923' },
-	{ icon: '✦', name: 'AI', count: '4,210' },
-	{ icon: '▻', name: 'CLI', count: '3,412' },
-	{ icon: '▤', name: 'Database', count: '2,984' },
-	{ icon: '⚒', name: 'DevTools', count: '3,812' },
-	{ icon: '◇', name: 'Security', count: '2,102' },
-	{ icon: '◫', name: 'UI', count: '4,623' },
-	{ icon: '▣', name: 'Mobile', count: '2,341' },
-]
+const categoryIcons: Record<string, string> = {
+	'Web': '◎',
+	'AI': '✦',
+	'CLI': '▻',
+	'Database': '▤',
+	'DevTools': '⚒',
+	'Security': '◇',
+	'UI': '◫',
+	'Mobile': '▣',
+}
 
 const statIcons: Record<string, React.ReactNode> = {
 	"Total Packages": (
@@ -66,19 +71,24 @@ function packageIcon(name: string) {
 }
 
 export default function Home() {
-	const metricsQuery = useQuery<GetMetricsData>(GET_METRICS, { fetchPolicy: 'network-only' })
-	const trendingQuery = useQuery<GetTrendingPackagesData>(GET_TRENDING_PACKAGES, { variables: { limit: 6 }, fetchPolicy: 'network-only' })
-	const orgsQuery = useQuery<GetOrganizationsData>(GET_ORGANIZATIONS, { fetchPolicy: 'network-only' })
+	const metricsQuery = useQuery<GetMetricsData>(GET_METRICS, { fetchPolicy: 'cache-first' })
+	const trendingQuery = useQuery<GetTrendingPackagesData>(GET_TRENDING_PACKAGES, { variables: { limit: 4 }, fetchPolicy: 'cache-first' })
+	const orgsQuery = useQuery<GetPopularOrganizationsData>(GET_POPULAR_ORGANIZATIONS, { variables: { limit: 3 }, fetchPolicy: 'cache-first' })
+	const categoriesQuery = useQuery<GetCategoriesListData>(GET_CATEGORIES_LIST, { variables: { limit: 4 }, fetchPolicy: 'cache-first' })
 
 	useEffect(() => {
 		if (metricsQuery.error) console.error('metrics error:', metricsQuery.error)
 		if (trendingQuery.error) console.error('trending error:', trendingQuery.error)
 		if (orgsQuery.error) console.error('orgs error:', orgsQuery.error)
-	}, [metricsQuery.error, trendingQuery.error, orgsQuery.error])
+		if (categoriesQuery.error) console.error('categories error:', categoriesQuery.error)
+	}, [metricsQuery.error, trendingQuery.error, orgsQuery.error, categoriesQuery.error])
 
 	const metrics: Metric[] = metricsQuery.data?.metrics || []
 	const packages: Package[] = trendingQuery.data?.trendingPackages || []
-	const orgs: Organization[] = orgsQuery.data?.organizations || []
+	const orgs: Organization[] = orgsQuery.data?.popularOrganizations || []
+	const categoriesData = categoriesQuery.data?.categoriesList
+	const categories: Category[] = categoriesData?.categories || []
+	const remainingCount = categoriesData?.remainingPackageCount || 0
 
 	const metricMap = new Map(metrics.map(m => [m.key, m.value]))
 	const totalPackages = metricMap.get('total_packages') || 0
@@ -110,10 +120,7 @@ export default function Home() {
 							</h1>
 							<p>Yogi is a modern, secure and reliable package manager built for today's developers and their teams.</p>
 
-							<label className="search-hero">
-								<span style={{ fontSize: 26 }}>⌕</span>
-								<input placeholder="Search packages..." />
-							</label>
+							<SearchAutocomplete variant="hero" />
 
 							<div className="hero-actions">
 								<a style={{ color: '#fff' }} className="btn primary" href="#trending">◉ Explore Packages</a>
@@ -121,7 +128,7 @@ export default function Home() {
 							</div>
 						</div>
 
-						<div className="hero-side">
+						<div style={{ marginTop: 50 }} className="hero-side">
 							{stats.map((item) => (
 								<div className="stat-card" key={item.name}>
 									<div className="top">
@@ -166,7 +173,7 @@ export default function Home() {
 						{trendingQuery.error && <p style={{ gridColumn: '1 / -1', color: 'var(--danger)' }}>Failed to load packages. Is the API server running on port 3456?</p>}
 						{!trendingQuery.loading && !trendingQuery.error && packages.length === 0 && <p style={{ gridColumn: '1 / -1', color: 'var(--muted)' }}>No packages found yet.</p>}
 						{packages.map((pkg) => (
-							<a className="package-card" href={`/package/${pkg.name}`} key={pkg.fullName}>
+							<a className="package-card" href={`/packages/${pkg.name}`} key={pkg.fullName}>
 								<div className="pkg-top">
 									<span className="pkg-icon">{packageIcon(pkg.name)}</span>
 									<div>
@@ -175,7 +182,10 @@ export default function Home() {
 								</div>
 								<p>{pkg.description || 'No description'}</p>
 								<div className="pkg-meta">
-									<span>⇩ {formatCount(pkg.weeklyDownloads || 0)}/wk</span>
+									<span className="pkg-meta-item">
+										<IoCloudDownloadSharp color="var(--muted)" />
+										{formatCount(pkg.weeklyDownloads || 0)}
+									</span>
 									<span>v{pkg.versionsCount || '0'}</span>
 								</div>
 							</a>
@@ -185,31 +195,41 @@ export default function Home() {
 
 				<section className="section container">
 					<div className="explore-section-grid">
-						<div>
+						{categories.length > 0 ? <div>
 							<div className="section-head">
 								<div className="section-title">
 									<h2>Popular Categories</h2>
-									<small>Browse by category</small>
+									<a className="link-blue" href="/categories">View all →</a>
 								</div>
-								<a className="link-blue" href="#">View all →</a>
 							</div>
-							<div className="category-row" style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
-								{categories.map((cat) => (
-									<a className="category-card" href="#" key={cat.name}>
-										{cat.icon} {cat.name}
-										<span style={{ marginLeft: 'auto', color: 'var(--muted-2)' }}>{cat.count}</span>
-									</a>
-								))}
-							</div>
-						</div>
+							{categoriesQuery.loading && <p style={{ color: 'var(--muted)' }}>Loading categories...</p>}
+							{categoriesQuery.error && <p style={{ color: 'var(--danger)' }}>Failed to load categories.</p>}
+							{!categoriesQuery.loading && !categoriesQuery.error && categories.length === 0 && <p style={{ color: 'var(--muted)' }}>No categories found yet.</p>}
+							{!categoriesQuery.loading && !categoriesQuery.error && categories.length > 0 && (
+								<div className="category-row" style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
+									{categories.map((cat) => (
+										<a className="category-card hover" href={`/categories/${cat.slug}`} key={cat.slug}>
+											{categoryIcons[cat.name] || '•'} {cat.name}
+											<span style={{ marginLeft: 'auto', color: 'var(--muted-2)' }}>{cat.packageCount.toLocaleString('en-US')}</span>
+										</a>
+									))}
+									{/* {remainingCount > 0 && (
+										<a href={`/categories`} className="category-card" key="more">
+											<span style={{ fontSize: "15px" }}>All Categories</span>
+											<span style={{ marginLeft: 'auto', color: 'var(--muted-2)' }}>{remainingCount.toLocaleString('en-US')}</span>
+										</a>
+									)} */}
+								</div>
+							)}
+						</div> : null}
 
-						<div>
+						{orgs.length > 0 ? <div>
 							<div className="section-head">
 								<div className="section-title">
-									<h2>Verified Organizations</h2>
-									<small>Trusted teams building the ecosystem</small>
+									<h2>Popular Organizations</h2>
+									<small>Teams with the most downloaded packages</small>
 								</div>
-								<a className="link-blue" href="#">View all →</a>
+								<a className="link-blue" href="/organizations">View all →</a>
 							</div>
 							<div className="org-grid">
 								{orgsQuery.loading && <p style={{ color: 'var(--muted)' }}>Loading...</p>}
@@ -219,7 +239,7 @@ export default function Home() {
 									const pkgCount = org.packages?.length || 0
 									const totalDl = org.packages?.reduce((sum, p) => sum + (p.totalDownloads || 0), 0) || 0
 									return (
-										<a className="org-card" href="#" key={org.name}>
+										<a className="org-card" href={`/organizations/${org.name}`} key={org.name}>
 											<div className="org-logo dark">{org.name.charAt(0).toUpperCase()}</div>
 											<strong>{org.displayName || org.name}</strong>
 											<p>
@@ -231,14 +251,14 @@ export default function Home() {
 									)
 								})}
 							</div>
-						</div>
+						</div> : null}
 					</div>
 				</section>
 
 				<section className="section container">
 					<div className="section-head">
 						<div className="section-title">
-							<h2>Why Yogi Registry?</h2>
+							<h2>Why Yogi?</h2>
 							<small>Everything you need to build and ship with confidence.</small>
 						</div>
 					</div>
