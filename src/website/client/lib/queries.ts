@@ -4,11 +4,14 @@ export interface Package {
   id: number
   name: string
   fullName?: string
+  scope?: string
   description?: string
   totalDownloads?: number
   versionsCount?: number
+  latestVersion?: string
   weeklyDownloads?: number
   license?: string
+  logo?: string
   createdAt?: string
   updatedAt?: string
   readmeText?: string
@@ -17,7 +20,6 @@ export interface Package {
   documentationUrl?: string
   repoFullName?: string
   keywords?: string[]
-  platforms?: string[]
   maintainers?: {
     userId: number
     login: string
@@ -34,15 +36,31 @@ export interface Package {
     displayName?: string
     avatarUrl?: string
   }
-  versions?: {
-    id: number
-    version: string
-    description?: string
-    license?: string
-    publishedAt?: string
-    assetSizeBytes?: string
-    installCount?: string
-  }[]
+  versions?: Version[]
+}
+
+export interface Version {
+  id: number
+  packageId?: number
+  version: string
+  description?: string
+  readmeText?: string
+  license?: string
+  publishedAt?: string
+  assetSizeBytes?: string
+  minifiedSizeBytes?: string
+  installCount?: string
+  checksum?: string
+  tarballUrl?: string
+  status?: string
+  publishedByUserId?: number
+  platforms?: string[]
+  dependencies?: { dependencyName: string; versionRange: string; dependencyType?: string }[]
+  assets?: { target: string; artifactType: string; fileName: string; url: string; sizeBytes: number }[]
+}
+
+export interface GetVersionData {
+  version: Version
 }
 
 export interface GetPackagesData {
@@ -62,6 +80,7 @@ export const GET_PACKAGES = gql`
       totalDownloads
       versionsCount
       license
+      logo
       createdAt
       owner {
         githubLogin
@@ -256,6 +275,7 @@ export const GET_PACKAGES_BY_CATEGORY = gql`
       weeklyDownloads
       versionsCount
       license
+      logo
       keywords
       owner {
         githubLogin
@@ -276,6 +296,7 @@ export const GET_TRENDING_PACKAGES = gql`
       weeklyDownloads
       versionsCount
       license
+      logo
       owner {
         githubLogin
         displayName
@@ -340,18 +361,20 @@ export const GET_PACKAGE = gql`
     package(name: $name) {
       id
       name
+      scope
       description
       readmeText
       license
+      logo
       homepageUrl
       repositoryUrl
       documentationUrl
       repoFullName
       totalDownloads
       versionsCount
+      latestVersion
       weeklyDownloads
       keywords
-      platforms
       maintainers
       security
       createdAt
@@ -369,6 +392,144 @@ export const GET_PACKAGE = gql`
         publishedAt
         assetSizeBytes
         installCount
+        platforms
+      }
+    }
+  }
+`
+
+export const GET_VERSION = gql`
+  query GetVersion($packageName: String!, $version: String!) {
+    version(packageName: $packageName, version: $version) {
+      id
+      packageId
+      version
+      description
+      readmeText
+      license
+      assetSizeBytes
+      minifiedSizeBytes
+      installCount
+      checksum
+      tarballUrl
+      status
+      platforms
+      publishedAt
+      publishedByUserId
+      dependencies
+      assets
+    }
+  }
+`
+
+export interface VersionProfile {
+  packageId: number
+  fullName: string
+  scope?: string
+  name: string
+  displayName?: string
+  description?: string
+  license?: string
+  logo?: string
+  status?: string
+  verificationStatus?: string
+  repositoryUrl?: string
+  homepageUrl?: string
+  documentationUrl?: string
+  totalDownloads: number
+  weeklyDownloads: number
+  versionsCount: number
+  dependenciesCount: number
+  dependentsCount: number
+  keywords?: string[]
+  maintainers?: {
+    userId: number
+    username: string
+    avatarUrl: string | null
+    role: string
+  }[]
+  owner?: {
+    githubLogin?: string
+    displayName?: string
+    avatarUrl?: string
+  }
+  versionId: number
+  version: string
+  versionDescription?: string
+  versionReadmeText?: string
+  assetSizeBytes?: string
+  minifiedSizeBytes?: string
+  installCount?: string
+  checksum?: string
+  tarballUrl?: string
+  platforms?: string[]
+  dependencies?: { dependencyName: string; versionRange: string; dependencyType?: string }[]
+  assets?: { target: string; artifactType: string; fileName: string; url: string; sizeBytes: number }[]
+  publishedAt?: string
+  publishedByUserId?: number
+  isLatestVersion: boolean
+  installCommand: string
+  versions?: {
+    id: number
+    version: string
+    description?: string
+    assetSizeBytes?: string
+    installCount?: string
+    platforms?: string[]
+    publishedAt?: string
+  }[]
+}
+
+export interface GetVersionProfileData {
+  versionProfile: VersionProfile
+}
+
+export const GET_VERSION_PROFILE = gql`
+  query GetVersionProfile($name: String!, $version: String!) {
+    versionProfile(name: $name, version: $version) {
+      packageId
+      fullName
+      name
+      description
+      license
+      logo
+      status
+      repositoryUrl
+      homepageUrl
+      documentationUrl
+      totalDownloads
+      weeklyDownloads
+      versionsCount
+      keywords
+      maintainers
+      owner {
+        githubLogin
+        displayName
+        avatarUrl
+      }
+      versionId
+      version
+      versionDescription
+      versionReadmeText
+      assetSizeBytes
+      minifiedSizeBytes
+      installCount
+      checksum
+      tarballUrl
+      platforms
+      dependencies
+      assets
+      publishedAt
+      isLatestVersion
+      installCommand
+      versions {
+        id
+        version
+        description
+        assetSizeBytes
+        installCount
+        platforms
+        publishedAt
       }
     }
   }
