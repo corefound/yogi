@@ -121,6 +121,145 @@
 }
 
 .profile-container {
-  max-width: 780px;
+  max-width: 680px;
   margin: 0 auto;
+}
+
+/* ── Info cards ───────────────────────────────────── */
+
+.profile-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.profile-info-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.profile-info-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.profile-info-header svg {
+  color: var(--muted);
+}
+
+.profile-info-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.profile-info-row span:first-child {
+  color: var(--muted);
+}
+
+.profile-info-row a {
+  color: var(--blue-2);
+  text-decoration: none;
+}
+
+.profile-info-row a:hover {
+  text-decoration: underline;
+}
+
+.profile-info-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+
+.profile-info-link:hover {
+  background: rgba(55,139,255,0.06);
+}
+
+.profile-info-link svg {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ── Org cards ────────────────────────────────────── */
+
+.profile-org-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.profile-org-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s;
+}
+
+.profile-org-card:hover {
+  border-color: rgba(55,139,255,0.25);
+}
+
+.profile-org-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #253b56, #101c2d);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.profile-org-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-org-body strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+
+.profile-org-body p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
