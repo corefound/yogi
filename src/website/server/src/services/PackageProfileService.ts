@@ -11,6 +11,7 @@ export type PackageProfileDTO = {
     installCommand: string;
     latestVersion: string | null;
     license: string | null;
+    logo: string | null;
     status: string;
     verificationStatus: string;
     repositoryUrl: string | null;
@@ -23,7 +24,6 @@ export type PackageProfileDTO = {
     dependentsCount: number;
     lastPublishedAt: Date | null;
     keywords: string[];
-    platforms: string[];
     maintainers: Array<{
         userId: number;
         username: string;
@@ -84,6 +84,7 @@ export async function getPackageProfile(fullName: string): Promise<PackageProfil
         installCommand: `yogi add ${scopePrefix}${pkg.name}`,
         latestVersion: pkg.latestVersion,
         license: pkg.license,
+        logo: pkg.logo,
         status: pkg.status,
         verificationStatus: pkg.verificationStatus,
         repositoryUrl: pkg.repositoryUrl,
@@ -96,7 +97,6 @@ export async function getPackageProfile(fullName: string): Promise<PackageProfil
         dependentsCount: pkg.dependentsCount,
         lastPublishedAt: pkg.lastPublishedAt,
         keywords: pkg.keywords || [],
-        platforms: pkg.platforms || [],
         maintainers: maintainers.map(m => ({
             userId: m.userId,
             username: "",

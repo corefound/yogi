@@ -26,6 +26,7 @@ class Packages extends Model<InferAttributes<Packages>, InferCreationAttributes<
     declare description: string | null;
     declare readmeText: string | null;
     declare license: string | null;
+    declare logo: string | null;
 
     declare ownerUserId: number | null;
     declare ownerOrganizationId: number | null;
@@ -56,7 +57,6 @@ class Packages extends Model<InferAttributes<Packages>, InferCreationAttributes<
     declare updatedAt: CreationOptional<Date>;
 
     declare keywords: string[];
-    declare platforms: string[];
     declare maintainers: object[];
     declare security: object | null;
     declare downloadTrend: object[];
@@ -110,6 +110,11 @@ Packages.init(
 
         license: {
             type: DataTypes.STRING(100),
+            allowNull: true,
+        },
+
+        logo: {
+            type: DataTypes.STRING(2048),
             allowNull: true,
         },
 
@@ -234,12 +239,6 @@ Packages.init(
         },
 
         keywords: {
-            type: DataTypes.JSONB,
-            allowNull: false,
-            defaultValue: [],
-        },
-
-        platforms: {
             type: DataTypes.JSONB,
             allowNull: false,
             defaultValue: [],
