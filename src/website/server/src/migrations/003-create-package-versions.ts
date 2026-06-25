@@ -18,8 +18,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         github_release_tag: { type: DataTypes.STRING(100), allowNull: true },
         published_by_user_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: "users", key: "id" } },
         published_at: { type: DataTypes.DATE, allowNull: false },
-        dependencies: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
-        assets: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      platforms: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      dependencies: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      assets: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
         created_at: { type: DataTypes.DATE, allowNull: false },
         updated_at: { type: DataTypes.DATE, allowNull: false },
     });

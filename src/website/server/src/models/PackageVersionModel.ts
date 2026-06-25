@@ -42,6 +42,7 @@ class PackageVersion extends Model<
     declare createdAt: CreationOptional<Date>;
     declare updatedAt: CreationOptional<Date>;
 
+    declare platforms: string[];
     declare dependencies: object[];
     declare assets: object[];
 
@@ -144,6 +145,12 @@ PackageVersion.init(
             allowNull: false,
             defaultValue: DataTypes.NOW,
             field: "published_at",
+        },
+
+        platforms: {
+            type: DataTypes.JSONB,
+            allowNull: false,
+            defaultValue: [],
         },
 
         dependencies: {
