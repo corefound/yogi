@@ -50,6 +50,7 @@ bool yogi_string_starts_with(const char *value, const char *search, double posit
 bool yogi_string_ends_with(const char *value, const char *search, double endPosition);
 long long yogi_string_index_of(const char *value, const char *search, double position);
 long long yogi_string_last_index_of(const char *value, const char *search, double position);
+bool yogi_string_equals(const char *left, const char *right);
 const char *yogi_string_char_at(const char *value, double index);
 double yogi_string_char_code_at(const char *value, double index);
 const char *yogi_string_repeat(const char *value, double count);

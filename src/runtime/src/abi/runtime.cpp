@@ -363,6 +363,10 @@ long long yogi_string_last_index_of(const char *value, const char *search, doubl
 	return lastIndexOfRaw(text, textLength, needle, needleLength, start);
 }
 
+bool yogi_string_equals(const char *left, const char *right) {
+	return std::strcmp(safeString(left), safeString(right)) == 0;
+}
+
 const char *yogi_string_char_at(const char *value, double index) {
 	const auto *text = safeString(value);
 	const auto length = std::strlen(text);

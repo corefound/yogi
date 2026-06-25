@@ -1957,6 +1957,17 @@ namespace yogi::core::llvm::internal {
 		if (op == "&&") return context.builder.CreateAnd(toBoolean(left), toBoolean(right), "andtmp");
 		if (op == "||") return context.builder.CreateOr(toBoolean(left), toBoolean(right), "ortmp");
 
+		if (
+			(op == "==" || op == "===" || op == "!=" || op == "!==") &&
+			resolvedTypeKind(leftSemanticType) == Yogi::Sir::TypeKind_string_type &&
+			resolvedTypeKind(rightSemanticType) == Yogi::Sir::TypeKind_string_type
+		) {
+			auto *result = callRuntime("yogi_string_equals", ::llvm::Type::getInt1Ty(context.llvmContext), {left, right});
+			destroyStringTemporaryIfOwned(left, binary->left());
+			destroyStringTemporaryIfOwned(right, binary->right());
+			return (op == "==" || op == "===") ? result : context.builder.CreateNot(result, "string.netmp");
+		}
+
 		if (op == "==" || op == "===") {
 			return compare(left, right, true);
 		}

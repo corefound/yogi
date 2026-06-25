@@ -33,6 +33,7 @@ This file tracks string work by language/runtime batch.
   - `trimEnd`
 - Runtime-created string cleanup for assigned local variables and module-level
   bindings through `yogi_string_destroy`.
+- String equality compares contents through `yogi_string_equals`.
 
 ## Future Work
 
