@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useQuery } from '@apollo/client/react'
 import TopBar from '@/components/TopBar'
-import SearchAutocomplete from '@/components/SearchAutocomplete'
+import { FaDownload, FaUpload } from 'react-icons/fa'
 import Footer from '@/components/Footer'
 import {
 	GET_METRICS,
@@ -127,14 +127,8 @@ export default function Home() {
 							<h1>
 								Discover, install and publish <span>amazing</span> packages.
 							</h1>
-							<p>Yogi is a modern, secure and reliable package manager built for today's developers and their teams.</p>
+							<p style={{ marginTop: 30 }}>Yogi is a modern, secure and reliable package manager built for today's developers and their teams.</p>
 
-							<SearchAutocomplete variant="hero" />
-
-							<div className="hero-actions">
-								<a style={{ color: '#fff' }} className="btn primary" href="#trending">◉ Explore Packages</a>
-								<a className="btn" href="#">⇧ Publish Package</a>
-							</div>
 						</div>
 
 						<div style={{ marginTop: 50 }} className="hero-side">
@@ -221,7 +215,7 @@ export default function Home() {
 										<IoCloudDownloadSharp color="var(--muted)" />
 										{formatCount(pkg.weeklyDownloads || 0)}
 									</span>
-									<span>v{pkg.versionsCount || '0'}</span>
+									<span>v{pkg.latestVersion || '0.0.0'}</span>
 								</div>
 							</a>
 						))}
@@ -293,34 +287,39 @@ export default function Home() {
 					<div className="section-head">
 						<div className="section-title">
 							<h2>Why Yogi?</h2>
-							<small>Everything you need to build and ship with confidence.</small>
+							<small>A language, a compiler, and a package manager — built for native development.</small>
 						</div>
 					</div>
 					<div className="feature-band">
 						<div className="feature-item">
 							<div className="stat-icon">◇</div>
-							<h3>Secure by default</h3>
-							<p>Every package is scanned for vulnerabilities and malicious code.</p>
+							<h3>Familiar syntax, native output</h3>
+							<p>Yogi feels close to TypeScript, but instead of running on a JavaScript runtime, it compiles ahead of time into native machine code.</p>
 						</div>
 						<div className="feature-item">
 							<div className="stat-icon">⚡</div>
-							<h3>Fast & reliable</h3>
-							<p>Global CDN, optimized installs and consistent uptime.</p>
+							<h3>Native performance</h3>
+							<p>Built on an AOT compilation model, Yogi is designed for fast startup, efficient execution and predictable runtime behavior.</p>
 						</div>
 						<div className="feature-item">
 							<div className="stat-icon">▤</div>
-							<h3>Great documentation</h3>
-							<p>Clear docs, examples and guides to help you move faster.</p>
-						</div>
-						<div className="feature-item">
-							<div className="stat-icon">♙</div>
-							<h3>Built for teams</h3>
-							<p>Organization management, team access and audit logs.</p>
+							<h3>Integrated package manager</h3>
+							<p>Install and use Yogi packages directly through the official tooling, with a workflow designed specifically for compiled native libraries.</p>
 						</div>
 						<div className="feature-item">
 							<div className="stat-icon">◈</div>
-							<h3>Open & extensible</h3>
-							<p>Works with your favorite tools and CI/CD pipelines.</p>
+							<h3>Precompiled package support</h3>
+							<p>Yogi packages can ship as precompiled libraries, reducing install time and making native dependencies easier to manage.</p>
+						</div>
+						<div className="feature-item">
+							<div className="stat-icon">▣</div>
+							<h3>Low-level power when needed</h3>
+							<p>Yogi can interoperate with native libraries and assembly-level code, giving advanced developers access to platform-level performance.</p>
+						</div>
+						<div className="feature-item">
+							<div className="stat-icon">♙</div>
+							<h3>One ecosystem from code to release</h3>
+							<p>The language, compiler, package manager and build pipeline work together so developers can build, package and ship from one unified toolchain.</p>
 						</div>
 					</div>
 				</section>

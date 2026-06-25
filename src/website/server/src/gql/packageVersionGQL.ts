@@ -117,6 +117,8 @@ const type = () => {
             publishedByUserId: Int
             isLatestVersion: Boolean
             installCommand: String
+            security: JSON
+            downloadTrend: [JSON]
             versions: [VersionProfileVersionType]
         }
     `;

@@ -46,7 +46,13 @@ async function seed() {
             platforms: string[]
             dependencies?: Array<{ dependencyName: string; versionRange: string; dependencyType?: string }>
         }>
-        security?: { status: string; vulnerabilitiesCount: number; malwareScanStatus: string; lastScannedAt?: Date }
+        security?: {
+            status: string; vulnerabilitiesCount: number; malwareScanStatus: string; lastScannedAt?: Date;
+            vulnerabilities?: Array<{
+                id: string; severity: string; type: string; title: string; description: string;
+                packageName: string; versionRange: string; fixedIn: string | null; reportedAt: string; status: string;
+            }>
+        }
     }, ownerUser: any) {
         const fullName = scope ? `@${scope}/${pkgName}` : pkgName
         const latestVer = data.versions[data.versions.length - 1]
@@ -126,7 +132,10 @@ async function seed() {
             { version: '2.3.0', assetSizeBytes: 33400, minifiedSizeBytes: 12100, installCount: 9200000, publishedAt: new Date('2024-10-05'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.1.0' }, { dependencyName: 'zod', versionRange: '^3.6.0' }, { dependencyName: 'abort-controller', versionRange: '~1.0.2' }] },
             { version: '2.3.1', description: 'Latest version', assetSizeBytes: 33400, minifiedSizeBytes: 12100, installCount: 12400000, publishedAt: new Date('2025-01-28'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.1.0' }, { dependencyName: 'zod', versionRange: '^3.6.0' }, { dependencyName: 'abort-controller', versionRange: '~1.0.2' }] },
         ],
-        security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed' },
+        security: {
+            status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed',
+            vulnerabilities: [],
+        },
     }, coreUser)
 
     // ── Package 2: @core/zod ─────────────────────────────────
@@ -142,7 +151,7 @@ async function seed() {
             { version: '2.0.0', assetSizeBytes: 12100, minifiedSizeBytes: 4500, installCount: 890000, publishedAt: new Date('2024-02-14'), platforms: ['wasm32-wasi', 'wasm32-browser', 'linux-x64-gnu'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
             { version: '3.0.0', assetSizeBytes: 15600, minifiedSizeBytes: 5800, installCount: 4500000, publishedAt: new Date('2024-11-01'), platforms: ['wasm32-wasi', 'wasm32-browser', 'linux-x64-gnu', 'linux-arm64-gnu'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
         ],
-        security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed' },
+        security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed', vulnerabilities: [] },
     }, coreUser)
 
     // ── Package 3: @core/react ───────────────────────────────
@@ -159,7 +168,7 @@ async function seed() {
             { version: '1.5.0', assetSizeBytes: 41200, minifiedSizeBytes: 15600, installCount: 3400000, publishedAt: new Date('2024-03-15'), platforms: ['wasm32-browser', 'wasm32-wasi'], dependencies: [{ dependencyName: 'react', versionRange: '^18.2.0' }, { dependencyName: 'shared-types', versionRange: '^1.5.0' }] },
             { version: '2.0.0', description: 'Server components support', assetSizeBytes: 48500, minifiedSizeBytes: 17800, installCount: 8900000, publishedAt: new Date('2025-02-01'), platforms: ['wasm32-browser', 'wasm32-wasi'], dependencies: [{ dependencyName: 'react', versionRange: '^19.0.0' }, { dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
         ],
-        security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed' },
+        security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed', vulnerabilities: [] },
     }, coreUser)
 
     // ── Package 4: @core/logger ──────────────────────────────
@@ -175,6 +184,14 @@ async function seed() {
             { version: '1.2.0', assetSizeBytes: 7100, minifiedSizeBytes: 2800, installCount: 680000, publishedAt: new Date('2024-05-10'), platforms: ['linux-x64-gnu', 'linux-x64-musl', 'macos-x64'], dependencies: [{ dependencyName: 'safe-stringify', versionRange: '^1.1.0' }] },
             { version: '2.0.0', description: 'Browser support and transports', assetSizeBytes: 9800, minifiedSizeBytes: 3600, installCount: 2100000, publishedAt: new Date('2025-01-20'), platforms: ['linux-x64-gnu', 'linux-x64-musl', 'macos-arm64', 'macos-x64'], dependencies: [{ dependencyName: 'safe-stringify', versionRange: '^2.0.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }] },
         ],
+        security: {
+            status: 'warning', vulnerabilitiesCount: 3, malwareScanStatus: 'passed', lastScannedAt: new Date('2025-05-15'),
+            vulnerabilities: [
+                { id: 'VULN-2025-001', severity: 'low', type: 'configuration', title: 'Insecure default log level', description: 'Default log level set to DEBUG in production builds may expose sensitive data in logs.', packageName: '@core/logger', versionRange: '>=1.0.0 <2.0.0', fixedIn: '2.0.0', reportedAt: '2025-04-10', status: 'fixed' },
+                { id: 'VULN-2025-002', severity: 'warning', type: 'dependency', title: 'Unsafe stringify in older versions', description: 'Dependency safe-stringify v1.x uses eval-like patterns for circular reference handling.', packageName: 'safe-stringify', versionRange: '^1.0.0', fixedIn: '^2.0.0', reportedAt: '2025-03-22', status: 'open' },
+                { id: 'VULN-2025-003', severity: 'low', type: 'code_analysis', title: 'StackTrace exposure in error handler', description: 'Internal error handler may leak stack traces to the console in production mode.', packageName: '@core/logger', versionRange: '>=1.0.0', fixedIn: null, reportedAt: '2025-05-01', status: 'open' },
+            ],
+        },
     }, coreUser)
 
     // ── Package 5: @core/cache ───────────────────────────────
@@ -204,7 +221,7 @@ async function seed() {
             { version: '2.0.0', assetSizeBytes: 52000, minifiedSizeBytes: 18500, installCount: 8900000, publishedAt: new Date('2024-04-20'), platforms: ['macos-x64', 'linux-x64-gnu', 'linux-arm64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'resolve-config', versionRange: '^2.0.0' }, { dependencyName: 'plugin-json', versionRange: '^1.0.0' }, { dependencyName: 'plugin-markdown', versionRange: '^1.0.0' }] },
             { version: '3.0.0', description: 'Major update with YAML and TOML support', assetSizeBytes: 68900, minifiedSizeBytes: 22100, installCount: 18200000, publishedAt: new Date('2025-03-01'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu', 'linux-arm64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'resolve-config', versionRange: '^3.0.0' }, { dependencyName: 'plugin-json', versionRange: '^2.0.0' }, { dependencyName: 'plugin-markdown', versionRange: '^2.0.0' }, { dependencyName: 'plugin-yaml', versionRange: '^1.0.0' }] },
         ],
-        security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed' },
+        security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed', vulnerabilities: [] },
     }, jsUser)
 
     // ── Package 7: @js-tooling/eslint ────────────────────────
@@ -250,6 +267,15 @@ async function seed() {
             { version: '1.0.0', description: 'First stable release', assetSizeBytes: 42100, minifiedSizeBytes: 16500, installCount: 680000, publishedAt: new Date('2024-07-01'), platforms: ['wasm32-browser', 'wasm32-wasi'], dependencies: [{ dependencyName: 'd3-shape', versionRange: '^3.2.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }] },
             { version: '1.2.0', assetSizeBytes: 43800, minifiedSizeBytes: 17200, installCount: 2400000, publishedAt: new Date('2025-01-15'), platforms: ['wasm32-browser', 'wasm32-wasi', 'macos-x64'], dependencies: [{ dependencyName: 'd3-shape', versionRange: '^3.2.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }, { dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
         ],
+        security: {
+            status: 'passed', vulnerabilitiesCount: 4, malwareScanStatus: 'passed', lastScannedAt: new Date('2025-06-01'),
+            vulnerabilities: [
+                { id: 'VULN-2025-010', severity: 'medium', type: 'cve', title: 'Prototype pollution in merge helper', description: 'Internal merge utility is vulnerable to prototype pollution via specially crafted configuration objects.', packageName: '@data-viz/charts', versionRange: '>=1.0.0 <1.2.0', fixedIn: '1.2.0', reportedAt: '2025-02-14', status: 'fixed' },
+                { id: 'VULN-2025-011', severity: 'medium', type: 'dependency', title: 'Outdated d3-shape with known issue', description: 'Dependency d3-shape v3.0.0 has a path traversal in SVG path rendering.', packageName: 'd3-shape', versionRange: '^3.0.0', fixedIn: '^3.2.0', reportedAt: '2025-03-10', status: 'open' },
+                { id: 'VULN-2025-012', severity: 'low', type: 'code_analysis', title: 'Unchecked user input in color parser', description: 'Color hex parser does not validate input length, potential ReDoS.', packageName: '@data-viz/charts', versionRange: '>=0.1.0 <1.0.0', fixedIn: '1.0.0', reportedAt: '2025-01-20', status: 'fixed' },
+                { id: 'VULN-2025-013', severity: 'warning', type: 'license', title: 'GPL-licensed dependency detected', description: 'Optional SVG filter plugin uses GPLv3 which may affect licensing of derivative works.', packageName: 'svg-filter-gpl', versionRange: '^1.0.0', fixedIn: null, reportedAt: '2025-04-05', status: 'open' },
+            ],
+        },
     }, dvUser)
 
     // ── Package 10: @data-viz/dataset ────────────────────────
@@ -372,6 +398,16 @@ async function seed() {
             { version: '1.0.0', assetSizeBytes: 18200, installCount: 180000, publishedAt: new Date('2023-09-01'), platforms: ['linux-x64-gnu'], dependencies: [{ dependencyName: 'jose', versionRange: '^4.0.0' }] },
             { version: '2.0.0', assetSizeBytes: 22400, minifiedSizeBytes: 8100, installCount: 1200000, publishedAt: new Date('2024-05-15'), platforms: ['linux-x64-gnu', 'linux-x64-musl', 'wasm32-browser'], dependencies: [{ dependencyName: 'jose', versionRange: '^5.0.0' }, { dependencyName: 'safe-buffer', versionRange: '^1.0.0' }] },
         ],
+        security: {
+            status: 'failed', vulnerabilitiesCount: 5, malwareScanStatus: 'passed', lastScannedAt: new Date('2025-06-10'),
+            vulnerabilities: [
+                { id: 'VULN-2025-020', severity: 'critical', type: 'cve', title: 'JWT algorithm confusion (CVE-2025-101)', description: 'Token verification accepts "none" algorithm when public key is provided, allowing forged tokens.', packageName: '@security/auth', versionRange: '>=1.0.0 <2.0.0', fixedIn: '2.0.0', reportedAt: '2025-01-15', status: 'fixed' },
+                { id: 'VULN-2025-021', severity: 'critical', type: 'cve', title: 'Timing attack on token comparison', description: 'HMAC comparison uses short-circuit equality check enabling timing-based token enumeration.', packageName: '@security/auth', versionRange: '>=1.0.0', fixedIn: null, reportedAt: '2025-03-01', status: 'open' },
+                { id: 'VULN-2025-022', severity: 'high', type: 'dependency', title: 'Buffer overflow in safe-buffer v1.x', description: 'Dependency safe-buffer v1.0.0 has a buffer overflow on large payloads > 64KB.', packageName: 'safe-buffer', versionRange: '^1.0.0', fixedIn: '^1.1.0', reportedAt: '2025-02-20', status: 'open' },
+                { id: 'VULN-2025-023', severity: 'high', type: 'supply_chain', title: 'Subdependency hijack (dependency confusion)', description: 'Internal package @security/internal-token is available on public registry with a higher version.', packageName: '@security/auth', versionRange: '>=1.0.0', fixedIn: null, reportedAt: '2025-04-12', status: 'open' },
+                { id: 'VULN-2025-024', severity: 'medium', type: 'code_analysis', title: 'Improper session invalidation', description: 'Logout endpoint does not invalidate all active sessions for the user.', packageName: '@security/auth', versionRange: '>=1.0.0', fixedIn: null, reportedAt: '2025-05-18', status: 'open' },
+            ],
+        },
     }, securityUser)
 
     // ── Package: @security/vault ─────────────────────────────
@@ -400,6 +436,13 @@ async function seed() {
             { version: '1.0.0', assetSizeBytes: 28100, installCount: 42000, publishedAt: new Date('2024-04-01'), platforms: ['ios-arm64', 'android-arm64'], dependencies: [{ dependencyName: 'react-native', versionRange: '^0.72.0' }] },
             { version: '1.1.0', assetSizeBytes: 29400, minifiedSizeBytes: 11200, installCount: 180000, publishedAt: new Date('2024-09-15'), platforms: ['ios-arm64', 'android-arm64', 'macos-arm64'], dependencies: [{ dependencyName: 'react-native', versionRange: '^0.73.0' }] },
         ],
+        security: {
+            status: 'passed', vulnerabilitiesCount: 2, malwareScanStatus: 'passed', lastScannedAt: new Date('2025-05-28'),
+            vulnerabilities: [
+                { id: 'VULN-2025-030', severity: 'medium', type: 'dependency', title: 'Outdated React Native bridge for iOS', description: 'Bridge uses deprecated RCTBridge APIs which may crash on iOS 18+.', packageName: '@mobile/native', versionRange: '>=1.0.0 <1.1.0', fixedIn: '1.1.0', reportedAt: '2025-04-22', status: 'fixed' },
+                { id: 'VULN-2025-031', severity: 'low', type: 'code_analysis', title: 'Unsafe file permission on native module', description: 'Native module creates world-readable temporary files during compilation.', packageName: '@mobile/native', versionRange: '>=1.0.0', fixedIn: null, reportedAt: '2025-05-10', status: 'open' },
+            ],
+        },
     }, mobileUser)
 
     // ── Link new packages to organizations ───────────────────

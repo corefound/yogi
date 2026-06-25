@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@apollo/client/react'
 import { useParams } from 'next/navigation'
 import { GET_PACKAGE, GET_PACKAGES, type GetPackageData, type GetPackagesData, type Package } from '@/lib/queries'
-import { Area, AreaChart } from 'recharts';
-import { RechartsDevtools } from '@recharts/devtools';
+import { Area, AreaChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FaGithub, FaGlobe } from 'react-icons/fa';
 
 import Link from 'next/link';
@@ -22,71 +21,7 @@ function formatInstalls(n: number | null | undefined): string {
 	return String(n)
 }
 
-// #region Sample data
-const data = [
-	{
-		name: 'Page A',
-		uv: 4000,
-		pv: 2400,
-		amt: 2400,
-	},
-	{
-		name: 'Page B',
-		uv: 3000,
-		pv: 1398,
-		amt: 2210,
-	},
-	{
-		name: 'Page C',
-		uv: 2000,
-		pv: 9800,
-		amt: 2290,
-	},
-	{
-		name: 'Page D',
-		uv: 2780,
-		pv: 3908,
-		amt: 2000,
-	},
-	{
-		name: 'Page E',
-		uv: 1890,
-		pv: 4800,
-		amt: 2181,
-	},
-	{
-		name: 'Page F',
-		uv: 2390,
-		pv: 3800,
-		amt: 2500,
-	},
-	{
-		name: 'Page G',
-		uv: 3490,
-		pv: 4300,
-		amt: 2100,
-	},
-];
 
-// #endregion
-const TinyAreaChart = () => {
-	return (
-		<AreaChart
-			style={{ width: '100%', maxWidth: '300px', maxHeight: '100px', aspectRatio: 1.618 }}
-			responsive
-			data={data}
-			margin={{
-				top: 5,
-				right: 0,
-				left: 0,
-				bottom: 5,
-			}}
-		>
-			<Area type="monotone" dataKey="uv" stroke="#8884d8" fill="#8884d8" />
-			<RechartsDevtools />
-		</AreaChart>
-	);
-};
 
 function timeAgo(date: string | null | undefined): string {
 	if (!date) return ''
@@ -453,6 +388,163 @@ export default function PackageSlugPage() {
 									</div>
 								) : (
 									<p style={{ color: 'var(--muted)' }}>No versions published yet.</p>
+								)}
+							</article>
+						)}
+
+						{contentTab === 'audits' && (
+							<article className="readme-card">
+								<h2>Audit & Security</h2>
+								<p style={{ color: 'var(--muted)' }}>
+									Security analysis and vulnerability report for {pkg.name}
+								</p>
+								{pkg.security ? (
+									<>
+										<div className="audit-grid">
+											<div className="audit-card">
+												<small>Security Status</small>
+												<span className={`audit-badge ${pkg.security.status}`}>
+													{pkg.security.status === 'passed' ? '✓ Passed' : pkg.security.status === 'failed' ? '✗ Failed' : pkg.security.status === 'warning' ? '⚠ Warning' : '⟳ Pending'}
+												</span>
+											</div>
+											<div className="audit-card">
+												<small>Vulnerabilities</small>
+												<strong className={pkg.security.vulnerabilitiesCount > 0 ? 'vuln-count-danger' : 'vuln-count-safe'}>{pkg.security.vulnerabilitiesCount}</strong>
+											</div>
+											<div className="audit-card">
+												<small>Malware Scan</small>
+												<span className={`audit-badge ${pkg.security.malwareScanStatus}`}>
+													{pkg.security.malwareScanStatus === 'passed' ? '✓ Clean' : pkg.security.malwareScanStatus === 'failed' ? '✗ Infected' : '⟳ Scanning'}
+												</span>
+											</div>
+											<div className="audit-card">
+												<small>Last Scanned</small>
+												<strong>{pkg.security.lastScannedAt ? timeAgo(pkg.security.lastScannedAt) : 'Never'}</strong>
+											</div>
+										</div>
+
+										{pkg.security.vulnerabilities && pkg.security.vulnerabilities.length > 0 && (
+											<>
+												<div className="audit-chart">
+													<h3>Vulnerability Severity</h3>
+													<ResponsiveContainer width="100%" height={200}>
+														<BarChart data={[
+															{ severity: 'Critical', count: pkg.security.vulnerabilities.filter(v => v.severity === 'critical').length },
+															{ severity: 'High', count: pkg.security.vulnerabilities.filter(v => v.severity === 'high').length },
+															{ severity: 'Medium', count: pkg.security.vulnerabilities.filter(v => v.severity === 'medium').length },
+															{ severity: 'Low', count: pkg.security.vulnerabilities.filter(v => v.severity === 'low').length },
+															{ severity: 'Warning', count: pkg.security.vulnerabilities.filter(v => v.severity === 'warning').length },
+														]} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+															<CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+															<XAxis dataKey="severity" tick={{ fontSize: 12, fill: 'var(--muted)' }} />
+															<YAxis tick={{ fontSize: 12, fill: 'var(--muted)' }} allowDecimals={false} />
+															<Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }} />
+															<Bar dataKey="count" radius={[4, 4, 0, 0]}>
+																{pkg.security.vulnerabilities.filter(v => v.severity === 'critical').length > 0 && <Bar dataKey="count" fill="#ef4444" stackId="a" />}
+															</Bar>
+															<Bar dataKey="count" fill="#ef4444" radius={[4, 4, 0, 0]} />
+														</BarChart>
+													</ResponsiveContainer>
+												</div>
+
+												<div className="vuln-log">
+													<h3 style={{ marginBottom: 16 }}>Vulnerability Log ({pkg.security.vulnerabilities.length} findings)</h3>
+													{pkg.security.vulnerabilities.map((vuln) => (
+														<div key={vuln.id} className={`vuln-entry vuln-${vuln.severity}`}>
+															<div className="vuln-header">
+																<div className="vuln-left">
+																	<span className={`vuln-severity severity-${vuln.severity}`}>
+																		{vuln.severity === 'critical' ? 'CRITICAL' : vuln.severity === 'high' ? 'HIGH' : vuln.severity === 'medium' ? 'MEDIUM' : vuln.severity === 'low' ? 'LOW' : 'WARNING'}
+																	</span>
+																	<span className="vuln-type">{vuln.type.replace('_', ' ').toUpperCase()}</span>
+																	<span className={`vuln-status status-${vuln.status}`}>{vuln.status === 'open' ? 'OPEN' : vuln.status === 'fixed' ? 'FIXED' : vuln.status.toUpperCase()}</span>
+																</div>
+																<small className="vuln-date">{vuln.reportedAt}</small>
+															</div>
+															<strong className="vuln-title">{vuln.title}</strong>
+															<p className="vuln-desc">{vuln.description}</p>
+															<div className="vuln-meta">
+																<span className="vuln-ref">{vuln.id}</span>
+																<span className="vuln-pkg">{vuln.packageName}@{vuln.versionRange}</span>
+																{vuln.fixedIn && <span className="vuln-fixed">Fixed in: {vuln.fixedIn}</span>}
+															</div>
+														</div>
+													))}
+												</div>
+											</>
+										)}
+
+										{pkg.security.vulnerabilitiesCount === 0 && (
+											<div className="vuln-clean">
+												<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+													<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+												</svg>
+												<div>
+													<strong>No vulnerabilities found</strong>
+													<p>This package passed all security scans with zero known vulnerabilities.</p>
+												</div>
+											</div>
+										)}
+									</>
+								) : (
+									<p style={{ color: 'var(--muted)' }}>No audit data available for this package.</p>
+								)}
+							</article>
+						)}
+
+						{contentTab === 'metrics' && (
+							<article className="readme-card">
+								<h2>Metrics & Analytics</h2>
+								<p style={{ color: 'var(--muted)' }}>
+									Download statistics and analytics for {pkg.name}
+								</p>
+
+								<div className="metrics-grid">
+									<div className="metric-card">
+										<small>Total Downloads</small>
+										<strong>{pkg.totalDownloads?.toLocaleString() || '0'}</strong>
+									</div>
+									<div className="metric-card">
+										<small>Weekly Downloads</small>
+										<strong>{pkg.weeklyDownloads?.toLocaleString() || '0'}</strong>
+									</div>
+									<div className="metric-card">
+										<small>Versions</small>
+										<strong>{pkg.versionsCount || '0'}</strong>
+									</div>
+									<div className="metric-card">
+										<small>Current Version</small>
+										<strong>v{latestVersion?.version || 'N/A'}</strong>
+									</div>
+									<div className="metric-card">
+										<small>License</small>
+										<strong>{pkg.license || 'N/A'}</strong>
+									</div>
+									<div className="metric-card">
+										<small>Last Published</small>
+										<strong>{latestVersion?.publishedAt ? timeAgo(latestVersion.publishedAt) : 'N/A'}</strong>
+									</div>
+								</div>
+
+								{pkg.downloadTrend && pkg.downloadTrend.length > 0 && (
+									<div className="metrics-chart">
+										<h3>Download Trend (30 days)</h3>
+										<ResponsiveContainer width="100%" height={250}>
+											<AreaChart data={pkg.downloadTrend} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+												<defs>
+													<linearGradient id="downloadGradient" x1="0" y1="0" x2="0" y2="1">
+														<stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+														<stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+													</linearGradient>
+												</defs>
+												<CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+												<XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--muted)' }} tickFormatter={(v) => v.slice(5)} />
+												<YAxis tick={{ fontSize: 11, fill: 'var(--muted)' }} />
+												<Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }} />
+												<Area type="monotone" dataKey="downloads" stroke="#3b82f6" fill="url(#downloadGradient)" strokeWidth={2} />
+											</AreaChart>
+										</ResponsiveContainer>
+									</div>
 								)}
 							</article>
 						)}

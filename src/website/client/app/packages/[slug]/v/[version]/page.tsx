@@ -9,8 +9,9 @@ import TopBar from '@/components/TopBar'
 import Footer from '@/components/Footer'
 import { GET_VERSION_PROFILE, type GetVersionProfileData, GET_PACKAGES, type GetPackagesData, type Package } from '@/lib/queries'
 import { FaGithub, FaGlobe } from 'react-icons/fa'
+import { Area, AreaChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-type ContentTab = 'readme' | 'versions' | 'dependencies' | 'metrics'
+type ContentTab = 'readme' | 'versions' | 'dependencies' | 'metrics' | 'audits'
 
 
 
@@ -240,6 +241,9 @@ export default function VersionDetailPage() {
               <button className={`${contentTab === 'dependencies' ? 'active' : ''}`} onClick={() => setContentTab('dependencies')}>
                 Dependencies {depCount > 0 ? <span className="badge">{depCount}</span> : null}
               </button>
+              <button className={`${contentTab === 'audits' ? 'active' : ''}`} onClick={() => setContentTab('audits')}>
+                Audits
+              </button>
               <button className={`${contentTab === 'metrics' ? 'active' : ''}`} onClick={() => setContentTab('metrics')}>
                 Metrics
               </button>
@@ -367,22 +371,155 @@ export default function VersionDetailPage() {
 
             {contentTab === 'metrics' && (
               <article className="readme-card">
-                <h2>Metrics</h2>
+                <h2>Metrics & Analytics</h2>
                 <p style={{ color: 'var(--muted)' }}>
                   Usage statistics for {slug} v{profile.version}
                 </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
-                  <div className="side-card" style={{ margin: 0 }}>
-                    <h3>Installs</h3>
-                    <p style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>{formatInstalls(profile.installCount)}</p>
-                    <small style={{ color: 'var(--muted)' }}>Total installs of this version</small>
+
+                <div className="metrics-grid">
+                  <div className="metric-card">
+                    <small>Total Downloads</small>
+                    <strong>{profile.totalDownloads?.toLocaleString() || '0'}</strong>
                   </div>
-                  <div className="side-card" style={{ margin: 0 }}>
-                    <h3>Asset Size</h3>
-                    <p style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>{formatBytes(profile.assetSizeBytes)}</p>
-                    <small style={{ color: 'var(--muted)' }}>{profile.minifiedSizeBytes ? `${formatBytes(profile.minifiedSizeBytes)} minified` : 'Full package'}</small>
+                  <div className="metric-card">
+                    <small>Weekly Downloads</small>
+                    <strong>{profile.weeklyDownloads?.toLocaleString() || '0'}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <small>Version Installs</small>
+                    <strong>{formatInstalls(profile.installCount)}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <small>Package Size</small>
+                    <strong>{formatBytes(profile.assetSizeBytes)}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <small>Minified Size</small>
+                    <strong>{profile.minifiedSizeBytes ? formatBytes(profile.minifiedSizeBytes) : 'N/A'}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <small>License</small>
+                    <strong>{profile.license || 'N/A'}</strong>
                   </div>
                 </div>
+
+                {profile.downloadTrend && profile.downloadTrend.length > 0 && (
+                  <div className="metrics-chart">
+                    <h3>Download Trend (30 days)</h3>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <AreaChart data={profile.downloadTrend} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                        <defs>
+                          <linearGradient id="downloadGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--muted)' }} tickFormatter={(v) => v.slice(5)} />
+                        <YAxis tick={{ fontSize: 11, fill: 'var(--muted)' }} />
+                        <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }} />
+                        <Area type="monotone" dataKey="downloads" stroke="#3b82f6" fill="url(#downloadGradient)" strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </article>
+            )}
+
+            {contentTab === 'audits' && (
+              <article className="readme-card">
+                <h2>Audit & Security</h2>
+                <p style={{ color: 'var(--muted)' }}>
+                  Security analysis and vulnerability report for {slug} v{profile.version}
+                </p>
+                {profile.security ? (
+                  <>
+                    <div className="audit-grid">
+                      <div className="audit-card">
+                        <small>Security Status</small>
+                        <span className={`audit-badge ${profile.security.status}`}>
+                          {profile.security.status === 'passed' ? '✓ Passed' : profile.security.status === 'failed' ? '✗ Failed' : profile.security.status === 'warning' ? '⚠ Warning' : '⟳ Pending'}
+                        </span>
+                      </div>
+                      <div className="audit-card">
+                        <small>Vulnerabilities</small>
+                        <strong className={profile.security.vulnerabilitiesCount > 0 ? 'vuln-count-danger' : 'vuln-count-safe'}>{profile.security.vulnerabilitiesCount}</strong>
+                      </div>
+                      <div className="audit-card">
+                        <small>Malware Scan</small>
+                        <span className={`audit-badge ${profile.security.malwareScanStatus}`}>
+                          {profile.security.malwareScanStatus === 'passed' ? '✓ Clean' : profile.security.malwareScanStatus === 'failed' ? '✗ Infected' : '⟳ Scanning'}
+                        </span>
+                      </div>
+                      <div className="audit-card">
+                        <small>Last Scanned</small>
+                        <strong>{profile.security.lastScannedAt ? timeAgo(profile.security.lastScannedAt) : 'Never'}</strong>
+                      </div>
+                    </div>
+
+                    {profile.security.vulnerabilities && profile.security.vulnerabilities.length > 0 && (
+                      <>
+                        <div className="audit-chart">
+                          <h3>Vulnerability Severity</h3>
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={[
+                              { severity: 'Critical', count: profile.security.vulnerabilities.filter(v => v.severity === 'critical').length },
+                              { severity: 'High', count: profile.security.vulnerabilities.filter(v => v.severity === 'high').length },
+                              { severity: 'Medium', count: profile.security.vulnerabilities.filter(v => v.severity === 'medium').length },
+                              { severity: 'Low', count: profile.security.vulnerabilities.filter(v => v.severity === 'low').length },
+                              { severity: 'Warning', count: profile.security.vulnerabilities.filter(v => v.severity === 'warning').length },
+                            ]} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                              <XAxis dataKey="severity" tick={{ fontSize: 12, fill: 'var(--muted)' }} />
+                              <YAxis tick={{ fontSize: 12, fill: 'var(--muted)' }} allowDecimals={false} />
+                              <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }} />
+                              <Bar dataKey="count" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        <div className="vuln-log">
+                          <h3 style={{ marginBottom: 16 }}>Vulnerability Log ({profile.security.vulnerabilities.length} findings)</h3>
+                          {profile.security.vulnerabilities.map((vuln) => (
+                            <div key={vuln.id} className={`vuln-entry vuln-${vuln.severity}`}>
+                              <div className="vuln-header">
+                                <div className="vuln-left">
+                                  <span className={`vuln-severity severity-${vuln.severity}`}>
+                                    {vuln.severity === 'critical' ? 'CRITICAL' : vuln.severity === 'high' ? 'HIGH' : vuln.severity === 'medium' ? 'MEDIUM' : vuln.severity === 'low' ? 'LOW' : 'WARNING'}
+                                  </span>
+                                  <span className="vuln-type">{vuln.type.replace('_', ' ').toUpperCase()}</span>
+                                  <span className={`vuln-status status-${vuln.status}`}>{vuln.status === 'open' ? 'OPEN' : vuln.status === 'fixed' ? 'FIXED' : vuln.status.toUpperCase()}</span>
+                                </div>
+                                <small className="vuln-date">{vuln.reportedAt}</small>
+                              </div>
+                              <strong className="vuln-title">{vuln.title}</strong>
+                              <p className="vuln-desc">{vuln.description}</p>
+                              <div className="vuln-meta">
+                                <span className="vuln-ref">{vuln.id}</span>
+                                <span className="vuln-pkg">{vuln.packageName}@{vuln.versionRange}</span>
+                                {vuln.fixedIn && <span className="vuln-fixed">Fixed in: {vuln.fixedIn}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {profile.security.vulnerabilitiesCount === 0 && (
+                      <div className="vuln-clean">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <div>
+                          <strong>No vulnerabilities found</strong>
+                          <p>This package passed all security scans with zero known vulnerabilities.</p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p style={{ color: 'var(--muted)' }}>No audit data available for this package.</p>
+                )}
               </article>
             )}
           </section>

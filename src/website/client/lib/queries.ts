@@ -30,12 +30,25 @@ export interface Package {
     vulnerabilitiesCount: number
     malwareScanStatus: string
     lastScannedAt: string
+    vulnerabilities: Array<{
+      id: string
+      severity: string
+      type: string
+      title: string
+      description: string
+      packageName: string
+      versionRange: string
+      fixedIn: string | null
+      reportedAt: string
+      status: string
+    }>
   } | null
   owner?: {
     githubLogin?: string
     displayName?: string
     avatarUrl?: string
   }
+  downloadTrend?: { date: string; downloads: number }[]
   versions?: Version[]
 }
 
@@ -123,6 +136,52 @@ export interface User {
   avatarUrl?: string
   role: string
 }
+
+export interface ProfilePackage {
+  id: number
+  name: string
+  fullName: string
+  description?: string
+  totalDownloads: number
+  weeklyDownloads: number
+  versionsCount: number
+  latestVersion: string
+  license?: string
+  logo?: string
+}
+
+export interface ProfileUser extends User {
+  packages: ProfilePackage[]
+}
+
+export interface GetUserData {
+  user: ProfileUser
+}
+
+export const GET_USER = gql`
+  query GetUser($name: String!) {
+    user(name: $name) {
+      id
+      githubLogin
+      displayName
+      avatarUrl
+      email
+      role
+      packages {
+        id
+        name
+        fullName
+        description
+        totalDownloads
+        weeklyDownloads
+        versionsCount
+        latestVersion
+        license
+        logo
+      }
+    }
+  }
+`
 
 export interface GetUsersData {
   users: User[]
@@ -295,6 +354,7 @@ export const GET_TRENDING_PACKAGES = gql`
       totalDownloads
       weeklyDownloads
       versionsCount
+      latestVersion
       license
       logo
       owner {
@@ -384,6 +444,7 @@ export const GET_PACKAGE = gql`
         displayName
         avatarUrl
       }
+      downloadTrend
       versions {
         id
         version
@@ -469,6 +530,25 @@ export interface VersionProfile {
   publishedByUserId?: number
   isLatestVersion: boolean
   installCommand: string
+  security?: {
+    status: string
+    vulnerabilitiesCount: number
+    malwareScanStatus: string
+    lastScannedAt: string
+    vulnerabilities: Array<{
+      id: string
+      severity: string
+      type: string
+      title: string
+      description: string
+      packageName: string
+      versionRange: string
+      fixedIn: string | null
+      reportedAt: string
+      status: string
+    }>
+  } | null
+  downloadTrend?: { date: string; downloads: number }[]
   versions?: {
     id: number
     version: string
@@ -522,6 +602,8 @@ export const GET_VERSION_PROFILE = gql`
       publishedAt
       isLatestVersion
       installCommand
+      security
+      downloadTrend
       versions {
         id
         version

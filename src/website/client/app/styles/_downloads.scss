@@ -1,0 +1,735 @@
+:root {
+  --dl-macos: rgba(128,128,128,0.12);
+  --dl-windows: rgba(0,120,215,0.12);
+  --dl-linux: rgba(252,161,3,0.12);
+}
+
+.downloads-page {
+  overflow-x: hidden;
+}
+
+/* ── Hero ─────────────────────────────────────────── */
+
+.dl-hero {
+  position: relative;
+  text-align: center;
+  padding: 90px 24px 70px;
+  overflow: hidden;
+}
+
+.dl-hero-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 50% 0%, rgba(55,139,255,0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 300px 300px at 80% 60%, rgba(55,139,255,0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 200px 200px at 20% 80%, rgba(55,139,255,0.03) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.dl-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.dl-hero-badge {
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 20px;
+  background: rgba(55,139,255,0.1);
+  color: var(--blue-2);
+  border: 1px solid rgba(55,139,255,0.15);
+  letter-spacing: 0.02em;
+  margin-bottom: 22px;
+}
+
+.dl-hero h1 {
+  font-size: clamp(40px, 6vw, 68px);
+  letter-spacing: -0.05em;
+  margin: 0 0 14px;
+  line-height: 1.05;
+}
+
+.dl-hero-highlight {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dl-hero p {
+  color: var(--muted);
+  font-size: 17px;
+  max-width: 480px;
+  margin: 0 auto 32px;
+  line-height: 1.6;
+}
+
+/* ── CTA button ───────────────────────────────────── */
+
+.dl-hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 28px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 24px rgba(37,99,235,0.25);
+}
+
+.dl-hero-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(37,99,235,0.35);
+}
+
+.dl-hero-cta-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.15);
+  flex-shrink: 0;
+}
+
+.dl-hero-cta-text {
+  text-align: left;
+  line-height: 1.3;
+}
+
+.dl-hero-cta-text strong {
+  font-weight: 700;
+}
+
+.dl-hero-cta-size {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.15);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+/* ── Hero terminal (Linux) ────────────────────────── */
+
+.dl-hero-term {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Other platforms links ────────────────────────── */
+
+.dl-hero-alts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.dl-hero-alts a {
+  color: var(--blue-2);
+  text-decoration: none;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(55,139,255,0.15);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dl-hero-alts a:hover {
+  border-color: rgba(55,139,255,0.35);
+  background: rgba(55,139,255,0.04);
+}
+
+/* ── Stats ────────────────────────────────────────── */
+
+.dl-hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 36px;
+}
+
+.dl-hero-stat {
+  text-align: center;
+}
+
+.dl-hero-stat strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.dl-hero-stat span {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Section common ───────────────────────────────── */
+
+.dl-section {
+  padding: 64px 24px;
+}
+
+.dl-section-alt {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.dl-container {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.dl-section-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.dl-section-header h2 {
+  font-size: 26px;
+  letter-spacing: -0.03em;
+  margin: 0 0 8px;
+}
+
+.dl-section-header p {
+  color: var(--muted);
+  font-size: 15px;
+  margin: 0;
+}
+
+/* ── Platform groups ──────────────────────────────── */
+
+.dl-platforms {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.dl-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  transition: border-color 0.2s;
+}
+
+.dl-group-current {
+  border-color: rgba(55,139,255,0.25);
+  box-shadow: 0 0 0 1px rgba(55,139,255,0.08);
+}
+
+.dl-group-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.dl-group-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.dl-group-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dl-group-info h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dl-group-desc {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dl-group-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(55,139,255,0.1);
+  color: var(--blue-2);
+  flex-shrink: 0;
+}
+
+.dl-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.dl-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  position: relative;
+}
+
+.dl-card:hover {
+  border-color: rgba(55,139,255,0.35);
+  box-shadow: 0 4px 16px rgba(55,139,255,0.06);
+  transform: translateY(-1px);
+}
+
+.dl-card-active {
+  border-color: rgba(55,139,255,0.4);
+  background: rgba(55,139,255,0.03);
+}
+
+.dl-card-recommend {
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--blue);
+  color: #fff;
+}
+
+.dl-card-arch-badge {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: monospace;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: rgba(55,139,255,0.08);
+  color: var(--blue-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.dl-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dl-card-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dl-card-size {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.dl-card-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--blue);
+  color: #fff;
+  flex-shrink: 0;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.dl-card:hover .dl-card-btn {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+/* ── Linux install block ──────────────────────────── */
+
+.dl-linux-install {
+  padding: 20px 22px;
+  background: rgba(55,139,255,0.02);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.dl-linux-install-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.dl-linux-install .dl-copy-cmd + .dl-copy-cmd {
+  margin-top: 8px;
+}
+
+.dl-linux-install-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ── Copyable terminal command ────────────────────── */
+
+.dl-copy-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #0d1117;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+
+.dl-copy-cmd:hover {
+  border-color: rgba(255,255,255,0.15);
+}
+
+.dl-copy-cmd code {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #22c55e;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dl-copy-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.4);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dl-copy-cmd:hover .dl-copy-btn {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.7);
+}
+
+[data-theme="light"] .dl-copy-cmd {
+  background: #f6f8fa;
+  border-color: var(--border);
+}
+
+[data-theme="light"] .dl-copy-cmd:hover {
+  border-color: rgba(55,139,255,0.25);
+}
+
+[data-theme="light"] .dl-copy-cmd code {
+  color: #1a7f37;
+}
+
+[data-theme="light"] .dl-copy-btn {
+  background: rgba(0,0,0,0.04);
+  color: rgba(0,0,0,0.3);
+}
+
+[data-theme="light"] .dl-copy-cmd:hover .dl-copy-btn {
+  background: rgba(0,0,0,0.08);
+  color: rgba(0,0,0,0.5);
+}
+
+.dl-hero-term .dl-copy-cmd {
+  padding: 12px 18px;
+}
+
+.dl-hero-term .dl-copy-cmd code {
+  font-size: 14px;
+}
+
+/* ── Additional assets ────────────────────────────── */
+
+.dl-other-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.dl-other-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dl-other-card:hover {
+  border-color: rgba(55,139,255,0.3);
+  box-shadow: 0 4px 16px rgba(55,139,255,0.04);
+}
+
+.dl-other-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.dl-other-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dl-other-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dl-other-size {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.dl-other-arrow {
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.dl-other-card:hover .dl-other-arrow {
+  transform: translateX(3px);
+}
+
+/* ── Verify steps ─────────────────────────────────── */
+
+.dl-verify-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.dl-verify-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  transition: border-color 0.2s;
+}
+
+.dl-verify-step:hover {
+  border-color: rgba(55,139,255,0.2);
+}
+
+.dl-verify-num {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  font-family: monospace;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.dl-verify-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.dl-verify-content h4 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dl-verify-content p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dl-terminal {
+  position: relative;
+  padding: 12px 14px;
+  background: #0d1117;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dl-terminal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.dl-terminal code {
+  font-size: 12px;
+  color: #22c55e;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="light"] .dl-terminal {
+  background: #f6f8fa;
+  border-color: var(--border);
+}
+
+[data-theme="light"] .dl-terminal code {
+  color: #1a7f37;
+}
+
+[data-theme="light"] .dl-terminal-dot {
+  background: rgba(0,0,0,0.08);
+}
+
+/* ── Install box ──────────────────────────────────── */
+
+.dl-section-install {
+  padding-bottom: 80px;
+}
+
+.dl-install-box {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(55,139,255,0.04) 0%, transparent 100%);
+  flex-wrap: wrap;
+}
+
+.dl-install-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(55,139,255,0.1);
+  color: var(--blue-2);
+  flex-shrink: 0;
+}
+
+.dl-install-body {
+  flex: 1;
+  min-width: 200px;
+}
+
+.dl-install-body h3 {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dl-install-body p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dl-install-cmd {
+  padding: 10px 16px;
+  background: #0d1117;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.dl-install-cmd code {
+  font-size: 12px;
+  color: #22c55e;
+  white-space: nowrap;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+[data-theme="light"] .dl-install-cmd {
+  background: #f6f8fa;
+  border-color: var(--border);
+}
+
+[data-theme="light"] .dl-install-cmd code {
+  color: #1a7f37;
+}
+
+/* ── Responsive ───────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .dl-hero-stats {
+    gap: 24px;
+  }
+  .dl-verify-step {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .dl-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .dl-other-grid {
+    grid-template-columns: 1fr;
+  }
+  .dl-install-box {
+    flex-direction: column;
+    text-align: center;
+  }
+  .dl-install-cmd {
+    width: 100%;
+    overflow-x: auto;
+  }
+}

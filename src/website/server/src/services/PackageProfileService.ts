@@ -35,6 +35,18 @@ export type PackageProfileDTO = {
         vulnerabilitiesCount: number;
         malwareScanStatus: string;
         lastScannedAt: Date | null;
+        vulnerabilities: Array<{
+            id: string;
+            severity: string;
+            type: string;
+            title: string;
+            description: string;
+            packageName: string;
+            versionRange: string;
+            fixedIn: string | null;
+            reportedAt: string;
+            status: string;
+        }>;
     } | null;
     latestVersionRecord: {
         id: number;
@@ -108,6 +120,18 @@ export async function getPackageProfile(fullName: string): Promise<PackageProfil
             vulnerabilitiesCount: number;
             malwareScanStatus: string;
             lastScannedAt: Date | null;
+            vulnerabilities: Array<{
+                id: string;
+                severity: string;
+                type: string;
+                title: string;
+                description: string;
+                packageName: string;
+                versionRange: string;
+                fixedIn: string | null;
+                reportedAt: string;
+                status: string;
+            }>;
         }) : null,
         latestVersionRecord: pkg.latestVersionRecord
             ? {

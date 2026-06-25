@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import logo from "../assets/logo.png"
@@ -7,12 +8,29 @@ import { usePathname } from 'next/navigation'
 import { useTheme } from './ThemeProvider'
 import { useAuth } from './AuthProvider'
 import SearchAutocomplete from './SearchAutocomplete'
+import { FaDownload } from 'react-icons/fa';
 
 export default function TopBar() {
 	const pathname = usePathname()
 	const isActive = (path: string) => pathname === path
 	const { theme, toggleTheme } = useTheme()
 	const { user, loading, login, logout } = useAuth()
+	const [menuOpen, setMenuOpen] = useState(false)
+	const menuRef = useRef<HTMLDivElement>(null)
+
+	useEffect(() => {
+		function handleClick(e: MouseEvent) {
+			if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+				setMenuOpen(false)
+			}
+		}
+		document.addEventListener('mousedown', handleClick)
+		return () => document.removeEventListener('mousedown', handleClick)
+	}, [])
+
+	useEffect(() => {
+		setMenuOpen(false)
+	}, [pathname])
 
 	return (
 		<header className="topbar">
@@ -24,22 +42,60 @@ export default function TopBar() {
 				<nav className="nav-links" aria-label="Main navigation">
 					<Link className={isActive('/') ? 'active' : ''} href="/">Explore</Link>
 					<Link className={isActive('/docs') ? 'active' : ''} href="/docs">Documentation</Link>
+					<Link className={isActive('/downloads') ? 'active' : ''} href="/downloads">Downloads</Link>				
 				</nav>
 				<div className="nav-actions">
-					{!isActive('/') &&
-						<SearchAutocomplete variant="mini" placeholder="Search..." />
-					}
+					<SearchAutocomplete variant="mini" placeholder="Search..." />
 					<button className="icon-btn" aria-label="Toggle theme" onClick={toggleTheme}>{theme === 'dark' ? '☀' : '☾'}</button>
 					{loading ? (
 						<span className="avatar" aria-label="Loading" style={{ opacity: 0.4 }} />
 					) : user ? (
-						<div className="nav-user">
-							{user.avatarUrl ? (
-								<img className="avatar" src={user.avatarUrl} alt={user.githubLogin} referrerPolicy="no-referrer" />
-							) : (
-								<span className="avatar">{user.githubLogin.charAt(0).toUpperCase()}</span>
+						<div className="nav-user" ref={menuRef}>
+							<button className="avatar-btn" onClick={() => setMenuOpen(v => !v)} aria-label="User menu">
+								{user.avatarUrl ? (
+									<img className="avatar" src={user.avatarUrl} alt={user.githubLogin} referrerPolicy="no-referrer" />
+								) : (
+									<span className="avatar">{user.githubLogin.charAt(0).toUpperCase()}</span>
+								)}
+							</button>
+							{menuOpen && (
+								<div className="user-menu">
+									<div className="user-menu-header">
+										<strong>{user.displayName || user.githubLogin}</strong>
+										<span>@{user.githubLogin}</span>
+									</div>
+									<div className="user-menu-items">
+										<Link href="/profile" className="user-menu-item">
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+												<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+												<circle cx="12" cy="7" r="4" />
+											</svg>
+											My Profile
+										</Link>
+										<Link href="/packages" className="user-menu-item">
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+												<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+											</svg>
+											My Packages
+										</Link>
+										<Link href="/organizations" className="user-menu-item">
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+												<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+											</svg>
+											Organizations
+										</Link>
+										<div className="user-menu-divider" />
+										<button className="user-menu-item user-menu-logout" onClick={logout}>
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+												<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+												<polyline points="16 17 21 12 16 7" />
+												<line x1="21" y1="12" x2="9" y2="12" />
+											</svg>
+											Sign Out
+										</button>
+									</div>
+								</div>
 							)}
-							<button className="logout-btn" onClick={logout} aria-label="Logout">⇧</button>
 						</div>
 					) : (
 						<button className="btn github-btn" onClick={login}>

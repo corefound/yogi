@@ -48,6 +48,30 @@ export type VersionProfileDTO = {
     publishedAt: Date;
     publishedByUserId: number | null;
 
+    security: {
+        status: string;
+        vulnerabilitiesCount: number;
+        malwareScanStatus: string;
+        lastScannedAt: Date | null;
+        vulnerabilities: Array<{
+            id: string;
+            severity: string;
+            type: string;
+            title: string;
+            description: string;
+            packageName: string;
+            versionRange: string;
+            fixedIn: string | null;
+            reportedAt: string;
+            status: string;
+        }>;
+    } | null;
+
+    downloadTrend: Array<{
+        date: string;
+        downloads: number;
+    }>;
+
     isLatestVersion: boolean;
     installCommand: string;
     versions: Array<{
@@ -145,6 +169,30 @@ export async function getVersionProfile(nameOrFullName: string, versionStr: stri
         assets: version.assets || [],
         publishedAt: version.publishedAt,
         publishedByUserId: version.publishedByUserId,
+
+        security: pkg.security ? (pkg.security as {
+            status: string;
+            vulnerabilitiesCount: number;
+            malwareScanStatus: string;
+            lastScannedAt: Date | null;
+            vulnerabilities: Array<{
+                id: string;
+                severity: string;
+                type: string;
+                title: string;
+                description: string;
+                packageName: string;
+                versionRange: string;
+                fixedIn: string | null;
+                reportedAt: string;
+                status: string;
+            }>;
+        }) : null,
+
+        downloadTrend: (pkg.downloadTrend || []) as Array<{
+            date: string;
+            downloads: number;
+        }>,
 
         isLatestVersion: version.version === pkg.latestVersion,
         installCommand: `yogi add ${scopePrefix}${pkg.name}@${version.version}`,
