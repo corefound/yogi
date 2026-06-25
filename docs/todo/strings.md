@@ -27,11 +27,8 @@ This file tracks string work by language/runtime batch.
 
 ## Future Work
 
-- Expression temporary cleanup for runtime strings that are never assigned to a
-  variable, for example direct `print(("a" + 1).trim())` chains.
-- Cleanup for intermediate conversion strings produced during concatenation and
-  template interpolation, such as the temporary `number -> string` conversion in
-  `"score=" + 10`.
+- More precise temporary cleanup for complex control-flow string expressions,
+  callback-local string temporaries, and future closure/capture scenarios.
 - Additional TypeScript string methods:
   - `charAt`
   - `charCodeAt`

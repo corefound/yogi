@@ -182,7 +182,9 @@ namespace yogi::core::llvm::internal {
 
 			case Yogi::Sir::TypeKind_string_type: {
 				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
-				return callRuntime("yogi_print_string", voidType, {value});
+				auto *result = callRuntime("yogi_print_string", voidType, {value});
+				destroyStringTemporaryIfOwned(value, argument);
+				return result;
 			}
 
 			case Yogi::Sir::TypeKind_any_type: {
@@ -487,6 +489,7 @@ namespace yogi::core::llvm::internal {
 					opaquePointer(),
 					{text, start, end}
 				);
+				destroyStringTemporaryIfOwned(text, callee->object());
 
 				return cast(
 					result,
@@ -498,6 +501,7 @@ namespace yogi::core::llvm::internal {
 
 			if (methodName == "includes" || methodName == "startsWith" || methodName == "endsWith") {
 				auto *search = lowerStringArgument(0, "");
+				const auto *searchSource = arguments && arguments->size() > 0 ? arguments->Get(0) : nullptr;
 				auto *position = lowerNumberArgument(
 					1,
 					methodName == "endsWith" ? std::numeric_limits<double>::infinity() : 0
@@ -512,6 +516,8 @@ namespace yogi::core::llvm::internal {
 					::llvm::Type::getInt1Ty(context.llvmContext),
 					{text, search, position}
 				);
+				destroyStringTemporaryIfOwned(search, searchSource);
+				destroyStringTemporaryIfOwned(text, callee->object());
 
 				return cast(
 					result,
@@ -523,6 +529,7 @@ namespace yogi::core::llvm::internal {
 
 			if (methodName == "indexOf" || methodName == "lastIndexOf") {
 				auto *search = lowerStringArgument(0, "");
+				const auto *searchSource = arguments && arguments->size() > 0 ? arguments->Get(0) : nullptr;
 				auto *position = lowerNumberArgument(
 					1,
 					methodName == "lastIndexOf" ? std::numeric_limits<double>::infinity() : 0
@@ -537,6 +544,8 @@ namespace yogi::core::llvm::internal {
 					::llvm::Type::getDoubleTy(context.llvmContext),
 					"string.search.index"
 				);
+				destroyStringTemporaryIfOwned(search, searchSource);
+				destroyStringTemporaryIfOwned(text, callee->object());
 
 				return cast(
 					asNumber,
@@ -553,6 +562,7 @@ namespace yogi::core::llvm::internal {
 						? "yogi_string_to_lower_case"
 						: "yogi_string_trim";
 				auto *result = callRuntime(runtimeName, opaquePointer(), {text});
+				destroyStringTemporaryIfOwned(text, callee->object());
 
 				return cast(
 					result,
@@ -1839,11 +1849,25 @@ namespace yogi::core::llvm::internal {
 		auto *right = lower(binary->right(), types.lower(rightSemanticType), rightSemanticType);
 
 		if (op == "+" && resolvedTypeKind(binary->type()) == Yogi::Sir::TypeKind_string_type) {
-			return callRuntime(
+			auto *leftString = toStringValue(left, leftSemanticType);
+			auto *rightString = toStringValue(right, rightSemanticType);
+			auto *result = callRuntime(
 				"yogi_string_concat",
 				opaquePointer(),
-				{toStringValue(left, leftSemanticType), toStringValue(right, rightSemanticType)}
+				{leftString, rightString}
 			);
+			if (toStringValueCreatesTemporary(leftSemanticType)) {
+				destroyStringTemporary(leftString);
+			} else {
+				destroyStringTemporaryIfOwned(leftString, binary->left());
+			}
+			if (toStringValueCreatesTemporary(rightSemanticType)) {
+				destroyStringTemporary(rightString);
+			} else {
+				destroyStringTemporaryIfOwned(rightString, binary->right());
+			}
+
+			return result;
 		}
 
 		if (op == "+") return context.builder.CreateFAdd(toNumber(left), toNumber(right), "addtmp");
@@ -2106,6 +2130,44 @@ namespace yogi::core::llvm::internal {
 			default:
 				return context.builder.CreateGlobalString("");
 		}
+	}
+
+	bool ValueLowerer::isOwnedStringExpression(const Yogi::Sir::ValueRef *value) const {
+		if (!value) {
+			return false;
+		}
+
+		if (value->constant() || value->identifier()) {
+			return false;
+		}
+
+		return resolvedTypeKind(valueSemanticType(value)) == Yogi::Sir::TypeKind_string_type;
+	}
+
+	bool ValueLowerer::toStringValueCreatesTemporary(const Yogi::Sir::TypeRef *sourceSemanticType) const {
+		const auto kind = resolvedTypeKind(sourceSemanticType);
+
+		return kind == Yogi::Sir::TypeKind_number_type ||
+			kind == Yogi::Sir::TypeKind_boolean_type;
+	}
+
+	void ValueLowerer::destroyStringTemporary(::llvm::Value *value) {
+		if (!value || !value->getType()->isPointerTy()) {
+			return;
+		}
+
+		callRuntime("yogi_string_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
+	}
+
+	void ValueLowerer::destroyStringTemporaryIfOwned(
+		::llvm::Value *value,
+		const Yogi::Sir::ValueRef *source
+	) {
+		if (!isOwnedStringExpression(source)) {
+			return;
+		}
+
+		destroyStringTemporary(value);
 	}
 
 	::llvm::Value *ValueLowerer::isNullish(::llvm::Value *value) {

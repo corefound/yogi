@@ -73,6 +73,7 @@ The compiler currently lowers source code through this pipeline:
 - [String Operators And Template Literals](lots/14-string-operators-and-template-literals.md)
 - [String Methods](lots/15-string-methods.md)
 - [String Lifetime And Array At Extraction](lots/16-string-lifetime-and-array-at.md)
+- [String Expression Temporaries](lots/17-string-expression-temporaries.md)
 
 ### To Do
 

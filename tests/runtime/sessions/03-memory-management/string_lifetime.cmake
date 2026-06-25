@@ -31,8 +31,15 @@ function arrayAtExtractsValue(): void {
     print(last)
 }
 
+function expressionTemporaries(): void {
+    print(("  " + "Temp" + 10 + "  ").trim())
+    print("banana".includes("n" + "a"))
+    "ignored".toUpperCase()
+}
+
 makeLocal()
 arrayAtExtractsValue()
+expressionTemporaries()
 print(globalText)
 print(literalText)
 ]=])
@@ -69,7 +76,9 @@ file(READ "${IR}" ir)
 
 foreach(symbol
 		yogi_string_trim
+		yogi_string_concat
 		yogi_string_to_lower_case
+		yogi_string_to_upper_case
 		yogi_string_destroy
 		yogi_array_at_index
 		yogi_any_to_number)
@@ -90,7 +99,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "string lifetime executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "Yogi\nnext\n3\n20\nGlobal\nliteral\n")
+set(expected_stdout "Yogi\nnext\n3\n20\nTemp10\ntrue\nGlobal\nliteral\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "string lifetime executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

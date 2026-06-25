@@ -98,13 +98,5 @@ destroy.
 
 ## Known Limitations
 
-Temporary strings produced inside larger expressions are not fully cleanup-aware
-yet:
-
-```ts
-print(("a" + 1).trim())
-```
-
-Assigned string values and module bindings are now covered. A future expression
-temporary cleanup pass should clean runtime strings produced only for immediate
-use.
+Assigned string values and module bindings are covered in this lot. Expression
+temporary cleanup is covered by the follow-up string temporary lot.

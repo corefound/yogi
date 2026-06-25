@@ -26,6 +26,18 @@ namespace yogi::core::llvm::internal {
 			std::map<std::string, std::string> aggregateAliases;
 			std::vector<ModuleLoweringContext::LocalAggregateCleanup> localAggregateCleanups;
 		};
+
+		bool isStringType(const Yogi::Sir::TypeRef *type) {
+			if (!type) {
+				return false;
+			}
+
+			const auto kind = type->resolved()
+				? type->resolved()->kind()
+				: type->kind();
+
+			return kind == Yogi::Sir::TypeKind_string_type;
+		}
 	}
 
 	StatementLowerer::StatementLowerer(
@@ -209,17 +221,26 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (const auto *binary = node->value_as_BinaryExpression()) {
-			values.lowerBinary(binary, types.lower(binary->type()));
+			auto *result = values.lowerBinary(binary, types.lower(binary->type()), binary->type());
+			if (isStringType(binary->type())) {
+				values.destroyEscapedAggregate(binary->type(), result);
+			}
 			return;
 		}
 
 		if (const auto *conditional = node->value_as_ConditionalExpression()) {
-			values.lowerConditional(conditional, types.lower(conditional->type()), conditional->type());
+			auto *result = values.lowerConditional(conditional, types.lower(conditional->type()), conditional->type());
+			if (isStringType(conditional->type())) {
+				values.destroyEscapedAggregate(conditional->type(), result);
+			}
 			return;
 		}
 
 		if (const auto *call = node->value_as_CallExpression()) {
-			values.lowerCall(call, types.lower(call->type()), call->type());
+			auto *result = values.lowerCall(call, types.lower(call->type()), call->type());
+			if (isStringType(call->type())) {
+				values.destroyEscapedAggregate(call->type(), result);
+			}
 			return;
 		}
 

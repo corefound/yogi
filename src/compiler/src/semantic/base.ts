@@ -931,6 +931,13 @@ export class BaseSemantic {
             case Kinds.Expressions.ConditionalExpression:
                 return this.visitConditionalExpression(node);
 
+            case Kinds.Expressions.ParenthesizedExpression:
+                return this.visitBinaryExpression({
+                    ...node,
+                    fullSource: node.fullSource ?? node.source,
+                    value: node,
+                });
+
             case Kinds.Expressions.CallExpression:
                 return this.visitCallExpression(node);
 
