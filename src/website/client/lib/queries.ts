@@ -118,6 +118,7 @@ export interface Organization {
   name: string
   displayName?: string
   description?: string
+  avatarUrl?: string
   packages?: Package[]
 }
 
@@ -428,6 +429,18 @@ export const GET_ORGANIZATION_DETAIL = gql`
         weeklyDownloads
         versionsCount
       }
+    }
+  }
+`
+
+export const CREATE_ORGANIZATION = gql`
+  mutation CreateOrganization($input: CreateOrganizationInput!) {
+    createOrganization(input: $input) {
+      id
+      name
+      displayName
+      description
+      members
     }
   }
 `

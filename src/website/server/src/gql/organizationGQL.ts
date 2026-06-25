@@ -11,6 +11,7 @@ const type = () => {
             displayName: String
             description: String
             avatarUrl: String
+            members: [String]
             ownerUserId: Int
             status: String
             createdAt: String
@@ -28,6 +29,7 @@ const inputTypes = () => {
             displayName: String
             description: String
             avatarUrl: String
+            members: [String!]
             ownerUserId: Int!
         }
 

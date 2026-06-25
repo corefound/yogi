@@ -5,6 +5,7 @@ export const CreateOrganizationSchema = z.object({
     displayName: z.string().max(255).optional().nullable(),
     description: z.string().optional().nullable(),
     avatarUrl: z.string().max(512).optional().nullable(),
+    members: z.array(z.string()).optional().default([]),
     ownerUserId: z.number().int().positive(),
 });
 

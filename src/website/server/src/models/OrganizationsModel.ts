@@ -11,6 +11,7 @@ class Organizations extends Model<InferAttributes<Organizations>, InferCreationA
     declare displayName: string | null;
     declare description: string | null;
     declare avatarUrl: string | null;
+    declare members: string[];
     declare ownerUserId: number;
     declare status: CreationOptional<OrgStatus>;
     declare createdAt: CreationOptional<Date>;
@@ -44,6 +45,11 @@ Organizations.init({
         type: DataTypes.STRING(512),
         allowNull: true,
         field: "avatar_url",
+    },
+    members: {
+        type: DataTypes.JSONB,
+        allowNull: false,
+        defaultValue: [],
     },
     ownerUserId: {
         type: DataTypes.INTEGER.UNSIGNED,
