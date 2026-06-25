@@ -38,11 +38,12 @@ async function seed() {
         repositoryUrl?: string; homepageUrl?: string; documentationUrl?: string
         totalDownloads: number; weeklyDownloads: number
         versionsCount: number; dependenciesCount: number; dependentsCount: number
-        keywords: string[]; platforms: string[]
+        keywords: string[]
         versions: Array<{
             version: string; description?: string
             assetSizeBytes: number; minifiedSizeBytes?: number | null
             installCount: number; publishedAt: Date
+            platforms: string[]
             dependencies?: Array<{ dependencyName: string; versionRange: string; dependencyType?: string }>
         }>
         security?: { status: string; vulnerabilitiesCount: number; malwareScanStatus: string; lastScannedAt?: Date }
@@ -69,13 +70,13 @@ async function seed() {
             visibility: 'public', status: 'active', verificationStatus: 'verified',
             repoFullName: `${scope}/${pkgName}`, githubRepoId: Math.floor(Math.random() * 100000) + 1,
             repositoryUrl: data.repositoryUrl ?? null, homepageUrl: data.homepageUrl ?? null,
-            documentationUrl: data.documentationUrl ?? null,
+            documentationUrl: data.documentationUrl ?? null, logo: null,
             latestVersionId: null, latestVersion: latestVer?.version ?? null,
             totalDownloads: data.totalDownloads, weeklyDownloads: data.weeklyDownloads,
             versionsCount: data.versionsCount, dependenciesCount: data.dependenciesCount,
             dependentsCount: data.dependentsCount,
             lastPublishedAt: latestVer?.publishedAt ?? null, lastCheckedAt: new Date(),
-            keywords: data.keywords, platforms: data.platforms, maintainers,
+            keywords: data.keywords, maintainers,
             security: data.security ?? null, downloadTrend,
         } as any)
 
@@ -88,6 +89,7 @@ async function seed() {
                 installCount: ver.installCount, checksum: null, tarballUrl: null,
                 githubReleaseId: null, githubReleaseTag: `v${ver.version}`,
                 publishedByUserId: ownerUser.id, publishedAt: ver.publishedAt,
+                platforms: ver.platforms ?? [],
                 dependencies: ver.dependencies ?? [],
                 assets: [{
                     target: 'src', artifactType: 'source',
@@ -116,14 +118,13 @@ async function seed() {
         totalDownloads: 48600000, weeklyDownloads: 1280000, versionsCount: 54,
         dependenciesCount: 3, dependentsCount: 12840,
         keywords: ['http', 'client', 'fetch', 'promise', 'browser', 'node', 'typescript', 'isomorphic'],
-        platforms: ['node', 'browser', 'macos-arm64', 'linux-x64'],
         versions: [
-            { version: '0.1.0', assetSizeBytes: 12800, installCount: 120000, publishedAt: new Date('2023-06-15'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
-            { version: '1.0.0', description: 'First stable release', assetSizeBytes: 24500, minifiedSizeBytes: 8900, installCount: 850000, publishedAt: new Date('2023-09-01'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.2.0' }, { dependencyName: 'zod', versionRange: '^3.0.0' }] },
-            { version: '1.5.0', assetSizeBytes: 26100, minifiedSizeBytes: 9200, installCount: 2100000, publishedAt: new Date('2024-01-10'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.5.0' }, { dependencyName: 'zod', versionRange: '^3.2.0' }] },
-            { version: '2.0.0', description: 'Major rewrite with streaming support', assetSizeBytes: 32100, minifiedSizeBytes: 11800, installCount: 5600000, publishedAt: new Date('2024-06-20'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.0.0' }, { dependencyName: 'zod', versionRange: '^3.4.0' }, { dependencyName: 'abort-controller', versionRange: '^1.0.0' }] },
-            { version: '2.3.0', assetSizeBytes: 33400, minifiedSizeBytes: 12100, installCount: 9200000, publishedAt: new Date('2024-10-05'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.1.0' }, { dependencyName: 'zod', versionRange: '^3.6.0' }, { dependencyName: 'abort-controller', versionRange: '~1.0.2' }] },
-            { version: '2.3.1', description: 'Latest version', assetSizeBytes: 33400, minifiedSizeBytes: 12100, installCount: 12400000, publishedAt: new Date('2025-01-28'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.1.0' }, { dependencyName: 'zod', versionRange: '^3.6.0' }, { dependencyName: 'abort-controller', versionRange: '~1.0.2' }] },
+            { version: '0.1.0', assetSizeBytes: 12800, installCount: 120000, publishedAt: new Date('2023-06-15'), platforms: ['macos-x64', 'linux-x64-gnu'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
+            { version: '1.0.0', description: 'First stable release', assetSizeBytes: 24500, minifiedSizeBytes: 8900, installCount: 850000, publishedAt: new Date('2023-09-01'), platforms: ['macos-x64', 'linux-x64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.2.0' }, { dependencyName: 'zod', versionRange: '^3.0.0' }] },
+            { version: '1.5.0', assetSizeBytes: 26100, minifiedSizeBytes: 9200, installCount: 2100000, publishedAt: new Date('2024-01-10'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.5.0' }, { dependencyName: 'zod', versionRange: '^3.2.0' }] },
+            { version: '2.0.0', description: 'Major rewrite with streaming support', assetSizeBytes: 32100, minifiedSizeBytes: 11800, installCount: 5600000, publishedAt: new Date('2024-06-20'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.0.0' }, { dependencyName: 'zod', versionRange: '^3.4.0' }, { dependencyName: 'abort-controller', versionRange: '^1.0.0' }] },
+            { version: '2.3.0', assetSizeBytes: 33400, minifiedSizeBytes: 12100, installCount: 9200000, publishedAt: new Date('2024-10-05'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.1.0' }, { dependencyName: 'zod', versionRange: '^3.6.0' }, { dependencyName: 'abort-controller', versionRange: '~1.0.2' }] },
+            { version: '2.3.1', description: 'Latest version', assetSizeBytes: 33400, minifiedSizeBytes: 12100, installCount: 12400000, publishedAt: new Date('2025-01-28'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.1.0' }, { dependencyName: 'zod', versionRange: '^3.6.0' }, { dependencyName: 'abort-controller', versionRange: '~1.0.2' }] },
         ],
         security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed' },
     }, coreUser)
@@ -136,11 +137,10 @@ async function seed() {
         totalDownloads: 18200000, weeklyDownloads: 675000, versionsCount: 42,
         dependenciesCount: 1, dependentsCount: 25400,
         keywords: ['validation', 'typescript', 'schema', 'types', 'parser'],
-        platforms: ['node', 'browser', 'deno', 'bun'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 8400, installCount: 112000, publishedAt: new Date('2023-08-01'), dependencies: [] },
-            { version: '2.0.0', assetSizeBytes: 12100, minifiedSizeBytes: 4500, installCount: 890000, publishedAt: new Date('2024-02-14'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
-            { version: '3.0.0', assetSizeBytes: 15600, minifiedSizeBytes: 5800, installCount: 4500000, publishedAt: new Date('2024-11-01'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
+            { version: '1.0.0', assetSizeBytes: 8400, installCount: 112000, publishedAt: new Date('2023-08-01'), platforms: ['wasm32-wasi', 'wasm32-browser'], dependencies: [] },
+            { version: '2.0.0', assetSizeBytes: 12100, minifiedSizeBytes: 4500, installCount: 890000, publishedAt: new Date('2024-02-14'), platforms: ['wasm32-wasi', 'wasm32-browser', 'linux-x64-gnu'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
+            { version: '3.0.0', assetSizeBytes: 15600, minifiedSizeBytes: 5800, installCount: 4500000, publishedAt: new Date('2024-11-01'), platforms: ['wasm32-wasi', 'wasm32-browser', 'linux-x64-gnu', 'linux-arm64-gnu'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
         ],
         security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed' },
     }, coreUser)
@@ -153,12 +153,11 @@ async function seed() {
         totalDownloads: 31200000, weeklyDownloads: 2450000, versionsCount: 38,
         dependenciesCount: 4, dependentsCount: 18200,
         keywords: ['react', 'ui', 'hooks', 'components', 'frontend', 'typescript'],
-        platforms: ['node', 'browser'],
         versions: [
-            { version: '0.5.0', assetSizeBytes: 22100, installCount: 65000, publishedAt: new Date('2023-03-10'), dependencies: [{ dependencyName: 'react', versionRange: '^18.0.0' }] },
-            { version: '1.0.0', description: 'First stable release', assetSizeBytes: 38400, minifiedSizeBytes: 14200, installCount: 520000, publishedAt: new Date('2023-07-22'), dependencies: [{ dependencyName: 'react', versionRange: '^18.2.0' }, { dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
-            { version: '1.5.0', assetSizeBytes: 41200, minifiedSizeBytes: 15600, installCount: 3400000, publishedAt: new Date('2024-03-15'), dependencies: [{ dependencyName: 'react', versionRange: '^18.2.0' }, { dependencyName: 'shared-types', versionRange: '^1.5.0' }] },
-            { version: '2.0.0', description: 'Server components support', assetSizeBytes: 48500, minifiedSizeBytes: 17800, installCount: 8900000, publishedAt: new Date('2025-02-01'), dependencies: [{ dependencyName: 'react', versionRange: '^19.0.0' }, { dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
+            { version: '0.5.0', assetSizeBytes: 22100, installCount: 65000, publishedAt: new Date('2023-03-10'), platforms: ['wasm32-browser'], dependencies: [{ dependencyName: 'react', versionRange: '^18.0.0' }] },
+            { version: '1.0.0', description: 'First stable release', assetSizeBytes: 38400, minifiedSizeBytes: 14200, installCount: 520000, publishedAt: new Date('2023-07-22'), platforms: ['wasm32-browser'], dependencies: [{ dependencyName: 'react', versionRange: '^18.2.0' }, { dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
+            { version: '1.5.0', assetSizeBytes: 41200, minifiedSizeBytes: 15600, installCount: 3400000, publishedAt: new Date('2024-03-15'), platforms: ['wasm32-browser', 'wasm32-wasi'], dependencies: [{ dependencyName: 'react', versionRange: '^18.2.0' }, { dependencyName: 'shared-types', versionRange: '^1.5.0' }] },
+            { version: '2.0.0', description: 'Server components support', assetSizeBytes: 48500, minifiedSizeBytes: 17800, installCount: 8900000, publishedAt: new Date('2025-02-01'), platforms: ['wasm32-browser', 'wasm32-wasi'], dependencies: [{ dependencyName: 'react', versionRange: '^19.0.0' }, { dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
         ],
         security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed' },
     }, coreUser)
@@ -171,11 +170,10 @@ async function seed() {
         totalDownloads: 8400000, weeklyDownloads: 340000, versionsCount: 18,
         dependenciesCount: 2, dependentsCount: 6800,
         keywords: ['logging', 'logger', 'structured', 'debug', 'node', 'typescript'],
-        platforms: ['node', 'browser'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 6200, installCount: 98000, publishedAt: new Date('2023-11-01'), dependencies: [{ dependencyName: 'safe-stringify', versionRange: '^1.0.0' }] },
-            { version: '1.2.0', assetSizeBytes: 7100, minifiedSizeBytes: 2800, installCount: 680000, publishedAt: new Date('2024-05-10'), dependencies: [{ dependencyName: 'safe-stringify', versionRange: '^1.1.0' }] },
-            { version: '2.0.0', description: 'Browser support and transports', assetSizeBytes: 9800, minifiedSizeBytes: 3600, installCount: 2100000, publishedAt: new Date('2025-01-20'), dependencies: [{ dependencyName: 'safe-stringify', versionRange: '^2.0.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }] },
+            { version: '1.0.0', assetSizeBytes: 6200, installCount: 98000, publishedAt: new Date('2023-11-01'), platforms: ['linux-x64-gnu', 'linux-x64-musl'], dependencies: [{ dependencyName: 'safe-stringify', versionRange: '^1.0.0' }] },
+            { version: '1.2.0', assetSizeBytes: 7100, minifiedSizeBytes: 2800, installCount: 680000, publishedAt: new Date('2024-05-10'), platforms: ['linux-x64-gnu', 'linux-x64-musl', 'macos-x64'], dependencies: [{ dependencyName: 'safe-stringify', versionRange: '^1.1.0' }] },
+            { version: '2.0.0', description: 'Browser support and transports', assetSizeBytes: 9800, minifiedSizeBytes: 3600, installCount: 2100000, publishedAt: new Date('2025-01-20'), platforms: ['linux-x64-gnu', 'linux-x64-musl', 'macos-arm64', 'macos-x64'], dependencies: [{ dependencyName: 'safe-stringify', versionRange: '^2.0.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }] },
         ],
     }, coreUser)
 
@@ -187,10 +185,9 @@ async function seed() {
         totalDownloads: 3200000, weeklyDownloads: 180000, versionsCount: 12,
         dependenciesCount: 2, dependentsCount: 3200,
         keywords: ['cache', 'lru', 'ttl', 'memory', 'redis', 'typescript'],
-        platforms: ['node'],
         versions: [
-            { version: '0.1.0', assetSizeBytes: 5100, installCount: 12000, publishedAt: new Date('2024-04-01'), dependencies: [{ dependencyName: 'event-emitter', versionRange: '^1.0.0' }] },
-            { version: '1.0.0', description: 'Stable release with Redis adapter', assetSizeBytes: 12400, minifiedSizeBytes: 4900, installCount: 340000, publishedAt: new Date('2024-09-15'), dependencies: [{ dependencyName: 'event-emitter', versionRange: '^1.0.0' }, { dependencyName: 'safe-json', versionRange: '^1.0.0' }] },
+            { version: '0.1.0', assetSizeBytes: 5100, installCount: 12000, publishedAt: new Date('2024-04-01'), platforms: ['linux-x64-gnu'], dependencies: [{ dependencyName: 'event-emitter', versionRange: '^1.0.0' }] },
+            { version: '1.0.0', description: 'Stable release with Redis adapter', assetSizeBytes: 12400, minifiedSizeBytes: 4900, installCount: 340000, publishedAt: new Date('2024-09-15'), platforms: ['linux-x64-gnu', 'linux-arm64-gnu', 'linux-x64-musl'], dependencies: [{ dependencyName: 'event-emitter', versionRange: '^1.0.0' }, { dependencyName: 'safe-json', versionRange: '^1.0.0' }] },
         ],
     }, coreUser)
 
@@ -202,11 +199,10 @@ async function seed() {
         totalDownloads: 48500000, weeklyDownloads: 2100000, versionsCount: 56,
         dependenciesCount: 5, dependentsCount: 34200,
         keywords: ['formatter', 'code', 'prettier', 'style', 'javascript', 'typescript', 'css'],
-        platforms: ['node', 'bun', 'deno'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 48000, installCount: 2500000, publishedAt: new Date('2023-01-15'), dependencies: [{ dependencyName: 'resolve-config', versionRange: '^1.0.0' }] },
-            { version: '2.0.0', assetSizeBytes: 52000, minifiedSizeBytes: 18500, installCount: 8900000, publishedAt: new Date('2024-04-20'), dependencies: [{ dependencyName: 'resolve-config', versionRange: '^2.0.0' }, { dependencyName: 'plugin-json', versionRange: '^1.0.0' }, { dependencyName: 'plugin-markdown', versionRange: '^1.0.0' }] },
-            { version: '3.0.0', description: 'Major update with YAML and TOML support', assetSizeBytes: 68900, minifiedSizeBytes: 22100, installCount: 18200000, publishedAt: new Date('2025-03-01'), dependencies: [{ dependencyName: 'resolve-config', versionRange: '^3.0.0' }, { dependencyName: 'plugin-json', versionRange: '^2.0.0' }, { dependencyName: 'plugin-markdown', versionRange: '^2.0.0' }, { dependencyName: 'plugin-yaml', versionRange: '^1.0.0' }] },
+            { version: '1.0.0', assetSizeBytes: 48000, installCount: 2500000, publishedAt: new Date('2023-01-15'), platforms: ['macos-x64', 'linux-x64-gnu'], dependencies: [{ dependencyName: 'resolve-config', versionRange: '^1.0.0' }] },
+            { version: '2.0.0', assetSizeBytes: 52000, minifiedSizeBytes: 18500, installCount: 8900000, publishedAt: new Date('2024-04-20'), platforms: ['macos-x64', 'linux-x64-gnu', 'linux-arm64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'resolve-config', versionRange: '^2.0.0' }, { dependencyName: 'plugin-json', versionRange: '^1.0.0' }, { dependencyName: 'plugin-markdown', versionRange: '^1.0.0' }] },
+            { version: '3.0.0', description: 'Major update with YAML and TOML support', assetSizeBytes: 68900, minifiedSizeBytes: 22100, installCount: 18200000, publishedAt: new Date('2025-03-01'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu', 'linux-arm64-gnu', 'windows-x64-msvc'], dependencies: [{ dependencyName: 'resolve-config', versionRange: '^3.0.0' }, { dependencyName: 'plugin-json', versionRange: '^2.0.0' }, { dependencyName: 'plugin-markdown', versionRange: '^2.0.0' }, { dependencyName: 'plugin-yaml', versionRange: '^1.0.0' }] },
         ],
         security: { status: 'passed', vulnerabilitiesCount: 0, malwareScanStatus: 'passed' },
     }, jsUser)
@@ -219,11 +215,10 @@ async function seed() {
         totalDownloads: 22400000, weeklyDownloads: 980000, versionsCount: 28,
         dependenciesCount: 7, dependentsCount: 15200,
         keywords: ['eslint', 'lint', 'config', 'quality', 'javascript', 'typescript'],
-        platforms: ['node'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 18200, installCount: 1100000, publishedAt: new Date('2023-04-10'), dependencies: [{ dependencyName: 'eslint-core', versionRange: '^8.0.0' }] },
-            { version: '2.0.0', description: 'Flat config support', assetSizeBytes: 24100, minifiedSizeBytes: 8200, installCount: 4700000, publishedAt: new Date('2024-08-01'), dependencies: [{ dependencyName: 'eslint-core', versionRange: '^9.0.0' }, { dependencyName: 'plugin-typescript', versionRange: '^2.0.0' }, { dependencyName: 'plugin-react', versionRange: '^1.0.0' }] },
-            { version: '2.1.0', assetSizeBytes: 24800, minifiedSizeBytes: 8400, installCount: 6800000, publishedAt: new Date('2025-02-10'), dependencies: [{ dependencyName: 'eslint-core', versionRange: '^9.0.0' }, { dependencyName: 'plugin-typescript', versionRange: '^2.1.0' }, { dependencyName: 'plugin-react', versionRange: '^1.1.0' }] },
+            { version: '1.0.0', assetSizeBytes: 18200, installCount: 1100000, publishedAt: new Date('2023-04-10'), platforms: ['linux-x64-gnu'], dependencies: [{ dependencyName: 'eslint-core', versionRange: '^8.0.0' }] },
+            { version: '2.0.0', description: 'Flat config support', assetSizeBytes: 24100, minifiedSizeBytes: 8200, installCount: 4700000, publishedAt: new Date('2024-08-01'), platforms: ['linux-x64-gnu', 'linux-x64-musl'], dependencies: [{ dependencyName: 'eslint-core', versionRange: '^9.0.0' }, { dependencyName: 'plugin-typescript', versionRange: '^2.0.0' }, { dependencyName: 'plugin-react', versionRange: '^1.0.0' }] },
+            { version: '2.1.0', assetSizeBytes: 24800, minifiedSizeBytes: 8400, installCount: 6800000, publishedAt: new Date('2025-02-10'), platforms: ['linux-x64-gnu', 'linux-x64-musl', 'macos-x64'], dependencies: [{ dependencyName: 'eslint-core', versionRange: '^9.0.0' }, { dependencyName: 'plugin-typescript', versionRange: '^2.1.0' }, { dependencyName: 'plugin-react', versionRange: '^1.1.0' }] },
         ],
     }, jsUser)
 
@@ -235,11 +230,10 @@ async function seed() {
         totalDownloads: 15600000, weeklyDownloads: 720000, versionsCount: 22,
         dependenciesCount: 1, dependentsCount: 9800,
         keywords: ['typescript', 'types', 'utilities', 'helpers', 'type-guards'],
-        platforms: ['node', 'browser', 'deno'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 9200, installCount: 420000, publishedAt: new Date('2023-10-01'), dependencies: [] },
-            { version: '1.5.0', assetSizeBytes: 11500, minifiedSizeBytes: 3900, installCount: 2100000, publishedAt: new Date('2024-06-15'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
-            { version: '2.0.0', description: 'Branded types and branded-optional', assetSizeBytes: 14800, minifiedSizeBytes: 5200, installCount: 5800000, publishedAt: new Date('2025-04-01'), dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
+            { version: '1.0.0', assetSizeBytes: 9200, installCount: 420000, publishedAt: new Date('2023-10-01'), platforms: ['wasm32-wasi'], dependencies: [] },
+            { version: '1.5.0', assetSizeBytes: 11500, minifiedSizeBytes: 3900, installCount: 2100000, publishedAt: new Date('2024-06-15'), platforms: ['wasm32-wasi', 'wasm32-browser'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
+            { version: '2.0.0', description: 'Branded types and branded-optional', assetSizeBytes: 14800, minifiedSizeBytes: 5200, installCount: 5800000, publishedAt: new Date('2025-04-01'), platforms: ['wasm32-wasi', 'wasm32-browser', 'linux-x64-gnu'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
         ],
     }, jsUser)
 
@@ -251,11 +245,10 @@ async function seed() {
         totalDownloads: 12800000, weeklyDownloads: 560000, versionsCount: 16,
         dependenciesCount: 3, dependentsCount: 7200,
         keywords: ['charts', 'd3', 'visualization', 'line', 'bar', 'pie', 'scatter'],
-        platforms: ['node', 'browser'],
         versions: [
-            { version: '0.1.0', assetSizeBytes: 28500, installCount: 34000, publishedAt: new Date('2023-12-01'), dependencies: [{ dependencyName: 'd3-shape', versionRange: '^3.0.0' }] },
-            { version: '1.0.0', description: 'First stable release', assetSizeBytes: 42100, minifiedSizeBytes: 16500, installCount: 680000, publishedAt: new Date('2024-07-01'), dependencies: [{ dependencyName: 'd3-shape', versionRange: '^3.2.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }] },
-            { version: '1.2.0', assetSizeBytes: 43800, minifiedSizeBytes: 17200, installCount: 2400000, publishedAt: new Date('2025-01-15'), dependencies: [{ dependencyName: 'd3-shape', versionRange: '^3.2.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }, { dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
+            { version: '0.1.0', assetSizeBytes: 28500, installCount: 34000, publishedAt: new Date('2023-12-01'), platforms: ['wasm32-browser'], dependencies: [{ dependencyName: 'd3-shape', versionRange: '^3.0.0' }] },
+            { version: '1.0.0', description: 'First stable release', assetSizeBytes: 42100, minifiedSizeBytes: 16500, installCount: 680000, publishedAt: new Date('2024-07-01'), platforms: ['wasm32-browser', 'wasm32-wasi'], dependencies: [{ dependencyName: 'd3-shape', versionRange: '^3.2.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }] },
+            { version: '1.2.0', assetSizeBytes: 43800, minifiedSizeBytes: 17200, installCount: 2400000, publishedAt: new Date('2025-01-15'), platforms: ['wasm32-browser', 'wasm32-wasi', 'macos-x64'], dependencies: [{ dependencyName: 'd3-shape', versionRange: '^3.2.0' }, { dependencyName: 'event-emitter', versionRange: '^1.0.0' }, { dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
         ],
     }, dvUser)
 
@@ -267,10 +260,9 @@ async function seed() {
         totalDownloads: 5600000, weeklyDownloads: 290000, versionsCount: 10,
         dependenciesCount: 2, dependentsCount: 4100,
         keywords: ['data', 'table', 'transform', 'filter', 'aggregate', 'csv'],
-        platforms: ['node', 'browser'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 14200, installCount: 150000, publishedAt: new Date('2024-03-01'), dependencies: [{ dependencyName: 'csv-parse', versionRange: '^5.0.0' }] },
-            { version: '1.1.0', assetSizeBytes: 15300, minifiedSizeBytes: 5600, installCount: 680000, publishedAt: new Date('2024-08-20'), dependencies: [{ dependencyName: 'csv-parse', versionRange: '^5.1.0' }] },
+            { version: '1.0.0', assetSizeBytes: 14200, installCount: 150000, publishedAt: new Date('2024-03-01'), platforms: ['linux-x64-gnu'], dependencies: [{ dependencyName: 'csv-parse', versionRange: '^5.0.0' }] },
+            { version: '1.1.0', assetSizeBytes: 15300, minifiedSizeBytes: 5600, installCount: 680000, publishedAt: new Date('2024-08-20'), platforms: ['linux-x64-gnu', 'linux-arm64-gnu', 'wasm32-wasi'], dependencies: [{ dependencyName: 'csv-parse', versionRange: '^5.1.0' }] },
         ],
     }, dvUser)
 
@@ -376,10 +368,9 @@ async function seed() {
         totalDownloads: 8900000, weeklyDownloads: 520000, versionsCount: 14,
         dependenciesCount: 3, dependentsCount: 4200,
         keywords: ['auth', 'authentication', 'jwt', 'oauth', 'security', 'typescript'],
-        platforms: ['node', 'browser'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 18200, installCount: 180000, publishedAt: new Date('2023-09-01'), dependencies: [{ dependencyName: 'jose', versionRange: '^4.0.0' }] },
-            { version: '2.0.0', assetSizeBytes: 22400, minifiedSizeBytes: 8100, installCount: 1200000, publishedAt: new Date('2024-05-15'), dependencies: [{ dependencyName: 'jose', versionRange: '^5.0.0' }, { dependencyName: 'safe-buffer', versionRange: '^1.0.0' }] },
+            { version: '1.0.0', assetSizeBytes: 18200, installCount: 180000, publishedAt: new Date('2023-09-01'), platforms: ['linux-x64-gnu'], dependencies: [{ dependencyName: 'jose', versionRange: '^4.0.0' }] },
+            { version: '2.0.0', assetSizeBytes: 22400, minifiedSizeBytes: 8100, installCount: 1200000, publishedAt: new Date('2024-05-15'), platforms: ['linux-x64-gnu', 'linux-x64-musl', 'wasm32-browser'], dependencies: [{ dependencyName: 'jose', versionRange: '^5.0.0' }, { dependencyName: 'safe-buffer', versionRange: '^1.0.0' }] },
         ],
     }, securityUser)
 
@@ -391,10 +382,9 @@ async function seed() {
         totalDownloads: 3400000, weeklyDownloads: 180000, versionsCount: 8,
         dependenciesCount: 2, dependentsCount: 1800,
         keywords: ['vault', 'secrets', 'encryption', 'config', 'security'],
-        platforms: ['node'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 12400, installCount: 85000, publishedAt: new Date('2024-02-01'), dependencies: [{ dependencyName: 'crypto-utils', versionRange: '^1.0.0' }] },
-            { version: '1.1.0', assetSizeBytes: 13100, minifiedSizeBytes: 4800, installCount: 340000, publishedAt: new Date('2024-10-10'), dependencies: [{ dependencyName: 'crypto-utils', versionRange: '^1.1.0' }] },
+            { version: '1.0.0', assetSizeBytes: 12400, installCount: 85000, publishedAt: new Date('2024-02-01'), platforms: ['linux-x64-gnu'], dependencies: [{ dependencyName: 'crypto-utils', versionRange: '^1.0.0' }] },
+            { version: '1.1.0', assetSizeBytes: 13100, minifiedSizeBytes: 4800, installCount: 340000, publishedAt: new Date('2024-10-10'), platforms: ['linux-x64-gnu', 'linux-arm64-gnu', 'linux-x64-musl'], dependencies: [{ dependencyName: 'crypto-utils', versionRange: '^1.1.0' }] },
         ],
     }, securityUser)
 
@@ -406,10 +396,9 @@ async function seed() {
         totalDownloads: 2100000, weeklyDownloads: 95000, versionsCount: 11,
         dependenciesCount: 3, dependentsCount: 1200,
         keywords: ['mobile', 'react-native', 'native', 'bridge', 'ios', 'android'],
-        platforms: ['node', 'macos-arm64', 'linux-x64'],
         versions: [
-            { version: '1.0.0', assetSizeBytes: 28100, installCount: 42000, publishedAt: new Date('2024-04-01'), dependencies: [{ dependencyName: 'react-native', versionRange: '^0.72.0' }] },
-            { version: '1.1.0', assetSizeBytes: 29400, minifiedSizeBytes: 11200, installCount: 180000, publishedAt: new Date('2024-09-15'), dependencies: [{ dependencyName: 'react-native', versionRange: '^0.73.0' }] },
+            { version: '1.0.0', assetSizeBytes: 28100, installCount: 42000, publishedAt: new Date('2024-04-01'), platforms: ['ios-arm64', 'android-arm64'], dependencies: [{ dependencyName: 'react-native', versionRange: '^0.72.0' }] },
+            { version: '1.1.0', assetSizeBytes: 29400, minifiedSizeBytes: 11200, installCount: 180000, publishedAt: new Date('2024-09-15'), platforms: ['ios-arm64', 'android-arm64', 'macos-arm64'], dependencies: [{ dependencyName: 'react-native', versionRange: '^0.73.0' }] },
         ],
     }, mobileUser)
 
