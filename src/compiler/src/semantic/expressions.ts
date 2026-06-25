@@ -558,13 +558,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, args[0].position ?? node.position, source, args[0]);
             }
 
-            // at() returns T | undefined
-            const elementType = receiverType.elementType;
-            const returnType = {
-                kind: Kinds.Types.UnionType,
-                types: [elementType, { kind: Kinds.Types.UndefinedType, raw: "undefined" }],
-                raw: `${elementType?.raw ?? "unknown"} | undefined`,
-            };
+            const returnType = this.arrayAtReturnType(receiver, receiverType, args[0]);
 
             return {
                 ...node,
@@ -583,6 +577,58 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 external: false,
                 builtinMethod: "array.at",
             };
+        }
+
+        public arrayAtReturnType(receiver: any, receiverType: any, index: any): any {
+            const fallback = this.arrayElementOrUndefinedType(receiverType);
+            const indexValue = this.literalIndexValue(index);
+
+            if (typeof indexValue !== "number" || !Number.isInteger(indexValue)) {
+                return fallback;
+            }
+
+            if (receiverType?.kind === Kinds.Types.TupleType) {
+                const elements = receiverType.elements ?? [];
+                const normalized = indexValue < 0 ? elements.length + indexValue : indexValue;
+
+                if (normalized >= 0 && normalized < elements.length) {
+                    return elements[normalized];
+                }
+
+                return fallback;
+            }
+
+            const literalLength = this.arrayLiteralLength(receiver);
+            if (literalLength === null) {
+                return fallback;
+            }
+
+            const normalized = indexValue < 0 ? literalLength + indexValue : indexValue;
+            if (normalized >= 0 && normalized < literalLength) {
+                return this.arrayReadableElementType(receiverType);
+            }
+
+            return fallback;
+        }
+
+        public arrayLiteralLength(receiver: any): number | null {
+            if (!receiver) {
+                return null;
+            }
+
+            if (receiver.kind === Kinds.Collections.ArrayExpression) {
+                return receiver.elements?.length ?? 0;
+            }
+
+            const root = this.getAggregateRootIdentifier(receiver);
+            const symbol = root ? this.resolveSymbol(root) : null;
+            const node = symbol?.node;
+
+            if (node?.kind === Kinds.Collections.ArrayExpression) {
+                return node.elements?.length ?? 0;
+            }
+
+            return null;
         }
 
         public arrayReadableElementType(receiverType: any): any {

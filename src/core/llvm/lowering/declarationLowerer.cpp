@@ -81,6 +81,17 @@ namespace yogi::core::llvm::internal {
 				kind == Yogi::Sir::TypeKind_tuple_type ||
 				kind == Yogi::Sir::TypeKind_type_literal;
 		};
+		const auto isStringType = [](const Yogi::Sir::TypeRef *typeRef) {
+			if (!typeRef) {
+				return false;
+			}
+
+			const auto kind = typeRef->resolved()
+				? typeRef->resolved()->kind()
+				: typeRef->kind();
+
+			return kind == Yogi::Sir::TypeKind_string_type;
+		};
 		const auto receiverReturningArrayMethod = [](const Yogi::Sir::ValueRef *value) {
 			const auto *call = value ? value->call() : nullptr;
 			if (!call || !call->builtin_method()) {
@@ -110,6 +121,10 @@ namespace yogi::core::llvm::internal {
 			isAggregateType(variable->type()) &&
 			isOwnedAggregateInitializer &&
 			!isLocalStackAggregate;
+		const auto isLocalString =
+			!isGlobalVariable &&
+			fbString(variable->storage()) == "stack" &&
+			isStringType(variable->type());
 
 		context.pushMemorySourceLocation(variable->position());
 		auto *initializer = isLocalStackAggregate
@@ -152,6 +167,12 @@ namespace yogi::core::llvm::internal {
 				name, variable->symbol_id(), variable->type(),
 				initializer, true,
 				inSwitchBody ? slot : nullptr
+			);
+		} else if (isLocalString) {
+			context.registerAggregateOwner(
+				name, variable->symbol_id(), variable->type(),
+				initializer, true,
+				slot
 			);
 		} else if (isAggregateType(variable->type())) {
 			if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {

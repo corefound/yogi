@@ -1500,6 +1500,10 @@ namespace yogi::core::llvm::internal {
 		}
 
 		switch (resolvedTypeKind(type)) {
+			case Yogi::Sir::TypeKind_string_type:
+				callRuntime("yogi_string_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
+				return;
+
 			case Yogi::Sir::TypeKind_array_type:
 			case Yogi::Sir::TypeKind_tuple_type:
 				callRuntime("yogi_array_drop", ::llvm::Type::getVoidTy(context.llvmContext), {value});
@@ -1521,6 +1525,10 @@ namespace yogi::core::llvm::internal {
 		}
 
 		switch (resolvedTypeKind(type)) {
+			case Yogi::Sir::TypeKind_string_type:
+				callRuntime("yogi_string_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
+				return;
+
 			case Yogi::Sir::TypeKind_array_type:
 			case Yogi::Sir::TypeKind_tuple_type:
 				callRuntime("yogi_array_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
@@ -1726,7 +1734,8 @@ namespace yogi::core::llvm::internal {
 			targetKind == Yogi::Sir::TypeKind_array_type ||
 			targetKind == Yogi::Sir::TypeKind_tuple_type ||
 			targetKind == Yogi::Sir::TypeKind_type_literal ||
-			targetKind == Yogi::Sir::TypeKind_type_reference;
+			targetKind == Yogi::Sir::TypeKind_type_reference ||
+			targetKind == Yogi::Sir::TypeKind_string_type;
 
 		if (targetIsGlobal && targetIsAggregate && targetType->isPointerTy()) {
 			auto *previousValue = context.builder.CreateLoad(
@@ -1751,6 +1760,39 @@ namespace yogi::core::llvm::internal {
 			auto *storeBlock = ::llvm::BasicBlock::Create(
 				context.llvmContext,
 				sanitizeSymbol(name) + ".global.replace.store",
+				function
+			);
+
+			context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, storeBlock);
+			context.builder.SetInsertPoint(destroyBlock);
+			destroyEscapedAggregate(targetSemanticType, previousValue);
+			context.builder.CreateBr(storeBlock);
+			context.builder.SetInsertPoint(storeBlock);
+		}
+
+		if (!targetIsGlobal && targetKind == Yogi::Sir::TypeKind_string_type && targetType->isPointerTy()) {
+			auto *previousValue = context.builder.CreateLoad(
+				targetType,
+				target,
+				sanitizeSymbol(name) + ".local.previous"
+			);
+			auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
+			auto *isReplacement = context.builder.CreateICmpNE(previousValue, value);
+			auto *shouldDestroyPrevious = context.builder.CreateAnd(
+				hasPrevious,
+				isReplacement,
+				sanitizeSymbol(name) + ".local.should_destroy"
+			);
+			auto *currentBlock = context.builder.GetInsertBlock();
+			auto *function = currentBlock->getParent();
+			auto *destroyBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				sanitizeSymbol(name) + ".local.replace.destroy",
+				function
+			);
+			auto *storeBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				sanitizeSymbol(name) + ".local.replace.store",
 				function
 			);
 
@@ -2239,6 +2281,17 @@ namespace yogi::core::llvm::internal {
 	) {
 		if (!value || !targetType || !value->getType()->isPointerTy() || targetType->isPointerTy()) {
 			return value;
+		}
+
+		if (
+			targetSemanticType &&
+			(
+				targetSemanticType->kind() == Yogi::Sir::TypeKind_number_type ||
+				targetSemanticType->kind() == Yogi::Sir::TypeKind_boolean_type ||
+				targetSemanticType->kind() == Yogi::Sir::TypeKind_string_type
+			)
+		) {
+			return unboxAny(value, targetSemanticType);
 		}
 
 		if (

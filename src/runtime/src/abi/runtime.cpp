@@ -8,11 +8,16 @@
 #include "yogi/runtime/memory.h"
 
 #include <cctype>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <cmath>
 
 namespace {
+	const char **ownedRuntimeStrings = nullptr;
+	std::size_t ownedRuntimeStringCount = 0;
+	std::size_t ownedRuntimeStringCapacity = 0;
+
 	const char *safeString(const char *value) {
 		return value ? value : "";
 	}
@@ -60,7 +65,39 @@ namespace {
 	char *allocateRuntimeString(std::size_t length) {
 		auto *result = static_cast<char *>(yogi::runtime::MemoryManager::allocate(length + 1, "runtime string"));
 		result[length] = '\0';
+
+		if (ownedRuntimeStringCount == ownedRuntimeStringCapacity) {
+			const auto nextCapacity = ownedRuntimeStringCapacity == 0 ? 64 : ownedRuntimeStringCapacity * 2;
+			auto *nextStrings = static_cast<const char **>(
+				std::realloc(ownedRuntimeStrings, sizeof(const char *) * nextCapacity)
+			);
+
+			if (!nextStrings) {
+				yogi::runtime::RuntimeError::abortAllocation("runtime string registry");
+			}
+
+			ownedRuntimeStrings = nextStrings;
+			ownedRuntimeStringCapacity = nextCapacity;
+		}
+
+		ownedRuntimeStrings[ownedRuntimeStringCount++] = result;
 		return result;
+	}
+
+	bool unregisterRuntimeString(const char *value) {
+		if (!value) {
+			return false;
+		}
+
+		for (std::size_t index = 0; index < ownedRuntimeStringCount; ++index) {
+			if (ownedRuntimeStrings[index] == value) {
+				ownedRuntimeStrings[index] = ownedRuntimeStrings[ownedRuntimeStringCount - 1];
+				--ownedRuntimeStringCount;
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	const char *copyRuntimeString(const char *value, std::size_t length) {
@@ -351,6 +388,14 @@ const char *yogi_string_trim(const char *value) {
 	}
 
 	return copyRuntimeString(text + begin, end - begin);
+}
+
+void yogi_string_destroy(const char *value) {
+	if (!unregisterRuntimeString(value)) {
+		return;
+	}
+
+	yogi::runtime::MemoryManager::deallocate(const_cast<char *>(value));
 }
 
 void yogi_runtime_abort_cast(const char *fromType, const char *toType) {

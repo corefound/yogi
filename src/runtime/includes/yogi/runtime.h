@@ -53,6 +53,7 @@ long long yogi_string_last_index_of(const char *value, const char *search, doubl
 const char *yogi_string_to_upper_case(const char *value);
 const char *yogi_string_to_lower_case(const char *value);
 const char *yogi_string_trim(const char *value);
+void yogi_string_destroy(const char *value);
 
 void *yogi_object_create(void);
 unsigned long long yogi_object_sizeof(void);
