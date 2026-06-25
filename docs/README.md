@@ -71,10 +71,12 @@ The compiler currently lowers source code through this pipeline:
 - [Array Completion](lots/12-array-completion.md)
 - [Iterator Protocol And Loops](lots/13-iterator-protocol-and-loops.md)
 - [String Operators And Template Literals](lots/14-string-operators-and-template-literals.md)
+- [String Methods](lots/15-string-methods.md)
 
 ### To Do
 
 - [Arrays](todo/arrays.md)
+- [Strings](todo/strings.md)
 
 ### Testing
 

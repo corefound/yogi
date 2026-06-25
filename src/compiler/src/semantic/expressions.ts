@@ -285,6 +285,29 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             });
             const source = node.fullSource ?? node.source ?? rawCallee.source;
 
+            if (receiverType?.kind === Kinds.Types.StringType) {
+                const methodHandlers: Record<string, () => any> = {
+                    slice: () => this.validateAndCreateStringSliceCall(node, rawCallee, receiver, methodName, args, source),
+                    substring: () => this.validateAndCreateStringSliceCall(node, rawCallee, receiver, methodName, args, source),
+                    includes: () => this.validateAndCreateStringSearchCall(node, rawCallee, receiver, methodName, args, source, "boolean"),
+                    startsWith: () => this.validateAndCreateStringSearchCall(node, rawCallee, receiver, methodName, args, source, "boolean"),
+                    endsWith: () => this.validateAndCreateStringSearchCall(node, rawCallee, receiver, methodName, args, source, "boolean"),
+                    indexOf: () => this.validateAndCreateStringSearchCall(node, rawCallee, receiver, methodName, args, source, "number"),
+                    lastIndexOf: () => this.validateAndCreateStringSearchCall(node, rawCallee, receiver, methodName, args, source, "number"),
+                    toUpperCase: () => this.validateAndCreateStringTransformCall(node, rawCallee, receiver, methodName, args, source),
+                    toLowerCase: () => this.validateAndCreateStringTransformCall(node, rawCallee, receiver, methodName, args, source),
+                    trim: () => this.validateAndCreateStringTransformCall(node, rawCallee, receiver, methodName, args, source),
+                };
+
+                if (!methodHandlers[methodName]) {
+                    const message = `string method ${Helpers.RED}'${methodName}'${Helpers.RESET} is not supported`;
+                    rawCallee.arrowLength = methodName?.length ?? rawCallee.source?.length ?? 1;
+                    this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+                }
+
+                return methodHandlers[methodName]();
+            }
+
             // Validate receiver is an array or tuple
             if (receiverType?.kind !== Kinds.Types.ArrayType && receiverType?.kind !== Kinds.Types.TupleType) {
                 const message =
@@ -673,6 +696,131 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 external: false,
                 builtinMethod: `array.${methodName}`,
             };
+        }
+
+        public createStringBuiltinCall(node: any, rawCallee: any, receiver: any, args: any[], type: any, methodName: string): any {
+            return {
+                ...node,
+                kind: Kinds.Expressions.CallExpression,
+                callee: {
+                    ...rawCallee,
+                    object: receiver,
+                    type: {
+                        kind: Kinds.Types.FunctionType,
+                        raw: "Function",
+                    },
+                },
+                arguments: args,
+                argumentEffects: [],
+                type,
+                external: false,
+                builtinMethod: `string.${methodName}`,
+            };
+        }
+
+        public validateStringMethodArgumentCount(node: any, methodName: string, args: any[], source: string, min: number, max: number): void {
+            if (args.length >= min && args.length <= max) {
+                return;
+            }
+
+            const expected = min === max ? `${min}` : `${min}-${max}`;
+            const noun = min === max && min === 1 ? "argument" : "arguments";
+            const message =
+                `string method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                `${Helpers.BLUE}'${expected}'${Helpers.RESET} ${noun}, got ${Helpers.RED}'${args.length}'${Helpers.RESET}`;
+
+            node.arrowLength = node.source?.length ?? methodName?.length ?? 1;
+            this.throwError(message, node.position, source, node);
+        }
+
+        public validateStringMethodNumberArgument(node: any, methodName: string, argument: any, source: string, label: string): void {
+            const argumentType = argument?.type;
+
+            if (this.resolveType(argumentType)?.kind === Kinds.Types.NumberType) {
+                return;
+            }
+
+            const message =
+                `string method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                `${Helpers.BLUE}'number'${Helpers.RESET} ${label}, got ` +
+                `${Helpers.RED}'${argumentType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+            argument.arrowLength = argument.source?.length ?? 1;
+            this.throwError(message, argument.position ?? node.position, source, argument);
+        }
+
+        public validateStringMethodStringArgument(node: any, methodName: string, argument: any, source: string, label: string): void {
+            const argumentType = argument?.type;
+
+            if (this.resolveType(argumentType)?.kind === Kinds.Types.StringType) {
+                return;
+            }
+
+            const message =
+                `string method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} expects ` +
+                `${Helpers.BLUE}'string'${Helpers.RESET} ${label}, got ` +
+                `${Helpers.RED}'${argumentType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+            argument.arrowLength = argument.source?.length ?? 1;
+            this.throwError(message, argument.position ?? node.position, source, argument);
+        }
+
+        public validateAndCreateStringSliceCall(node: any, rawCallee: any, receiver: any, methodName: string, args: any[], source: string): any {
+            this.validateStringMethodArgumentCount(node, methodName, args, source, 0, 2);
+
+            args.forEach((argument: any) => {
+                this.validateStringMethodNumberArgument(node, methodName, argument, source, "index");
+            });
+
+            return this.createStringBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                { kind: Kinds.Types.StringType, raw: "string" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateStringSearchCall(
+            node: any,
+            rawCallee: any,
+            receiver: any,
+            methodName: string,
+            args: any[],
+            source: string,
+            returnKind: "boolean" | "number",
+        ): any {
+            this.validateStringMethodArgumentCount(node, methodName, args, source, 1, 2);
+            this.validateStringMethodStringArgument(node, methodName, args[0], source, "search value");
+
+            if (args[1]) {
+                this.validateStringMethodNumberArgument(node, methodName, args[1], source, "position");
+            }
+
+            return this.createStringBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                returnKind === "boolean"
+                    ? { kind: Kinds.Types.BooleanType, raw: "boolean" }
+                    : { kind: Kinds.Types.NumberType, raw: "number" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateStringTransformCall(node: any, rawCallee: any, receiver: any, methodName: string, args: any[], source: string): any {
+            this.validateStringMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            return this.createStringBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                { kind: Kinds.Types.StringType, raw: "string" },
+                methodName,
+            );
         }
 
         public validateAndCreateShiftCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {

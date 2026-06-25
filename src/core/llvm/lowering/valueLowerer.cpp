@@ -229,6 +229,8 @@ namespace yogi::core::llvm::internal {
 		const auto methodName = fbString(callee->property());
 		const auto *arguments = call->arguments();
 		const auto argumentCount = arguments ? arguments->size() : 0;
+		const auto *objectSemanticType = valueSemanticType(callee->object());
+		const auto objectKind = resolvedTypeKind(objectSemanticType);
 		const auto numberConstant = [&](double value) {
 			return ::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), value);
 		};
@@ -239,6 +241,14 @@ namespace yogi::core::llvm::internal {
 
 			const auto *argument = arguments->Get(index);
 			return lower(argument, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(argument));
+		};
+		const auto lowerStringArgument = [&](flatbuffers::uoffset_t index, const std::string &defaultValue) -> ::llvm::Value * {
+			if (!arguments || index >= arguments->size()) {
+				return context.builder.CreateGlobalString(defaultValue);
+			}
+
+			const auto *argument = arguments->Get(index);
+			return lower(argument, opaquePointer(), valueSemanticType(argument));
 		};
 		const auto getCallbackFunction = [&]() -> ::llvm::Function * {
 			const auto *callbackArgument = arguments && arguments->size() > 0
@@ -466,8 +476,95 @@ namespace yogi::core::llvm::internal {
 			index->addIncoming(nextIndex, continueBlock);
 		};
 
+		if (objectKind == Yogi::Sir::TypeKind_string_type) {
+			auto *text = lower(callee->object(), opaquePointer(), objectSemanticType);
+
+			if (methodName == "slice" || methodName == "substring") {
+				auto *start = lowerNumberArgument(0, 0);
+				auto *end = lowerNumberArgument(1, std::numeric_limits<double>::infinity());
+				auto *result = callRuntime(
+					methodName == "slice" ? "yogi_string_slice" : "yogi_string_substring",
+					opaquePointer(),
+					{text, start, end}
+				);
+
+				return cast(
+					result,
+					expectedType ? expectedType : types.lower(call->type()),
+					expectedSemanticType ? expectedSemanticType : call->type(),
+					call->type()
+				);
+			}
+
+			if (methodName == "includes" || methodName == "startsWith" || methodName == "endsWith") {
+				auto *search = lowerStringArgument(0, "");
+				auto *position = lowerNumberArgument(
+					1,
+					methodName == "endsWith" ? std::numeric_limits<double>::infinity() : 0
+				);
+				const auto runtimeName = methodName == "includes"
+					? "yogi_string_includes"
+					: methodName == "startsWith"
+						? "yogi_string_starts_with"
+						: "yogi_string_ends_with";
+				auto *result = callRuntime(
+					runtimeName,
+					::llvm::Type::getInt1Ty(context.llvmContext),
+					{text, search, position}
+				);
+
+				return cast(
+					result,
+					expectedType ? expectedType : types.lower(call->type()),
+					expectedSemanticType ? expectedSemanticType : call->type(),
+					call->type()
+				);
+			}
+
+			if (methodName == "indexOf" || methodName == "lastIndexOf") {
+				auto *search = lowerStringArgument(0, "");
+				auto *position = lowerNumberArgument(
+					1,
+					methodName == "lastIndexOf" ? std::numeric_limits<double>::infinity() : 0
+				);
+				auto *result = callRuntime(
+					methodName == "indexOf" ? "yogi_string_index_of" : "yogi_string_last_index_of",
+					::llvm::Type::getInt64Ty(context.llvmContext),
+					{text, search, position}
+				);
+				auto *asNumber = context.builder.CreateSIToFP(
+					result,
+					::llvm::Type::getDoubleTy(context.llvmContext),
+					"string.search.index"
+				);
+
+				return cast(
+					asNumber,
+					expectedType ? expectedType : types.lower(call->type()),
+					expectedSemanticType ? expectedSemanticType : call->type(),
+					call->type()
+				);
+			}
+
+			if (methodName == "toUpperCase" || methodName == "toLowerCase" || methodName == "trim") {
+				const auto runtimeName = methodName == "toUpperCase"
+					? "yogi_string_to_upper_case"
+					: methodName == "toLowerCase"
+						? "yogi_string_to_lower_case"
+						: "yogi_string_trim";
+				auto *result = callRuntime(runtimeName, opaquePointer(), {text});
+
+				return cast(
+					result,
+					expectedType ? expectedType : types.lower(call->type()),
+					expectedSemanticType ? expectedSemanticType : call->type(),
+					call->type()
+				);
+			}
+		}
+
 		if (methodName == "push") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lower(callee->object(), opaquePointer(), objectSemanticType);
 			const auto *argument = arguments && argumentCount > 0
 				? arguments->Get(0)
 				: nullptr;
