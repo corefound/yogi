@@ -50,9 +50,16 @@ bool yogi_string_starts_with(const char *value, const char *search, double posit
 bool yogi_string_ends_with(const char *value, const char *search, double endPosition);
 long long yogi_string_index_of(const char *value, const char *search, double position);
 long long yogi_string_last_index_of(const char *value, const char *search, double position);
+const char *yogi_string_char_at(const char *value, double index);
+double yogi_string_char_code_at(const char *value, double index);
+const char *yogi_string_repeat(const char *value, double count);
+const char *yogi_string_pad_start(const char *value, double targetLength, const char *padString);
+const char *yogi_string_pad_end(const char *value, double targetLength, const char *padString);
 const char *yogi_string_to_upper_case(const char *value);
 const char *yogi_string_to_lower_case(const char *value);
 const char *yogi_string_trim(const char *value);
+const char *yogi_string_trim_start(const char *value);
+const char *yogi_string_trim_end(const char *value);
 void yogi_string_destroy(const char *value);
 
 void *yogi_object_create(void);

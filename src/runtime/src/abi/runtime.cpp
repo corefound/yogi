@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cmath>
+#include <limits>
 
 namespace {
 	const char **ownedRuntimeStrings = nullptr;
@@ -24,6 +25,19 @@ namespace {
 
 	std::size_t minSize(std::size_t left, std::size_t right) {
 		return left < right ? left : right;
+	}
+
+	std::size_t toUnboundedLength(double value) {
+		if (std::isnan(value) || std::isinf(value)) {
+			return 0;
+		}
+
+		const auto truncated = value < 0 ? std::ceil(value) : std::floor(value);
+		if (truncated <= 0) {
+			return 0;
+		}
+
+		return static_cast<std::size_t>(truncated);
 	}
 
 	std::size_t toIntegerIndex(double value, std::size_t length, bool infinityIsLength) {
@@ -349,6 +363,86 @@ long long yogi_string_last_index_of(const char *value, const char *search, doubl
 	return lastIndexOfRaw(text, textLength, needle, needleLength, start);
 }
 
+const char *yogi_string_char_at(const char *value, double index) {
+	const auto *text = safeString(value);
+	const auto length = std::strlen(text);
+	const auto charIndex = toIntegerIndex(index, length, true);
+
+	if (charIndex >= length) {
+		return copyRuntimeString("", 0);
+	}
+
+	return copyRuntimeString(text + charIndex, 1);
+}
+
+double yogi_string_char_code_at(const char *value, double index) {
+	const auto *text = safeString(value);
+	const auto length = std::strlen(text);
+	const auto charIndex = toIntegerIndex(index, length, true);
+
+	if (charIndex >= length) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+
+	return static_cast<double>(static_cast<unsigned char>(text[charIndex]));
+}
+
+const char *yogi_string_repeat(const char *value, double count) {
+	const auto *text = safeString(value);
+	const auto length = std::strlen(text);
+	const auto repeatCount = toUnboundedLength(count);
+	const auto resultLength = length * repeatCount;
+	auto *result = allocateRuntimeString(resultLength);
+
+	for (std::size_t index = 0; index < repeatCount; ++index) {
+		std::memcpy(result + index * length, text, length);
+	}
+
+	return result;
+}
+
+const char *yogi_string_pad_start(const char *value, double targetLength, const char *padString) {
+	const auto *text = safeString(value);
+	const auto *pad = safeString(padString);
+	const auto textLength = std::strlen(text);
+	const auto padLength = std::strlen(pad);
+	const auto target = toUnboundedLength(targetLength);
+
+	if (target <= textLength || padLength == 0) {
+		return copyRuntimeString(text, textLength);
+	}
+
+	const auto fillLength = target - textLength;
+	auto *result = allocateRuntimeString(target);
+
+	for (std::size_t index = 0; index < fillLength; ++index) {
+		result[index] = pad[index % padLength];
+	}
+	std::memcpy(result + fillLength, text, textLength);
+	return result;
+}
+
+const char *yogi_string_pad_end(const char *value, double targetLength, const char *padString) {
+	const auto *text = safeString(value);
+	const auto *pad = safeString(padString);
+	const auto textLength = std::strlen(text);
+	const auto padLength = std::strlen(pad);
+	const auto target = toUnboundedLength(targetLength);
+
+	if (target <= textLength || padLength == 0) {
+		return copyRuntimeString(text, textLength);
+	}
+
+	const auto fillLength = target - textLength;
+	auto *result = allocateRuntimeString(target);
+
+	std::memcpy(result, text, textLength);
+	for (std::size_t index = 0; index < fillLength; ++index) {
+		result[textLength + index] = pad[index % padLength];
+	}
+	return result;
+}
+
 const char *yogi_string_to_upper_case(const char *value) {
 	const auto *text = safeString(value);
 	const auto length = std::strlen(text);
@@ -388,6 +482,30 @@ const char *yogi_string_trim(const char *value) {
 	}
 
 	return copyRuntimeString(text + begin, end - begin);
+}
+
+const char *yogi_string_trim_start(const char *value) {
+	const auto *text = safeString(value);
+	const auto length = std::strlen(text);
+	std::size_t begin = 0;
+
+	while (begin < length && std::isspace(static_cast<unsigned char>(text[begin]))) {
+		++begin;
+	}
+
+	return copyRuntimeString(text + begin, length - begin);
+}
+
+const char *yogi_string_trim_end(const char *value) {
+	const auto *text = safeString(value);
+	const auto length = std::strlen(text);
+	std::size_t end = length;
+
+	while (end > 0 && std::isspace(static_cast<unsigned char>(text[end - 1]))) {
+		--end;
+	}
+
+	return copyRuntimeString(text, end);
 }
 
 void yogi_string_destroy(const char *value) {

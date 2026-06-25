@@ -6,7 +6,7 @@ This lot cleans runtime-created strings that are used only as expression
 temporaries instead of being assigned to a variable.
 
 ```ts
-print(("  " + "Temp" + 10 + "  ").trim())
+print(("  " + "Temp" + "10" + "  ").trim())
 ```
 
 The concat operations create runtime strings, `trim()` creates another runtime
@@ -19,8 +19,7 @@ String temporaries are cleaned after:
 
 - `print(stringExpression)`
 - string `+` concatenation
-- number/boolean to string conversion inside concat/template interpolation
-- string method receivers such as `("a" + 1).trim()`
+- string method receivers such as `("a" + "1").trim()`
 - string search arguments such as `"banana".includes("n" + "a")`
 - ignored string expression statements such as `"ignored".toUpperCase()`
 
@@ -32,7 +31,7 @@ method calls on parenthesized expressions:
 
 ```ts
 print(("  yogi  ").trim())
-print(("a" + 1).trim())
+print(("a" + "1").trim())
 ```
 
 ## Lowering Rule

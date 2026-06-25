@@ -387,6 +387,14 @@ if(BUILD_TESTING)
                 )
 
                 add_test(
+                        NAME yogi_pipeline_string_extended_methods
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-string-extended-methods
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/string_extended_methods.cmake
+                )
+
+                add_test(
                         NAME yogi_pipeline_string_lifetime
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>

@@ -17,12 +17,16 @@ valid because the receiver is a temporary array, not an immutable binding.
 
 ## Added Behavior
 
-String concatenation now works when one side is a string and the other side is a
-string, number, or boolean:
+String concatenation works only when both sides are strings. Yogi keeps
+TypeScript-like syntax here, but it does not inherit JavaScript's implicit
+primitive-to-string coercion:
 
 ```ts
-let label: string = "score=" + 10
-let text: string = label + ", ok=" + true
+let label: string = "score="
+let score: string = "10"
+let ok: string = "true"
+let text: string = label + score
+text += ", ok=" + ok
 text += ", lang=" + "yogi"
 print(text)
 ```
@@ -37,8 +41,8 @@ Template literals are lowered through the same string concatenation path:
 
 ```ts
 let name: string = "yogi"
-let score: number = 10
-let ok: boolean = true
+let score: string = "10"
+let ok: string = "true"
 
 print(`name=${name}, score=${score}, ok=${ok}`)
 ```
@@ -59,8 +63,13 @@ print(`plain`)
 
 `+` produces `number` only when both operands are numbers.
 
-`+` produces `string` when either operand is a string and the other operand is a
-string, number, or boolean.
+`+` produces `string` only when both operands are strings.
+
+Mixed string/number or string/boolean operations are rejected:
+
+```ts
+let bad: string = "score=" + 10
+```
 
 Other arithmetic operators still require numbers:
 
@@ -78,8 +87,6 @@ expressions. The semantic analyzer then types those expressions as strings.
 LLVM lowering calls runtime helpers:
 
 - `yogi_string_concat(left, right)`
-- `yogi_string_from_number(value)`
-- `yogi_string_from_boolean(value)`
 
 The backend continues to call through the Yogi runtime ABI instead of emitting
 direct allocator calls.
@@ -89,9 +96,9 @@ direct allocator calls.
 `yogi_pipeline_string_operators` covers:
 
 - `values.sort().concat(values).sort()`
-- string + number
-- string + boolean
+- string + string
 - `+=` with strings
-- template interpolation with string, number, and boolean values
+- template interpolation with string values
 - no-substitution template literals
 - semantic rejection for invalid string arithmetic
+- semantic rejection for implicit string + number/string + boolean coercion

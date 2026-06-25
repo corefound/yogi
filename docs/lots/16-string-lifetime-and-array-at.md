@@ -20,8 +20,6 @@ Runtime string helpers register the pointers they allocate:
 
 - `yogi_string_at`
 - `yogi_string_concat`
-- `yogi_string_from_number`
-- `yogi_string_from_boolean`
 - `yogi_string_slice`
 - `yogi_string_substring`
 - `yogi_string_to_upper_case`

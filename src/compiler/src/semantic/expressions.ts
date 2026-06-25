@@ -294,9 +294,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     endsWith: () => this.validateAndCreateStringSearchCall(node, rawCallee, receiver, methodName, args, source, "boolean"),
                     indexOf: () => this.validateAndCreateStringSearchCall(node, rawCallee, receiver, methodName, args, source, "number"),
                     lastIndexOf: () => this.validateAndCreateStringSearchCall(node, rawCallee, receiver, methodName, args, source, "number"),
+                    charAt: () => this.validateAndCreateStringIndexCall(node, rawCallee, receiver, methodName, args, source, "string"),
+                    charCodeAt: () => this.validateAndCreateStringIndexCall(node, rawCallee, receiver, methodName, args, source, "number"),
+                    concat: () => this.validateAndCreateStringConcatCall(node, rawCallee, receiver, methodName, args, source),
+                    repeat: () => this.validateAndCreateStringRepeatCall(node, rawCallee, receiver, methodName, args, source),
+                    padStart: () => this.validateAndCreateStringPadCall(node, rawCallee, receiver, methodName, args, source),
+                    padEnd: () => this.validateAndCreateStringPadCall(node, rawCallee, receiver, methodName, args, source),
                     toUpperCase: () => this.validateAndCreateStringTransformCall(node, rawCallee, receiver, methodName, args, source),
                     toLowerCase: () => this.validateAndCreateStringTransformCall(node, rawCallee, receiver, methodName, args, source),
                     trim: () => this.validateAndCreateStringTransformCall(node, rawCallee, receiver, methodName, args, source),
+                    trimStart: () => this.validateAndCreateStringTransformCall(node, rawCallee, receiver, methodName, args, source),
+                    trimEnd: () => this.validateAndCreateStringTransformCall(node, rawCallee, receiver, methodName, args, source),
                 };
 
                 if (!methodHandlers[methodName]) {
@@ -852,6 +860,80 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 returnKind === "boolean"
                     ? { kind: Kinds.Types.BooleanType, raw: "boolean" }
                     : { kind: Kinds.Types.NumberType, raw: "number" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateStringIndexCall(
+            node: any,
+            rawCallee: any,
+            receiver: any,
+            methodName: string,
+            args: any[],
+            source: string,
+            returnKind: "string" | "number",
+        ): any {
+            this.validateStringMethodArgumentCount(node, methodName, args, source, 0, 1);
+
+            if (args[0]) {
+                this.validateStringMethodNumberArgument(node, methodName, args[0], source, "index");
+            }
+
+            return this.createStringBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                returnKind === "string"
+                    ? { kind: Kinds.Types.StringType, raw: "string" }
+                    : { kind: Kinds.Types.NumberType, raw: "number" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateStringConcatCall(node: any, rawCallee: any, receiver: any, methodName: string, args: any[], source: string): any {
+            args.forEach((argument: any) => {
+                this.validateStringMethodStringArgument(node, methodName, argument, source, "argument");
+            });
+
+            return this.createStringBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                { kind: Kinds.Types.StringType, raw: "string" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateStringRepeatCall(node: any, rawCallee: any, receiver: any, methodName: string, args: any[], source: string): any {
+            this.validateStringMethodArgumentCount(node, methodName, args, source, 1, 1);
+            this.validateStringMethodNumberArgument(node, methodName, args[0], source, "count");
+
+            return this.createStringBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                { kind: Kinds.Types.StringType, raw: "string" },
+                methodName,
+            );
+        }
+
+        public validateAndCreateStringPadCall(node: any, rawCallee: any, receiver: any, methodName: string, args: any[], source: string): any {
+            this.validateStringMethodArgumentCount(node, methodName, args, source, 1, 2);
+            this.validateStringMethodNumberArgument(node, methodName, args[0], source, "target length");
+
+            if (args[1]) {
+                this.validateStringMethodStringArgument(node, methodName, args[1], source, "pad string");
+            }
+
+            return this.createStringBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                { kind: Kinds.Types.StringType, raw: "string" },
                 methodName,
             );
         }
@@ -2151,25 +2233,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             return done({ kind: Kinds.Types.NumberType, raw: "number" });
                         }
 
-                        if (
-                            isString(leftType) &&
-                            (
-                                isString(rightType) ||
-                                isNumber(rightType) ||
-                                isBoolean(rightType)
-                            )
-                        ) {
-                            return done({ kind: Kinds.Types.StringType, raw: "string" });
-                        }
-
-                        if (
-                            isString(rightType) &&
-                            (
-                                isString(leftType) ||
-                                isNumber(leftType) ||
-                                isBoolean(leftType)
-                            )
-                        ) {
+                        if (isString(leftType) && isString(rightType)) {
                             return done({ kind: Kinds.Types.StringType, raw: "string" });
                         }
 

@@ -11,38 +11,27 @@ file(MAKE_DIRECTORY "${TEST_WORK_DIR}")
 
 set(SOURCE "${TEST_WORK_DIR}/main.ts")
 file(WRITE "${SOURCE}" [=[
-function chainedSortAfterConcat(): number {
-    let values: number[] = [3, 1, 20]
-    let sorted: number[] = values.sort().concat(values).sort()
-
-    return sorted[0] * 100000 + sorted[1] * 10000 + sorted[2] * 1000 + sorted[3] * 100 + sorted[4] * 10 + sorted[5]
+function indexBatch(): void {
+    print("yogi".charAt(1))
+    print("yogi".charAt(99))
+    print("AZ".charCodeAt(1))
 }
 
-function stringConcat(): void {
-    let label: string = "score="
-    let score: string = "10"
-    let ok: string = "true"
-    let text: string = label + score
-    text += ", ok=" + ok
-    text += ", lang=" + "yogi"
-    print(text)
+function composeBatch(): void {
+    print("ha".repeat(3))
+    print("7".padStart(3, "0"))
+    print("7".padEnd(3, "0"))
+    print("yo".concat("g", "i"))
 }
 
-function templateInterpolation(): void {
-    let score: string = "10"
-    let ok: string = "true"
-    let name: string = "yogi"
-    print(`name=${name}, score=${score}, ok=${ok}`)
+function trimBatch(): void {
+    print("[" + "  yogi  ".trimStart() + "]")
+    print("[" + "  yogi  ".trimEnd() + "]")
 }
 
-function noSubstitutionTemplate(): void {
-    print(`plain`)
-}
-
-print(chainedSortAfterConcat())
-stringConcat()
-templateInterpolation()
-noSubstitutionTemplate()
+indexBatch()
+composeBatch()
+trimBatch()
 ]=])
 
 execute_process(
@@ -54,7 +43,7 @@ execute_process(
 )
 
 if(NOT compile_result EQUAL 0)
-	message(FATAL_ERROR "string operators pipeline compile failed:\nstdout:\n${compile_stdout}\nstderr:\n${compile_stderr}")
+	message(FATAL_ERROR "string extended methods pipeline compile failed:\nstdout:\n${compile_stdout}\nstderr:\n${compile_stderr}")
 endif()
 
 set(EXECUTABLE "${TEST_WORK_DIR}/packages/.cache/bin/main")
@@ -76,19 +65,16 @@ endif()
 file(READ "${IR}" ir)
 
 foreach(symbol
-		yogi_array_clone
-		yogi_array_sort
-		yogi_string_concat)
+		yogi_string_char_at
+		yogi_string_char_code_at
+		yogi_string_repeat
+		yogi_string_pad_start
+		yogi_string_pad_end
+		yogi_string_concat
+		yogi_string_trim_start
+		yogi_string_trim_end)
 	if(NOT ir MATCHES "${symbol}")
-		message(FATAL_ERROR "expected string operators IR to contain ${symbol}")
-	endif()
-endforeach()
-
-foreach(symbol
-		yogi_string_from_number
-		yogi_string_from_boolean)
-	if(ir MATCHES "${symbol}")
-		message(FATAL_ERROR "string operators IR should not contain implicit conversion helper ${symbol}")
+		message(FATAL_ERROR "expected string extended methods IR to contain ${symbol}")
 	endif()
 endforeach()
 
@@ -101,12 +87,12 @@ execute_process(
 )
 
 if(NOT run_result EQUAL 0)
-	message(FATAL_ERROR "string operators executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
+	message(FATAL_ERROR "string extended methods executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "132033\nscore=10, ok=true, lang=yogi\nname=yogi, score=10, ok=true\nplain\n")
+set(expected_stdout "o\n\n90\nhahaha\n007\n700\nyogi\n[yogi  ]\n[  yogi]\n")
 if(NOT run_stdout STREQUAL expected_stdout)
-	message(FATAL_ERROR "string operators executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
+	message(FATAL_ERROR "string extended methods executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
 function(expect_invalid case_name source expected)
@@ -133,28 +119,25 @@ function(expect_invalid case_name source expected)
 endfunction()
 
 expect_invalid(
-	invalid_string_operator
-	"let bad: string = \"x\" - \"y\"\n"
-	"cannot be applied"
+	invalid_concat_argument
+	"let value: string = \"x\".concat(1)\n"
+	"expects .*string"
 )
 
 expect_invalid(
-	invalid_string_number_concat
-	"let bad: string = \"score=\" + 10\n"
-	"cannot be applied"
+	invalid_pad_length
+	"let value: string = \"x\".padStart(\"3\")\n"
+	"expects .*number"
 )
 
 expect_invalid(
-	invalid_number_string_concat
-	"let bad: string = 10 + \"score\"\n"
-	"cannot be applied"
+	invalid_repeat_count
+	"let value: string = \"x\".repeat(\"bad\")\n"
+	"expects .*number"
 )
 
 expect_invalid(
-	invalid_template_number_interpolation
-	[=[
-let score: number = 10
-print(`score=${score}`)
-]=]
-	"cannot be applied"
+	invalid_char_index
+	"let value: string = \"x\".charAt(\"0\")\n"
+	"expects .*number"
 )

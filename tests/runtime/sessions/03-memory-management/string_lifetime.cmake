@@ -32,7 +32,7 @@ function arrayAtExtractsValue(): void {
 }
 
 function expressionTemporaries(): void {
-    print(("  " + "Temp" + 10 + "  ").trim())
+    print(("  " + "Temp" + "10" + "  ").trim())
     print("banana".includes("n" + "a"))
     "ignored".toUpperCase()
 }
