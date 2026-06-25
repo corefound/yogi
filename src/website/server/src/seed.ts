@@ -458,6 +458,53 @@ async function seed() {
     }
     console.log('  Linked new packages to their organizations')
 
+    // ── Developer's test user ────────────────────────────────
+    const devUser = await Models.Users.create({
+        githubUserId: '630752', githubLogin: 'brayhandeaza', displayName: 'Brayhan De Aza',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/630752?v=4',
+        profileUrl: null, email: 'brayhandeaza@gmail.com', role: 'admin', status: 'active',
+    } as any)
+    console.log(`Created user: ${devUser.githubLogin} (id=${devUser.id})`)
+
+    await createScopedPackage('brayhandeaza', 'utils-kit', {
+        description: 'Utility toolkit for everyday TypeScript development — type helpers, iterators, and async patterns.',
+        license: 'MIT',
+        totalDownloads: 1280000, weeklyDownloads: 45000, versionsCount: 8,
+        dependenciesCount: 1, dependentsCount: 320,
+        keywords: ['utilities', 'typescript', 'helpers', 'async', 'iterators'],
+        versions: [
+            { version: '1.0.0', assetSizeBytes: 8400, installCount: 28000, publishedAt: new Date('2024-06-01'), platforms: ['linux-x64-gnu'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.0.0' }] },
+            { version: '1.1.0', assetSizeBytes: 9200, minifiedSizeBytes: 3400, installCount: 62000, publishedAt: new Date('2024-11-15'), platforms: ['linux-x64-gnu', 'macos-arm64'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^1.5.0' }] },
+            { version: '2.0.0', description: 'Async iterator support and tree-shakeable builds', assetSizeBytes: 12400, minifiedSizeBytes: 4800, installCount: 145000, publishedAt: new Date('2025-05-10'), platforms: ['linux-x64-gnu', 'macos-arm64', 'wasm32-wasi'], dependencies: [{ dependencyName: 'shared-types', versionRange: '^2.0.0' }] },
+        ],
+    }, devUser)
+
+    await createScopedPackage('brayhandeaza', 'cli-tools', {
+        description: 'CLI utilities for scaffolding, linting, and project management.',
+        license: 'MIT',
+        totalDownloads: 560000, weeklyDownloads: 18000, versionsCount: 5,
+        dependenciesCount: 3, dependentsCount: 120,
+        keywords: ['cli', 'scaffold', 'lint', 'project', 'tools'],
+        versions: [
+            { version: '0.1.0', assetSizeBytes: 15200, installCount: 3400, publishedAt: new Date('2025-01-10'), platforms: ['macos-arm64', 'macos-x64'], dependencies: [{ dependencyName: 'commander', versionRange: '^11.0.0' }] },
+            { version: '1.0.0', description: 'Stable release', assetSizeBytes: 22400, minifiedSizeBytes: 8600, installCount: 24000, publishedAt: new Date('2025-04-20'), platforms: ['macos-arm64', 'macos-x64', 'linux-x64-gnu'], dependencies: [{ dependencyName: 'commander', versionRange: '^12.0.0' }, { dependencyName: 'chalk', versionRange: '^5.0.0' }] },
+        ],
+    }, devUser)
+
+    const devOrg = await Models.Organizations.create({
+        name: 'brayhandeaza-org', displayName: "Brayhan's Projects",
+        description: 'Personal and experimental projects by Brayhan.',
+        avatarUrl: null, members: ['alice', 'bob'], ownerUserId: devUser.id, status: 'active',
+    } as any)
+    console.log(`Created organization: ${devOrg.name} (id=${devOrg.id})`)
+
+    const devOrg2 = await Models.Organizations.create({
+        name: 'yogi-contrib', displayName: 'Yogi Contributors',
+        description: 'Community contributions and plugins for the Yogi ecosystem.',
+        avatarUrl: null, members: ['carol', 'dave', 'eve'], ownerUserId: devUser.id, status: 'active',
+    } as any)
+    console.log(`Created organization: ${devOrg2.name} (id=${devOrg2.id})`)
+
     // ── Metrics ──────────────────────────────────────────────
     const totalPackages = await Models.Packages.count()
     const totalVersions = await Models.PackageVersion.count()

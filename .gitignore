@@ -6,6 +6,9 @@
 node_modules/
 yarn.lock
 
+AGENTS.md
+config.toml
+
 *.db
 
 /tools/typescript/
@@ -30,3 +33,4 @@ src/pack/CMakeFiles/
 ./inputs/packages/*
 sir.json
 /yogi/
+

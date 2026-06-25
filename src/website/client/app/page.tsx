@@ -330,7 +330,7 @@ export default function Home() {
 							<h3>Publish your first package</h3>
 							<p>Share your code with the world and start building your ecosystem.</p>
 						</div>
-						<a className="btn primary" href="#">Get Started Free</a>
+						<a style={{ color: "white" }} className="btn primary" href="#">Get Started Free</a>
 					</div>
 				</section>
 			</main>
