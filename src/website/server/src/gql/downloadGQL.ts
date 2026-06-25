@@ -48,7 +48,7 @@ const resolvers = {
         downloadStats: async (_: any, args: { input: Record<string, unknown> }) => {
             const pkgId = (args.input as any).packageId;
             const period = (args.input as any).period || 'all';
-            return wrapCache(`gql:downloadStats:${pkgId}:${period}`, 30, async () => {
+            return wrapCache(`gql:downloadStats:${pkgId}:${period}`, 20, async () => {
                 const result = await Controllers.Downloads.getDownloadStats(args.input);
                 if (result.error) {
                     const err = result.error as { message?: string };

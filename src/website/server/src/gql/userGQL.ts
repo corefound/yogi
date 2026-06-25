@@ -98,7 +98,7 @@ const resolvers = {
         },
         users: async (_: any, args: { limit?: number; offset?: number; role?: string }, context: any, info: GraphQLResolveInfo) => {
             const cacheKey = `gql: users:${ args.role ?? 'all' }:${ args.limit ?? 'all' }:${ args.offset ?? '0' }`;
-            return wrapCache(cacheKey, 60, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 const fields = getQueryResponseFields(info.fieldNodes, 'users');
                 const result = await Controllers.Users.getUsers(args, fields);
                 return result.users;

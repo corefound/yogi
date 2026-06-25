@@ -57,13 +57,13 @@ const subscription = () => {
 const resolvers = {
     query: {
         metrics: async () => {
-            return wrapCache('gql:metrics', 30, async () => {
+            return wrapCache('gql:metrics', 20, async () => {
                 const result = await Controllers.Metrics.getAllMetrics();
                 return result.metrics;
             });
         },
         metric: async (_: any, args: { key: string }) => {
-            return wrapCache(`gql:metric:${args.key}`, 60, async () => {
+            return wrapCache(`gql:metric:${args.key}`, 20, async () => {
                 const result = await Controllers.Metrics.getMetric(args.key);
                 if (result.error) {
                     const err = result.error as { message?: string };

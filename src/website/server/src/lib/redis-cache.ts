@@ -1,6 +1,6 @@
 import { redis, isRedisAvailable } from '../config/redis';
 
-const DEFAULT_TTL = 30; // seconds
+const DEFAULT_TTL = 20; // seconds
 
 export async function getCache<T>(key: string): Promise<T | null> {
     if (!isRedisAvailable()) return null;

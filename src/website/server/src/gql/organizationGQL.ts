@@ -65,7 +65,7 @@ const resolvers = {
     query: {
         organizations: async (_: any, args: { limit?: number; offset?: number }, context: any, info: GraphQLResolveInfo) => {
             const cacheKey = `gql:organizations:${args.limit ?? 'all'}:${args.offset ?? '0'}`;
-            return wrapCache(cacheKey, 60, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 const fields = getQueryResponseFields(info.fieldNodes, 'organizations');
                 const result = await Controllers.Organizations.getAllOrganizations(args, fields);
                 return result.organizations;
@@ -73,13 +73,13 @@ const resolvers = {
         },
         popularOrganizations: async (_: any, args: { limit?: number }) => {
             const cacheKey = `gql:popularOrganizations:${ args.limit ?? '3' }`;
-            return wrapCache(cacheKey, 120, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 const result = await Controllers.Organizations.getPopularOrganizations({ limit: args.limit });
                 return result.organizations;
             });
         },
         organization: async (_: any, args: { name: string }, context: any, info: GraphQLResolveInfo) => {
-            return wrapCache(`gql:organization:${args.name}`, 60, async () => {
+            return wrapCache(`gql:organization:${args.name}`, 20, async () => {
                 const fields = getQueryResponseFields(info.fieldNodes, 'organization');
                 const result = await Controllers.Organizations.getOrganization(args, fields);
                 if (result.error) {
@@ -90,7 +90,7 @@ const resolvers = {
             });
         },
         organizationPackages: async (_: any, args: { orgId: number }, context: any, info: GraphQLResolveInfo) => {
-            return wrapCache(`gql:organizationPackages:${args.orgId}`, 60, async () => {
+            return wrapCache(`gql:organizationPackages:${args.orgId}`, 20, async () => {
                 const fields = getQueryResponseFields(info.fieldNodes, 'organizationPackages');
                 const result = await Controllers.Organizations.getOrganizationPackages(args, fields);
                 if (result.error) {
