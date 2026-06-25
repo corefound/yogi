@@ -138,7 +138,7 @@ export default function Home() {
 										<span className="stat-icon">{statIcons[item.icon]}</span>
 										<span>{item.name}</span>
 									</div>
-									<strong>{item.value}</strong>
+									<strong style={{ marginLeft: 3 }}>{item.value}</strong>
 									<small>{item.text}</small>
 								</div>
 							))}
