@@ -31,13 +31,13 @@ Users.init({
     githubUserId: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true,
         field: "github_user_id",
     },
 
     githubLogin: {
         type: DataTypes.STRING(100),
         allowNull: false,
+        unique: true,
         field: "github_login",
     },
 
@@ -62,6 +62,7 @@ Users.init({
     email: {
         type: DataTypes.STRING(255),
         allowNull: true,
+        unique: true,
     },
 
     role: {
@@ -90,12 +91,10 @@ Users.init({
     indexes: [
         {
             unique: true,
-            fields: ["github_user_id"],
-        },
-        {
             fields: ["github_login"],
         },
         {
+            unique: true,
             fields: ["email"],
         },
         {

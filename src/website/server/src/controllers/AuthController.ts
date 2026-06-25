@@ -25,12 +25,10 @@ export class AuthController {
         const token = await pollForAccessToken(githubClientId, deviceCode.deviceCode, deviceCode.interval);
         const githubUser = await fetchGitHubUser(token.accessToken);
 
-        const githubUserId = String(githubUser.id);
-
         const [user] = await Models.Users.findOrCreate({
-            where: { githubUserId: githubUserId as any },
+            where: { githubLogin: githubUser.login },
             defaults: {
-                githubUserId: githubUserId as any,
+                githubUserId: String(githubUser.id),
                 githubLogin: githubUser.login,
                 displayName: githubUser.name,
                 avatarUrl: githubUser.avatarUrl,
@@ -42,19 +40,19 @@ export class AuthController {
             },
         });
 
-        await Models.Users.update(
-            {
-                githubLogin: githubUser.login,
-                displayName: githubUser.name,
-                avatarUrl: githubUser.avatarUrl,
-                profileUrl: githubUser.htmlUrl,
-                email: githubUser.email,
-                lastLoginAt: new Date(),
-            },
-            { where: { githubUserId: githubUserId as any } }
-        );
+        if (user.githubUserId !== String(githubUser.id)) {
+            await Models.Users.update(
+                { githubUserId: String(githubUser.id), displayName: githubUser.name, avatarUrl: githubUser.avatarUrl, profileUrl: githubUser.htmlUrl, email: githubUser.email, lastLoginAt: new Date() },
+                { where: { id: user.id } }
+            );
+        } else {
+            await Models.Users.update(
+                { displayName: githubUser.name, avatarUrl: githubUser.avatarUrl, profileUrl: githubUser.htmlUrl, email: githubUser.email, lastLoginAt: new Date() },
+                { where: { id: user.id } }
+            );
+        }
 
-        const freshUser = await Models.Users.findOne({ where: { githubUserId: githubUserId as any } });
+        const freshUser = await Models.Users.findOne({ where: { id: user.id } });
         return { user: freshUser };
     }
 }

@@ -216,11 +216,10 @@ app.get('/auth/github/callback', async (req, res) => {
         const accessToken = await exchangeGitHubCode(code);
         const githubUser = await fetchGitHubUser(accessToken);
 
-        const githubUserId = String(githubUser.id);
         const [user] = await Models.Users.findOrCreate({
-            where: { githubUserId: githubUserId as any },
+            where: { githubLogin: githubUser.login },
             defaults: {
-                githubUserId: githubUserId as any,
+                githubUserId: String(githubUser.id),
                 githubLogin: githubUser.login,
                 displayName: githubUser.name,
                 avatarUrl: githubUser.avatarUrl,
@@ -232,14 +231,24 @@ app.get('/auth/github/callback', async (req, res) => {
             },
         });
 
-        await Models.Users.update({
-            githubLogin: githubUser.login,
-            displayName: githubUser.name,
-            avatarUrl: githubUser.avatarUrl,
-            profileUrl: githubUser.htmlUrl,
-            email: githubUser.email,
-            lastLoginAt: new Date(),
-        }, { where: { githubUserId: githubUserId as any } });
+        if (user.githubUserId !== String(githubUser.id)) {
+            await Models.Users.update({
+                githubUserId: String(githubUser.id),
+                displayName: githubUser.name,
+                avatarUrl: githubUser.avatarUrl,
+                profileUrl: githubUser.htmlUrl,
+                email: githubUser.email,
+                lastLoginAt: new Date(),
+            }, { where: { id: user.id } });
+        } else {
+            await Models.Users.update({
+                displayName: githubUser.name,
+                avatarUrl: githubUser.avatarUrl,
+                profileUrl: githubUser.htmlUrl,
+                email: githubUser.email,
+                lastLoginAt: new Date(),
+            }, { where: { id: user.id } });
+        }
 
         const sid = generateSid();
         const token = signToken({ sid, userId: user.id, role: user.role });
