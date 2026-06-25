@@ -1,13 +1,29 @@
-@import 'styles/variables';
-@import 'styles/base';
-@import 'styles/topbar';
-@import 'styles/search';
-@import 'styles/hero';
-@import 'styles/stats';
-@import 'styles/sections';
-@import 'styles/cards';
-@import 'styles/package';
-@import 'styles/docs';
-@import 'styles/home';
-@import 'styles/footer';
-@import 'styles/responsive';
+@import "styles/variables";
+@import "styles/base";
+@import "styles/topbar";
+@import "styles/search";
+@import "styles/hero";
+@import "styles/stats";
+@import "styles/sections";
+@import "styles/cards";
+@import "styles/package";
+@import "styles/docs";
+@import "styles/home";
+@import "styles/footer";
+@import "styles/responsive";
+
+.p-20 {
+  padding: 24px;
+}
+.py-20 {
+  padding: 24px 0;
+}
+.px-20 {
+  padding: 0 24px ;
+}
+.pt-20 {
+  padding: 24px 0 0 0;
+}
+.pb-20 {
+  padding: 0 0 24px 0;
+}

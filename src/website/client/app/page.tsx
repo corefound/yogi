@@ -198,9 +198,21 @@ export default function Home() {
 						{packages.map((pkg) => (
 							<a className="package-card" href={`/packages/${pkg.name}`} key={pkg.fullName}>
 								<div className="pkg-top">
-									<span className="pkg-icon">{packageIcon(pkg.name)}</span>
+									{pkg.logo ? (
+										<div className="small-package-logo">
+											<img src={pkg.logo} alt={`${pkg.name} logo`} style={{ objectFit: 'contain' }} />
+										</div>
+									) : (
+										<div className="small-package-icon">
+											<svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+												<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+												<polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+												<line x1="12" y1="22.08" x2="12" y2="12" />
+											</svg>
+										</div>
+									)}
 									<div>
-										<div className="pkg-card-name">{pkg.fullName}</div>
+										<div className="pkg-card-name">{pkg.name}</div>
 									</div>
 								</div>
 								<p>{pkg.description || 'No description'}</p>

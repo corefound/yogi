@@ -13,7 +13,7 @@ export default function MaintainersPage() {
 	return (
 		<div className="Maintainers">
 			<TopBar />
-			<main className="">
+			<main style={{ flex: 1, height: '60vh' }} className="">
 				<section className="section container">
 					<div className="section-head">
 						<div className="section-title">
