@@ -150,8 +150,17 @@ export interface ProfilePackage {
   logo?: string
 }
 
+export interface ProfileOrganization {
+  id: number
+  name: string
+  displayName?: string
+  description?: string
+  avatarUrl?: string
+}
+
 export interface ProfileUser extends User {
   packages: ProfilePackage[]
+  organizations: ProfileOrganization[]
 }
 
 export interface GetUserData {
@@ -178,6 +187,13 @@ export const GET_USER = gql`
         latestVersion
         license
         logo
+      }
+      organizations {
+        id
+        name
+        displayName
+        description
+        avatarUrl
       }
     }
   }

@@ -6,7 +6,7 @@ import { useEffect } from 'react'
 import TopBar from '@/components/TopBar'
 import Footer from '@/components/Footer'
 import { useAuth } from '@/components/AuthProvider'
-import { GET_USER, type GetUserData, type ProfilePackage } from '@/lib/queries'
+import { GET_USER, type GetUserData, type ProfilePackage, type ProfileOrganization } from '@/lib/queries'
 import { IoCloudDownloadSharp } from 'react-icons/io5'
 
 function formatCount(n: number): string {
@@ -76,6 +76,7 @@ export default function ProfilePage() {
 
   const profile = data?.user
   const packages = profile?.packages ?? []
+  const organizations = profile?.organizations ?? []
 
   return (
     <>
@@ -102,15 +103,45 @@ export default function ProfilePage() {
                 <strong>{packages.length}</strong>
                 <span>Packages</span>
               </div>
+              <div className="profile-stat">
+                <strong>{organizations.length}</strong>
+                <span>Organizations</span>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="profile-section">
+        <section className="profile-section" id="organizations">
           <div className="profile-container">
             <div className="section-head">
               <div className="section-title">
-                <h2>My Packages</h2>
+                <h2>Organizations</h2>
+                {organizations.length > 0 && <small>{organizations.length} total</small>}
+              </div>
+            </div>
+            {queryLoading && <p className="profile-loading">Loading organizations...</p>}
+            {!queryLoading && !error && organizations.length === 0 && (
+              <p className="profile-empty">No organizations yet.</p>
+            )}
+            {!queryLoading && !error && organizations.length > 0 && (
+              <div className="org-grid" style={{ marginTop: 0 }}>
+                {organizations.map((org) => (
+                  <a className="org-card" href={`/organizations/${org.name}`} key={org.name}>
+                    <div className="org-logo dark">{org.name.charAt(0).toUpperCase()}</div>
+                    <strong>{org.displayName || org.name}</strong>
+                    <p>{org.description || 'No description'}</p>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="profile-section" id="packages">
+          <div className="profile-container">
+            <div className="section-head">
+              <div className="section-title">
+                <h2>Packages</h2>
                 {packages.length > 0 && <small>{packages.length} total</small>}
               </div>
             </div>

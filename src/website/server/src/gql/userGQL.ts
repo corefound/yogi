@@ -17,6 +17,7 @@ const type = () => {
             status: String
             lastLoginAt: String
             packages: [WithOutOwnerPackagesType]
+            organizations: [OrganizationType]
         }
 
         type SingleUsersType {

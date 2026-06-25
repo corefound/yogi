@@ -63,6 +63,18 @@ resolverExtras.UsersType = {
         });
         return user?.packages || [];
     },
+    organizations: async (parent: any, args: any, context: any, info: GraphQLResolveInfo) => {
+        const fields = getQueryResponseFields(info.fieldNodes, "organizations");
+        const user = await Models.Users.findOne({
+            where: { githubLogin: parent.githubLogin },
+            attributes: ['id'],
+            include: [{
+                model: Models.Organizations, as: 'organizations',
+                attributes: ['id', 'name', 'displayName', 'description', 'avatarUrl', ...(fields?.organizations || [])],
+            }]
+        });
+        return user?.organizations || [];
+    },
 };
 
 // PackagesType → owner (as SingleUsersType, no packages recursion) + versions
