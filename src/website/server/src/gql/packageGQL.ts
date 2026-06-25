@@ -32,6 +32,7 @@ const type = () => {
             description: String
             readmeText: String
             license: String
+            logo: String
             homepageUrl: String
             repositoryUrl: String
             documentationUrl: String
@@ -45,7 +46,6 @@ const type = () => {
             dependentsCount: Int
             latestVersion: String
             keywords: [String]
-            platforms: [String]
             maintainers: [JSON]
             security: JSON
             downloadTrend: [JSON]
@@ -66,6 +66,7 @@ const type = () => {
             description: String
             readmeText: String
             license: String
+            logo: String
             homepageUrl: String
             repositoryUrl: String
             documentationUrl: String
@@ -79,7 +80,6 @@ const type = () => {
             dependentsCount: Int
             latestVersion: String
             keywords: [String]
-            platforms: [String]
             maintainers: [JSON]
             security: JSON
             downloadTrend: [JSON]
@@ -99,6 +99,7 @@ const type = () => {
             description: String
             readmeText: String
             license: String
+            logo: String
             homepageUrl: String
             repositoryUrl: String
             documentationUrl: String
@@ -112,7 +113,6 @@ const type = () => {
             dependentsCount: Int
             latestVersion: String
             keywords: [String]
-            platforms: [String]
             maintainers: [JSON]
             security: JSON
             downloadTrend: [JSON]
@@ -131,6 +131,7 @@ const inputTypes = () => {
             description: String
             readmeText: String
             license: String
+            logo: String
             ownerUserId: Int
             repositoryUrl: String
             homepageUrl: String
@@ -142,6 +143,7 @@ const inputTypes = () => {
             description: String
             readmeText: String
             license: String
+            logo: String
             repositoryUrl: String
             homepageUrl: String
             documentationUrl: String
@@ -156,6 +158,7 @@ const inputTypes = () => {
             description: String
             readmeText: String
             license: String
+            logo: String
             ownerUserId: Int
             repositoryUrl: String
             homepageUrl: String
@@ -195,7 +198,7 @@ const resolvers = {
     query: {
         packages: async (_: any, args: { limit?: number; offset?: number }, context: any, info: GraphQLResolveInfo) => {
             const cacheKey = `gql: packages:${ args.limit ?? 'all' }:${ args.offset ?? '0' }`;
-            return wrapCache(cacheKey, 30, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 const fields = getQueryResponseFields(info.fieldNodes, 'packages');
                 const result = await Controllers.Packages.getAllPackages(args, fields);
                 return result.packages;
@@ -203,7 +206,7 @@ const resolvers = {
         },
         package: async (_: any, args: { name: string }, context: any, info: GraphQLResolveInfo) => {
             const cacheKey = `gql: package:${ args.name }`;
-            return wrapCache(cacheKey, 60, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 const fields = getQueryResponseFields(info.fieldNodes, 'package');
                 const result = await Controllers.Packages.getPackage(args, fields);
                 if (result.error) {
@@ -215,7 +218,7 @@ const resolvers = {
         },
         trendingPackages: async (_: any, args: { limit?: number }, context: any, info: GraphQLResolveInfo) => {
             const cacheKey = `gql: trendingPackages:${ args.limit ?? '10' }`;
-            return wrapCache(cacheKey, 60, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 const fields = getQueryResponseFields(info.fieldNodes, 'trendingPackages');
                 const result = await Controllers.Packages.getTrendingPackages(args, fields);
                 return result.packages;
@@ -223,26 +226,26 @@ const resolvers = {
         },
         categories: async () => {
             const cacheKey = `gql: categories`;
-            return wrapCache(cacheKey, 120, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 const result = await Controllers.Packages.getCategories();
                 return result.categories;
             });
         },
         categoriesList: async (_: any, args: { limit?: number }) => {
             const cacheKey = `gql: categoriesList:${ args.limit ?? 'all' }`;
-            return wrapCache(cacheKey, 120, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 return await Controllers.Packages.getCategories({ limit: args.limit });
             });
         },
         category: async (_: any, args: { slug: string }) => {
             const cacheKey = `gql: category:${ args.slug }`;
-            return wrapCache(cacheKey, 120, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 return await Controllers.Packages.getCategory({ slug: args.slug });
             });
         },
         packagesByCategory: async (_: any, args: { slug: string }, context: any, info: GraphQLResolveInfo) => {
             const cacheKey = `gql: packagesByCategory:${ args.slug }`;
-            return wrapCache(cacheKey, 60, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 const fields = getQueryResponseFields(info.fieldNodes, 'packagesByCategory');
                 const result = await Controllers.Packages.getPackagesByCategory({ slug: args.slug }, fields);
                 return result.packages;
@@ -251,7 +254,7 @@ const resolvers = {
         search: async (_: any, args: { query: string; limit?: number }, context: any, info: GraphQLResolveInfo) => {
             if (!args.query || args.query.trim().length < 2) return { packages: [], organizations: [] };
             const cacheKey = `gql: search:${ args.query }:${ args.limit ?? 5 }`;
-            return wrapCache(cacheKey, 10, async () => {
+            return wrapCache(cacheKey, 20, async () => {
                 return await Controllers.Packages.search({ query: args.query, limit: args.limit });
             });
         },

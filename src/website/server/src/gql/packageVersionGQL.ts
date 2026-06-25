@@ -1,6 +1,8 @@
 import { GraphQLError, GraphQLResolveInfo } from 'graphql';
 import { Controllers } from '../controllers';
 import { getQueryResponseFields } from '../helpers';
+import { getVersionProfile } from '../services/VersionProfileService';
+import { wrapCache } from '../lib/redis-cache';
 
 const type = () => {
     return `
@@ -17,6 +19,7 @@ const type = () => {
             checksum: String
             tarballUrl: String
             status: String
+            platforms: [String]
             publishedAt: String
             publishedByUserId: Int
             createdAt: String
@@ -38,6 +41,7 @@ const type = () => {
             checksum: String
             tarballUrl: String
             status: String
+            platforms: [String]
             publishedAt: String
             publishedByUserId: Int
             createdAt: String
@@ -58,10 +62,62 @@ const type = () => {
             checksum: String
             tarballUrl: String
             status: String
+            platforms: [String]
             publishedAt: String
             publishedByUserId: Int
             createdAt: String
             updatedAt: String
+        }
+
+        type VersionProfileVersionType {
+            id: Int
+            version: String
+            description: String
+            assetSizeBytes: String
+            installCount: String
+            platforms: [String]
+            publishedAt: String
+        }
+
+        type VersionProfileType {
+            packageId: Int
+            fullName: String
+            scope: String
+            name: String
+            displayName: String
+            description: String
+            license: String
+            logo: String
+            status: String
+            verificationStatus: String
+            repositoryUrl: String
+            homepageUrl: String
+            documentationUrl: String
+            totalDownloads: Int
+            weeklyDownloads: Int
+            versionsCount: Int
+            dependenciesCount: Int
+            dependentsCount: Int
+            keywords: [String]
+            maintainers: [JSON]
+            owner: SingleUsersType
+            versionId: Int
+            version: String
+            versionDescription: String
+            versionReadmeText: String
+            assetSizeBytes: String
+            minifiedSizeBytes: String
+            installCount: String
+            checksum: String
+            tarballUrl: String
+            platforms: [String]
+            dependencies: [JSON]
+            assets: [JSON]
+            publishedAt: String
+            publishedByUserId: Int
+            isLatestVersion: Boolean
+            installCommand: String
+            versions: [VersionProfileVersionType]
         }
     `;
 };
@@ -96,6 +152,7 @@ const inputTypes = () => {
 const query = () => {
     return `
         version(packageName: String!, version: String!): VersionType
+        versionProfile(name: String!, version: String!): VersionProfileType
         versions(packageName: String, limit: Int, offset: Int): [VersionType]
         packageUpdates(days: Int!): Int
     `;
@@ -124,6 +181,14 @@ const resolvers = {
                 throw new GraphQLError(err.message || 'Package version not found');
             }
             return result.version;
+        },
+        versionProfile: async (_: any, args: { name: string; version: string }) => {
+            const cacheKey = `gql: versionProfile:${ args.name }:${ args.version }`;
+            return wrapCache(cacheKey, 20, async () => {
+                const profile = await getVersionProfile(args.name, args.version);
+                if (!profile) throw new GraphQLError('Version profile not found');
+                return profile;
+            });
         },
         versions: async (_: any, args: { packageName?: string; limit?: number; offset?: number }, context: any, info: GraphQLResolveInfo) => {
             const fields = getQueryResponseFields(info.fieldNodes, 'versions');
