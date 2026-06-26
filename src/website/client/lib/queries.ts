@@ -433,6 +433,19 @@ export const GET_ORGANIZATION_DETAIL = gql`
   }
 `
 
+export const CREATE_PACKAGE = gql`
+  mutation CreatePackage($input: CreatePackageInput!) {
+    createPackage(input: $input) {
+      id
+      name
+      fullName
+      description
+      license
+      scope
+    }
+  }
+`
+
 export const CREATE_ORGANIZATION = gql`
   mutation CreateOrganization($input: CreateOrganizationInput!) {
     createOrganization(input: $input) {

@@ -237,6 +237,77 @@
   cursor: not-allowed;
 }
 
+/* ── Visibility radios ─────────────────────────── */
+
+.create-org-visibility {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.create-org-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.create-org-radio:hover {
+  border-color: var(--muted-2);
+}
+
+.create-org-radio input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--blue);
+}
+
+.create-org-radio-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.create-org-radio-body strong {
+  font-size: 14px;
+}
+
+.create-org-radio-body span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── License select ────────────────────────────── */
+
+.create-org-license-group {
+  display: flex;
+  gap: 8px;
+}
+
+.create-org-license-select {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.create-org-license-select:focus {
+  border-color: var(--blue-2);
+}
+
+.create-org-license-custom {
+  flex: 1;
+}
+
 /* ── Responsive ─────────────────────────────────── */
 
 @media (max-width: 600px) {
