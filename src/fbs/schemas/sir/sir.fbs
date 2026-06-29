@@ -286,6 +286,46 @@ table FunctionExpression {
   effect_summary:FunctionEffectSummary;
 }
 
+table LayoutMetadata {
+  pointer:bool = false;
+  mutable:bool = false;
+  nullable:bool = false;
+  bits:int = 0;
+  signed:bool = false;
+  align:int = 0;
+  packed:bool = false;
+  encoding:string;
+  storage:string;
+  max_length:int = 0;
+  null_terminated:bool = false;
+}
+
+table StructFieldDeclaration {
+  name:string;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table StructDeclaration {
+  name:string;
+  type_parameters:[TypeRef];
+  extends:TypeRef;
+  fields:[StructFieldDeclaration];
+  has_layout:bool = false;
+  layout:LayoutMetadata;
+  has_validate:bool = false;
+  validate_chain:[string];
+  is_scalar:bool = false;
+  exported:bool = false;
+  symbol_id:int = -1;
+  scope_id:int = -1;
+  linkage_name:string;
+  qualified_name:string;
+  source:string;
+  position:SourcePosition;
+}
+
 union SirNodeValue {
   Constant,
   ExternDeclaration,
@@ -311,7 +351,8 @@ union SirNodeValue {
   DefaultClause,
   SwitchStatement,
   FunctionDeclaration,
-  ArrayDeclaration
+  ArrayDeclaration,
+  StructDeclaration
 }
 
 table SirNode {
