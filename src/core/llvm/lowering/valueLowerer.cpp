@@ -171,6 +171,12 @@ namespace yogi::core::llvm::internal {
 			return callRuntime("yogi_print_string", voidType, {empty});
 		}
 
+		const auto structName = structTypeName(argumentSemanticType);
+		if (!structName.empty() && context.structTypes.contains(structName)) {
+			auto *value = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+			return printStructObject(structName, value);
+		}
+
 		switch (resolvedTypeKind(argumentSemanticType)) {
 			case Yogi::Sir::TypeKind_number_type: {
 				auto *value = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
@@ -203,6 +209,16 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_tuple_type: {
 				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
 				return callRuntime("yogi_print_array", voidType, {value});
+			}
+
+			case Yogi::Sir::TypeKind_type_literal: {
+				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
+				return callRuntime("yogi_print_object", voidType, {value});
+			}
+
+			case Yogi::Sir::TypeKind_type_reference: {
+				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
+				return callRuntime("yogi_print_object", voidType, {value});
 			}
 
 			case Yogi::Sir::TypeKind_null_type: {
@@ -1594,6 +1610,39 @@ namespace yogi::core::llvm::internal {
 		return result;
 	}
 
+	::llvm::Value *ValueLowerer::printStructObject(
+		const std::string &structName,
+		::llvm::Value *structValue
+	) {
+		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
+
+		if (
+			structName.empty() ||
+			!structValue ||
+			!context.structFields.contains(structName)
+		) {
+			auto *value = context.builder.CreateGlobalString("[aggregate]");
+			return callRuntime("yogi_print_string", voidType, {value});
+		}
+
+		auto *object = callRuntime("yogi_object_create", opaquePointer(), {});
+
+		for (const auto &field: context.structFields[structName]) {
+			auto *fieldValue = context.builder.CreateExtractValue(
+				structValue,
+				{static_cast<unsigned>(field.index)},
+				"struct.print." + sanitizeSymbol(field.name)
+			);
+			auto *boxedValue = boxAny(fieldValue, field.type);
+			auto *key = context.builder.CreateGlobalString(field.name);
+			callRuntime("yogi_object_set", voidType, {object, key, boxedValue});
+		}
+
+		auto *result = callRuntime("yogi_print_object", voidType, {object});
+		callRuntime("yogi_object_destroy", voidType, {object});
+		return result;
+	}
+
 	void ValueLowerer::emitStructValidateChain(const std::string &structName, ::llvm::Value *structValue) {
 		if (!context.structValidateChains.contains(structName)) {
 			return;
@@ -2733,6 +2782,9 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_tuple_type:
 				return callRuntime("yogi_any_from_array", opaquePointer(), {value});
 
+			case Yogi::Sir::TypeKind_type_literal:
+				return callRuntime("yogi_any_from_object", opaquePointer(), {value});
+
 			case Yogi::Sir::TypeKind_null_type:
 				return callRuntime("yogi_any_null", opaquePointer(), {});
 
@@ -2762,6 +2814,9 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_array_type:
 			case Yogi::Sir::TypeKind_tuple_type:
 				return callRuntime("yogi_any_to_array", opaquePointer(), {value});
+
+			case Yogi::Sir::TypeKind_type_literal:
+				return callRuntime("yogi_any_to_object", opaquePointer(), {value});
 
 			case Yogi::Sir::TypeKind_null_type:
 				return callRuntime("yogi_any_to_null", opaquePointer(), {value});

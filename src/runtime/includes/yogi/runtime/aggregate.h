@@ -17,6 +17,9 @@ namespace yogi::runtime {
 
 			void set(const char *name, void *value);
 			void *get(const char *name) const;
+			std::size_t length() const;
+			const char *keyAt(std::size_t index) const;
+			void *valueAt(std::size_t index) const;
 			void destroy();
 
 		private:

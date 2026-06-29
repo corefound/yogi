@@ -192,6 +192,10 @@ void *yogi_any_from_array(void *value) {
 	return yogi::runtime::AnyValue::fromArray(value);
 }
 
+void *yogi_any_from_object(void *value) {
+	return yogi::runtime::AnyValue::fromObject(value);
+}
+
 double yogi_any_to_number(void *value) {
 	return yogi::runtime::AnyValue::require(value, "number")->asNumber();
 }
@@ -206,6 +210,10 @@ const char *yogi_any_to_string(void *value) {
 
 void *yogi_any_to_array(void *value) {
 	return yogi::runtime::AnyValue::require(value, "array")->asArray();
+}
+
+void *yogi_any_to_object(void *value) {
+	return yogi::runtime::AnyValue::require(value, "object")->asObject();
 }
 
 void *yogi_any_to_null(void *value) {

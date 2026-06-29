@@ -171,6 +171,9 @@ namespace yogi::runtime {
 
 				case YOGI_ANY_ARRAY:
 					return leftAny->asArray() == rightAny->asArray();
+
+				case YOGI_ANY_OBJECT:
+					return leftAny->asObject() == rightAny->asObject();
 			}
 
 			return false;
@@ -224,6 +227,9 @@ namespace yogi::runtime {
 
 				case YOGI_ANY_ARRAY:
 					return arrayStringLength(static_cast<const ArrayValue *>(any->asArray()));
+
+				case YOGI_ANY_OBJECT:
+					return 15;
 			}
 
 			return 0;
@@ -278,6 +284,9 @@ namespace yogi::runtime {
 
 					return target;
 				}
+
+				case YOGI_ANY_OBJECT:
+					return appendText(target, "[object Object]");
 			}
 
 			return target;
@@ -341,6 +350,31 @@ namespace yogi::runtime {
 		}
 
 		const auto index = find(name);
+
+		if (index >= propertyCount) {
+			return AnyValue::undefined();
+		}
+
+		return properties[index].value ? properties[index].value : AnyValue::undefined();
+	}
+
+	std::size_t ObjectValue::length() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ObjectValue *>(this), "object length after destroy/drop", "object value");
+		return propertyCount;
+	}
+
+	const char *ObjectValue::keyAt(std::size_t index) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ObjectValue *>(this), "object key read after destroy/drop", "object value");
+
+		if (index >= propertyCount) {
+			return "";
+		}
+
+		return properties[index].key ? properties[index].key : "";
+	}
+
+	void *ObjectValue::valueAt(std::size_t index) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ObjectValue *>(this), "object value read after destroy/drop", "object value");
 
 		if (index >= propertyCount) {
 			return AnyValue::undefined();

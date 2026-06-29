@@ -15,6 +15,7 @@ enum YogiAnyTag {
 	YOGI_ANY_BOOLEAN = 3,
 	YOGI_ANY_STRING = 4,
 	YOGI_ANY_ARRAY = 5,
+	YOGI_ANY_OBJECT = 6,
 };
 
 void *yogi_any_undefined(void);
@@ -23,11 +24,13 @@ void *yogi_any_from_number(double value);
 void *yogi_any_from_boolean(bool value);
 void *yogi_any_from_string(const char *value);
 void *yogi_any_from_array(void *value);
+void *yogi_any_from_object(void *value);
 
 double yogi_any_to_number(void *value);
 bool yogi_any_to_boolean(void *value);
 const char *yogi_any_to_string(void *value);
 void *yogi_any_to_array(void *value);
+void *yogi_any_to_object(void *value);
 void *yogi_any_to_null(void *value);
 void *yogi_any_to_undefined(void *value);
 bool yogi_any_is_nullish(void *value);
@@ -37,6 +40,7 @@ void yogi_print_boolean(bool value);
 void yogi_print_string(const char *value);
 void yogi_print_any(void *value);
 void yogi_print_array(void *value);
+void yogi_print_object(void *value);
 
 unsigned long long yogi_string_length(const char *value);
 const char *yogi_string_at(const char *value, unsigned long long index);

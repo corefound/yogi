@@ -90,6 +90,10 @@ namespace yogi::core::llvm::internal {
 				::llvm::StructType *structType,
 				const std::vector<ModuleLoweringContext::StructFieldInfo> &fields
 			);
+			::llvm::Value *printStructObject(
+				const std::string &structName,
+				::llvm::Value *structValue
+			);
 			void emitStructValidateChain(const std::string &structName, ::llvm::Value *structValue);
 			::llvm::Value *coerceStructForValidator(
 				const std::string &sourceStructName,

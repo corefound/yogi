@@ -15,6 +15,7 @@ namespace yogi::runtime {
 			static AnyValue *fromBoolean(bool value);
 			static AnyValue *fromString(const char *value);
 			static AnyValue *fromArray(void *value);
+			static AnyValue *fromObject(void *value);
 			static const AnyValue *require(void *value, const char *targetType);
 
 			YogiAnyTag tag() const;
@@ -24,6 +25,7 @@ namespace yogi::runtime {
 			bool asBoolean() const;
 			const char *asString() const;
 			void *asArray() const;
+			void *asObject() const;
 			void *asNull() const;
 			void *asUndefined() const;
 			bool isNullish() const;
@@ -40,6 +42,7 @@ namespace yogi::runtime {
 				bool boolean;
 				const char *string;
 				void *array;
+				void *object;
 			} storage;
 	};
 

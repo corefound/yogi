@@ -51,6 +51,12 @@ namespace yogi::runtime {
 		return anyValue;
 	}
 
+	AnyValue *AnyValue::fromObject(void *value) {
+		AnyValue *anyValue = allocate(YOGI_ANY_OBJECT);
+		anyValue->storage.object = value;
+		return anyValue;
+	}
+
 	const AnyValue *AnyValue::require(void *value, const char *targetType) {
 		if (!value) {
 			RuntimeError::abortCast("null pointer", targetType);
@@ -77,6 +83,8 @@ namespace yogi::runtime {
 				return "string";
 			case YOGI_ANY_ARRAY:
 				return "array";
+			case YOGI_ANY_OBJECT:
+				return "object";
 		}
 
 		return "unknown";
@@ -100,6 +108,11 @@ namespace yogi::runtime {
 	void *AnyValue::asArray() const {
 		requireTag(YOGI_ANY_ARRAY, "array");
 		return storage.array;
+	}
+
+	void *AnyValue::asObject() const {
+		requireTag(YOGI_ANY_OBJECT, "object");
+		return storage.object;
 	}
 
 	void *AnyValue::asNull() const {
