@@ -46,6 +46,22 @@ namespace yogi::runtime {
         std::abort();
     }
 
+    void RuntimeError::abortStructValidation(const char* structName, const char* validatorName) {
+        std::fprintf(
+            stderr,
+            "yogi runtime struct validation error: struct '%s' failed validator '%s'\n",
+            safeText(structName, "<unknown>"),
+            safeText(validatorName, "<unknown>"));
+        printLocation(
+            "detected",
+            MemoryManager::currentMemoryModule(),
+            MemoryManager::currentMemoryFunction(),
+            MemoryManager::currentMemorySourcePath(),
+            MemoryManager::currentMemorySourceLine(),
+            MemoryManager::currentMemorySourceColumn());
+        std::abort();
+    }
+
     void RuntimeError::abortOwnership(const char* reason, const void* address, const char* typeName) {
         std::fprintf(stderr, "yogi runtime ownership error: %s at %p", reason ? reason : "ownership violation", address);
 

@@ -524,4 +524,8 @@ void yogi_runtime_abort_cast(const char *fromType, const char *toType) {
 	yogi::runtime::RuntimeError::abortCast(fromType, toType);
 }
 
+void yogi_struct_validate_failed(const char *structName, const char *validatorName) {
+	yogi::runtime::RuntimeError::abortStructValidation(structName, validatorName);
+}
+
 }
