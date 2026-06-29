@@ -60,7 +60,7 @@ namespace yogi::core::llvm::internal {
 				const Yogi::Sir::TypeRef *targetSemanticType = nullptr,
 				const Yogi::Sir::TypeRef *sourceSemanticType = nullptr
 			);
-			::llvm::Value *toNumber(::llvm::Value *value);
+			::llvm::Value *toNumber(::llvm::Value *value, const Yogi::Sir::TypeRef *semanticType = nullptr);
 			::llvm::Value *toBoolean(::llvm::Value *value);
 
 		private:
@@ -114,6 +114,7 @@ namespace yogi::core::llvm::internal {
 				const Yogi::Sir::TypeRef *expectedSemanticType
 			);
 			::llvm::Value *compare(::llvm::Value *left, ::llvm::Value *right, bool equals);
+			bool isSignedIntegerSemanticType(const Yogi::Sir::TypeRef *type) const;
 			::llvm::Value *lowerNullish(
 				const Yogi::Sir::BinaryExpression *binary,
 				::llvm::Type *expectedType,

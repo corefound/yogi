@@ -363,6 +363,11 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
         }
 
         hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+            const directModifiers = (node as any).modifiers;
+            if (directModifiers?.some?.((modifier: any) => modifier.kind === kind)) {
+                return true;
+            }
+
             if (!ts.canHaveModifiers(node)) {
                 return false;
             }

@@ -359,7 +359,7 @@ export function StructSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
             if (layoutMember.returnType && !this.isLayoutHookReturnType(layoutMember.returnType)) {
                 const message =
                     `layout() in struct ${Helpers.RED}'${structName}'${Helpers.RESET} must return ` +
-                    `${Helpers.BLUE}'Layout<T>'${Helpers.RESET}`;
+                    `${Helpers.BLUE}'Layout<T>'${Helpers.RESET} or ${Helpers.BLUE}'IntegerLayout'${Helpers.RESET}`;
 
                 layoutMember.arrowLength = layoutMember.raw?.length ?? memberName?.length ?? 1;
 
@@ -368,7 +368,7 @@ export function StructSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                     layoutMember.position ?? structNode.position,
                     structNode.raw ?? structNode.source,
                     layoutMember,
-                    "  = use an explicit layout type such as 'Layout<Packet>'",
+                    "  = use an explicit layout type such as 'Layout<Packet>' or 'IntegerLayout'",
                 );
             }
 
@@ -396,6 +396,10 @@ export function StructSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
 
             const name = this.getTypeReferenceName(type);
             const args = type.arguments ?? type.typeArguments ?? [];
+
+            if (name === "IntegerLayout") {
+                return true;
+            }
 
             if (name !== "Layout" && name !== "layout") {
                 return false;
@@ -624,6 +628,7 @@ export function StructSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                         if (typeof normalized === "boolean") metadata.nullable = normalized;
                         break;
                     case "bits":
+                    case "size":
                         if (typeof normalized === "number") metadata.bits = normalized;
                         break;
                     case "signed":
@@ -651,6 +656,40 @@ export function StructSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                         // Unknown layout properties are silently ignored
                         break;
                 }
+            }
+
+            this.normalizeIntegerLayoutMetadata(metadata, structNode);
+        }
+
+        normalizeIntegerLayoutMetadata(metadata: SemanticLayoutMetadata, structNode: any): void {
+            if (metadata.bits === undefined || metadata.bits === null || metadata.bits === 0) {
+                return;
+            }
+
+            const supportedSizes = new Set([8, 16, 32, 64, 128]);
+            if (!Number.isInteger(metadata.bits) || !supportedSizes.has(metadata.bits)) {
+                const structName = this.getNameText(structNode.name);
+                const message =
+                    `layout() in struct ${Helpers.RED}'${structName}'${Helpers.RESET} has unsupported integer size ` +
+                    `${Helpers.RED}'${metadata.bits}'${Helpers.RESET}`;
+
+                structNode.arrowLength = structNode.raw?.length ?? structName.length;
+
+                this.throwError(
+                    message,
+                    structNode.position,
+                    structNode.raw ?? structNode.source,
+                    structNode,
+                    "  = supported IntegerLayout sizes are 8, 16, 32, 64, and 128",
+                );
+            }
+
+            if (metadata.signed === undefined) {
+                metadata.signed = true;
+            }
+
+            if (metadata.align === undefined || metadata.align === 0) {
+                metadata.align = metadata.bits === 128 ? 16 : metadata.bits / 8;
             }
         }
 

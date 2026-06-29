@@ -18,6 +18,27 @@ namespace yogi::core::llvm::internal {
 		std::string typeName(const Yogi::Sir::TypeRef *type) {
 			return type ? fbString(type->name()) : "";
 		}
+
+		::llvm::Type *integerLayoutType(::llvm::LLVMContext &context, const Yogi::Sir::LayoutMetadata *layout) {
+			if (!layout || layout->bits() == 0) {
+				return nullptr;
+			}
+
+			switch (layout->bits()) {
+				case 8:
+					return ::llvm::Type::getInt8Ty(context);
+				case 16:
+					return ::llvm::Type::getInt16Ty(context);
+				case 32:
+					return ::llvm::Type::getInt32Ty(context);
+				case 64:
+					return ::llvm::Type::getInt64Ty(context);
+				case 128:
+					return ::llvm::IntegerType::get(context, 128);
+				default:
+					return nullptr;
+			}
+		}
 	}
 
 	TypeLowerer::TypeLowerer(ModuleLoweringContext &context)
@@ -54,6 +75,11 @@ namespace yogi::core::llvm::internal {
 				}
 
 				if (context.structScalarTypes.contains(name)) {
+					if (context.structLayouts.contains(name)) {
+						if (auto *layoutType = integerLayoutType(context.llvmContext, context.structLayouts[name])) {
+							return layoutType;
+						}
+					}
 					return lower(context.structScalarTypes[name]);
 				}
 

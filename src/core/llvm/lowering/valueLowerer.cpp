@@ -173,8 +173,8 @@ namespace yogi::core::llvm::internal {
 
 		switch (resolvedTypeKind(argumentSemanticType)) {
 			case Yogi::Sir::TypeKind_number_type: {
-				auto *value = lower(argument, ::llvm::Type::getDoubleTy(context.llvmContext), argumentSemanticType);
-				return callRuntime("yogi_print_number", voidType, {toNumber(value)});
+				auto *value = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
+				return callRuntime("yogi_print_number", voidType, {toNumber(value, argumentSemanticType)});
 			}
 
 			case Yogi::Sir::TypeKind_boolean_type: {
@@ -1406,6 +1406,17 @@ namespace yogi::core::llvm::internal {
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
 		if (const auto *number = constant->value_as_NumberConstant()) {
+			if (expectedType && expectedType->isIntegerTy() && !expectedType->isIntegerTy(1)) {
+				auto *integerType = ::llvm::cast<::llvm::IntegerType>(expectedType);
+				auto literal = static_cast<int64_t>(number->value());
+				auto value = ::llvm::APInt(
+					integerType->getBitWidth(),
+					static_cast<uint64_t>(literal),
+					isSignedIntegerSemanticType(expectedSemanticType)
+				);
+				return ::llvm::ConstantInt::get(integerType, value);
+			}
+
 			auto *value = ::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), number->value());
 			return cast(value, expectedType, expectedSemanticType, constant->type());
 		}
@@ -2494,13 +2505,21 @@ namespace yogi::core::llvm::internal {
 		return equals ? result : context.builder.CreateNot(result, "netmp");
 	}
 
-	::llvm::Value *ValueLowerer::toNumber(::llvm::Value *value) {
+	::llvm::Value *ValueLowerer::toNumber(::llvm::Value *value, const Yogi::Sir::TypeRef *semanticType) {
 		if (value->getType()->isDoubleTy()) {
 			return value;
 		}
 
 		if (value->getType()->isIntegerTy(1)) {
 			return context.builder.CreateUIToFP(value, ::llvm::Type::getDoubleTy(context.llvmContext), "booltofptmp");
+		}
+
+		if (value->getType()->isIntegerTy()) {
+			if (isSignedIntegerSemanticType(semanticType)) {
+				return context.builder.CreateSIToFP(value, ::llvm::Type::getDoubleTy(context.llvmContext), "inttodouble");
+			}
+
+			return context.builder.CreateUIToFP(value, ::llvm::Type::getDoubleTy(context.llvmContext), "uinttodouble");
 		}
 
 		return ::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), 0.0);
@@ -2625,11 +2644,25 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (targetType->isDoubleTy()) {
-			return toNumber(value);
+			return toNumber(value, sourceSemanticType);
 		}
 
 		if (targetType->isIntegerTy(1)) {
 			return toBoolean(value);
+		}
+
+		if (targetType->isIntegerTy()) {
+			if (value->getType()->isDoubleTy()) {
+				if (isSignedIntegerSemanticType(targetSemanticType)) {
+					return context.builder.CreateFPToSI(value, targetType, "doubletosint");
+				}
+
+				return context.builder.CreateFPToUI(value, targetType, "doubletouint");
+			}
+
+			if (value->getType()->isIntegerTy()) {
+				return context.builder.CreateIntCast(value, targetType, isSignedIntegerSemanticType(sourceSemanticType), "intcasttmp");
+			}
 		}
 
 		if (targetType->isPointerTy()) {
@@ -2641,6 +2674,24 @@ namespace yogi::core::llvm::internal {
 		}
 
 		return types.zero(targetType);
+	}
+
+	bool ValueLowerer::isSignedIntegerSemanticType(const Yogi::Sir::TypeRef *type) const {
+		if (!type || type->kind() != Yogi::Sir::TypeKind_type_reference) {
+			return true;
+		}
+
+		const auto name = fbString(type->name());
+		if (name.empty() || !context.structLayouts.contains(name)) {
+			return true;
+		}
+
+		const auto *layout = context.structLayouts.at(name);
+		if (!layout || layout->bits() == 0) {
+			return true;
+		}
+
+		return layout->signed_();
 	}
 
 	::llvm::Value *ValueLowerer::boxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType) {

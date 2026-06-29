@@ -21,6 +21,7 @@ without re-auditing the whole compiler.
 - [x] Readonly properties on object-like interfaces/type aliases
 - [x] Optional properties on object-like interfaces/type aliases
 - [x] Inherited readonly/optional fields in real structs
+- [x] Direct `readonly` and optional field syntax inside `struct` bodies
 - [x] Object-like intersection types
 - [x] Primitive and aggregate type aliases lower through their resolved backend type
 - [x] Interface extension with inherited object-like members
@@ -31,16 +32,18 @@ without re-auditing the whole compiler.
 - [x] Structs extending interfaces
 - [x] Structs extending object-like type aliases
 - [x] Reject struct extension from non-object type aliases
+- [x] Reject method/call/construct/index signatures in data-only interface/type contracts
 - [x] Reject implicit conversion between real structs and object-runtime contracts
 - [x] Explicit object literal adapters from structs to interface/type contracts
 - [x] Struct `layout(): Layout<T>` hook with compile-time readonly `this`
+- [x] Numeric scalar `layout(): IntegerLayout` hook lowering to fixed-width LLVM integers
 - [x] Struct `validate(): boolean` hook with runtime readonly `this`
 - [x] Struct SIR FlatBuffer serialization
 - [x] Struct LLVM lowering as real named LLVM structs
 - [x] Struct runtime validation failure hook
 - [ ] Higher-order type machinery such as mapped, conditional, infer, and keyof-style type operators
-- [ ] Direct `readonly` and optional field syntax inside `struct` bodies once the custom parser models those modifiers correctly
-- [ ] Full interface method/call signature lowering policy
+- [ ] Function-value model for interface/type behavior contracts
+- [ ] Explicit runtime conversion API for non-literal `number` to fixed-width numeric structs
 - [ ] Explicit copy/move policy for resource-owning structs
 - [ ] Explicit adapter/copy semantics for resource-owning structs crossing interface/type contract boundaries
 

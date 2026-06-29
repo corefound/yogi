@@ -48,6 +48,21 @@ struct ChildPacket extends BasePacket {
 struct UserId extends number {
 }
 
+struct MyNumber extends number {
+}
+
+struct Int8 extends number {
+    layout(): IntegerLayout {
+        return { size: 8, signed: true }
+    }
+}
+
+struct UInt8 extends number {
+    layout(): IntegerLayout {
+        return { size: 8, signed: false }
+    }
+}
+
 interface Labeled {
     label: string
 }
@@ -169,6 +184,11 @@ struct LabelledScore extends TextLabel<string> {
 struct Config extends ConfigShape {
 }
 
+struct DirectConfig {
+    readonly id: number
+    label?: string
+}
+
 function makePoint(): Point {
     return { x: 2, y: 3 }
 }
@@ -233,8 +253,13 @@ let labelled: LabelledScore = { label: "score", score: 30 }
 let audit: AuditRecord = { id: 44 }
 let namedMetric: NamedMetric = { name: "nm", value: 55 }
 let config: Config = { id: 66 }
+let directConfig: DirectConfig = { id: 77 }
 let box: PointBox = { point: fromFunction }
 let id: UserId = 10
+let myNumber: MyNumber = 1
+let signedMax: Int8 = 127
+let signedMin: Int8 = -128
+let unsignedMax: UInt8 = 255
 
 print(point.x)
 print(point.y)
@@ -280,8 +305,14 @@ print(namedMetric.name)
 print(namedMetric.value)
 print(config.id)
 print(config.label ?? "default")
+print(directConfig.id)
+print(directConfig.label ?? "direct-default")
 print(box.point.y)
 print(id)
+print(myNumber)
+print(signedMax)
+print(signedMin)
+print(unsignedMax)
 ]=])
 
 execute_process(
@@ -320,7 +351,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "struct declarations executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "4\n5\n6\n9\nok\n1\n7\n5\nscores\n2\n4\n15\n9\nmix\n1\n2\nlevel\n2\n10\nana\n3\ndaily\n42\n4\n12\n12\n12\nboxed\n14\nleft\n5\nnums\n3\n21\nscore\n30\n44\nnone\nnm\n55\n66\ndefault\n3\n10\n")
+set(expected_stdout "4\n5\n6\n9\nok\n1\n7\n5\nscores\n2\n4\n15\n9\nmix\n1\n2\nlevel\n2\n10\nana\n3\ndaily\n42\n4\n12\n12\n12\nboxed\n14\nleft\n5\nnums\n3\n21\nscore\n30\n44\nnone\nnm\n55\n66\ndefault\n77\ndirect-default\n3\n10\n1\n127\n-128\n255\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "struct declarations executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -337,6 +368,30 @@ endif()
 
 if(NOT ir_text MATCHES "%ChildPacket = type <\\{ double, double \\}>")
 	message(FATAL_ERROR "layout() compile-time this metadata did not lower ChildPacket as packed:\n${ir_text}")
+endif()
+
+if(NOT ir_text MATCHES "@_yogi_main_ts_myNumber = internal global double")
+	message(FATAL_ERROR "scalar struct without explicit integer layout should still lower as double:\n${ir_text}")
+endif()
+
+if(NOT ir_text MATCHES "@_yogi_main_ts_signedMax = internal global i8 0")
+	message(FATAL_ERROR "signed Int8 scalar struct did not lower global storage as i8:\n${ir_text}")
+endif()
+
+if(NOT ir_text MATCHES "@_yogi_main_ts_unsignedMax = internal global i8 0")
+	message(FATAL_ERROR "unsigned UInt8 scalar struct did not lower global storage as i8:\n${ir_text}")
+endif()
+
+if(NOT ir_text MATCHES "store i8 127, ptr @_yogi_main_ts_signedMax")
+	message(FATAL_ERROR "signed Int8 literal was not stored as i8:\n${ir_text}")
+endif()
+
+if(NOT ir_text MATCHES "sitofp i8 .* to double")
+	message(FATAL_ERROR "signed Int8 print did not convert i8 to double with sitofp:\n${ir_text}")
+endif()
+
+if(NOT ir_text MATCHES "uitofp i8 .* to double")
+	message(FATAL_ERROR "unsigned UInt8 print did not convert i8 to double with uitofp:\n${ir_text}")
 endif()
 
 if(NOT ir_text MATCHES "%Playlist = type \\{")
@@ -526,6 +581,48 @@ expect_invalid(
 )
 
 expect_invalid(
+	direct_readonly_struct_field_assignment
+	"struct Config {\n    readonly id: number\n    label?: string\n}\nlet config: Config = { id: 1 }\nconfig.id = 2\n"
+	"readonly"
+)
+
+expect_invalid(
+	direct_optional_struct_field_wrong_type
+	"struct Config {\n    readonly id: number\n    label?: string\n}\nlet config: Config = { id: 1, label: 2 }\n"
+	"property .*label.* must be"
+)
+
+expect_invalid(
+	int8_literal_too_large
+	"struct Int8 extends number {\n    layout(): IntegerLayout {\n        return { size: 8, signed: true }\n    }\n}\nlet value: Int8 = 128\n"
+	"does not fit"
+)
+
+expect_invalid(
+	int8_literal_too_small
+	"struct Int8 extends number {\n    layout(): IntegerLayout {\n        return { size: 8, signed: true }\n    }\n}\nlet value: Int8 = -129\n"
+	"does not fit"
+)
+
+expect_invalid(
+	uint8_literal_too_large
+	"struct UInt8 extends number {\n    layout(): IntegerLayout {\n        return { size: 8, signed: false }\n    }\n}\nlet value: UInt8 = 256\n"
+	"does not fit"
+)
+
+expect_invalid(
+	int8_fractional_literal
+	"struct Int8 extends number {\n    layout(): IntegerLayout {\n        return { size: 8, signed: true }\n    }\n}\nlet value: Int8 = 1.5\n"
+	"fractional"
+)
+
+expect_invalid(
+	int8_non_literal_number
+	"struct Int8 extends number {\n    layout(): IntegerLayout {\n        return { size: 8, signed: true }\n    }\n}\nfunction getNumber(): number {\n    return 1\n}\nlet n: number = getNumber()\nlet value: Int8 = n\n"
+	"explicit conversion"
+)
+
+expect_invalid(
 	intersection_missing_property
 	"type NamedPart = {\n    name: string\n}\ntype ValuePart = {\n    value: number\n}\ntype NamedMetric = NamedPart & ValuePart\nlet metric: NamedMetric = { name: \"nm\" }\n"
 	"missing required property"
@@ -535,6 +632,30 @@ expect_invalid(
 	intersection_wrong_property
 	"type NamedPart = {\n    name: string\n}\ntype ValuePart = {\n    value: number\n}\ntype NamedMetric = NamedPart & ValuePart\nlet metric: NamedMetric = { name: \"nm\", value: \"bad\" }\n"
 	"property .*value.* must be"
+)
+
+expect_invalid(
+	interface_method_signature_rejected
+	"interface Runnable {\n    run(): void\n}\n"
+	"data contracts only"
+)
+
+expect_invalid(
+	interface_call_signature_rejected
+	"interface Reader {\n    (path: string): string\n}\n"
+	"data contracts only"
+)
+
+expect_invalid(
+	interface_index_signature_rejected
+	"interface StringTable {\n    [key: string]: string\n}\n"
+	"data contracts only"
+)
+
+expect_invalid(
+	type_method_signature_rejected
+	"type Runnable = {\n    run(): void\n}\n"
+	"data contracts only"
 )
 
 expect_invalid(

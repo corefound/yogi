@@ -347,6 +347,14 @@ if(BUILD_TESTING)
                 )
 
                 add_test(
+                        NAME yogi_pipeline_data_type_lowering_ir
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-data-type-lowering-ir
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/data_type_lowering_ir.cmake
+                )
+
+                add_test(
                         NAME yogi_pipeline_array_methods
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>

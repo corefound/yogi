@@ -312,6 +312,9 @@ namespace yogi::core::llvm::internal {
 
 		if (structDecl->is_scalar() && structDecl->extends()) {
 			context.structScalarTypes[structName] = structDecl->extends();
+			if (structDecl->has_layout() && structDecl->layout()) {
+				context.structLayouts[structName] = structDecl->layout();
+			}
 			if (structDecl->validate_chain()) {
 				std::vector<std::string> validateChain;
 				for (const auto *validator: *structDecl->validate_chain()) {

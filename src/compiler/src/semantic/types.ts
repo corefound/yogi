@@ -404,20 +404,16 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
                     this.checkPropertySignature(context, member, names, declarationKind);
                 }
 
-                if (isMethod) {
-                    this.checkMethodSignature(context, member);
-                }
-
-                if (isCall) {
-                    this.checkCallSignature(context, member);
-                }
-
-                if (isConstruct) {
-                    this.checkConstructSignature(context, member);
-                }
-
-                if (isIndex) {
-                    this.checkIndexSignature(context, member);
+                if (isMethod || isCall || isConstruct || isIndex) {
+                    this.rejectBehaviorContractMember(
+                        context,
+                        member,
+                        declarationKind,
+                        isMethod ? "method" :
+                            isCall ? "call signature" :
+                                isConstruct ? "construct signature" :
+                                    "index signature",
+                    );
                 }
 
                 return {
@@ -426,6 +422,28 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
                     trusted: true,
                 };
             });
+        }
+
+        public rejectBehaviorContractMember(
+            context: any,
+            member: any,
+            declarationKind: "type" | "interface",
+            memberKind: string,
+        ): void {
+            const contextName = this.getNameText(context.name);
+            const message =
+                `${memberKind} members are not supported in ${declarationKind} ` +
+                `${Helpers.RED}'${contextName}'${Helpers.RESET} yet; ` +
+                `Yogi interfaces and object-like type aliases are data contracts only`;
+
+            member.arrowLength = member.raw?.length ?? 1;
+
+            this.throwError(
+                message,
+                member.position ?? context.position,
+                context.raw ?? context.source,
+                member,
+            );
         }
 
         public checkPropertySignature(

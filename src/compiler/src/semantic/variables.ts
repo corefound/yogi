@@ -241,6 +241,10 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 this.validateAggregateAssignment(context.type, value, context, source);
             }
 
+            if (!isAmbient) {
+                this.validateCustomIntegerLayoutInitializer(context.type, value, context, source);
+            }
+
             if (!isAmbient && this.rejectsImplicitObjectContractConversion(context.type, value)) {
                 this.throwImplicitObjectContractConversionError(context.type, value, source, context);
             }
@@ -272,6 +276,82 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             if (!value?.type) return false;
 
             return this.isTypeAssignable(expectedType, value.type);
+        }
+
+        public validateCustomIntegerLayoutInitializer(expectedType: any, value: any, context: any, source: string): void {
+            const layout = this.getCustomIntegerLayout(expectedType);
+            if (!layout || !value) return;
+
+            const typeName = expectedType?.raw ?? this.getTypeReferenceName(expectedType) ?? "custom integer";
+            const valueIsNumber = this.resolveType(value.type)?.kind === Kinds.Types.NumberType;
+
+            if (value.kind !== Kinds.Sir.NumberConstant) {
+                if (valueIsNumber) {
+                    value.arrowLength = value.source?.length ?? context.name?.length ?? 1;
+                    this.throwError(
+                        `cannot initialize ${Helpers.BLUE}'${context.name}'${Helpers.RESET} of type ` +
+                        `${Helpers.BLUE}'${typeName}'${Helpers.RESET} from ${Helpers.RED}'number'${Helpers.RESET} without an explicit conversion`,
+                        value.position ?? context.position,
+                        source,
+                        value,
+                        "  = custom integer layouts require a known integer literal for now\n  = arbitrary number values may be out of range or fractional",
+                    );
+                }
+
+                return;
+            }
+
+            if (!Number.isInteger(value.value)) {
+                value.arrowLength = value.source?.length ?? value.raw?.length ?? 1;
+                this.throwError(
+                    `literal ${Helpers.RED}'${value.source ?? value.raw ?? value.value}'${Helpers.RESET} cannot initialize ` +
+                    `${Helpers.BLUE}'${typeName}'${Helpers.RESET} because integer layouts cannot store fractional values`,
+                    value.position ?? context.position,
+                    source,
+                    value,
+                );
+            }
+
+            const rawLiteral = String(value.source ?? value.raw ?? value.value).replace(/_/g, "");
+            const literal = BigInt(rawLiteral);
+            const bits = BigInt(layout.bits);
+            const signed = layout.signed !== false;
+            const min = signed ? -(1n << (bits - 1n)) : 0n;
+            const max = signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n;
+
+            if (literal < min || literal > max) {
+                value.arrowLength = value.source?.length ?? value.raw?.length ?? 1;
+                this.throwError(
+                    `literal ${Helpers.RED}'${value.source ?? value.raw ?? value.value}'${Helpers.RESET} does not fit ` +
+                    `${Helpers.BLUE}'${typeName}'${Helpers.RESET} integer layout ` +
+                    `(${signed ? "signed" : "unsigned"} ${layout.bits}-bit range ${min.toString()}..${max.toString()})`,
+                    value.position ?? context.position,
+                    source,
+                    value,
+                );
+            }
+        }
+
+        public getCustomIntegerLayout(type: any): { bits: number; signed?: boolean; align?: number } | null {
+            const resolved = this.resolveType(type);
+
+            if (
+                resolved?.kind !== Kinds.Types.StructDeclaration &&
+                resolved?.kind !== "StructDeclaration"
+            ) {
+                return null;
+            }
+
+            if (resolved.isScalar !== true || !resolved.layout?.bits) {
+                return null;
+            }
+
+            const scalarBase = this.scalarStructBaseType(type);
+            if (this.resolveType(scalarBase)?.kind !== Kinds.Types.NumberType) {
+                return null;
+            }
+
+            return resolved.layout;
         }
 
         public createRuntimeInitializerValue(value: any, expectedType: any): any {

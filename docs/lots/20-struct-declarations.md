@@ -353,9 +353,18 @@ print(config.label ?? "default")
 config.id = 2 // error
 ```
 
-Direct `readonly`/`?` syntax inside a `struct` body still needs parser support
-before it can be accepted as source syntax. The semantic/lowering model is
-already exercised through inherited fields.
+Struct bodies also support direct `readonly` and optional field syntax:
+
+```ts
+struct DirectConfig {
+    readonly id: number
+    label?: string
+}
+
+let direct: DirectConfig = { id: 77 }
+print(direct.label ?? "default")
+direct.id = 2 // error
+```
 
 Object-like intersections merge their required members:
 
@@ -375,6 +384,32 @@ let metric: NamedMetric = { name: "nm", value: 55 }
 
 Missing or incorrectly typed properties in the intersection are rejected.
 
+## Data Contracts Only
+
+For this lot, `interface` and object-like `type` declarations are data
+contracts. They can describe named properties, including `readonly` and optional
+properties, and those properties can be inherited into real structs.
+
+Behavioral members are intentionally rejected until Yogi has a complete
+function-value and dispatch model:
+
+```ts
+interface Runnable {
+    run(): void // error for now
+}
+
+interface Reader {
+    (path: string): string // error for now
+}
+
+interface StringTable {
+    [key: string]: string // error for now
+}
+```
+
+This avoids silently accepting a method signature and then ignoring it during
+object/struct shape validation.
+
 Non-object type aliases are rejected as struct bases:
 
 ```ts
@@ -387,6 +422,63 @@ struct Bad extends Numeric {
 
 The error is intentional because `Numeric` has no statically known object
 members to materialize into the struct layout.
+
+## Numeric Scalar Layouts
+
+Primitive numeric structs without an explicit layout keep the base `number`
+runtime representation:
+
+```ts
+struct MyNumber extends number {
+}
+
+let value: MyNumber = 1
+```
+
+`MyNumber` lowers as `double`.
+
+Numeric scalar structs can opt into fixed-width integer storage with
+`IntegerLayout`:
+
+```ts
+struct Int8 extends number {
+    layout(): IntegerLayout {
+        return { size: 8, signed: true }
+    }
+}
+
+let value: Int8 = 127
+print(value)
+```
+
+Supported integer sizes are `8`, `16`, `32`, `64`, and `128`. `signed` defaults
+to `true`, and `align` defaults to the natural integer alignment. The backend
+uses the resolved layout metadata, never the type name, so a type only lowers to
+`i8` because its `layout()` says `size: 8`.
+
+Literal initialization is range checked:
+
+```ts
+let ok: Int8 = 127
+let bad: Int8 = 128 // error
+let fractional: Int8 = 1.5 // error
+```
+
+Unsigned values use the same storage width and unsigned numeric interop:
+
+```ts
+struct UInt8 extends number {
+    layout(): IntegerLayout {
+        return { size: 8, signed: false }
+    }
+}
+
+let value: UInt8 = 255
+print(value)
+```
+
+LLVM may print the stored `i8` bit-pattern as `-1`, but `print()` converts it
+with `uitofp`, so the runtime value is still `255`.
 
 Resource fields are owned by the containing struct. Cleanup recursively destroys
 owned resource fields when a struct global/module value is cleaned up or when a
@@ -473,8 +565,15 @@ Mutating `this` inside validate is rejected.
 - readonly properties on object-like interfaces/type aliases
 - optional properties on object-like interfaces/type aliases
 - inherited readonly/optional fields in real structs
+- direct readonly/optional fields in real structs
 - object-like intersection types
+- explicit rejection for method, call, construct, and index signatures in
+  data-only interface/type contracts
 - primitive and aggregate type aliases lowering through their resolved type
+- numeric scalar structs with explicit `IntegerLayout` lowering to fixed-width
+  LLVM integers
+- range diagnostics for integer layout literal initialization
+- signed and unsigned integer-to-number conversion for `print`
 - explicit object literal adapters from struct fields to object-like contracts
 - diagnostics for implicit struct/object-contract runtime representation crossing
 - resource field cleanup and replacement
@@ -492,3 +591,9 @@ Mutating `this` inside validate is rejected.
 - readonly property assignment diagnostics
 - object-like intersection missing/wrong property diagnostics
 - invalid validate return diagnostics
+
+`yogi_pipeline_data_type_lowering_ir` is the focused LLVM IR audit for data
+types. It checks that primitives, primitive aliases, arrays, strings, real
+structs, packed structs, inherited interface/type fields, nested structs, scalar
+numeric structs, and explicit integer layouts lower to the expected LLVM storage
+types.
