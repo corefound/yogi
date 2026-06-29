@@ -75,6 +75,9 @@ known state instead of rediscovering gaps from the source code.
 - Local capture/closure semantics for inline callbacks.
 - Depth-aware semantic result typing for `flat(depth)` beyond the first static
   nesting level.
+- String element extraction from `string[]` through `.at()` when the array lives
+  inside a struct field. The field type and array length are valid, but direct
+  string extraction needs a focused array/string ownership lowering fix.
 
 ## Future Work
 

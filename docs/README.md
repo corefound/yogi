@@ -76,9 +76,11 @@ The compiler currently lowers source code through this pipeline:
 - [String Expression Temporaries](lots/17-string-expression-temporaries.md)
 - [Strict String Method Batch](lots/18-strict-string-methods.md)
 - [Strict Operator Semantics](lots/19-strict-operator-semantics.md)
+- [Struct Declarations](lots/20-struct-declarations.md)
 
 ### To Do
 
+- [Language Status](todo/language-status.md)
 - [Arrays](todo/arrays.md)
 - [Strings](todo/strings.md)
 
