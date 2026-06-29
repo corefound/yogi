@@ -25,6 +25,7 @@ namespace yogi::core::llvm::internal {
 				VariableLowerer &variables
 			);
 
+			void predeclareStructs();
 			void lowerModuleInitializer();
 			void lowerModuleCleanup();
 			void lowerEntryPoint(
@@ -40,6 +41,7 @@ namespace yogi::core::llvm::internal {
 			void lowerBreak(const Yogi::Sir::BreakStatement *statement);
 			void lowerContinue(const Yogi::Sir::ContinueStatement *statement);
 			void lowerSwitch(const Yogi::Sir::SwitchStatement *statement);
+			void lowerStructDeclaration(const Yogi::Sir::StructDeclaration *structDecl);
 			void emitLocalCleanups();
 			void emitLocalCleanupsFrom(std::size_t firstCleanup);
 

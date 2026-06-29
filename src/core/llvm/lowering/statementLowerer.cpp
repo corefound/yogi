@@ -51,6 +51,14 @@ namespace yogi::core::llvm::internal {
 		  values(values),
 		  variables(variables) {}
 
+	void StatementLowerer::predeclareStructs() {
+		for (const auto *node: *context.sirModule->nodes()) {
+			if (const auto *structDecl = node->value_as_StructDeclaration()) {
+				lowerStructDeclaration(structDecl);
+			}
+		}
+	}
+
 	void StatementLowerer::lowerModuleInitializer() {
 		auto *functionType = ::llvm::FunctionType::get(::llvm::Type::getVoidTy(context.llvmContext), false);
 		auto *function = ::llvm::Function::Create(
@@ -286,6 +294,78 @@ namespace yogi::core::llvm::internal {
 
 		if (const auto *statement = node->value_as_ReturnStatement()) {
 			lowerReturn(statement);
+			return;
+		}
+
+		if (const auto *structDecl = node->value_as_StructDeclaration()) {
+			lowerStructDeclaration(structDecl);
+			return;
+		}
+	}
+
+	void StatementLowerer::lowerStructDeclaration(const Yogi::Sir::StructDeclaration *structDecl) {
+		auto structName = fbString(structDecl->name());
+
+		if (context.structTypes.contains(structName) || context.structScalarTypes.contains(structName)) {
+			return;
+		}
+
+		if (structDecl->is_scalar() && structDecl->extends()) {
+			context.structScalarTypes[structName] = structDecl->extends();
+			if (structDecl->validate_chain()) {
+				std::vector<std::string> validateChain;
+				for (const auto *validator: *structDecl->validate_chain()) {
+					validateChain.push_back(fbString(validator));
+				}
+				context.structValidateChains[structName] = validateChain;
+			}
+			return;
+		}
+
+		// Collect field LLVM types
+		std::vector<::llvm::Type *> fieldTypes;
+		std::vector<ModuleLoweringContext::StructFieldInfo> fields;
+		if (structDecl->fields()) {
+			std::size_t index = 0;
+			for (const auto *field : *structDecl->fields()) {
+				auto *fieldType = types.lower(field->type());
+				fieldTypes.push_back(fieldType);
+				fields.push_back({
+					fbString(field->name()),
+					field->type(),
+					index++,
+				});
+			}
+		}
+
+		// Apply layout metadata if present
+		auto isPacked = false;
+		if (structDecl->has_layout() && structDecl->layout()) {
+			auto *layout = structDecl->layout();
+			if (layout->packed()) {
+				isPacked = true;
+			}
+		}
+
+		// Create LLVM struct type
+		auto *structType = ::llvm::StructType::create(context.llvmContext, structName);
+		structType->setBody(fieldTypes, isPacked);
+
+		// Store the struct type in context for later use
+		context.structTypes[structName] = structType;
+		context.structFields[structName] = fields;
+
+		// Store layout metadata
+		if (structDecl->has_layout() && structDecl->layout()) {
+			context.structLayouts[structName] = structDecl->layout();
+		}
+
+		if (structDecl->validate_chain()) {
+			std::vector<std::string> validateChain;
+			for (const auto *validator: *structDecl->validate_chain()) {
+				validateChain.push_back(fbString(validator));
+			}
+			context.structValidateChains[structName] = validateChain;
 		}
 	}
 
@@ -334,6 +414,23 @@ namespace yogi::core::llvm::internal {
 			}
 
 			if (cleanup.cleanupSlot) {
+				if (values.isStructType(cleanup.type)) {
+					auto *slot = ::llvm::cast<::llvm::AllocaInst>(cleanup.cleanupSlot);
+					auto *loaded = context.builder.CreateLoad(slot->getAllocatedType(), cleanup.cleanupSlot);
+
+					if (cleanup.heapOwned) {
+						values.destroyEscapedAggregate(cleanup.type, loaded);
+					} else {
+						values.dropLocalAggregate(cleanup.type, loaded);
+					}
+
+					context.builder.CreateStore(
+						::llvm::Constant::getNullValue(slot->getAllocatedType()),
+						cleanup.cleanupSlot
+					);
+					continue;
+				}
+
 				auto *loaded = context.builder.CreateLoad(
 					::llvm::PointerType::getUnqual(context.llvmContext),
 					cleanup.cleanupSlot

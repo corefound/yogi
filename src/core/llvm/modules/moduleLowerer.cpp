@@ -37,6 +37,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		context.module->setTargetTriple(::llvm::Triple(::llvm::sys::getDefaultTargetTriple()));
+		statements.predeclareStructs();
 		variables.predeclareGlobals();
 		functions.lowerFunctions();
 		statements.lowerModuleInitializer();

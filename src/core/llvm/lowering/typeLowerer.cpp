@@ -14,6 +14,10 @@ namespace yogi::core::llvm::internal {
 		::llvm::PointerType *opaquePointerType(::llvm::LLVMContext &context) {
 			return ::llvm::PointerType::get(context, 0);
 		}
+
+		std::string typeName(const Yogi::Sir::TypeRef *type) {
+			return type ? fbString(type->name()) : "";
+		}
 	}
 
 	TypeLowerer::TypeLowerer(ModuleLoweringContext &context)
@@ -40,8 +44,25 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_any_type:
 			case Yogi::Sir::TypeKind_union_type:
 			case Yogi::Sir::TypeKind_unknown_type:
-			case Yogi::Sir::TypeKind_type_reference:
 				return opaquePointerType(context.llvmContext);
+
+			case Yogi::Sir::TypeKind_type_reference: {
+				const auto name = typeName(type);
+
+				if (context.structTypes.contains(name)) {
+					return context.structTypes[name];
+				}
+
+				if (context.structScalarTypes.contains(name)) {
+					return lower(context.structScalarTypes[name]);
+				}
+
+				if (type->resolved()) {
+					return lower(type->resolved());
+				}
+
+				return opaquePointerType(context.llvmContext);
+			}
 
 			default:
 				return opaquePointerType(context.llvmContext);

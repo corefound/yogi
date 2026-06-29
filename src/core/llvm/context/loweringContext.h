@@ -40,6 +40,12 @@ namespace yogi::core::llvm::internal {
 				::llvm::Value *cleanupSlot;
 			};
 
+			struct StructFieldInfo {
+				std::string name;
+				const Yogi::Sir::TypeRef *type;
+				std::size_t index;
+			};
+
 			ModuleLoweringContext(
 				const Yogi::Build::ModuleMeta *moduleMeta,
 				const Yogi::Sir::Module *sirModule
@@ -91,6 +97,13 @@ namespace yogi::core::llvm::internal {
 			std::vector<LocalAggregateCleanup> localAggregateCleanups;
 			int switchBodyDepth = 0;
 			const Yogi::Sir::TypeRef *currentReturnType = nullptr;
+
+			// Struct type tracking
+			std::map<std::string, ::llvm::StructType *> structTypes;
+			std::map<std::string, std::vector<StructFieldInfo>> structFields;
+			std::map<std::string, const Yogi::Sir::TypeRef *> structScalarTypes;
+			std::map<std::string, std::vector<std::string>> structValidateChains;
+			std::map<std::string, const Yogi::Sir::LayoutMetadata *> structLayouts;
 	};
 #endif
 

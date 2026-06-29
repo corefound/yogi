@@ -92,6 +92,10 @@ namespace yogi::core::llvm::internal {
 
 			return kind == Yogi::Sir::TypeKind_string_type;
 		};
+		const auto isStructType =
+			variable->type() &&
+			variable->type()->kind() == Yogi::Sir::TypeKind_type_reference &&
+			context.structTypes.contains(fbString(variable->type()->name()));
 		const auto receiverReturningArrayMethod = [](const Yogi::Sir::ValueRef *value) {
 			const auto *call = value ? value->call() : nullptr;
 			if (!call || !call->builtin_method()) {
@@ -114,17 +118,23 @@ namespace yogi::core::llvm::internal {
 			!isGlobalVariable &&
 			fbString(variable->storage()) == "stack" &&
 			!variable->escapes() &&
-			values.isAggregateLiteral(variable->value());
+			values.isAggregateLiteral(variable->value()) &&
+			!isStructType;
 		const auto isLocalOwnedHeapAggregate =
 			!isGlobalVariable &&
 			fbString(variable->storage()) == "stack" &&
 			isAggregateType(variable->type()) &&
 			isOwnedAggregateInitializer &&
-			!isLocalStackAggregate;
+			!isLocalStackAggregate &&
+			!isStructType;
 		const auto isLocalString =
 			!isGlobalVariable &&
 			fbString(variable->storage()) == "stack" &&
 			isStringType(variable->type());
+		const auto isLocalStruct =
+			!isGlobalVariable &&
+			fbString(variable->storage()) == "stack" &&
+			isStructType;
 
 		context.pushMemorySourceLocation(variable->position());
 		auto *initializer = isLocalStackAggregate
@@ -172,6 +182,12 @@ namespace yogi::core::llvm::internal {
 			context.registerAggregateOwner(
 				name, variable->symbol_id(), variable->type(),
 				initializer, true,
+				slot
+			);
+		} else if (isLocalStruct) {
+			context.registerAggregateOwner(
+				name, variable->symbol_id(), variable->type(),
+				initializer, false,
 				slot
 			);
 		} else if (isAggregateType(variable->type())) {

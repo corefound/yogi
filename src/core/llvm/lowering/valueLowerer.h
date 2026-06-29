@@ -53,6 +53,7 @@ namespace yogi::core::llvm::internal {
 			);
 			void dropLocalAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
 			void destroyEscapedAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
+			bool isStructType(const Yogi::Sir::TypeRef *type) const;
 			::llvm::Value *cast(
 				::llvm::Value *value,
 				::llvm::Type *targetType,
@@ -82,6 +83,23 @@ namespace yogi::core::llvm::internal {
 				const Yogi::Sir::ObjectExpression *object,
 				::llvm::Type *expectedType,
 				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
+			::llvm::Value *lowerStructObject(
+				const Yogi::Sir::ObjectExpression *object,
+				const std::string &structName,
+				::llvm::StructType *structType,
+				const std::vector<ModuleLoweringContext::StructFieldInfo> &fields
+			);
+			void emitStructValidateChain(const std::string &structName, ::llvm::Value *structValue);
+			::llvm::Value *coerceStructForValidator(
+				const std::string &sourceStructName,
+				const std::string &targetStructName,
+				::llvm::Value *structValue
+			);
+			void destroyStructFields(
+				const std::string &structName,
+				::llvm::Value *structValue,
+				bool escaped
 			);
 			void populateArray(const Yogi::Sir::ArrayExpression *array, ::llvm::Value *aggregate);
 			void populateObject(const Yogi::Sir::ObjectExpression *object, ::llvm::Value *aggregate);
@@ -126,6 +144,7 @@ namespace yogi::core::llvm::internal {
 			);
 			const Yogi::Sir::TypeRef *valueSemanticType(const Yogi::Sir::ValueRef *value) const;
 			Yogi::Sir::TypeKind resolvedTypeKind(const Yogi::Sir::TypeRef *type) const;
+			std::string structTypeName(const Yogi::Sir::TypeRef *type) const;
 			bool isAnyType(const Yogi::Sir::TypeRef *type) const;
 			::llvm::PointerType *opaquePointer() const;
 

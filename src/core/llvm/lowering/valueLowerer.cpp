@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <tuple>
 
 namespace yogi::core::llvm::internal {
@@ -1521,6 +1522,16 @@ namespace yogi::core::llvm::internal {
 		::llvm::Type *expectedType,
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
+		const auto structName = structTypeName(expectedSemanticType);
+		if (!structName.empty() && context.structTypes.contains(structName)) {
+			return lowerStructObject(
+				object,
+				structName,
+				context.structTypes[structName],
+				context.structFields[structName]
+			);
+		}
+
 		context.pushMemorySourceLocation(object->position());
 		auto *aggregate = callRuntime("yogi_object_create", opaquePointer(), {});
 
@@ -1528,6 +1539,169 @@ namespace yogi::core::llvm::internal {
 		context.popMemorySourceLocation();
 
 		return cast(aggregate, expectedType ? expectedType : opaquePointer(), expectedSemanticType, object->type());
+	}
+
+	::llvm::Value *ValueLowerer::lowerStructObject(
+		const Yogi::Sir::ObjectExpression *object,
+		const std::string &structName,
+		::llvm::StructType *structType,
+		const std::vector<ModuleLoweringContext::StructFieldInfo> &fields
+	) {
+		std::map<std::string, const Yogi::Sir::ObjectProperty *> properties;
+
+		if (object->properties()) {
+			for (const auto *property: *object->properties()) {
+				properties[fbString(property->key())] = property;
+			}
+		}
+
+		::llvm::Value *result = ::llvm::UndefValue::get(structType);
+
+		for (const auto &field: fields) {
+			::llvm::Value *fieldValue = types.zero(types.lower(field.type));
+
+			if (properties.contains(field.name)) {
+				const auto *property = properties[field.name];
+				fieldValue = cast(
+					lower(property->value(), types.lower(field.type), field.type),
+					types.lower(field.type),
+					field.type,
+					property->type()
+				);
+			}
+
+			result = context.builder.CreateInsertValue(
+				result,
+				fieldValue,
+				{static_cast<unsigned>(field.index)},
+				"struct." + sanitizeSymbol(field.name)
+			);
+		}
+
+		emitStructValidateChain(structName, result);
+
+		return result;
+	}
+
+	void ValueLowerer::emitStructValidateChain(const std::string &structName, ::llvm::Value *structValue) {
+		if (!context.structValidateChains.contains(structName)) {
+			return;
+		}
+
+		auto *function = context.builder.GetInsertBlock()->getParent();
+		auto *booleanType = ::llvm::Type::getInt1Ty(context.llvmContext);
+		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
+		auto *pointerType = opaquePointer();
+
+		for (const auto &validatorName: context.structValidateChains[structName]) {
+			auto validatorStructName = validatorName;
+			const auto separator = validatorStructName.rfind(':');
+			if (separator != std::string::npos) {
+				validatorStructName = validatorStructName.substr(separator + 1);
+			}
+			const auto suffix = validatorStructName.rfind(".validate");
+			if (suffix != std::string::npos) {
+				validatorStructName = validatorStructName.substr(0, suffix);
+			}
+
+			const auto symbolName = "_yogi_fn_" + sanitizeSymbol(validatorName);
+			auto *validator = context.module->getFunction(symbolName);
+			auto *validatorArgument = coerceStructForValidator(
+				structName,
+				validatorStructName,
+				structValue
+			);
+
+			if (!validator) {
+				std::vector<::llvm::Type *> parameters;
+				if (validatorArgument) {
+					parameters.push_back(validatorArgument->getType());
+				}
+
+				auto *validatorType = ::llvm::FunctionType::get(booleanType, parameters, false);
+				validator = ::llvm::Function::Create(
+					validatorType,
+					::llvm::Function::ExternalLinkage,
+					symbolName,
+					context.module.get()
+				);
+			}
+
+			auto *isValid = context.builder.CreateCall(
+				validator,
+				validatorArgument ? std::vector<::llvm::Value *>{validatorArgument} : std::vector<::llvm::Value *>{},
+				"struct.validate." + sanitizeSymbol(validatorName)
+			);
+			auto *continueBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				"struct.validate.continue",
+				function
+			);
+			auto *failedBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				"struct.validate.failed",
+				function
+			);
+
+			context.builder.CreateCondBr(isValid, continueBlock, failedBlock);
+
+			context.builder.SetInsertPoint(failedBlock);
+			auto *abort = context.runtimeFunction(
+				"yogi_struct_validate_failed",
+				voidType,
+				{pointerType, pointerType}
+			);
+			context.builder.CreateCall(
+				abort,
+				{
+					context.builder.CreateGlobalString(structName),
+					context.builder.CreateGlobalString(validatorName),
+				}
+			);
+			context.builder.CreateUnreachable();
+
+			context.builder.SetInsertPoint(continueBlock);
+		}
+	}
+
+	::llvm::Value *ValueLowerer::coerceStructForValidator(
+		const std::string &sourceStructName,
+		const std::string &targetStructName,
+		::llvm::Value *structValue
+	) {
+		if (!structValue || targetStructName.empty()) {
+			return structValue;
+		}
+
+		if (sourceStructName == targetStructName) {
+			return structValue;
+		}
+
+		if (
+			!context.structTypes.contains(targetStructName) ||
+			!context.structFields.contains(targetStructName)
+		) {
+			return structValue;
+		}
+
+		auto *targetType = context.structTypes[targetStructName];
+		::llvm::Value *targetValue = ::llvm::UndefValue::get(targetType);
+
+		for (const auto &field: context.structFields[targetStructName]) {
+			auto *fieldValue = context.builder.CreateExtractValue(
+				structValue,
+				{static_cast<unsigned>(field.index)},
+				"struct.validate.project." + sanitizeSymbol(field.name)
+			);
+			targetValue = context.builder.CreateInsertValue(
+				targetValue,
+				fieldValue,
+				{static_cast<unsigned>(field.index)},
+				"struct.validate.parent." + sanitizeSymbol(field.name)
+			);
+		}
+
+		return targetValue;
 	}
 
 	bool ValueLowerer::isAggregateLiteral(const Yogi::Sir::ValueRef *value) const {
@@ -1592,6 +1766,12 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
+		const auto structName = structTypeName(type);
+		if (!structName.empty()) {
+			destroyStructFields(structName, value, false);
+			return;
+		}
+
 		switch (resolvedTypeKind(type)) {
 			case Yogi::Sir::TypeKind_string_type:
 				callRuntime("yogi_string_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
@@ -1617,6 +1797,12 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
+		const auto structName = structTypeName(type);
+		if (!structName.empty()) {
+			destroyStructFields(structName, value, true);
+			return;
+		}
+
 		switch (resolvedTypeKind(type)) {
 			case Yogi::Sir::TypeKind_string_type:
 				callRuntime("yogi_string_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
@@ -1628,12 +1814,59 @@ namespace yogi::core::llvm::internal {
 				return;
 
 			case Yogi::Sir::TypeKind_type_literal:
-			case Yogi::Sir::TypeKind_type_reference:
 				callRuntime("yogi_object_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
+				return;
+
+			case Yogi::Sir::TypeKind_type_reference:
 				return;
 
 			default:
 				return;
+		}
+	}
+
+	bool ValueLowerer::isStructType(const Yogi::Sir::TypeRef *type) const {
+		return !structTypeName(type).empty();
+	}
+
+	void ValueLowerer::destroyStructFields(
+		const std::string &structName,
+		::llvm::Value *structValue,
+		bool escaped
+	) {
+		if (
+			structName.empty() ||
+			!structValue ||
+			!context.structFields.contains(structName)
+		) {
+			return;
+		}
+
+		for (const auto &field: context.structFields[structName]) {
+			if (!field.type) {
+				continue;
+			}
+
+			const auto fieldStructName = structTypeName(field.type);
+			const auto fieldKind = resolvedTypeKind(field.type);
+			const auto shouldDestroy =
+				!fieldStructName.empty() ||
+				fieldKind == Yogi::Sir::TypeKind_string_type ||
+				fieldKind == Yogi::Sir::TypeKind_array_type ||
+				fieldKind == Yogi::Sir::TypeKind_tuple_type ||
+				fieldKind == Yogi::Sir::TypeKind_type_literal;
+
+			if (!shouldDestroy) {
+				continue;
+			}
+
+			auto *fieldValue = context.builder.CreateExtractValue(
+				structValue,
+				{static_cast<unsigned>(field.index)},
+				"struct.destroy." + sanitizeSymbol(field.name)
+			);
+
+			destroyEscapedAggregate(field.type, fieldValue);
 		}
 	}
 
@@ -1715,6 +1948,28 @@ namespace yogi::core::llvm::internal {
 			return cast(asNumber, targetType, targetSemanticType, access->type());
 		}
 
+		const auto structName = structTypeName(objectSemanticType);
+		if (!structName.empty() && context.structTypes.contains(structName)) {
+			auto *structType = context.structTypes[structName];
+			auto *object = lower(access->object(), structType, objectSemanticType);
+
+			for (const auto &field: context.structFields[structName]) {
+				if (field.name != propertyName) {
+					continue;
+				}
+
+				auto *value = context.builder.CreateExtractValue(
+					object,
+					{static_cast<unsigned>(field.index)},
+					"struct.field." + sanitizeSymbol(field.name)
+				);
+				const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+				auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+
+				return cast(value, targetType, targetSemanticType, field.type);
+			}
+		}
+
 		auto *object = lower(access->object(), opaquePointer(), valueSemanticType(access->object()));
 		auto *property = context.builder.CreateGlobalString(propertyName);
 		auto *boxedValue = callRuntime("yogi_object_get", opaquePointer(), {object, property});
@@ -1756,9 +2011,80 @@ namespace yogi::core::llvm::internal {
 		const auto *target = assignment->target();
 		const auto *rightType = valueSemanticType(assignment->right());
 		auto *rightValue = lower(assignment->right(), types.lower(rightType), rightType);
-		auto *boxedValue = boxAny(rightValue, rightType);
 
 		if (const auto *property = target ? target->property_access() : nullptr) {
+			const auto *objectType = valueSemanticType(property->object());
+			const auto structName = structTypeName(objectType);
+
+			if (!structName.empty() && context.structTypes.contains(structName)) {
+				const auto *objectIdentifier = property->object() ? property->object()->identifier() : nullptr;
+				const auto objectName = objectIdentifier ? fbString(objectIdentifier->name()) : "";
+				::llvm::Value *storage = nullptr;
+
+				if (context.locals.contains(objectName)) {
+					storage = context.locals[objectName];
+				} else if (context.globals.contains(objectName)) {
+					storage = context.globals[objectName];
+				}
+
+				if (!storage) {
+					return types.zero(types.lower(property->type()));
+				}
+
+				auto *structType = context.structTypes[structName];
+				auto *currentValue = context.builder.CreateLoad(
+					structType,
+					storage,
+					sanitizeSymbol(objectName) + ".struct.load"
+				);
+
+				for (const auto &field: context.structFields[structName]) {
+					if (field.name != fbString(property->property())) {
+						continue;
+					}
+
+					const auto fieldStructName = structTypeName(field.type);
+					const auto fieldKind = resolvedTypeKind(field.type);
+					const auto fieldOwnsResource =
+						!fieldStructName.empty() ||
+						fieldKind == Yogi::Sir::TypeKind_string_type ||
+						fieldKind == Yogi::Sir::TypeKind_array_type ||
+						fieldKind == Yogi::Sir::TypeKind_tuple_type ||
+						fieldKind == Yogi::Sir::TypeKind_type_literal;
+					if (fieldOwnsResource) {
+						auto *previousValue = context.builder.CreateExtractValue(
+							currentValue,
+							{static_cast<unsigned>(field.index)},
+							"struct.assign.previous." + sanitizeSymbol(field.name)
+						);
+						destroyEscapedAggregate(field.type, previousValue);
+					}
+
+					auto *fieldValue = cast(
+						rightValue,
+						types.lower(field.type),
+						field.type,
+						rightType
+					);
+					auto *updatedValue = context.builder.CreateInsertValue(
+						currentValue,
+						fieldValue,
+						{static_cast<unsigned>(field.index)},
+						"struct.assign." + sanitizeSymbol(field.name)
+					);
+
+					context.builder.CreateStore(updatedValue, storage);
+					const auto rightName = identifierName(assignment->right());
+					if (!rightName.empty()) {
+						context.deactivateAggregateOwner(rightName);
+					}
+					return cast(fieldValue, types.lower(property->type()), property->type(), field.type);
+				}
+
+				return types.zero(types.lower(property->type()));
+			}
+
+			auto *boxedValue = boxAny(rightValue, rightType);
 			auto *object = lower(property->object(), opaquePointer(), valueSemanticType(property->object()));
 			auto *key = context.builder.CreateGlobalString(fbString(property->property()));
 			callRuntime("yogi_object_set", ::llvm::Type::getVoidTy(context.llvmContext), {object, key, boxedValue});
@@ -1773,6 +2099,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (const auto *element = target ? target->element_access() : nullptr) {
+			auto *boxedValue = boxAny(rightValue, rightType);
 			auto *array = lower(element->object(), opaquePointer(), valueSemanticType(element->object()));
 			auto *indexValue = lower(element->index(), ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(element->index()));
 			callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, toIndex(indexValue), boxedValue});
@@ -2506,6 +2833,22 @@ namespace yogi::core::llvm::internal {
 		return nullptr;
 	}
 
+	std::string ValueLowerer::structTypeName(const Yogi::Sir::TypeRef *type) const {
+		if (!type) {
+			return "";
+		}
+
+		if (type->kind() == Yogi::Sir::TypeKind_type_reference) {
+			const auto name = fbString(type->name());
+
+			if (context.structTypes.contains(name) || context.structScalarTypes.contains(name)) {
+				return name;
+			}
+		}
+
+		return "";
+	}
+
 	bool ValueLowerer::isAnyType(const Yogi::Sir::TypeRef *type) const {
 		return type && type->kind() == Yogi::Sir::TypeKind_any_type;
 	}
@@ -2517,6 +2860,14 @@ namespace yogi::core::llvm::internal {
 
 		const auto kind = type->kind();
 		const auto *resolved = type->resolved();
+
+		if (kind == Yogi::Sir::TypeKind_type_reference) {
+			const auto name = fbString(type->name());
+
+			if (context.structScalarTypes.contains(name)) {
+				return resolvedTypeKind(context.structScalarTypes[name]);
+			}
+		}
 
 		if (kind == Yogi::Sir::TypeKind_type_reference && resolved) {
 			return resolvedTypeKind(resolved);
