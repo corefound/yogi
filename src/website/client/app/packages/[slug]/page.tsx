@@ -5,7 +5,7 @@ import { useQuery } from '@apollo/client/react'
 import { useParams } from 'next/navigation'
 import { GET_PACKAGE, GET_PACKAGES, type GetPackageData, type GetPackagesData, type Package } from '@/lib/queries'
 import { Area, AreaChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FaGithub, FaGlobe } from 'react-icons/fa';
+import { FaGithub, FaGlobe, FaHistory } from 'react-icons/fa';
 
 import Link from 'next/link';
 import moment from 'moment';
@@ -276,7 +276,7 @@ export default function PackageSlugPage() {
 
 				<section className="install-panel" style={{ position: 'relative' }}>
 					<div className="code-line" id="install-command">
-						<span className="prompt">$</span>&nbsp; yogi add {pkg.name}
+						<span className="prompt">$</span>&nbsp;yogi add {pkg.name}
 						<button className="copy-btn" onClick={() => {
 							navigator.clipboard.writeText(`yogi add ${pkg.name}`)
 							setCopied(true)
@@ -533,8 +533,8 @@ export default function PackageSlugPage() {
 											<AreaChart data={pkg.downloadTrend} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
 												<defs>
 													<linearGradient id="downloadGradient" x1="0" y1="0" x2="0" y2="1">
-														<stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-														<stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+														<stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+														<stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
 													</linearGradient>
 												</defs>
 												<CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -556,7 +556,6 @@ export default function PackageSlugPage() {
 							{pkg.repoFullName ? (
 								<a className="side-link" href={`https://github.com/${pkg.repoFullName}`} target="_blank" rel="noopener noreferrer">
 									<FaGithub size={22} />
-
 									<span>{truncateText(pkg.repositoryUrl?.replace(/https?:\/\//, '').replace(/http?:\/\//, '') || "", 30)} ›</span>
 								</a>
 							) : null}
@@ -583,21 +582,30 @@ export default function PackageSlugPage() {
 						{pkg.owner ? (
 							<div className="side-card">
 								<h3>Maintainers</h3>
-								<div className="maintainers">
-									<span className="mini-avatar"></span>
-									<span>{pkg.owner.githubLogin || pkg.owner.displayName || 'Unknown'}</span>
+								<div className="breadcrumb">
+									{pkg?.owner?.avatarUrl ?
+										<img src={pkg.owner.avatarUrl} alt="logo-maintainer" />
+										:
+										<span className="mini-avatar" style={{ width: 36, height: 36, flexShrink: 0 }}>
+											{(pkg?.owner?.displayName || pkg?.owner?.githubLogin || "").charAt(0).toUpperCase()}
+										</span>
+									}
+									<Link href={`/profile/${pkg.owner.githubLogin}`}>
+										<span style={{ fontSize: 16, color: 'var(--muted)' }}>{pkg.owner.githubLogin}</span>
+									</Link>
+
 								</div>
 							</div>
 						) : null}
 						{latestVersion ? (
 							<div className="side-card">
 								<h3>Publish activity</h3>
-								<p style={{ color: 'var(--muted)', margin: 0 }}>
-									{latestVersion.publishedAt ? timeAgo(latestVersion.publishedAt) : 'N/A'}
-									<br />
-									Version {latestVersion.version}
-								</p>
-								<a className="link-blue" href="#">
+								<div className="activity-row">
+									<FaHistory size={14} />
+									<span>{latestVersion.publishedAt ? timeAgo(latestVersion.publishedAt) : 'N/A'}</span>
+								</div>
+								<span className="latest-badge">v{latestVersion.version}</span>
+								<a className="link-blue" href="#" style={{ display: 'block', marginTop: 14 }}>
 									View full history →
 								</a>
 							</div>

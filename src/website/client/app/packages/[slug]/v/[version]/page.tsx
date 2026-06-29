@@ -8,7 +8,7 @@ import moment from 'moment'
 import TopBar from '@/components/TopBar'
 import Footer from '@/components/Footer'
 import { GET_VERSION_PROFILE, type GetVersionProfileData, GET_PACKAGES, type GetPackagesData, type Package } from '@/lib/queries'
-import { FaGithub, FaGlobe } from 'react-icons/fa'
+import { FaGithub, FaGlobe, FaHistory } from 'react-icons/fa'
 import { Area, AreaChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 type ContentTab = 'readme' | 'versions' | 'dependencies' | 'metrics' | 'audits'
@@ -563,12 +563,12 @@ export default function VersionDetailPage() {
             ) : null}
             <div className="side-card">
               <h3>Publish activity</h3>
-              <p style={{ color: 'var(--muted)', margin: 0 }}>
-                {profile.publishedAt ? timeAgo(profile.publishedAt) : 'N/A'}
-                <br />
-                Version {profile.version}
-              </p>
-              <Link className="link-blue" href={`/packages/${slug}`}>
+              <div className="activity-row">
+                <FaHistory size={14} />
+                <span>{profile.publishedAt ? timeAgo(profile.publishedAt) : 'N/A'}</span>
+              </div>
+              <span className="latest-badge">v{profile.version}</span>
+              <Link className="link-blue" href={`/packages/${slug}`} style={{ display: 'block', marginTop: 14 }}>
                 View package →
               </Link>
             </div>

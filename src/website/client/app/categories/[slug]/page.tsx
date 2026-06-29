@@ -82,7 +82,7 @@ export default function CategoryDetailPage() {
 
 					<div className="card-grid">
 						{packages.map((pkg) => (
-							<Link className="package-card" href={`/package/${pkg.name}`} key={pkg.fullName}>
+							<Link className="package-card" href={`/packages/${pkg.name}`} key={pkg.fullName}>
 								<div className="pkg-top">
 									<span className="pkg-icon">{packageIcon(pkg.name)}</span>
 									<div>

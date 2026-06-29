@@ -210,7 +210,7 @@
 
 .code-line .prompt,
 .code-block .prompt {
-  color: var(--green);
+  color: var(--blue-2);
 }
 
 .code-block {
@@ -356,6 +356,16 @@
   margin-bottom: 16px;
 }
 
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
 .side-card h3 {
   margin: 0 0 14px;
   font-size: 15px;
@@ -386,10 +396,17 @@
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 20px;
-  background: rgba(55, 139, 255, 0.15);
-  color: var(--blue-2);
+  background: rgba(59, 139, 255, 0.12);
+  border: 1px solid rgba(89, 162, 255, 0.13);
+  color: #b9dcff;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+[data-theme="light"] .latest-badge {
+  background: rgba(58, 139, 255, 0.08);
+  border: 1px solid rgba(58, 139, 255, 0.15);
+  color: #1a5fb4;
 }
 
 .version-detail-grid {

@@ -1,119 +1,26 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import TopBar from '@/components/TopBar'
 import Footer from '@/components/Footer'
-import { FaApple, FaLinux, FaWindows } from 'react-icons/fa';
-
-type Platform = { id: string; os: string; arch: string; label: string; size: string; url: string }
-
-const platforms: Platform[] = [
-    { id: 'macos-arm64', os: 'macOS', arch: 'arm64', label: 'Apple Silicon', size: '18.2 MB', url: '#' },
-    { id: 'macos-x64', os: 'macOS', arch: 'x64', label: 'Intel', size: '19.1 MB', url: '#' },
-    { id: 'windows-x64', os: 'Windows', arch: 'x64', label: '64-bit', size: '16.8 MB', url: '#' },
-    { id: 'windows-arm64', os: 'Windows', arch: 'arm64', label: 'ARM', size: '17.2 MB', url: '#' },
-    { id: 'linux-x64-gnu', os: 'Linux', arch: 'x64', label: 'glibc', size: '15.4 MB', url: '#' },
-    { id: 'linux-x64-musl', os: 'Linux', arch: 'x64', label: 'musl', size: '14.9 MB', url: '#' },
-    { id: 'linux-arm64', os: 'Linux', arch: 'arm64', label: 'ARM64', size: '14.2 MB', url: '#' },
-]
-
-type ArchResult = { os: 'macOS' | 'Windows' | 'Linux'; arch: 'arm64' | 'x64' }
-
-async function detectPlatform(): Promise<Platform> {
-    const result = await detectOSArch()
-    const lookup: Record<string, string> = {
-        'macOS-arm64': 'macos-arm64',
-        'macOS-x64': 'macos-x64',
-        'Windows-arm64': 'windows-arm64',
-        'Windows-x64': 'windows-x64',
-        'Linux-arm64': 'linux-arm64',
-        'Linux-x64': 'linux-x64-gnu',
-    }
-    const id = lookup[`${result.os}-${result.arch}`]
-    return platforms.find(p => p.id === id) ?? platforms[0]
-}
-
-async function detectOSArch(): Promise<ArchResult> {
-    const ua = navigator.userAgent
-
-    const os: ArchResult['os'] =
-        /Mac/i.test(ua) ? 'macOS' :
-            /Win/i.test(ua) ? 'Windows' :
-                /Linux/i.test(ua) && !/Mac/i.test(ua) ? 'Linux' :
-                    'macOS'
-
-    let arch: ArchResult['arch'] | undefined
-
-    if (!arch && (navigator as any).userAgentData?.getHighEntropyValues) {
-        try {
-            const values = await (navigator as any).userAgentData.getHighEntropyValues(['architecture'])
-            const a = values.architecture?.toLowerCase() ?? ''
-            if (a.includes('arm')) arch = 'arm64'
-            else if (a) arch = 'x64'
-        } catch { /* fall through */ }
-    }
-
-    if (!arch) {
-        if (/ARM64|aarch64|armv8|ARM\b/i.test(ua)) arch = 'arm64'
-        else if (/x86_64|Win64|WOW64/i.test(ua)) arch = 'x64'
-    }
-
-    if (!arch && navigator.platform) {
-        const p = navigator.platform.toLowerCase()
-        if (p.includes('arm') || p.includes('aarch')) arch = 'arm64'
-    }
-
-    if (!arch) arch = os === 'macOS' ? 'arm64' : 'x64'
-
-    return { os, arch }
-}
-
-const osMeta: Record<string, { icon: React.ReactNode; color: string; desc: string }> = {
-    macOS: { icon: <FaApple />, color: 'var(--dl-macos)', desc: 'Native macOS binaries' },
-    Windows: { icon: <FaWindows />, color: 'var(--dl-windows)', desc: 'Windows x64 and ARM' },
-    Linux: { icon: <FaLinux />, color: 'var(--dl-linux)', desc: 'Install via script — auto-detects your distro' },
-}
+import { platforms, releases, detectOSArch, detectPlatform, osMeta, type Platform } from '@/lib/downloads-data'
+import CopyCmd from '@/components/CopyCmd';
 
 /* ── Copyable terminal command ─────────────────────── */
 
-function CopyCmd({ cmd }: { cmd: string }) {
-    const [copied, setCopied] = useState(false)
-
-    const copy = useCallback(() => {
-        navigator.clipboard.writeText(cmd).then(() => {
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
-        })
-    }, [cmd])
-
-    return (
-    <div className="dl-copy-cmd">
-      <span className="dl-terminal-dot" />
-      <span className="dl-terminal-dot" />
-      <span className="dl-terminal-dot" />
-      <code>$ {cmd}</code>
-      <span className="dl-copy-btn" onClick={copy} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && copy()}>
-        {copied ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        ) : (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
-        )}
-      </span>
-    </div>
-    )
-}
 
 export default function DownloadsPage() {
     const [detected, setDetected] = useState<Platform | null>(null)
 
     useEffect(() => {
-        detectPlatform().then(setDetected)
+        detectOSArch().then((result) => {
+            const p = detectPlatform(result)
+            setDetected(p as Platform)
+        })
     }, [])
+
+    const previousVersions = releases.filter(r => !r.latest).slice(0, 2)
 
     return (
         <>
@@ -122,9 +29,9 @@ export default function DownloadsPage() {
                 <section className="dl-hero">
                     <div className="dl-hero-bg" />
                     <div className="dl-hero-content">
-                        <div className="dl-hero-badge">v2.3.1 · Latest Release</div>
+                        <div className="dl-hero-badge">v{releases.find(r => r.latest)?.version} · Latest Release</div>
                         <h1>Download <span className="dl-hero-highlight">Yogi</span></h1>
-                        <p>The modern package manager for TypeScript and JavaScript ecosystems.</p>
+                        <p>A modern Ahead-of-Time compiled programming language for building fast, native applications.</p>
 
                         {detected?.os === 'Linux' ? (
                             <div className="dl-hero-term">
@@ -161,10 +68,15 @@ export default function DownloadsPage() {
                         )}
 
                         <div className="dl-hero-alts">
-                            <span>Other platforms:</span>
-                            {platforms.filter(p => p.os !== 'Linux' && (!detected || p.id !== detected.id)).slice(0, 4).map(p => (
-                                <a key={p.id} href={p.url}>{p.os} ({p.arch})</a>
+                            <span>Previous versions:</span>
+                            {previousVersions.map((r) => (
+                                <Link key={r.version} className="dl-versions-link" href={`/downloads/versions/v${r.version}`}>
+                                    v{r.version}
+                                </Link>
                             ))}
+                            <Link className="dl-versions-link" href="/downloads/versions">
+                                All versions →
+                            </Link>
                         </div>
 
                         <div className="dl-hero-stats">
@@ -184,6 +96,7 @@ export default function DownloadsPage() {
                     </div>
                 </section>
 
+                {/* Rest of the page unchanged */}
                 <section className="dl-section">
                     <div className="dl-container">
                         <div className="dl-section-header">

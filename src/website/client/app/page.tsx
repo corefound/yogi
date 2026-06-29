@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { useQuery } from '@apollo/client/react'
 import TopBar from '@/components/TopBar'
-import { FaDownload, FaUpload } from 'react-icons/fa'
 import Footer from '@/components/Footer'
 import {
 	GET_METRICS,
@@ -23,6 +22,9 @@ import {
 	type Category,
 } from '@/lib/queries'
 import { IoCloudDownloadSharp } from "react-icons/io5";
+import { GoCpu, GoPackage } from 'react-icons/go';
+import { CgPerformance } from 'react-icons/cg';
+import { IoIosApps } from 'react-icons/io';
 
 const categoryIcons: Record<string, string> = {
 	'Web': '◎',
@@ -97,7 +99,6 @@ export default function Home() {
 	const maintainers: User[] = maintainersQuery.data?.gayMaintainers || []
 	const categoriesData = categoriesQuery.data?.categoriesList
 	const categories: Category[] = categoriesData?.categories || []
-	const remainingCount = categoriesData?.remainingPackageCount || 0
 
 	const metricMap = new Map(metrics.map(m => [m.key, m.value]))
 	const totalPackages = metricMap.get('total_packages') || 0
@@ -116,18 +117,20 @@ export default function Home() {
 	]
 
 	return (
-		<>
+		<div className="Home">
 			<TopBar />
-
 			<main className="Home">
 				<section className="hero-explore container">
 					<div className="hero-grid">
 						<div className="hero-copy">
 							<div className="eyebrow">◈ Trusted by developers worldwide</div>
 							<h1>
-								Discover, install and publish <span>amazing</span> packages.
+								From source code to native binaries.
+								{/* Discover, install and publish <span>amazing</span> packages. */}
 							</h1>
-							<p style={{ marginTop: 30 }}>Yogi is a modern, secure and reliable package manager built for today's developers and their teams.</p>
+							<p style={{ marginTop: 30 }}>
+								Yogi is a modern language with an extended TypeScript-like syntax, Ahead-of-Time compilation, native performance and an integrated package manager built for real-world applications.
+							</p>
 
 						</div>
 
@@ -269,7 +272,7 @@ export default function Home() {
 									return (
 										<a className="org-card" href={`/organizations/${org.name}`} key={org.name}>
 											<div className="org-logo dark">{org.name.charAt(0).toUpperCase()}</div>
-											<strong>{org.displayName || org.name}</strong>
+											<strong style={{ marginTop: 10 }}>{org.displayName || org.name}</strong>
 											<p>
 												{pkgCount} {pkgCount === 1 ? 'package' : 'packages'}
 												<br />
@@ -292,22 +295,22 @@ export default function Home() {
 					</div>
 					<div className="feature-band">
 						<div className="feature-item">
-							<div className="stat-icon">◇</div>
+							<div className="stat-icon"><GoCpu /></div>
 							<h3>Familiar syntax, native output</h3>
 							<p>Yogi feels close to TypeScript, but instead of running on a JavaScript runtime, it compiles ahead of time into native machine code.</p>
 						</div>
 						<div className="feature-item">
-							<div className="stat-icon">⚡</div>
+							<div className="stat-icon"><CgPerformance /></div>
 							<h3>Native performance</h3>
 							<p>Built on an AOT compilation model, Yogi is designed for fast startup, efficient execution and predictable runtime behavior.</p>
 						</div>
 						<div className="feature-item">
-							<div className="stat-icon">▤</div>
+							<div className="stat-icon"><GoPackage /></div>
 							<h3>Integrated package manager</h3>
 							<p>Install and use Yogi packages directly through the official tooling, with a workflow designed specifically for compiled native libraries.</p>
 						</div>
 						<div className="feature-item">
-							<div className="stat-icon">◈</div>
+							<div className="stat-icon"><IoIosApps /></div>
 							<h3>Precompiled package support</h3>
 							<p>Yogi packages can ship as precompiled libraries, reducing install time and making native dependencies easier to manage.</p>
 						</div>
@@ -323,19 +326,8 @@ export default function Home() {
 						</div>
 					</div>
 				</section>
-
-				<section className="section container">
-					<div className="callout-card">
-						<div>
-							<h3>Publish your first package</h3>
-							<p>Share your code with the world and start building your ecosystem.</p>
-						</div>
-						<a style={{ color: "white" }} className="btn primary" href="#">Get Started Free</a>
-					</div>
-				</section>
 			</main>
-
 			<Footer />
-		</>
+		</div>
 	)
 }
