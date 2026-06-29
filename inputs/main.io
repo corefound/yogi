@@ -8,7 +8,6 @@ function createAuditWeight(input: number, weight: number): number {
 }
 
 let retryCount: number = 0
-let externalPayload: any = 10
 let status: Status = undefined
 let cachedOwner: string | undefined = undefined
 let owner: string = cachedOwner ?? "platform"
@@ -77,5 +76,3 @@ function findThreshold(scores: number[], threshold: number): number {
 
     return result
 }
-
-let thresholdResult: number = findThreshold([5, 3, 8, 2], 4)
