@@ -47,6 +47,9 @@ import {
     FunctionParameter,
     FunctionEffectSummary,
     ParameterEffect,
+    LayoutMetadata,
+    StructFieldDeclaration,
+    StructDeclaration,
     ExternDeclaration,
     ExternFunction,
     ExternParameter,
@@ -238,6 +241,12 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                     return this.createSirNode(builder, SirNodeValue.FunctionDeclaration, value);
                 }
 
+                case "StructDeclaration": {
+                    const value = this.createStructDeclaration(builder, node);
+
+                    return this.createSirNode(builder, SirNodeValue.StructDeclaration, value);
+                }
+
                 default: {
                     throw new Error(
                         `Unsupported semantic node kind: ${(node as { kind: string }).kind}`,
@@ -410,6 +419,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (Array.isArray((type as any).elements)) {
                 return (type as any).elements;
+            }
+
+            if (Array.isArray((type as any).arguments)) {
+                return (type as any).arguments;
             }
 
             return [];
@@ -790,6 +803,103 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             CallExpression.addPosition(builder, position);
 
             return CallExpression.endCallExpression(builder);
+        }
+
+        static createLayoutMetadata(
+            builder: fbs.Builder,
+            metadata: Types.Sir.SemanticLayoutMetadata | null,
+        ): fbs.Offset {
+            const encoding = builder.createString(metadata?.encoding ?? "");
+            const storage = builder.createString(metadata?.storage ?? "");
+
+            LayoutMetadata.startLayoutMetadata(builder);
+            LayoutMetadata.addPointer(builder, metadata?.pointer ?? false);
+            LayoutMetadata.addMutable(builder, metadata?.mutable ?? false);
+            LayoutMetadata.addNullable(builder, metadata?.nullable ?? false);
+            LayoutMetadata.addBits(builder, metadata?.bits ?? 0);
+            LayoutMetadata.addSigned(builder, metadata?.signed ?? false);
+            LayoutMetadata.addAlign(builder, metadata?.align ?? 0);
+            LayoutMetadata.addPacked(builder, metadata?.packed ?? false);
+            LayoutMetadata.addEncoding(builder, encoding);
+            LayoutMetadata.addStorage(builder, storage);
+            LayoutMetadata.addMaxLength(builder, metadata?.maxLength ?? 0);
+            LayoutMetadata.addNullTerminated(builder, metadata?.nullTerminated ?? false);
+
+            return LayoutMetadata.endLayoutMetadata(builder);
+        }
+
+        static createStructFieldDeclaration(
+            builder: fbs.Builder,
+            field: Types.Sir.SemanticStructFieldDeclaration,
+        ): fbs.Offset {
+            const name = builder.createString(field.name);
+            const type = this.createTypeRef(builder, field.type);
+            const source = builder.createString(field.raw ?? "");
+            const position = this.createSourcePosition(builder, field.position);
+
+            StructFieldDeclaration.startStructFieldDeclaration(builder);
+            StructFieldDeclaration.addName(builder, name);
+            StructFieldDeclaration.addType(builder, type);
+            StructFieldDeclaration.addSource(builder, source);
+            StructFieldDeclaration.addPosition(builder, position);
+
+            return StructFieldDeclaration.endStructFieldDeclaration(builder);
+        }
+
+        static createStructDeclaration(
+            builder: fbs.Builder,
+            declaration: Types.Sir.SemanticStructDeclaration,
+        ): fbs.Offset {
+            const name = builder.createString(declaration.name);
+            const typeParameters = createVector(builder, [], (length) => {
+                StructDeclaration.startTypeParametersVector(builder, length);
+            });
+            const extendsType = declaration.extends
+                ? this.createTypeRef(builder, declaration.extends)
+                : 0;
+            const fieldOffsets = (declaration.fields ?? []).map((field) => {
+                return this.createStructFieldDeclaration(builder, field);
+            });
+            const fields = createVector(builder, fieldOffsets, (length) => {
+                StructDeclaration.startFieldsVector(builder, length);
+            });
+            const layout = declaration.hasLayout
+                ? this.createLayoutMetadata(builder, declaration.layout)
+                : 0;
+            const validateChainOffsets = (declaration.validateChain ?? []).map((name) => {
+                return builder.createString(name);
+            });
+            const validateChain = createVector(builder, validateChainOffsets, (length) => {
+                StructDeclaration.startValidateChainVector(builder, length);
+            });
+            const linkageName = builder.createString(declaration.linkageName ?? "");
+            const qualifiedName = builder.createString(declaration.qualifiedName ?? "");
+            const source = builder.createString(declaration.source ?? "");
+            const position = this.createSourcePosition(builder, declaration.position);
+
+            StructDeclaration.startStructDeclaration(builder);
+            StructDeclaration.addName(builder, name);
+            StructDeclaration.addTypeParameters(builder, typeParameters);
+            if (extendsType) {
+                StructDeclaration.addExtends(builder, extendsType);
+            }
+            StructDeclaration.addFields(builder, fields);
+            StructDeclaration.addHasLayout(builder, declaration.hasLayout ?? false);
+            if (layout) {
+                StructDeclaration.addLayout(builder, layout);
+            }
+            StructDeclaration.addHasValidate(builder, declaration.hasValidate ?? false);
+            StructDeclaration.addValidateChain(builder, validateChain);
+            StructDeclaration.addIsScalar(builder, declaration.isScalar ?? false);
+            StructDeclaration.addExported(builder, declaration.export ?? false);
+            StructDeclaration.addSymbolId(builder, declaration.symbolId ?? -1);
+            StructDeclaration.addScopeId(builder, declaration.scopeId ?? -1);
+            StructDeclaration.addLinkageName(builder, linkageName);
+            StructDeclaration.addQualifiedName(builder, qualifiedName);
+            StructDeclaration.addSource(builder, source);
+            StructDeclaration.addPosition(builder, position);
+
+            return StructDeclaration.endStructDeclaration(builder);
         }
 
         static createArrayExpression(

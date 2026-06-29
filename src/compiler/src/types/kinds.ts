@@ -81,6 +81,7 @@ export namespace Kinds {
         ParenthesizedExpression = "ParenthesizedExpression",
 
         IdentifierExpression = "IdentifierExpression",
+        ThisExpression = "ThisExpression",
         BodyExpression = "BodyExpression",
     }
 
@@ -154,6 +155,9 @@ export namespace Kinds {
 
         TypeDeclaration = "TypeDeclaration",
         InterfaceDeclaration = "InterfaceDeclaration",
+        StructDeclaration = "StructDeclaration",
+        StructFieldDeclaration = "StructFieldDeclaration",
+        StructFunctionDeclaration = "StructFunctionDeclaration",
         TypeMember = "TypeMember",
         TypeParameter = "TypeParameter",
 
@@ -212,6 +216,7 @@ export namespace Kinds {
         Type = "type",
         Interface = "interface",
         Class = "class",
+        Struct = "struct",
     }
 
     export enum Diagnostics {
@@ -257,5 +262,9 @@ export namespace Kinds {
         ExternFunction = "ExternFunction",
         ExternParameter = "ExternParameter",
         ExternVariable = "ExternVariable",
+
+        StructDeclaration = "StructDeclaration",
+        StructFieldDeclaration = "StructFieldDeclaration",
+        LayoutMetadata = "LayoutMetadata",
     }
 }

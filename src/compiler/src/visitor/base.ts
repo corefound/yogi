@@ -117,6 +117,21 @@ export class BaseVisitor {
         const conditionals = this.visitConditionals(node);
         if (conditionals) return conditionals;
 
+        // this keyword
+        if (node.kind === ts.SyntaxKind.ThisKeyword) {
+            return {
+                kind: Kinds.Expressions.ThisExpression,
+                raw: "this",
+                source: "this",
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        // labeled statement: unwrap label, visit inner statement
+        if (ts.isLabeledStatement(node)) {
+            return this.visitNode(node.statement);
+        }
+
         throw new Error(`Unsupported node type: ${ts.SyntaxKind[node.kind]}`);
     }
 
@@ -137,6 +152,7 @@ export class BaseVisitor {
     visitArrayLiteral(_: ts.Node): any { }
 
     visitTypes(_?: ts.Node): any { }
+    visitStructDeclaration(_?: ts.Node): any { }
     visitType(_?: ts.Node): any { }
 
     // Type Elements

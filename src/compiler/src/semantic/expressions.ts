@@ -186,6 +186,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 const expectedType = parameters[index]?.type;
                 const actualType = args[index]?.type;
 
+                if (this.rejectsImplicitObjectContractConversion(expectedType, args[index])) {
+                    this.throwImplicitObjectContractConversionError(
+                        expectedType,
+                        args[index],
+                        node.fullSource ?? node.source,
+                        node,
+                    );
+                }
+
                 if (!this.isTypeAssignable(expectedType, actualType)) {
                     const message =
                         `argument ${Helpers.BLUE}'${index + 1}'${Helpers.RESET} of ` +

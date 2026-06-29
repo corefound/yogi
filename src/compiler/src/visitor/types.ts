@@ -13,6 +13,10 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                 return this.visitInterfaceDeclaration(node);
             }
 
+            if (ts.isStructDeclaration?.(node)) {
+                return this.visitStructDeclaration(node as ts.StructDeclaration);
+            }
+
             return null;
         }
 
@@ -50,6 +54,92 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
 
                 raw: node.getText(),
                 position: this.getNodePosistion(node),
+            };
+        }
+
+        visitStructDeclaration(node: ts.StructDeclaration): any {
+            const isExported = node.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+
+            const body = {
+                kind: Kinds.Types.TypeLiteral,
+                members: node.members.map((member: ts.StructMember) =>
+                    this.visitStructMember(member),
+                ),
+                raw: node.members.map((member) => member.getText()).join("\n"),
+                position: this.getNodePosistion(node),
+            };
+
+            return {
+                kind: Kinds.Types.StructDeclaration,
+                name: this.visitIdentifier(node.name),
+                parameters: this.visitTypeParameters(node.typeParameters),
+                extends: node.extendsType
+                    ? [
+                        {
+                            kind: Kinds.Types.TypeUsage,
+                            name: this.visitType(node.extendsType),
+                            arguments: [],
+                            raw: node.extendsType.getText(),
+                            position: this.getNodePosistion(node.extendsType),
+                        },
+                    ]
+                    : [],
+                export: isExported,
+                body,
+                raw: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        visitStructMember(member: ts.StructMember): any {
+            if ((member as any).kind === ts.SyntaxKind.StructFieldDeclaration) {
+                return this.visitStructFieldDeclaration(member as any);
+            }
+
+            if ((member as any).kind === ts.SyntaxKind.StructFunctionDeclaration) {
+                return this.visitStructFunctionDeclaration(member as any);
+            }
+
+            return {
+                kind: Kinds.Types.UnknownMember,
+                raw: (member as any).getText(),
+                position: this.getNodePosistion(member as any),
+            };
+        }
+
+        visitStructFieldDeclaration(member: any): any {
+            return {
+                kind: Kinds.Types.StructFieldDeclaration,
+                name: this.visitPropertyName(member.name),
+                type: this.visitType(member.type),
+                optional: !!member.questionToken,
+                readonly: this.hasModifier(member, ts.SyntaxKind.ReadonlyKeyword),
+                raw: member.getText(),
+                position: this.getNodePosistion(member),
+            };
+        }
+
+        visitStructFunctionDeclaration(member: any): any {
+            return {
+                kind: Kinds.Types.StructFunctionDeclaration,
+                name: this.visitPropertyName(member.name),
+                typeParameters: this.visitTypeParameters(member.typeParameters),
+                parameters: member.parameters.map((param: ts.ParameterDeclaration) =>
+                    this.visitParameter(param),
+                ),
+                returnType: this.visitType(member.type),
+                body: member.body
+                    ? {
+                        kind: Kinds.Statements.BlockStatement,
+                        statements: member.body.statements.map((stmt: ts.Statement) =>
+                            this.visitNode(stmt),
+                        ),
+                        raw: member.body.getText(),
+                        position: this.getNodePosistion(member.body),
+                    }
+                    : null,
+                raw: member.getText(),
+                position: this.getNodePosistion(member),
             };
         }
 

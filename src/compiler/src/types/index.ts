@@ -49,6 +49,9 @@ export namespace Types {
         export type SemanticExternFunction = SirTypes.SemanticExternFunction;
         export type SemanticExternVariable = SirTypes.SemanticExternVariable;
         export type SemanticExternDeclaration = SirTypes.SemanticExternDeclaration;
+        export type SemanticStructDeclaration = SirTypes.SemanticStructDeclaration;
+        export type SemanticStructFieldDeclaration = SirTypes.SemanticStructFieldDeclaration;
+        export type SemanticLayoutMetadata = SirTypes.SemanticLayoutMetadata;
         export type SemanticNodeInput = SirTypes.SemanticNodeInput;
         export type SemanticModuleInput = SirTypes.SemanticModuleInput;
     }

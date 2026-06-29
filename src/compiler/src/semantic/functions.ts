@@ -71,7 +71,10 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 return null;
             }
 
+            const previousReturnType = this.currentFunctionReturnType;
+            this.currentFunctionReturnType = node.returnType;
             const body = this.visitFunctionBody(node.body);
+            this.currentFunctionReturnType = previousReturnType;
 
             const functionContext = {
                 ...node,
@@ -124,6 +127,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
+            this.validateTypeUsages(param.type, functionNode.fullSource ?? functionNode.source ?? param.source);
+
             const localSymbol = this.resolveLocalSymbol(param.name);
 
             if (localSymbol) {
@@ -152,7 +157,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 qualifiedName,
                 type: param.type,
                 declaredType: param.type,
-                mutable: true,
+                mutable: param.mutable ?? true,
                 storage: Kinds.Storage.stack,
                 escapes: false,
                 trusted: true,
@@ -173,6 +178,16 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
         public visitReturnStatement(node: any): any {
             const value = node.value ? this.visitNode(node.value) : null;
+            const expectedReturnType = this.currentFunctionReturnType;
+
+            if (expectedReturnType && this.rejectsImplicitObjectContractConversion(expectedReturnType, value)) {
+                this.throwImplicitObjectContractConversionError(
+                    expectedReturnType,
+                    value,
+                    node.fullSource ?? node.source,
+                    node,
+                );
+            }
 
             if (value && this.isAggregateType(value.type)) {
                 this.markAggregateExpressionMoved(
@@ -220,6 +235,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 context.arrowLength = context.name.length;
                 this.throwError(message, context.position, context.fullSource, context);
             }
+
+            this.validateTypeUsages(context.returnType, context.fullSource ?? context.source);
 
             if (
                 !context.regular &&

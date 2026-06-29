@@ -219,6 +219,8 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
+            this.validateTypeUsages(context.type, source);
+
             const scopeSymbol = this.resolveLocalSymbol(context.name);
 
             if (scopeSymbol) {
@@ -237,6 +239,10 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
             if (!isAmbient) {
                 this.validateAggregateAssignment(context.type, value, context, source);
+            }
+
+            if (!isAmbient && this.rejectsImplicitObjectContractConversion(context.type, value)) {
+                this.throwImplicitObjectContractConversionError(context.type, value, source, context);
             }
 
             if (!isAmbient && !this.checkDataType(context.type, value)) {

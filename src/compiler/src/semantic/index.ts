@@ -8,6 +8,7 @@ import { FunctionsSemantic } from "./functions";
 import { ExpressionsSemantic } from "./expressions";
 import { ArraysSemantic } from "./arrays";
 import { TypesSemantic } from "./types";
+import { StructSemantic } from "./struct";
 import { ExternsSemantic } from "./externs";
 import { IfSemantic } from "./if";
 import { Helpers } from "../helpers";
@@ -24,6 +25,7 @@ export class Semantic extends applySemanticMixins(
     ExpressionsSemantic,
     ArraysSemantic,
     TypesSemantic,
+    StructSemantic,
     ExternsSemantic,
     ModulesSemantic,
     IfSemantic,

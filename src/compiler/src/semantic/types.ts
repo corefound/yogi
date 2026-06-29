@@ -196,7 +196,7 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
 
                 this.checkTypeArguments(extended, symbol);
 
-                const members = this.getExtensibleMembersFromSymbol(symbol);
+                const members = this.getExtensibleMembersFromSymbol(symbol, extended);
 
                 inheritedMembers.push(
                     ...members.map((member: any) => ({
@@ -745,7 +745,12 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
         }
 
         public checkTypeArguments(typeUsage: any, symbol: any): void {
-            const typeArguments = typeUsage.arguments ?? typeUsage.typeArguments ?? [];
+            const typeArguments =
+                (typeUsage.arguments?.length ? typeUsage.arguments : null) ??
+                (typeUsage.typeArguments?.length ? typeUsage.typeArguments : null) ??
+                (typeUsage.name?.arguments?.length ? typeUsage.name.arguments : null) ??
+                (typeUsage.name?.typeArguments?.length ? typeUsage.name.typeArguments : null) ??
+                [];
             const parameters =
                 symbol.node?.parameters ?? symbol.node?.typeParameters ?? [];
 
@@ -771,6 +776,32 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
                     typeUsage.raw,
                     typeUsage,
                 );
+            }
+
+            for (let index = 0; index < typeArguments.length; index++) {
+                const argument = typeArguments[index];
+                const parameter = parameters[index];
+
+                if (!parameter?.constraint) continue;
+
+                if (!this.isTypeAssignable(parameter.constraint, argument)) {
+                    const name = this.getTypeUsageNameText(typeUsage);
+                    const parameterName = this.getNameText(parameter.name);
+                    const message =
+                        `type argument ${Helpers.RED}'${argument.raw ?? "unknown"}'${Helpers.RESET} for ` +
+                        `${Helpers.BLUE}'${name}'${Helpers.RESET} does not satisfy constraint ` +
+                        `${Helpers.BLUE}'${parameter.constraint.raw ?? "unknown"}'${Helpers.RESET}` +
+                        (parameterName ? ` on '${parameterName}'` : "");
+
+                    argument.arrowLength = argument.raw?.length ?? 1;
+
+                    this.throwError(
+                        message,
+                        argument.position ?? typeUsage.position,
+                        typeUsage.raw,
+                        argument,
+                    );
+                }
             }
         }
 
@@ -837,18 +868,43 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
             return false;
         }
 
-        public getExtensibleMembersFromSymbol(symbol: any): any[] {
+        public getExtensibleMembersFromSymbol(symbol: any, typeUsage: any = null): any[] {
             if (!symbol) return [];
 
+            const substitute = (members: any[]): any[] => {
+                const parameters = symbol.node?.parameters ?? symbol.node?.typeParameters ?? [];
+                const typeArguments =
+                    (typeUsage?.arguments?.length ? typeUsage.arguments : null) ??
+                    (typeUsage?.typeArguments?.length ? typeUsage.typeArguments : null) ??
+                    (typeUsage?.name?.arguments?.length ? typeUsage.name.arguments : null) ??
+                    (typeUsage?.name?.typeArguments?.length ? typeUsage.name.typeArguments : null) ??
+                    [];
+                const substitutions = new Map<string, any>();
+
+                parameters.forEach((parameter: any, index: number) => {
+                    const name = this.getNameText(parameter.name);
+                    if (!name) return;
+
+                    const argument = typeArguments[index] ?? parameter.defaultType;
+                    if (argument) substitutions.set(name, argument);
+                });
+
+                return substitutions.size > 0
+                    ? members.map((member: any) => this.substituteTypeMember(member, substitutions))
+                    : members;
+            };
+
             if (symbol.kind === Kinds.ScopeSymbols.Interface) {
-                return symbol.type?.members ?? symbol.node?.body?.members ?? [];
+                return substitute(symbol.type?.members ?? symbol.node?.body?.members ?? []);
             }
 
             if (symbol.kind === Kinds.ScopeSymbols.Class) {
-                return symbol.type?.members ?? symbol.node?.body?.members ?? [];
+                return substitute(symbol.type?.members ?? symbol.node?.body?.members ?? []);
             }
 
-            const type = this.getSymbolTypeNode(symbol);
+            const type = typeUsage
+                ? this.applyTypeArgumentsToSymbol(symbol, typeUsage)
+                : this.getSymbolTypeNode(symbol);
 
             return this.getMembersFromExtensibleType(type);
         }
@@ -977,8 +1033,20 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
         public getTypeUsageNameText(typeUsage: any): string {
             if (!typeUsage) return "";
 
+            if (typeUsage.kind === Kinds.Types.TypeReference) {
+                return this.getTypeReferenceName(typeUsage);
+            }
+
+            if (typeUsage.name?.kind === Kinds.Types.TypeReference) {
+                return this.getTypeReferenceName(typeUsage.name);
+            }
+
             if (typeUsage.name) {
                 return this.getQualifiedNameText(typeUsage.name);
+            }
+
+            if (typeUsage.expression?.kind === Kinds.Types.TypeReference) {
+                return this.getTypeReferenceName(typeUsage.expression);
             }
 
             if (typeUsage.expression) {
@@ -993,6 +1061,10 @@ export function TypesSemantic<TBase extends Constructor<BaseSemantic>>(
 
             if (typeof name === "string") {
                 return name;
+            }
+
+            if (name.kind === Kinds.Types.TypeReference) {
+                return this.getTypeReferenceName(name);
             }
 
             if (Array.isArray(name.parts)) {

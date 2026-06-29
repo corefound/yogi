@@ -420,6 +420,50 @@ export type SemanticExternDeclaration = {
     position: SourcePosition;
 };
 
+// --- Struct types ---
+
+export type SemanticLayoutMetadata = {
+    pointer?: boolean;
+    mutable?: boolean;
+    nullable?: boolean;
+    bits?: number;
+    signed?: boolean;
+    align?: number;
+    packed?: boolean;
+    encoding?: string;
+    storage?: string;
+    maxLength?: number;
+    nullTerminated?: boolean;
+};
+
+export type SemanticStructFieldDeclaration = {
+    kind: "StructFieldDeclaration";
+    name: string;
+    type: SemanticType;
+    raw?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticStructDeclaration = {
+    kind: "StructDeclaration";
+    name: string;
+    typeParameters?: SemanticType[];
+    extends?: SemanticType | null;
+    fields: SemanticStructFieldDeclaration[];
+    hasLayout: boolean;
+    layout: SemanticLayoutMetadata | null;
+    hasValidate: boolean;
+    validateChain?: string[];
+    isScalar: boolean;
+    export?: boolean;
+    symbolId?: number;
+    scopeId?: number;
+    linkageName?: string | null;
+    qualifiedName?: string;
+    source?: string;
+    position?: SourcePosition;
+};
+
 export type SemanticNodeInput =
     | SemanticConstantInput
     | SemanticIdentifierExpression
@@ -445,7 +489,8 @@ export type SemanticNodeInput =
     | SemanticDefaultClause
     | SemanticSwitchStatement
     | SemanticFunctionDeclaration
-    | SemanticExternDeclaration;
+    | SemanticExternDeclaration
+    | SemanticStructDeclaration;
 
 export type SemanticModuleInput = {
     sourcePath: string;

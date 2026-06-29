@@ -22,6 +22,7 @@ export class BaseSemantic {
     public switchBodyCurrentClause: number = -1;
     public switchBodyScopeId: number | null = null;
     public switchBodyKnownEntryClause: number | null = null;
+    public currentFunctionReturnType: any = null;
 
     public globalScope: Scope;
     public currentScope: Scope;
@@ -213,7 +214,8 @@ export class BaseSemantic {
             !symbol ||
             (
                 symbol.kind !== Kinds.ScopeSymbols.Type &&
-                symbol.kind !== Kinds.ScopeSymbols.Interface
+                symbol.kind !== Kinds.ScopeSymbols.Interface &&
+                symbol.kind !== Kinds.ScopeSymbols.Struct
             )
         ) {
             return type;
@@ -221,7 +223,119 @@ export class BaseSemantic {
 
         seen.add(name);
 
-        return this.resolveType(symbol.type ?? symbol.node?.type, seen);
+        if (symbol.kind === Kinds.ScopeSymbols.Struct) {
+            return symbol.type ?? symbol.node?.type ?? symbol.node;
+        }
+
+        const resolved = this.applyTypeArgumentsToSymbol(symbol, type);
+        return this.resolveType(resolved, seen);
+    }
+
+    public applyTypeArgumentsToSymbol(symbol: any, typeUsage: any): any {
+        const parameters = symbol?.node?.parameters ?? symbol?.node?.typeParameters ?? [];
+        const providedArguments =
+            (typeUsage?.arguments?.length ? typeUsage.arguments : null) ??
+            (typeUsage?.typeArguments?.length ? typeUsage.typeArguments : null) ??
+            (typeUsage?.name?.arguments?.length ? typeUsage.name.arguments : null) ??
+            (typeUsage?.name?.typeArguments?.length ? typeUsage.name.typeArguments : null) ??
+            [];
+        const substitutions = new Map<string, any>();
+
+        parameters.forEach((parameter: any, index: number) => {
+            const name = this.getNameText(parameter.name);
+            if (!name) return;
+
+            const argument = providedArguments[index] ?? parameter.defaultType;
+            if (argument) {
+                substitutions.set(name, argument);
+            }
+        });
+
+        const type = symbol.type ?? symbol.node?.type;
+        return substitutions.size > 0
+            ? this.substituteType(type, substitutions)
+            : type;
+    }
+
+    public substituteType(type: any, substitutions: Map<string, any>): any {
+        if (!type || typeof type !== "object") return type;
+
+        if (type.kind === Kinds.Types.TypeReference) {
+            const name = this.getTypeReferenceName(type);
+            if (substitutions.has(name)) {
+                return this.substituteType(substitutions.get(name), substitutions);
+            }
+
+            return {
+                ...type,
+                arguments: (type.arguments ?? type.typeArguments ?? []).map((argument: any) =>
+                    this.substituteType(argument, substitutions),
+                ),
+            };
+        }
+
+        if (type.kind === Kinds.Types.ArrayType) {
+            return {
+                ...type,
+                elementType: this.substituteType(type.elementType, substitutions),
+            };
+        }
+
+        if (type.kind === Kinds.Types.TupleType) {
+            return {
+                ...type,
+                elements: (type.elements ?? []).map((element: any) =>
+                    this.substituteType(element, substitutions),
+                ),
+            };
+        }
+
+        if (type.kind === Kinds.Types.UnionType || type.kind === Kinds.Types.IntersectionType) {
+            return {
+                ...type,
+                types: (type.types ?? []).map((item: any) =>
+                    this.substituteType(item, substitutions),
+                ),
+            };
+        }
+
+        if (type.kind === Kinds.Types.TypeLiteral) {
+            return {
+                ...type,
+                members: (type.members ?? []).map((member: any) =>
+                    this.substituteTypeMember(member, substitutions),
+                ),
+            };
+        }
+
+        if (type.kind === Kinds.Types.FunctionType) {
+            return {
+                ...type,
+                parameters: (type.parameters ?? []).map((parameter: any) => ({
+                    ...parameter,
+                    type: this.substituteType(parameter.type, substitutions),
+                })),
+                returnType: this.substituteType(type.returnType, substitutions),
+            };
+        }
+
+        return type;
+    }
+
+    public substituteTypeMember(member: any, substitutions: Map<string, any>): any {
+        if (!member || typeof member !== "object") return member;
+
+        return {
+            ...member,
+            type: member.type ? this.substituteType(member.type, substitutions) : member.type,
+            returnType: member.returnType ? this.substituteType(member.returnType, substitutions) : member.returnType,
+            parameters: Array.isArray(member.parameters)
+                ? member.parameters.map((parameter: any) => ({
+                    ...parameter,
+                    type: this.substituteType(parameter.type, substitutions),
+                }))
+                : member.parameters,
+        };
     }
 
     public toSerializableType(type: any, seen = new Set<string>()): any {
@@ -243,13 +357,15 @@ export class BaseSemantic {
                     symbol &&
                     (
                         symbol.kind === Kinds.ScopeSymbols.Type ||
-                        symbol.kind === Kinds.ScopeSymbols.Interface
+                        symbol.kind === Kinds.ScopeSymbols.Interface ||
+                        symbol.kind === Kinds.ScopeSymbols.Struct
                     )
                 ) {
                     const nextSeen = new Set(seen);
                     nextSeen.add(name);
+                    const resolved = this.applyTypeArgumentsToSymbol(symbol, type);
                     serialized.resolved = this.toSerializableType(
-                        symbol.type ?? symbol.node?.type,
+                        resolved,
                         nextSeen,
                     );
                 }
@@ -325,6 +441,16 @@ export class BaseSemantic {
             return true;
         }
 
+        const expectedScalarBase = this.scalarStructBaseType(expectedType);
+        if (expectedScalarBase) {
+            return this.isTypeAssignable(expectedScalarBase, actualType);
+        }
+
+        const actualScalarBase = this.scalarStructBaseType(actualType);
+        if (actualScalarBase) {
+            return this.isTypeAssignable(expectedType, actualScalarBase);
+        }
+
         if (expectedType.kind === Kinds.Types.UnionType && actualType.kind === Kinds.Types.UnionType) {
             return (actualType.types ?? []).every((type: any) => {
                 return this.isTypeAssignable(expectedType, type);
@@ -397,6 +523,23 @@ export class BaseSemantic {
         return expectedType.kind === actualType.kind;
     }
 
+    public scalarStructBaseType(type: any): any {
+        const resolved = this.resolveType(type);
+
+        if (
+            (
+                resolved?.kind === Kinds.Types.StructDeclaration ||
+                resolved?.kind === "StructDeclaration"
+            ) &&
+            resolved.isScalar === true &&
+            resolved.extends
+        ) {
+            return this.resolveType(resolved.extends);
+        }
+
+        return null;
+    }
+
     public isLiteralAssignable(expectedType: any, actualType: any): boolean {
         const expectedLiteral = expectedType.literal ?? expectedType.raw;
         const actualLiteral = actualType.literal ?? actualType.raw;
@@ -436,14 +579,31 @@ export class BaseSemantic {
 
     public isObjectLikeType(type: any): boolean {
         const resolved = this.resolveType(type);
+        if (resolved?.kind === Kinds.Types.IntersectionType) {
+            return (resolved.types ?? []).every((part: any) => this.isObjectLikeType(part));
+        }
+
         return (
             resolved?.kind === Kinds.Types.TypeLiteral ||
-            resolved?.kind === Kinds.Types.InterfaceDeclaration
+            resolved?.kind === Kinds.Types.InterfaceDeclaration ||
+            resolved?.kind === Kinds.Types.StructDeclaration ||
+            resolved?.kind === "StructDeclaration"
         );
     }
 
     public objectMembers(type: any): any[] {
         const resolved = this.resolveType(type);
+        if (resolved?.kind === Kinds.Types.IntersectionType) {
+            return (resolved.types ?? []).flatMap((part: any) => this.objectMembers(part));
+        }
+
+        if (
+            resolved?.kind === Kinds.Types.StructDeclaration ||
+            resolved?.kind === "StructDeclaration"
+        ) {
+            return resolved.fields ?? [];
+        }
+
         return resolved?.members ?? resolved?.body?.members ?? [];
     }
 
@@ -462,7 +622,11 @@ export class BaseSemantic {
 
     public objectPropertyMap(type: any): Map<string, any> {
         const members = this.objectMembers(type)
-            .filter((member: any) => member.kind === Kinds.Types.PropertySignature);
+            .filter((member: any) => {
+                return member.kind === Kinds.Types.PropertySignature ||
+                    member.kind === Kinds.Types.StructFieldDeclaration ||
+                    member.kind === "StructFieldDeclaration";
+            });
         const map = new Map<string, any>();
 
         for (const member of members) {
@@ -477,11 +641,19 @@ export class BaseSemantic {
         if (!this.isObjectLikeType(actualType)) return false;
 
         const expectedMembers = this.objectMembers(expectedType)
-            .filter((member: any) => member.kind === Kinds.Types.PropertySignature);
+            .filter((member: any) => {
+                return member.kind === Kinds.Types.PropertySignature ||
+                    member.kind === Kinds.Types.StructFieldDeclaration ||
+                    member.kind === "StructFieldDeclaration";
+            });
         const actualMembers = new Map<string, any>();
 
         for (const member of this.objectMembers(actualType)) {
-            if (member.kind !== Kinds.Types.PropertySignature) continue;
+            if (
+                member.kind !== Kinds.Types.PropertySignature &&
+                member.kind !== Kinds.Types.StructFieldDeclaration &&
+                member.kind !== "StructFieldDeclaration"
+            ) continue;
             const name = this.getMemberNameText(member);
             if (name) actualMembers.set(name, member);
         }
@@ -502,6 +674,100 @@ export class BaseSemantic {
         }
 
         return true;
+    }
+
+    public isStructResolvedType(type: any): boolean {
+        const resolved = this.resolveType(type);
+        return (
+            resolved?.kind === Kinds.Types.StructDeclaration ||
+            resolved?.kind === "StructDeclaration"
+        );
+    }
+
+    public isObjectContractResolvedType(type: any): boolean {
+        const resolved = this.resolveType(type);
+        return (
+            resolved?.kind === Kinds.Types.TypeLiteral ||
+            resolved?.kind === Kinds.Types.InterfaceDeclaration
+        );
+    }
+
+    public rejectsImplicitObjectContractConversion(expectedType: any, value: any): boolean {
+        if (!expectedType || !value?.type) return false;
+
+        const expectedIsStruct = this.isStructResolvedType(expectedType);
+        const actualIsStruct = this.isStructResolvedType(value.type);
+        const expectedIsContract = this.isObjectContractResolvedType(expectedType);
+        const actualIsContract = this.isObjectContractResolvedType(value.type);
+
+        if (expectedIsStruct && value.kind === Kinds.Collections.DictionaryExpression) {
+            return false;
+        }
+
+        return (
+            (expectedIsContract && actualIsStruct) ||
+            (expectedIsStruct && actualIsContract)
+        );
+    }
+
+    public throwImplicitObjectContractConversionError(expectedType: any, value: any, source: string, context: any): never {
+        const expectedRaw = expectedType?.raw ?? "unknown";
+        const actualRaw = value?.type?.raw ?? "unknown";
+        const message =
+            `cannot implicitly convert ${Helpers.RED}'${actualRaw}'${Helpers.RESET} to ` +
+            `${Helpers.BLUE}'${expectedRaw}'${Helpers.RESET} because they use different runtime representations`;
+
+        value.arrowLength = value.source?.length ?? context?.name?.length ?? 1;
+
+        this.throwError(
+            message,
+            value.position ?? context?.position,
+            source,
+            value,
+            "  = structs lower to real LLVM values\n  = interfaces and object-like type aliases lower to object-runtime values\n  = use an object literal adapter or declare the parameter as the concrete struct type",
+        );
+
+        throw new Error(message);
+    }
+
+    public validateTypeUsages(type: any, source: string): void {
+        if (!type || typeof type !== "object") return;
+
+        if (type.kind === Kinds.Types.TypeReference) {
+            const name = this.getTypeReferenceName(type);
+            const symbol = name ? this.resolveSymbol(name) : null;
+
+            if (symbol) {
+                (this as any).checkTypeArguments?.(type, symbol);
+            }
+
+            for (const argument of type.arguments ?? type.typeArguments ?? []) {
+                this.validateTypeUsages(argument, source);
+            }
+            return;
+        }
+
+        if (type.elementType) {
+            this.validateTypeUsages(type.elementType, source);
+        }
+
+        for (const child of type.types ?? type.elements ?? []) {
+            this.validateTypeUsages(child, source);
+        }
+
+        for (const member of type.members ?? []) {
+            this.validateTypeUsages(member.type, source);
+            this.validateTypeUsages(member.returnType, source);
+            for (const parameter of member.parameters ?? []) {
+                this.validateTypeUsages(parameter.type, source);
+            }
+        }
+
+        for (const parameter of type.parameters ?? []) {
+            this.validateTypeUsages(parameter.type, source);
+        }
+
+        this.validateTypeUsages(type.returnType, source);
     }
 
     public validateAggregateAssignment(expectedType: any, value: any, context: any, source: string): void {
@@ -938,6 +1204,16 @@ export class BaseSemantic {
                     value: node,
                 });
 
+            case Kinds.Expressions.ThisExpression:
+                return this.visitIdentifierExpression({
+                    ...node,
+                    kind: Kinds.Expressions.IdentifierExpression,
+                    name: "this",
+                    value: "this",
+                    raw: "this",
+                    source: node.source ?? "this",
+                });
+
             case Kinds.Expressions.CallExpression:
                 return this.visitCallExpression(node);
 
@@ -965,6 +1241,9 @@ export class BaseSemantic {
 
         const moduleStatement = this.visitModuleStatement(node);
         if (moduleStatement !== null && moduleStatement !== undefined) return moduleStatement;
+
+        const structs = this.visitStructs(node);
+        if (structs !== null && structs !== undefined) return structs;
 
         const types = this.visitAliasTypes(node);
         if (types !== null) return types;
@@ -1131,4 +1410,33 @@ export class BaseSemantic {
     visitElementAccessExpression(_: any): any { }
     // Logger
     throwError(kind: string, position: any, sourceText: string, context?: any, endMessage?: string): any { }
+
+    visitStructs(_: any): any { }
+
+    getNameText(name: any): string {
+        if (!name) return "";
+        if (typeof name === "string") return name;
+        if (typeof name.name === "string") return name.name;
+        if (typeof name.value === "string") return name.value;
+        if (typeof name.raw === "string") return name.raw;
+        return String(name);
+    }
+
+    getTypeUsageNameText(typeUsage: any): string {
+        if (!typeUsage) return "";
+        if (typeUsage.kind === Kinds.Types.TypeReference) return this.getTypeReferenceName(typeUsage);
+        if (typeUsage.name?.kind === Kinds.Types.TypeReference) return this.getTypeReferenceName(typeUsage.name);
+        if (typeUsage.name) return this.getQualifiedNameText(typeUsage.name);
+        if (typeUsage.expression?.kind === Kinds.Types.TypeReference) return this.getTypeReferenceName(typeUsage.expression);
+        if (typeUsage.expression) return this.getQualifiedNameText(typeUsage.expression);
+        return this.getNameText(typeUsage);
+    }
+
+    getQualifiedNameText(name: any): string {
+        if (!name) return "";
+        if (typeof name === "string") return name;
+        if (name.kind === Kinds.Types.TypeReference) return this.getTypeReferenceName(name);
+        if (Array.isArray(name.parts)) return name.parts.map((part: any) => this.getNameText(part)).join(".");
+        return this.getNameText(name);
+    }
 }
