@@ -7,6 +7,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 namespace yogi::runtime {
     namespace {
@@ -14,8 +15,92 @@ namespace yogi::runtime {
             return value && value[0] != '\0' ? value : fallback;
         }
 
+        int digitCount(unsigned long long n) {
+            if (n == 0) {
+                return 1;
+            }
+            int count = 0;
+            while (n > 0) {
+                ++count;
+                n /= 10;
+            }
+            return count;
+        }
+
         void printLocation(const char* label, const char* moduleName, const char* functionName, const char* sourcePath, unsigned long long line, unsigned long long column) {
             std::fprintf(stderr, "  %s: module=%s function=%s source=%s:%llu:%llu\n", label, safeText(moduleName, "<runtime>"), safeText(functionName, "<unknown>"), safeText(sourcePath, "<unknown>"), line, column);
+        }
+
+        void printGutter(int width) {
+            for (int i = 0; i < width; ++i) {
+                std::fputc(' ', stderr);
+            }
+        }
+
+        void printSourceLine(const char* sourcePath, unsigned long long line, unsigned long long column) {
+            if (!sourcePath || sourcePath[0] == '\0') {
+                return;
+            }
+
+            std::FILE *file = std::fopen(sourcePath, "r");
+            if (!file) {
+                return;
+            }
+
+            char buffer[4096];
+            const unsigned long long targetLine = line;
+            unsigned long long current = 0;
+            bool found = false;
+
+            while (current <= targetLine && std::fgets(buffer, sizeof(buffer), file)) {
+                if (current == targetLine) {
+                    found = true;
+                    break;
+                }
+                ++current;
+            }
+
+            std::fclose(file);
+
+            if (!found || buffer[0] == '\0') {
+                return;
+            }
+
+            std::size_t len = std::strlen(buffer);
+            if (len > 0 && buffer[len - 1] == '\n') {
+                buffer[len - 1] = '\0';
+                --len;
+            }
+
+            char displayBuffer[4096];
+            std::size_t displayLen = 0;
+            for (std::size_t i = 0; i < len && displayLen < sizeof(displayBuffer) - 1; ++i) {
+                if (buffer[i] == '\t') {
+                    for (int t = 0; t < 4 && displayLen < sizeof(displayBuffer) - 1; ++t) {
+                        displayBuffer[displayLen++] = ' ';
+                    }
+                } else {
+                    displayBuffer[displayLen++] = buffer[i];
+                }
+            }
+            displayBuffer[displayLen] = '\0';
+
+            const auto displayLineNumber = line + 1;
+            const auto displayColumn = static_cast<std::size_t>(column);
+            const auto gutterWidth = digitCount(displayLineNumber);
+
+            std::fprintf(stderr, "\n");
+            printGutter(gutterWidth);
+            std::fprintf(stderr, " |\n");
+
+            std::fprintf(stderr, "%llu | %s\n", displayLineNumber, displayBuffer);
+
+            printGutter(gutterWidth);
+            std::fprintf(stderr, " | ");
+            for (std::size_t i = 0; i < displayColumn; ++i) {
+                std::fputc(' ', stderr);
+            }
+            std::fprintf(stderr, "^\n");
         }
     } // namespace
 
@@ -30,19 +115,21 @@ namespace yogi::runtime {
     }
 
     void RuntimeError::abortRange(const char* operation, long long index, unsigned long long length) {
+        const auto *sourcePath = safeText(MemoryManager::currentMemorySourcePath(), "<unknown>");
+        const auto line = static_cast<unsigned long long>(MemoryManager::currentMemorySourceLine());
+        const auto column = static_cast<unsigned long long>(MemoryManager::currentMemorySourceColumn());
+
         std::fprintf(
             stderr,
-            "yogi runtime range error: %s index %lld is out of range for length %llu\n",
+            "%s:%llu:%llu - runtime range error: %s index %lld is out of range for length %llu\n\n",
+            sourcePath,
+            line + 1,
+            column + 1,
             safeText(operation, "array access"),
             index,
             length);
-        printLocation(
-            "detected",
-            MemoryManager::currentMemoryModule(),
-            MemoryManager::currentMemoryFunction(),
-            MemoryManager::currentMemorySourcePath(),
-            MemoryManager::currentMemorySourceLine(),
-            MemoryManager::currentMemorySourceColumn());
+
+        printSourceLine(MemoryManager::currentMemorySourcePath(), line, column);
         std::abort();
     }
 

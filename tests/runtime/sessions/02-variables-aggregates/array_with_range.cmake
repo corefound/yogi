@@ -145,5 +145,5 @@ expect_invalid(
 expect_runtime_error(
 	with_out_of_range
 	"let scores: number[] = [1, 2]\nlet copy: number[] = scores.with(2, 9)\nprint(copy[0])\n"
-	"yogi runtime range error"
+	"runtime range error"
 )

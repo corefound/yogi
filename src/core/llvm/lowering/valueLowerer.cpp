@@ -2058,7 +2058,20 @@ namespace yogi::core::llvm::internal {
 
 		auto *array = lower(access->object(), opaquePointer(), objectSemanticType);
 		auto *indexValue = lower(access->index(), ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(access->index()));
-		auto *boxedValue = callRuntime("yogi_array_get", opaquePointer(), {array, toIndex(indexValue)});
+		auto *index = toIndex(indexValue);
+		auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+		auto *inBounds = context.builder.CreateICmpULT(index, length, "array.elem.inbounds");
+		auto *inBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.elem.ok", context.builder.GetInsertBlock()->getParent());
+		auto *abortBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.elem.abort", context.builder.GetInsertBlock()->getParent());
+		context.builder.CreateCondBr(inBounds, inBlock, abortBlock);
+
+		context.builder.SetInsertPoint(abortBlock);
+		auto *operationString = context.builder.CreateGlobalString("array subscript");
+		callRuntime("yogi_runtime_abort_range", ::llvm::Type::getVoidTy(context.llvmContext), {operationString, index, length});
+		context.builder.CreateUnreachable();
+
+		context.builder.SetInsertPoint(inBlock);
+		auto *boxedValue = callRuntime("yogi_array_get", opaquePointer(), {array, index});
 		const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 		auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
 
@@ -2785,14 +2798,34 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_type_literal:
 				return callRuntime("yogi_any_from_object", opaquePointer(), {value});
 
-			case Yogi::Sir::TypeKind_null_type:
-				return callRuntime("yogi_any_null", opaquePointer(), {});
+		case Yogi::Sir::TypeKind_type_reference: {
+			const auto structName = structTypeName(sourceSemanticType);
+			if (!structName.empty() && context.structFields.contains(structName)) {
+				auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
+				auto *object = callRuntime("yogi_object_create", opaquePointer(), {});
+				for (const auto &field : context.structFields[structName]) {
+					auto *fieldValue = context.builder.CreateExtractValue(
+						value,
+						{static_cast<unsigned>(field.index)},
+						"boxstruct." + sanitizeSymbol(field.name)
+					);
+					auto *boxedField = boxAny(fieldValue, field.type);
+					auto *key = context.builder.CreateGlobalString(field.name);
+					callRuntime("yogi_object_set", voidType, {object, key, boxedField});
+				}
+				return callRuntime("yogi_any_from_object", opaquePointer(), {object});
+			}
+			return callRuntime("yogi_any_null", opaquePointer(), {});
+		}
 
-			case Yogi::Sir::TypeKind_undefined_type:
-				return callRuntime("yogi_any_undefined", opaquePointer(), {});
+		case Yogi::Sir::TypeKind_null_type:
+			return callRuntime("yogi_any_null", opaquePointer(), {});
 
-			default:
-				return callRuntime("yogi_any_null", opaquePointer(), {});
+		case Yogi::Sir::TypeKind_undefined_type:
+			return callRuntime("yogi_any_undefined", opaquePointer(), {});
+
+		default:
+			return callRuntime("yogi_any_null", opaquePointer(), {});
 		}
 	}
 
@@ -2818,14 +2851,36 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_type_literal:
 				return callRuntime("yogi_any_to_object", opaquePointer(), {value});
 
-			case Yogi::Sir::TypeKind_null_type:
-				return callRuntime("yogi_any_to_null", opaquePointer(), {value});
+		case Yogi::Sir::TypeKind_type_reference: {
+			const auto structName = structTypeName(targetSemanticType);
+			if (!structName.empty() && context.structFields.contains(structName)) {
+				auto *object = callRuntime("yogi_any_to_object", opaquePointer(), {value});
+				auto *structType = types.lower(targetSemanticType);
+				::llvm::Value *result = ::llvm::UndefValue::get(structType);
+				for (const auto &field : context.structFields[structName]) {
+					auto *key = context.builder.CreateGlobalString(field.name);
+					auto *fieldAny = callRuntime("yogi_object_get", opaquePointer(), {object, key});
+					auto *fieldValue = unboxAny(fieldAny, field.type);
+					result = context.builder.CreateInsertValue(
+						result,
+						fieldValue,
+						{static_cast<unsigned>(field.index)},
+						"unboxstruct." + sanitizeSymbol(field.name)
+					);
+				}
+				return result;
+			}
+			return value;
+		}
 
-			case Yogi::Sir::TypeKind_undefined_type:
-				return callRuntime("yogi_any_to_undefined", opaquePointer(), {value});
+		case Yogi::Sir::TypeKind_null_type:
+			return callRuntime("yogi_any_to_null", opaquePointer(), {value});
 
-			default:
-				return value;
+		case Yogi::Sir::TypeKind_undefined_type:
+			return callRuntime("yogi_any_to_undefined", opaquePointer(), {value});
+
+		default:
+			return value;
 		}
 	}
 
@@ -2844,7 +2899,8 @@ namespace yogi::core::llvm::internal {
 			(
 				targetSemanticType->kind() == Yogi::Sir::TypeKind_number_type ||
 				targetSemanticType->kind() == Yogi::Sir::TypeKind_boolean_type ||
-				targetSemanticType->kind() == Yogi::Sir::TypeKind_string_type
+				targetSemanticType->kind() == Yogi::Sir::TypeKind_string_type ||
+				targetSemanticType->kind() == Yogi::Sir::TypeKind_type_reference
 			)
 		) {
 			return unboxAny(value, targetSemanticType);

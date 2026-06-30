@@ -149,6 +149,7 @@ unsigned long long yogi_debug_ownership_report_leaks(void);
 void yogi_debug_ownership_reset(void);
 
 void yogi_runtime_abort_cast(const char *fromType, const char *toType);
+void yogi_runtime_abort_range(const char *operation, long long index, unsigned long long length);
 void yogi_struct_validate_failed(const char *structName, const char *validatorName);
 
 #ifdef __cplusplus

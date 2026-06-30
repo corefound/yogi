@@ -55,8 +55,7 @@ namespace {
 		const bool matched = aborted &&
 			error.find(expectedText) != std::string::npos &&
 			error.find("array.with") != std::string::npos &&
-			error.find("detected: module=range-negative") != std::string::npos &&
-			error.find("source=tests/runtime/range_negative.ts:9:5") != std::string::npos;
+			error.find("range_negative.ts:10:6") != std::string::npos;
 
 		if (!matched) {
 			std::fprintf(stderr, "range negative case failed. Captured stderr:\n%s\n", error.c_str());
@@ -68,5 +67,5 @@ namespace {
 
 int main() {
 	yogi_debug_ownership_reset();
-	return expectAbort("yogi runtime range error") ? 0 : 1;
+	return expectAbort("runtime range error") ? 0 : 1;
 }
