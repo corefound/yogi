@@ -77,11 +77,11 @@ void printAnyInline(void *value, std::size_t depth) {
         break;
 
     case YOGI_ANY_ARRAY:
-        printArrayInline(anyValue->asArray(), depth + 1);
+        printArrayInline(anyValue->asArray(), depth);
         break;
 
     case YOGI_ANY_OBJECT:
-        printObjectInline(anyValue->asObject(), depth + 1);
+        printObjectInline(anyValue->asObject(), depth);
         break;
     }
 }
@@ -110,14 +110,23 @@ void printArrayInline(void *value, std::size_t depth) {
     printColored(BRACKET, "[");
 
     const auto length = array->length();
-    for(std::size_t index = 0; index < length; ++index) {
-        if(index > 0) {
-            std::fputs(", ", stdout);
-        }
-
-        printValueInline(array->get(index), depth + 1);
+    if(length == 0) {
+        printColored(BRACKET, "]");
+        return;
     }
 
+    std::fputc('\n', stdout);
+
+    for(std::size_t index = 0; index < length; ++index) {
+        printIndent(depth + 1);
+        printValueInline(array->get(index), depth + 1);
+        if(index + 1 < length) {
+            std::fputc(',', stdout);
+        }
+        std::fputc('\n', stdout);
+    }
+
+    printIndent(depth);
     printColored(BRACKET, "]");
 }
 

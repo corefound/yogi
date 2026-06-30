@@ -98,8 +98,9 @@ set(GREEN "${ESC}[92m")
 set(YELLOW "${ESC}[93m")
 set(BLUE "${ESC}[94m")
 
-set(scores_print "${CYAN}[${RESET}${YELLOW}1${RESET}, ${YELLOW}2${RESET}, ${YELLOW}3${RESET}${CYAN}]${RESET}")
-set(user_print "${CYAN}{${RESET}\n  ${MAGENTA}name${RESET}: ${GREEN}\"Ana\"${RESET},\n  ${MAGENTA}age${RESET}: ${YELLOW}30${RESET},\n  ${MAGENTA}active${RESET}: ${BLUE}true${RESET},\n  ${MAGENTA}scores${RESET}: ${scores_print}\n${CYAN}}${RESET}")
+set(scores_print "${CYAN}[${RESET}\n  ${YELLOW}1${RESET},\n  ${YELLOW}2${RESET},\n  ${YELLOW}3${RESET}\n${CYAN}]${RESET}")
+set(scores_print_embedded "${CYAN}[${RESET}\n    ${YELLOW}1${RESET},\n    ${YELLOW}2${RESET},\n    ${YELLOW}3${RESET}\n  ${CYAN}]${RESET}")
+set(user_print "${CYAN}{${RESET}\n  ${MAGENTA}name${RESET}: ${GREEN}\"Ana\"${RESET},\n  ${MAGENTA}age${RESET}: ${YELLOW}30${RESET},\n  ${MAGENTA}active${RESET}: ${BLUE}true${RESET},\n  ${MAGENTA}scores${RESET}: ${scores_print_embedded}\n${CYAN}}${RESET}")
 set(point_print "${CYAN}{${RESET}\n  ${MAGENTA}x${RESET}: ${YELLOW}4${RESET},\n  ${MAGENTA}y${RESET}: ${YELLOW}5${RESET}\n${CYAN}}${RESET}")
 set(expected_stdout "${scores_print}\n${user_print}\n${point_print}\n")
 
