@@ -61,7 +61,8 @@ without re-auditing the whole compiler.
 - [x] Partial fixed-shape indexing type inference
 - [x] Borrowed fixed-shape views for local partial indexing
 - [x] Mutation through borrowed fixed-shape views updates original storage
-- [x] Returning partial fixed-shape views from local owners materializes owned copies
+- [x] Returning borrowed fixed-shape views from local owners is rejected unless `.copy()` is used
+- [x] Explicit `.copy()` for owned fixed-shape view/array copies
 - [x] Common non-callback array methods
 - [x] Callback array methods
 - [x] Iterator protocol support for arrays

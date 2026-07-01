@@ -257,8 +257,8 @@ matrix storage:
 ```
 
 A borrowed local view must not outlive its owner. When a partial view from a
-local fixed-shape owner escapes through `return`, Yogi materializes an owned
-copy of only the selected shape.
+local fixed-shape owner needs to escape through `return`, the user must request
+an owned copy explicitly with `.copy()`.
 
 ```ts
 function getRow(): number[3] {
@@ -267,11 +267,24 @@ function getRow(): number[3] {
         [4, 5, 6]
     ]
 
-    return matrix[1] // materializes owned number[3] copy
+    return matrix[1].copy() // owned number[3] copy
 }
 ```
 
-The returned row no longer borrows from `matrix`:
+Returning the borrowed view directly is rejected:
+
+```ts
+function bad(): number[3] {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return matrix[1] // error
+}
+```
+
+The copied row no longer borrows from `matrix`:
 
 ```ts
 let row: number[3] = getRow()
@@ -281,7 +294,7 @@ print(row[2]) // 99
 }
 ```
 
-Future explicit owned copy:
+Explicit owned copy:
 
 ```ts
 return matrix[1].copy()
@@ -443,8 +456,8 @@ Current behavior:
 - Mutating through the view mutates the original storage.
 - 3D views work.
 - Dynamic partial indices keep runtime bounds checks.
-- Returning a partial view from a local fixed-shape owner materializes an owned copy.
-- The owned copy contains only the selected view shape, not the full owner.
+- Returning a partial view from a local fixed-shape owner requires `.copy()`.
+- `.copy()` contains only the selected view shape, not the full owner.
 
 Example:
 
@@ -1324,9 +1337,10 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ✅ Runtime bounds checks for dynamic indices
 ✅ Union element arrays
 ✅ Union element borrowed views
-✅ Returning partial view from local owner materializes owned copy
+✅ Returning borrowed view from local owner is rejected unless `.copy()` is used
 ✅ Const/readonly propagation into borrowed views
 ✅ Nested readonly borrowed views
+✅ Explicit .copy() for owned slice/view copies
 ✅ Array element return unboxing for primitive contexts
 ✅ Readonly length on arrays and tuples
 ✅ Recursive aggregate printing for arrays/nested arrays/primitives
@@ -1339,7 +1353,6 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ### Next Lots
 
 ```txt
-⬜ Explicit .copy() for owned slice/view copies
 ⬜ Spread operator for arrays
 ⬜ Spread length validation for fixed arrays
 ⬜ Spread type checking for union/fixed/dynamic arrays
