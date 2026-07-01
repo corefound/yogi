@@ -56,6 +56,11 @@ const frozenMatrix: number[2, 3] = [
 let frozenRow: number[3] = frozenMatrix[1]
 let frozenDynamicIndex: number = 0
 let frozenDynamicRow: number[3] = frozenMatrix[frozenDynamicIndex]
+let copiedRow: number[3] = matrix[1].copy()
+let copiedFrozenRow: number[3] = frozenMatrix[1].copy()
+copiedFrozenRow[2] = 166
+let copiedVec: number[3] = vec.copy()
+copiedVec[0] = 77
 
 function returnedRowCopy(): number[3] {
     let localMatrix: number[2, 3] = [
@@ -63,7 +68,7 @@ function returnedRowCopy(): number[3] {
         [4, 5, 6]
     ]
 
-    return localMatrix[1]
+    return localMatrix[1].copy()
 }
 
 function returnedPixelCopy(): number[3] {
@@ -78,7 +83,7 @@ function returnedPixelCopy(): number[3] {
         ]
     ]
 
-    return localImage[1, 0]
+    return localImage[1, 0].copy()
 }
 
 function returnedBlockCopy(): number[2, 3] {
@@ -93,7 +98,7 @@ function returnedBlockCopy(): number[2, 3] {
         ]
     ]
 
-    return localImage[1]
+    return localImage[1].copy()
 }
 
 function returnedUnionRowCopy(): Cell[2] {
@@ -102,7 +107,7 @@ function returnedUnionRowCopy(): Cell[2] {
         ["B", 2]
     ]
 
-    return localGrid[1]
+    return localGrid[1].copy()
 }
 
 function returnedDynamicRowCopy(index: number): number[3] {
@@ -111,7 +116,7 @@ function returnedDynamicRowCopy(index: number): number[3] {
         [4, 5, 6]
     ]
 
-    return localMatrix[index]
+    return localMatrix[index].copy()
 }
 
 function returnedConstRowCopy(): number[3] {
@@ -120,7 +125,7 @@ function returnedConstRowCopy(): number[3] {
         [4, 5, 6]
     ]
 
-    return localMatrix[1]
+    return localMatrix[1].copy()
 }
 
 function returnedFullIndexValue(): number {
@@ -161,6 +166,11 @@ print(grid[1, 0] as number)
 print(grid[1, 1] as string)
 print(frozenRow[2])
 print(frozenDynamicRow[1])
+print(copiedRow[2])
+print(copiedFrozenRow[2])
+print(frozenMatrix[1, 2])
+print(vec[0])
+print(copiedVec[0])
 print(ownedRow[0])
 print(ownedRow[1])
 print(ownedRow[2])
@@ -246,7 +256,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array indexing executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n16\n12\n4\n5\n199\n7\n8\n9\n7\n8\n9\n10\n11\n12\nB\n2\n4\n5\n6\n299\n6\n")
+set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n16\n12\n6\n166\n16\n10\n77\n4\n5\n199\n7\n8\n9\n7\n8\n9\n10\n11\n12\nB\n2\n4\n5\n6\n299\n6\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array indexing executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -383,6 +393,12 @@ expect_invalid(
 )
 
 expect_invalid(
+	borrowed_slice_return_from_local
+	"function bad(): number[3] {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    return matrix[1]\n}\n"
+	"cannot return borrowed slice from local fixed-shape array.*matrix"
+)
+
+expect_invalid(
 	union_view_invalid_assignment
 	"type Cell = number | string\nlet grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\nlet row: Cell[2] = grid[1]\nrow[0] = true\n"
 	"cannot assign value of type.*boolean"
@@ -390,7 +406,7 @@ expect_invalid(
 
 expect_invalid(
 	returned_union_view_invalid_assignment
-	"type Cell = number | string\nfunction getRow(): Cell[2] {\n    let grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\n    return grid[1]\n}\nlet row: Cell[2] = getRow()\nrow[0] = true\n"
+	"type Cell = number | string\nfunction getRow(): Cell[2] {\n    let grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\n    return grid[1].copy()\n}\nlet row: Cell[2] = getRow()\nrow[0] = true\n"
 	"cannot assign value of type.*boolean"
 )
 
@@ -450,6 +466,6 @@ expect_runtime_error(
 
 expect_runtime_error(
 	returned_dynamic_row_out_of_bounds
-	"function getRow(index: number): number[3] {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    return matrix[index]\n}\nlet bad: number[3] = getRow(5)\nprint(bad[0])\n"
+	"function getRow(index: number): number[3] {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    return matrix[index].copy()\n}\nlet bad: number[3] = getRow(5)\nprint(bad[0])\n"
 	"main.ts:[0-9]+:.*runtime range error: array subscript.*5.*length 2"
 )
