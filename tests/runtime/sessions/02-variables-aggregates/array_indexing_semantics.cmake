@@ -49,6 +49,13 @@ let grid: Cell[2, 2] = [
     ["B", 2]
 ]
 let unionRow: Cell[2] = grid[1]
+const frozenMatrix: number[2, 3] = [
+    [11, 12, 13],
+    [14, 15, 16]
+]
+let frozenRow: number[3] = frozenMatrix[1]
+let frozenDynamicIndex: number = 0
+let frozenDynamicRow: number[3] = frozenMatrix[frozenDynamicIndex]
 
 matrix[0, 1] = 9
 row[2] = 99
@@ -69,6 +76,8 @@ print(image[1, 0, 1])
 print(dynamicRow[2])
 print(grid[1, 0] as number)
 print(grid[1, 1] as string)
+print(frozenRow[2])
+print(frozenDynamicRow[1])
 ]=])
 
 execute_process(
@@ -134,7 +143,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array indexing executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n")
+set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n16\n12\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array indexing executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -280,6 +289,42 @@ expect_invalid(
 	union_view_invalid_assignment
 	"type Cell = number | string\nlet grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\nlet row: Cell[2] = grid[1]\nrow[0] = true\n"
 	"cannot assign value of type.*boolean"
+)
+
+expect_invalid(
+	readonly_borrowed_view_assignment
+	"const matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet row: number[3] = matrix[1]\nrow[0] = 99\n"
+	"cannot mutate borrowed view.*row.*readonly source.*matrix"
+)
+
+expect_invalid(
+	direct_const_fixed_shape_assignment
+	"const matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nmatrix[1, 2] = 99\n"
+	"cannot mutate.*matrix.*const|cannot mutate.*matrix.*immutable"
+)
+
+expect_invalid(
+	nested_readonly_borrowed_view_assignment
+	"const image: number[2, 2, 3] = [[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]]\nlet row: number[2, 3] = image[1]\nlet pixel: number[3] = row[0]\npixel[1] = 88\n"
+	"cannot mutate borrowed view.*pixel.*readonly source.*image"
+)
+
+expect_invalid(
+	readonly_borrowed_view_mutating_method
+	"const matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet row: number[3] = matrix[1]\nrow.reverse()\n"
+	"cannot mutate borrowed view.*row.*readonly source.*matrix"
+)
+
+expect_invalid(
+	readonly_union_borrowed_view_assignment
+	"type Cell = number | string\nconst grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\nlet row: Cell[2] = grid[1]\nrow[0] = 100\n"
+	"cannot mutate borrowed view.*row.*readonly source.*grid"
+)
+
+expect_invalid(
+	dynamic_index_readonly_borrowed_view_assignment
+	"const matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet r: number = 1\nlet row: number[3] = matrix[r]\nrow[0] = 99\n"
+	"cannot mutate borrowed view.*row.*readonly source.*matrix"
 )
 
 expect_runtime_error(
