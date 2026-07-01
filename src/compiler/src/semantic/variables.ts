@@ -36,6 +36,9 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node.declare === true ||
                 node.ambient === true;
             const lifetime = this.getVariableLifetime(node, type, isAmbient);
+            const borrowedViewSourceName =
+                value?.borrowedViewSourceName ??
+                (value?.borrowedView === true ? (this as any).getAggregateRootIdentifier(value.object) : null);
 
             const symbol = this.defineSymbol({
                 kind: Kinds.ScopeSymbols.Variable,
@@ -50,6 +53,9 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
                 escapes: lifetime.escapes,
                 trusted,
+                borrowedView: value?.borrowedView === true,
+                borrowedViewReadonly: value?.borrowedViewReadonly === true,
+                borrowedViewSourceName,
 
                 declare: isAmbient,
                 ambient: isAmbient,

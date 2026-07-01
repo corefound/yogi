@@ -1486,6 +1486,12 @@ export class BaseSemantic {
             type: symbol.type,
             linkageName: symbol.linkageName ?? null,
             qualifiedName: symbol.qualifiedName,
+            borrowedView: symbol.borrowedView === true || symbol.node?.borrowedView === true,
+            borrowedViewReadonly: symbol.borrowedViewReadonly === true || symbol.node?.borrowedViewReadonly === true,
+            borrowedViewSourceName:
+                symbol.borrowedViewSourceName ??
+                symbol.node?.borrowedViewSourceName ??
+                (symbol.node?.object ? (this as any).getAggregateRootIdentifier(symbol.node.object) : null),
         };
     }
 

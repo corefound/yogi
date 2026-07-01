@@ -116,6 +116,9 @@ export type SymbolInfo = {
     trusted?: boolean;
     effectSummary?: SemanticFunctionEffectSummary;
     aggregateOwnerSymbolId?: number;
+    borrowedView?: boolean;
+    borrowedViewReadonly?: boolean;
+    borrowedViewSourceName?: string | null;
     moved?: boolean;
     moveReason?: string;
     movePosition?: any;

@@ -793,6 +793,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             const root = this.getAggregateRootIdentifier(receiver);
             const symbol = root ? this.resolveSymbol(root) : null;
+            const readonlyInfo = this.borrowedArrayReadonlyInfo(receiver, receiverType);
 
             if (root && symbol?.mutable !== true) {
                 const message =
@@ -800,6 +801,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            if (readonlyInfo.borrowedViewReadonly) {
+                this.throwReadonlyBorrowedViewMutationError(receiver, rawCallee, source, root, readonlyInfo.sourceName);
             }
 
             if (this.isReadonlyType(receiverType)) {
@@ -1911,6 +1916,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const index = indices[0];
             const accessType = object?.declaredType ?? object?.type;
             const objectType = this.resolveOptionalAccessObjectType(accessType);
+            const readonlyInfo = this.borrowedArrayReadonlyInfo(object, objectType);
             const indexValue = this.literalIndexValue(index);
             const source = node.fullSource ?? node.source;
 
@@ -1966,12 +1972,18 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     object,
                     index,
                     type: elements[tupleIndex],
-                    readonly: objectType.readonly === true,
+                    readonly: objectType.readonly === true || readonlyInfo.readonly,
+                    borrowedViewReadonly: readonlyInfo.borrowedViewReadonly,
+                    borrowedViewSourceName: readonlyInfo.sourceName,
                 };
             }
 
             if (objectType?.kind === Kinds.Types.ArrayType) {
                 const shape = objectType.shape ?? [];
+                const isBorrowedFixedShapeView =
+                    objectType.fixed === true &&
+                    shape.length > 0 &&
+                    indices.length < shape.length;
                 if (objectType.fixed === true && shape.length > 0) {
                     if (indices.length > shape.length) {
                         const message =
@@ -2029,7 +2041,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     type: objectType.fixed === true && shape.length > 0
                         ? this.fixedArraySliceType(objectType, indices.length)
                         : objectType.elementType,
-                    readonly: objectType.readonly === true,
+                    readonly: objectType.readonly === true || readonlyInfo.readonly,
+                    borrowedView: isBorrowedFixedShapeView,
+                    borrowedViewReadonly: readonlyInfo.borrowedViewReadonly || (isBorrowedFixedShapeView && readonlyInfo.readonly),
+                    borrowedViewSourceName: isBorrowedFixedShapeView ? readonlyInfo.sourceName : null,
                 };
             }
 
@@ -2254,6 +2269,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                         ...left.access,
                                         type: left.type,
                                         readonly: left.readonly,
+                                        borrowedViewReadonly: left.borrowedViewReadonly,
+                                        borrowedViewSourceName: left.borrowedViewSourceName,
                                         source: left.source,
                                         position: left.position,
                                     },
@@ -2461,6 +2478,16 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.throwError(message, left.position, context.fullSource ?? node.fullSource ?? node.source, left);
                 }
 
+                if (left.borrowedViewReadonly === true) {
+                    this.throwReadonlyBorrowedViewMutationError(
+                        left.object,
+                        left,
+                        context.fullSource ?? node.fullSource ?? node.source,
+                        root,
+                        left.borrowedViewSourceName,
+                    );
+                }
+
                 if (left.readonly === true || this.isReadonlyType(left.object?.type)) {
                     const message =
                         `cannot assign to ${Helpers.RED}'${left.source ?? "readonly member"}'${Helpers.RESET} because it is readonly`;
@@ -2539,6 +2566,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         ...left.access,
                         type: left.type,
                         readonly: left.readonly,
+                        borrowedViewReadonly: left.borrowedViewReadonly,
+                        borrowedViewSourceName: left.borrowedViewSourceName,
                         source: left.source,
                         position: left.position,
                     };
@@ -2557,6 +2586,16 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                         left.arrowLength = left.source?.length ?? 1;
                         this.throwError(message, left.position, source, left);
+                    }
+
+                    if (left.borrowedViewReadonly === true) {
+                        this.throwReadonlyBorrowedViewMutationError(
+                            left.object,
+                            left,
+                            source,
+                            root,
+                            left.borrowedViewSourceName,
+                        );
                     }
 
                     if (left.readonly === true || this.isReadonlyType(left.object?.type)) {
@@ -2820,6 +2859,67 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             }
 
             return null;
+        }
+
+        public borrowedArrayReadonlyInfo(object: any, objectType: any): {
+            readonly: boolean;
+            borrowedViewReadonly: boolean;
+            sourceName: string | null;
+        } {
+            const rootName = this.getAggregateRootIdentifier(object);
+            const symbol = rootName ? this.resolveSymbol(rootName) : null;
+            const symbolNode = symbol?.node;
+            const sourceName =
+                object?.borrowedViewSourceName ??
+                symbol?.borrowedViewSourceName ??
+                symbolNode?.borrowedViewSourceName ??
+                (symbolNode?.object ? this.getAggregateRootIdentifier(symbolNode.object) : null) ??
+                rootName ??
+                null;
+            const isBorrowedView =
+                object?.borrowedView === true ||
+                symbol?.borrowedView === true ||
+                symbolNode?.borrowedView === true;
+            const borrowedViewReadonly =
+                object?.borrowedViewReadonly === true ||
+                symbol?.borrowedViewReadonly === true ||
+                symbolNode?.borrowedViewReadonly === true;
+            const readonly =
+                borrowedViewReadonly ||
+                object?.readonly === true ||
+                objectType?.readonly === true ||
+                this.isReadonlyType(objectType) ||
+                symbol?.mutable === false;
+
+            return {
+                readonly,
+                borrowedViewReadonly: borrowedViewReadonly || (readonly && isBorrowedView),
+                sourceName,
+            };
+        }
+
+        public throwReadonlyBorrowedViewMutationError(
+            view: any,
+            node: any,
+            source: string,
+            viewName?: string | null,
+            sourceName?: string | null,
+        ): void {
+            const viewLabel = viewName ?? this.getAggregateRootIdentifier(view) ?? view?.source ?? "view";
+            const viewSymbol = viewLabel ? this.resolveSymbol(viewLabel) : null;
+            const inferredSourceLabel =
+                viewSymbol?.borrowedViewSourceName ??
+                viewSymbol?.node?.borrowedViewSourceName ??
+                (viewSymbol?.node?.object ? this.getAggregateRootIdentifier(viewSymbol.node.object) : null);
+            const sourceLabel = sourceName && sourceName !== viewLabel
+                ? sourceName
+                : inferredSourceLabel ?? sourceName ?? viewLabel;
+            const message =
+                `cannot mutate borrowed view ${Helpers.RED}'${viewLabel}'${Helpers.RESET} because it borrows from readonly source ` +
+                `${Helpers.BLUE}'${sourceLabel}'${Helpers.RESET}`;
+
+            node.arrowLength = node.source?.length ?? view?.source?.length ?? 1;
+            this.throwError(message, node.position ?? view?.position, source, node);
         }
 
         public foldKnownPropertyAccess(object: any, propertyName: string, node: any): any {
