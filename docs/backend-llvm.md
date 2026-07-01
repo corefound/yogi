@@ -75,6 +75,52 @@ yogi_print_string
 yogi_print_any
 ```
 
+## Fixed-Shape Arrays
+
+Fixed-shape arrays use Yogi's rectangular coordinate syntax:
+
+```ts
+let matrix: number[2, 3] = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+
+print(matrix[1, 2])
+```
+
+The frontend preserves shape metadata in SIR `TypeRef`:
+
+```text
+kind = array_type
+fixed = true
+shape = [2, 3]
+element_type = number
+```
+
+The backend currently lowers fixed-shape literals to a flat runtime array
+descriptor using row-major order. For `number[2, 3]`, the descriptor stores six
+elements:
+
+```text
+[1, 2, 3, 4, 5, 6]
+```
+
+Full coordinate indexing computes a row-major offset:
+
+```text
+matrix[1, 2] => 1 * 3 + 2 => 5
+```
+
+Partial indexing materializes a slice array copy for now:
+
+```ts
+let row: number[3] = matrix[1]
+```
+
+This keeps ownership and cleanup simple until Yogi has borrowed slice/view
+descriptors. The next backend step is replacing this descriptor-backed storage
+with a native fixed-shape ABI when the value never needs runtime array behavior.
+
 ## Function Visibility
 
 Functions are internal by default. Exported functions receive external linkage

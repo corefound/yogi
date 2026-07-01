@@ -50,10 +50,22 @@ without re-auditing the whole compiler.
 ## Arrays
 
 - [x] Dynamic arrays with runtime descriptor and heap buffer
+- [x] Strict bracket access with runtime range errors
+- [x] Safe `.at(index)` access that may return `undefined`
+- [x] Fixed-size one-dimensional arrays such as `number[3]`
+- [x] Fixed-shape multidimensional arrays such as `number[2, 3]`
+- [x] Coordinate indexing syntax such as `matrix[1, 2]`
+- [x] Fixed-shape array literal validation by dimension and element type
+- [x] Fixed-shape metadata in FlatBuffers/SIR
+- [x] Flat row-major backend lowering for fixed-shape array literals and full coordinate access
+- [x] Partial fixed-shape indexing type inference and materialized slice lowering
 - [x] Common non-callback array methods
 - [x] Callback array methods
 - [x] Iterator protocol support for arrays
 - [x] Array print support
+- [ ] Borrowed slice/view descriptors for partial fixed-shape indexing
+- [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
+- [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions
 - [ ] Final audit against all JavaScript/TypeScript Array methods
 
 ## Strings

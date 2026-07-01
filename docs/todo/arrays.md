@@ -7,6 +7,19 @@ known state instead of rediscovering gaps from the source code.
 ## Supported Now
 
 - Array literals and explicit `T[]` declarations.
+- Fixed-size one-dimensional arrays with exact literal length:
+  - `number[3]`
+  - strict bracket indexing
+  - size-changing methods rejected
+- Fixed-shape multidimensional arrays:
+  - `number[2, 3]`
+  - `number[4, 4, 3]`
+  - rectangular literal validation
+  - coordinate indexing with `matrix[i, j]`
+  - partial indexing such as `matrix[i]` with shaped result type
+  - FlatBuffers shape metadata through `TypeRef.fixed` and `TypeRef.shape`
+  - LLVM lowering uses flat row-major descriptor storage for fixed-shape
+    literals and row-major offset calculation for reads/writes
 - Tuple literals and explicit tuple declarations.
 - Index access: `scores[0]`.
 - Array element return unboxing for primitive contexts:
@@ -78,9 +91,16 @@ known state instead of rediscovering gaps from the source code.
 - String element extraction from `string[]` through `.at()` when the array lives
   inside a struct field. The field type and array length are valid, but direct
   string extraction needs a focused array/string ownership lowering fix.
+- True borrowed slice/view descriptors for partial fixed-shape indexing. Today
+  partial indexing materializes a slice array copy so ownership remains simple.
 
 ## Future Work
 
+- Full first-class contiguous native array ABI for fixed-shape arrays. The
+  current backend uses a flat runtime array descriptor, not an LLVM `[N x T]`
+  value, so it is row-major and rectangular but still runtime-descriptor backed.
+- Dynamic shaped arrays such as `Array<float32, 2>` where rank is known at
+  compile time and dimensions are known at runtime.
 - Inline callback forms that still need deeper function-expression lowering:
   - closures that capture outer locals
 - Lazy iterator objects. `for...of` now works over arrays and array-producing
@@ -109,3 +129,5 @@ known state instead of rediscovering gaps from the source code.
 - `with` now uses runtime range diagnostics. Future range-sensitive APIs should
   reuse the same `yogi runtime range error` path unless Yogi later adds
   catchable exceptions.
+- Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the
+  JavaScript comma operator inside brackets.
