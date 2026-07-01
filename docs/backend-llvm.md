@@ -111,15 +111,35 @@ Full coordinate indexing computes a row-major offset:
 matrix[1, 2] => 1 * 3 + 2 => 5
 ```
 
-Partial indexing materializes a slice array copy for now:
+Partial indexing creates a borrowed, non-owning view descriptor:
 
 ```ts
 let row: number[3] = matrix[1]
 ```
 
-This keeps ownership and cleanup simple until Yogi has borrowed slice/view
-descriptors. The next backend step is replacing this descriptor-backed storage
-with a native fixed-shape ABI when the value never needs runtime array behavior.
+The view descriptor stores:
+
+```text
+source array descriptor
+base offset into row-major storage
+visible length for the remaining shape
+borrowed/non-owning ownership bit
+```
+
+No elements are copied for supported local partial indexing. Reads and writes
+through the view are forwarded to the original storage:
+
+```ts
+row[2] = 99
+print(matrix[1, 2]) // 99
+```
+
+The view descriptor itself is cleaned up normally, but it does not destroy the
+borrowed storage. Returning a borrowed slice from a local fixed-shape array is
+rejected until richer interprocedural borrowed-lifetime summaries exist.
+
+The next backend step is replacing descriptor-backed fixed-shape storage with a
+native fixed-shape ABI when the value never needs runtime array behavior.
 
 ## Function Visibility
 

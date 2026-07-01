@@ -20,6 +20,10 @@ known state instead of rediscovering gaps from the source code.
   - FlatBuffers shape metadata through `TypeRef.fixed` and `TypeRef.shape`
   - LLVM lowering uses flat row-major descriptor storage for fixed-shape
     literals and row-major offset calculation for reads/writes
+  - borrowed fixed-shape views for local partial indexing:
+    - `let row: number[3] = matrix[1]`
+    - `row[2] = 99` mutates `matrix[1, 2]`
+    - no element-by-element copy for supported partial indexing
 - Tuple literals and explicit tuple declarations.
 - Index access: `scores[0]`.
 - Array element return unboxing for primitive contexts:
@@ -91,14 +95,20 @@ known state instead of rediscovering gaps from the source code.
 - String element extraction from `string[]` through `.at()` when the array lives
   inside a struct field. The field type and array length are valid, but direct
   string extraction needs a focused array/string ownership lowering fix.
-- True borrowed slice/view descriptors for partial fixed-shape indexing. Today
-  partial indexing materializes a slice array copy so ownership remains simple.
+- Const/readonly propagation through borrowed fixed-shape views. Today the view
+  descriptor itself can be mutable if bound with `let`; a future lot should
+  preserve source constness/readonly through the borrowed view.
+- Escape-aware borrowed view lifetime rules beyond obvious local returns.
+  Returning a borrowed slice from a local fixed-shape array is rejected, but
+  richer interprocedural borrow summaries are still pending.
 
 ## Future Work
 
 - Full first-class contiguous native array ABI for fixed-shape arrays. The
   current backend uses a flat runtime array descriptor, not an LLVM `[N x T]`
   value, so it is row-major and rectangular but still runtime-descriptor backed.
+- Borrowed view descriptors for array methods that can naturally return views
+  in the future.
 - Dynamic shaped arrays such as `Array<float32, 2>` where rank is known at
   compile time and dimensions are known at runtime.
 - Inline callback forms that still need deeper function-expression lowering:

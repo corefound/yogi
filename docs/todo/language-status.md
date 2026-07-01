@@ -58,12 +58,16 @@ without re-auditing the whole compiler.
 - [x] Fixed-shape array literal validation by dimension and element type
 - [x] Fixed-shape metadata in FlatBuffers/SIR
 - [x] Flat row-major backend lowering for fixed-shape array literals and full coordinate access
-- [x] Partial fixed-shape indexing type inference and materialized slice lowering
+- [x] Partial fixed-shape indexing type inference
+- [x] Borrowed fixed-shape views for local partial indexing
+- [x] Mutation through borrowed fixed-shape views updates original storage
+- [x] Reject returning borrowed slices from local fixed-shape arrays
 - [x] Common non-callback array methods
 - [x] Callback array methods
 - [x] Iterator protocol support for arrays
 - [x] Array print support
-- [ ] Borrowed slice/view descriptors for partial fixed-shape indexing
+- [ ] Const/readonly propagation through borrowed fixed-shape views
+- [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions
 - [ ] Final audit against all JavaScript/TypeScript Array methods
