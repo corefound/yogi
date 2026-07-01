@@ -2073,26 +2073,21 @@ namespace yogi::core::llvm::internal {
 		return offset;
 	}
 
-	::llvm::Value *ValueLowerer::materializeFixedShapeSlice(
+	::llvm::Value *ValueLowerer::createBorrowedFixedShapeView(
 		::llvm::Value *array,
 		::llvm::Value *startOffset,
 		uint64_t length
 	) {
 		auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
-		auto *slice = callRuntime(
-			"yogi_array_create",
+		return callRuntime(
+			"yogi_array_view",
 			opaquePointer(),
-			{::llvm::ConstantInt::get(i64, length)}
+			{
+				array,
+				startOffset,
+				::llvm::ConstantInt::get(i64, length),
+			}
 		);
-
-		for (uint64_t index = 0; index < length; ++index) {
-			auto *relativeIndex = ::llvm::ConstantInt::get(i64, index);
-			auto *sourceIndex = context.builder.CreateAdd(startOffset, relativeIndex, "array.shape.slice.index");
-			auto *boxedValue = callRuntime("yogi_array_get", opaquePointer(), {array, sourceIndex});
-			callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {slice, relativeIndex, boxedValue});
-		}
-
-		return slice;
 	}
 
 	void ValueLowerer::populateObject(const Yogi::Sir::ObjectExpression *object, ::llvm::Value *aggregate) {
@@ -2212,8 +2207,8 @@ namespace yogi::core::llvm::internal {
 
 			if (consumedDimensions < shape.size()) {
 				auto *startOffset = fixedShapeLinearOffset(access, shape, consumedDimensions, true);
-				auto *slice = materializeFixedShapeSlice(array, startOffset, fixedShapeElementCount(shape, consumedDimensions));
-				return cast(slice, targetType, targetSemanticType, targetSemanticType);
+				auto *view = createBorrowedFixedShapeView(array, startOffset, fixedShapeElementCount(shape, consumedDimensions));
+				return cast(view, targetType, targetSemanticType, targetSemanticType);
 			}
 
 			auto *offset = fixedShapeLinearOffset(access, shape, consumedDimensions, false);

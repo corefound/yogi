@@ -76,6 +76,7 @@ void yogi_object_drop(void *object);
 void yogi_object_destroy(void *object);
 
 void *yogi_array_create(unsigned long long length);
+void *yogi_array_view(void *source, unsigned long long offset, unsigned long long length);
 unsigned long long yogi_array_sizeof(void);
 void yogi_array_init(void *array, unsigned long long length);
 void yogi_array_set(void *array, unsigned long long index, void *value);

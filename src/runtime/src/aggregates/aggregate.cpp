@@ -436,6 +436,32 @@ namespace yogi::runtime {
 		return static_cast<ArrayValue *>(address);
 	}
 
+	ArrayValue *ArrayValue::createView(ArrayValue *source, std::size_t offset, std::size_t length) {
+		if (!source) {
+			return create(0);
+		}
+
+		OwnershipTracker::assertLiveAggregate(source, "array view source after destroy/drop", "array value");
+
+		auto *owner = source->isView() ? source->viewSource : source;
+		const auto baseOffset = (source->isView() ? source->viewOffset : 0) + offset;
+		const auto sourceLength = source->length();
+
+		if (offset > sourceLength || length > sourceLength - offset) {
+			RuntimeError::abortRange("array view", static_cast<long long>(offset + length), sourceLength);
+		}
+
+		void *address = MemoryManager::allocate(sizeof(ArrayValue), "array view");
+		auto *view = new (address) ArrayValue();
+		view->viewSource = owner;
+		view->viewOffset = baseOffset;
+		view->elementCount = length;
+		view->elementCapacity = length;
+		OwnershipTracker::markHeapAggregate(address, "array value");
+
+		return view;
+	}
+
 	void ArrayValue::init(void *address, std::size_t length) {
 		auto *array = new (address) ArrayValue();
 		OwnershipTracker::registerStackAggregate(array, "array value");
@@ -459,11 +485,21 @@ namespace yogi::runtime {
 		return sizeof(ArrayValue);
 	}
 
+	bool ArrayValue::isView() const {
+		return viewSource != nullptr;
+	}
+
 	void ArrayValue::set(std::size_t index, void *value) {
 		OwnershipTracker::assertLiveAggregate(this, "array set after destroy/drop", "array value");
 
 		if (index >= elementCount) {
 			RuntimeError::abortRange("array subscript assignment", static_cast<long long>(index), elementCount);
+		}
+
+		if (isView()) {
+			OwnershipTracker::assertLiveAggregate(viewSource, "array view source set after destroy/drop", "array value");
+			viewSource->set(viewOffset + index, value);
+			return;
 		}
 
 		elements[index] = value ? value : AnyValue::undefined();
@@ -474,6 +510,11 @@ namespace yogi::runtime {
 
 		if (index >= elementCount) {
 			RuntimeError::abortRange("array subscript", static_cast<long long>(index), elementCount);
+		}
+
+		if (isView()) {
+			OwnershipTracker::assertLiveAggregate(viewSource, "array view source get after destroy/drop", "array value");
+			return viewSource->get(viewOffset + index);
 		}
 
 		return elements[index] ? elements[index] : AnyValue::undefined();
@@ -508,6 +549,11 @@ namespace yogi::runtime {
 
 		if (index >= elementCount) {
 			return AnyValue::undefined();
+		}
+
+		if (isView()) {
+			OwnershipTracker::assertLiveAggregate(viewSource, "array view source at after destroy/drop", "array value");
+			return viewSource->at(viewOffset + index);
 		}
 
 		return elements[index] ? elements[index] : AnyValue::undefined();
@@ -888,6 +934,10 @@ namespace yogi::runtime {
 	}
 
 	void ArrayValue::ensureCapacity(std::size_t requiredCapacity) {
+		if (isView()) {
+			RuntimeError::abortRange("array view resize", static_cast<long long>(requiredCapacity), elementCount);
+		}
+
 		if (requiredCapacity <= elementCapacity) {
 			return;
 		}
@@ -911,10 +961,15 @@ namespace yogi::runtime {
 	void ArrayValue::destroy() {
 		OwnershipTracker::assertLiveAggregate(this, "array destroy/drop after destroy/drop", "array value");
 
-		MemoryManager::deallocate(elements);
+		if (!isView()) {
+			MemoryManager::deallocate(elements);
+		}
+
 		elements = nullptr;
 		elementCount = 0;
 		elementCapacity = 0;
+		viewSource = nullptr;
+		viewOffset = 0;
 	}
 
 } // namespace yogi::runtime
@@ -975,6 +1030,14 @@ void yogi_object_destroy(void *object) {
 
 void *yogi_array_create(unsigned long long length) {
 	return yogi::runtime::ArrayValue::create(static_cast<std::size_t>(length));
+}
+
+void *yogi_array_view(void *source, unsigned long long offset, unsigned long long length) {
+	return yogi::runtime::ArrayValue::createView(
+		static_cast<yogi::runtime::ArrayValue *>(source),
+		static_cast<std::size_t>(offset),
+		static_cast<std::size_t>(length)
+	);
 }
 
 unsigned long long yogi_array_sizeof(void) {

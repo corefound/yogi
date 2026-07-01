@@ -121,7 +121,7 @@ namespace yogi::core::llvm::internal {
 				size_t consumedDimensions,
 				bool sliceStart
 			);
-			::llvm::Value *materializeFixedShapeSlice(
+			::llvm::Value *createBorrowedFixedShapeView(
 				::llvm::Value *array,
 				::llvm::Value *startOffset,
 				uint64_t length

@@ -40,6 +40,7 @@ namespace yogi::runtime {
 	class ArrayValue final {
 		public:
 			static ArrayValue *create(std::size_t length);
+			static ArrayValue *createView(ArrayValue *source, std::size_t offset, std::size_t length);
 			static void init(void *address, std::size_t length);
 			static std::size_t size();
 
@@ -80,8 +81,11 @@ namespace yogi::runtime {
 			void **elements = nullptr;
 			std::size_t elementCount = 0;
 			std::size_t elementCapacity = 0;
+			ArrayValue *viewSource = nullptr;
+			std::size_t viewOffset = 0;
 
 			void ensureCapacity(std::size_t requiredCapacity);
+			bool isView() const;
 	};
 
 } // namespace yogi::runtime
