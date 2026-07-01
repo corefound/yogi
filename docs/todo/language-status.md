@@ -66,7 +66,7 @@ without re-auditing the whole compiler.
 - [x] Callback array methods
 - [x] Iterator protocol support for arrays
 - [x] Array print support
-- [ ] Const/readonly propagation through borrowed fixed-shape views
+- [x] Const/readonly propagation through borrowed fixed-shape views
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions

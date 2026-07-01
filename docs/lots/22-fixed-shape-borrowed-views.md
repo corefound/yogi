@@ -33,6 +33,50 @@ source descriptor, a base offset, and the visible length for the remaining fixed
 shape. `yogi_array_get` and `yogi_array_set` forward through the view to the
 source descriptor.
 
+## Readonly Propagation
+
+Borrowed views inherit mutability from the storage they borrow. A view from a
+mutable owner stays mutable:
+
+```ts
+let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+let row: number[3] = matrix[1]
+
+row[2] = 99
+print(matrix[1, 2]) // 99
+```
+
+A view from a `const` or readonly owner is readonly, even if the view binding is
+declared with `let`:
+
+```ts
+const matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+let row: number[3] = matrix[1]
+
+print(row[2]) // ok
+row[0] = 99  // rejected
+```
+
+Diagnostic:
+
+```text
+cannot mutate borrowed view 'row' because it borrows from readonly source 'matrix'
+```
+
+Nested views preserve the same source:
+
+```ts
+const image: number[2, 2, 3] = [
+    [[1, 2, 3], [4, 5, 6]],
+    [[7, 8, 9], [10, 11, 12]]
+]
+
+let row: number[2, 3] = image[1]
+let pixel: number[3] = row[0]
+
+pixel[1] = 88 // rejected; pixel still borrows from readonly image
+```
+
 ## Runtime ABI
 
 The backend emits:
@@ -77,10 +121,12 @@ Working:
 - writes through the view update original storage
 - dynamic partial indices keep runtime range checks
 - union element fixed-shape views preserve assignment validation
+- views borrowed from `const` or readonly owners reject indexed mutation
+- nested readonly borrowed views preserve the original readonly source
+- mutating array methods reject readonly borrowed view receivers
 - returning a borrowed slice from a local fixed-shape array is rejected
 
 TODO:
 
-- propagate source const/readonly through borrowed views
 - model borrowed views in interprocedural ownership summaries
 - native fixed-shape ABI without runtime descriptors

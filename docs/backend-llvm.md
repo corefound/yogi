@@ -134,6 +134,22 @@ row[2] = 99
 print(matrix[1, 2]) // 99
 ```
 
+Readonly ownership is enforced before lowering. A borrowed view from a `const`
+or readonly fixed-shape owner remains readonly even when stored in a `let`
+binding:
+
+```ts
+const matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+let row: number[3] = matrix[1]
+
+print(row[2]) // ok
+row[0] = 99  // semantic error
+```
+
+The LLVM/runtime view ABI is unchanged for this rule. The compiler carries the
+readonly source metadata in SIR/semantic nodes and rejects mutation before
+emitting `yogi_array_set` or mutating array method calls.
+
 The view descriptor itself is cleaned up normally, but it does not destroy the
 borrowed storage. Returning a borrowed slice from a local fixed-shape array is
 rejected until richer interprocedural borrowed-lifetime summaries exist.
