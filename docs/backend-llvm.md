@@ -151,8 +151,20 @@ readonly source metadata in SIR/semantic nodes and rejects mutation before
 emitting `yogi_array_set` or mutating array method calls.
 
 The view descriptor itself is cleaned up normally, but it does not destroy the
-borrowed storage. Returning a borrowed slice from a local fixed-shape array is
-rejected until richer interprocedural borrowed-lifetime summaries exist.
+borrowed storage. Returning a partial view from a local fixed-shape array
+materializes an owned descriptor before local cleanups run:
+
+```ts
+function getRow(): number[3] {
+    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+    return matrix[1]
+}
+```
+
+The backend creates the borrowed view, allocates `yogi_array_create(3)`, copies
+the selected row with `yogi_array_get`/`yogi_array_set`, and returns the owned
+copy. The original owner is then cleaned normally. Parameter-borrow summaries
+and explicit borrowed returns remain future work.
 
 The next backend step is replacing descriptor-backed fixed-shape storage with a
 native fixed-shape ABI when the value never needs runtime array behavior.

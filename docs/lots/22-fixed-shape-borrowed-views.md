@@ -89,12 +89,23 @@ The returned descriptor is heap tracked like other aggregate descriptors, but it
 is non-owning. Destroying the view destroys only the descriptor, not the source
 storage.
 
-## Lifetime Safety
+## Lifetime Safety And Return Materialization
 
-The compiler rejects obvious dangling borrowed slices:
+Local partial indexing remains borrowed:
 
 ```ts
-function bad(): number[3] {
+let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+let row: number[3] = matrix[1]
+
+row[2] = 99
+print(matrix[1, 2]) // 99
+```
+
+When a partial view from a local fixed-shape owner escapes through `return`, the
+compiler materializes an owned copy:
+
+```ts
+function getRow(): number[3] {
     let matrix: number[2, 3] = [
         [1, 2, 3],
         [4, 5, 6]
@@ -104,14 +115,12 @@ function bad(): number[3] {
 }
 ```
 
-Diagnostic:
+The copy contains only the selected `number[3]` row. It does not keep the whole
+`number[2, 3]` owner alive. Returning from a `const` local owner also produces an
+owned mutable copy because the result no longer borrows readonly storage.
 
-```text
-cannot return borrowed slice from local fixed-shape array 'matrix'
-```
-
-This is intentionally conservative. Richer interprocedural borrowed-view
-summaries are future work.
+Interprocedural borrowed-view summaries and explicit borrowed return types are
+future work.
 
 ## Current Status
 
@@ -124,9 +133,10 @@ Working:
 - views borrowed from `const` or readonly owners reject indexed mutation
 - nested readonly borrowed views preserve the original readonly source
 - mutating array methods reject readonly borrowed view receivers
-- returning a borrowed slice from a local fixed-shape array is rejected
+- returning a partial view from a local fixed-shape owner materializes an owned copy
 
 TODO:
 
 - model borrowed views in interprocedural ownership summaries
+- explicit `.copy()` / explicit borrowed-view syntax
 - native fixed-shape ABI without runtime descriptors
