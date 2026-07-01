@@ -63,6 +63,9 @@ without re-auditing the whole compiler.
 - [x] Mutation through borrowed fixed-shape views updates original storage
 - [x] Returning borrowed fixed-shape views from local owners is rejected unless `.copy()` is used
 - [x] Explicit `.copy()` for owned fixed-shape view/array copies
+- [x] Array spread in dynamic literals with runtime push/get lowering
+- [x] Fixed-size 1D array spread when spread length is compile-time known
+- [x] Spread element type checking for dynamic, fixed, tuple, and union targets
 - [x] Common non-callback array methods
 - [x] Callback array methods
 - [x] Iterator protocol support for arrays

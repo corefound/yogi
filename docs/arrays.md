@@ -830,7 +830,7 @@ function getRow(): number[3] {
 
 ### 4. Spread operator for arrays
 
-Planned support:
+Supported:
 
 ```ts
 let a: number[] = [1, 2]
@@ -873,7 +873,21 @@ let b: number[3] = [0, ...a]
 // error
 ```
 
-Spread should create a new array/copy, not a borrowed view.
+Spread creates a new array, not a borrowed view.
+
+Backend lowering:
+
+```txt
+dynamic array literal with spread:
+  create empty array
+  push scalar elements
+  loop through each spread source with yogi_array_length/get/push
+
+fixed-size 1D array literal with spread:
+  validate final length at semantic time
+  create fixed-length descriptor
+  loop through each spread source with yogi_array_length/get/set
+```
 
 ---
 
@@ -1348,14 +1362,15 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ✅ Expression-bodied inline arrow callbacks
 ✅ Block-bodied inline arrow callbacks
 ✅ Comparator overloads for sort and toSorted
+✅ Array spread in dynamic array literals
+✅ Array spread from fixed arrays and tuples
+✅ Spread length validation for fixed-size 1D arrays
+✅ Spread element type checking for dynamic, fixed, tuple, and union targets
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Spread operator for arrays
-⬜ Spread length validation for fixed arrays
-⬜ Spread type checking for union/fixed/dynamic arrays
 ⬜ Local capture/closure semantics for inline callbacks
 ⬜ Depth-aware semantic result typing for flat(depth)
 ⬜ String element extraction from string[] through .at() inside struct fields
@@ -1386,14 +1401,12 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 1. Const/readonly propagation into borrowed views
 2. Nested readonly borrowed views
 3. Explicit .copy() for owned slice/view copies
-4. Spread operator for arrays
-5. Spread length validation for fixed arrays
-6. Spread type checking for union/fixed/dynamic arrays
-7. Local capture/closure semantics for inline callbacks
-8. Depth-aware semantic result typing for flat(depth)
-9. String element extraction from string[] through .at() inside struct fields
-10. Borrow summaries interprocedural
-11. Escape analysis complete for borrowed views
+4. Local capture/closure semantics for inline callbacks
+5. Depth-aware semantic result typing for flat(depth)
+6. String element extraction from string[] through .at() inside struct fields
+7. Borrow summaries interprocedural
+8. Escape analysis complete for borrowed views
+9. Native LLVM fixed array ABI without runtime descriptor
 12. Cleanup/destructor rules for borrowed views
 13. Dynamic shaped arrays: Array<T, Rank>
 14. Dynamic shaped views/slices
