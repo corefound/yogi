@@ -180,6 +180,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const value = node.value ? this.visitNode(node.value) : null;
             const expectedReturnType = this.currentFunctionReturnType;
 
+            this.rejectEscapingLocalFixedShapeView(value, node);
+
             if (expectedReturnType && this.rejectsImplicitObjectContractConversion(expectedReturnType, value)) {
                 this.throwImplicitObjectContractConversionError(
                     expectedReturnType,
@@ -249,7 +251,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 value.position ?? node.position,
                 node.fullSource ?? node.source,
                 value,
-                "  = partial indexing returns a borrowed view tied to the source array lifetime\n  = return an owned copy once explicit slice-copy syntax is available",
+                "  = partial indexing returns a borrowed view tied to the source array lifetime\n  = use '.copy()' to return an owned array copy explicitly",
             );
         }
 

@@ -370,6 +370,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 push: () => this.validateAndCreatePushCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 pop: () => this.validateAndCreatePopCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 at: () => this.validateAndCreateAtCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                copy: () => this.validateAndCreateCopyCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 shift: () => this.validateAndCreateShiftCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 unshift: () => this.validateAndCreateUnshiftCall(node, rawCallee, receiver, receiverType, methodName, args, source),
                 includes: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, receiverType, methodName, args, source, "boolean"),
@@ -1145,6 +1146,30 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 receiver,
                 args,
                 this.arrayReturnType(receiverType),
+                methodName,
+            );
+        }
+
+        public validateAndCreateCopyCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            if (receiverType?.kind !== Kinds.Types.ArrayType) {
+                const message =
+                    `array method ${Helpers.BLUE}'copy'${Helpers.RESET} is only supported on arrays`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            return this.createArrayBuiltinCall(
+                node,
+                rawCallee,
+                receiver,
+                args,
+                {
+                    ...receiverType,
+                    readonly: false,
+                },
                 methodName,
             );
         }
