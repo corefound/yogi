@@ -106,7 +106,26 @@ namespace yogi::core::llvm::internal {
 				bool escaped
 			);
 			void populateArray(const Yogi::Sir::ArrayExpression *array, ::llvm::Value *aggregate);
+			void populateFixedShapeArray(
+				const Yogi::Sir::ArrayExpression *array,
+				::llvm::Value *aggregate,
+				const Yogi::Sir::TypeRef *arrayType
+			);
 			void populateObject(const Yogi::Sir::ObjectExpression *object, ::llvm::Value *aggregate);
+			bool isFixedShapeArray(const Yogi::Sir::TypeRef *type) const;
+			std::vector<int64_t> fixedShape(const Yogi::Sir::TypeRef *type) const;
+			uint64_t fixedShapeElementCount(const std::vector<int64_t> &shape, size_t start = 0) const;
+			::llvm::Value *fixedShapeLinearOffset(
+				const Yogi::Sir::ElementAccessExpression *access,
+				const std::vector<int64_t> &shape,
+				size_t consumedDimensions,
+				bool sliceStart
+			);
+			::llvm::Value *materializeFixedShapeSlice(
+				::llvm::Value *array,
+				::llvm::Value *startOffset,
+				uint64_t length
+			);
 			::llvm::Value *lowerPropertyAccess(
 				const Yogi::Sir::PropertyAccessExpression *access,
 				::llvm::Type *expectedType,
