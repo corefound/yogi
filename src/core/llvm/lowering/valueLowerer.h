@@ -54,6 +54,12 @@ namespace yogi::core::llvm::internal {
 			void dropLocalAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
 			void destroyEscapedAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
 			bool isStructType(const Yogi::Sir::TypeRef *type) const;
+			bool isPartialFixedShapeArrayAccess(const Yogi::Sir::ValueRef *value) const;
+			::llvm::Value *materializeEscapingFixedShapeView(
+				const Yogi::Sir::ElementAccessExpression *access,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
 			::llvm::Value *cast(
 				::llvm::Value *value,
 				::llvm::Type *targetType,

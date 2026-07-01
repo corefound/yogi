@@ -384,8 +384,11 @@ namespace yogi::core::llvm::internal {
 		}
 
 		context.pushMemorySourceLocation(statement->position());
+		auto *rawReturnValue = values.isPartialFixedShapeArrayAccess(statement->value())
+			? values.materializeEscapingFixedShapeView(statement->value()->element_access(), returnType, context.currentReturnType)
+			: values.lower(statement->value(), returnType, context.currentReturnType);
 		auto *returnValue = values.cast(
-			values.lower(statement->value(), returnType, context.currentReturnType),
+			rawReturnValue,
 			returnType,
 			context.currentReturnType
 		);

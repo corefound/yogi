@@ -1788,7 +1788,11 @@ namespace yogi::core::llvm::internal {
 		const auto safeName = sanitizeSymbol(name);
 
 		if (const auto *array = value->array()) {
-			const auto length = array->elements() ? array->elements()->size() : 0;
+			const auto *arrayType = valueSemanticType(value);
+			const auto shape = fixedShape(arrayType);
+			const auto length = isFixedShapeArray(arrayType)
+				? fixedShapeElementCount(shape)
+				: static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
 			context.pushMemorySourceLocation(array->position());
 			auto *size = callRuntime("yogi_array_sizeof", ::llvm::Type::getInt64Ty(context.llvmContext), {});
 			auto *storage = context.builder.CreateAlloca(
@@ -1805,7 +1809,11 @@ namespace yogi::core::llvm::internal {
 					::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), length),
 				}
 			);
-			populateArray(array, storage);
+			if (isFixedShapeArray(arrayType)) {
+				populateFixedShapeArray(array, storage, arrayType);
+			} else {
+				populateArray(array, storage);
+			}
 			context.popMemorySourceLocation();
 
 			return storage;
@@ -1979,9 +1987,11 @@ namespace yogi::core::llvm::internal {
 						continue;
 					}
 
-					const auto *semanticType = elementType ? elementType : valueSemanticType(element);
-					auto *elementValue = lower(element, types.lower(semanticType), semanticType);
-					auto *boxedValue = boxAny(elementValue, semanticType);
+					const auto *actualType = valueSemanticType(element);
+					const auto *lowerType = actualType ? actualType : elementType;
+					const auto *boxedType = lowerType;
+					auto *elementValue = lower(element, types.lower(lowerType), lowerType);
+					auto *boxedValue = boxAny(elementValue, boxedType);
 					callRuntime(
 						"yogi_array_set",
 						::llvm::Type::getVoidTy(context.llvmContext),
@@ -2087,6 +2097,70 @@ namespace yogi::core::llvm::internal {
 				startOffset,
 				::llvm::ConstantInt::get(i64, length),
 			}
+		);
+	}
+
+	bool ValueLowerer::isPartialFixedShapeArrayAccess(const Yogi::Sir::ValueRef *value) const {
+		const auto *access = value ? value->element_access() : nullptr;
+		if (!access) {
+			return false;
+		}
+
+		const auto *objectSemanticType = valueSemanticType(access->object());
+		const auto shape = fixedShape(objectSemanticType);
+		const auto *indices = access->indices();
+		const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
+		const auto *resultType = access->type();
+
+		return isFixedShapeArray(objectSemanticType) &&
+			indexCount < shape.size() &&
+			resultType &&
+			resultType->kind() == Yogi::Sir::TypeKind_array_type;
+	}
+
+	::llvm::Value *ValueLowerer::materializeEscapingFixedShapeView(
+		const Yogi::Sir::ElementAccessExpression *access,
+		::llvm::Type *expectedType,
+		const Yogi::Sir::TypeRef *expectedSemanticType
+	) {
+		const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+		const auto resultShape = fixedShape(targetSemanticType);
+		const auto length = fixedShapeElementCount(resultShape);
+		auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
+		auto *view = lowerElementAccess(access, opaquePointer(), targetSemanticType);
+		auto *owned = callRuntime(
+			"yogi_array_create",
+			opaquePointer(),
+			{::llvm::ConstantInt::get(i64, length)}
+		);
+
+		auto *function = context.builder.GetInsertBlock()->getParent();
+		auto *condBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.view.copy.cond", function);
+		auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.view.copy.body", function);
+		auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.view.copy.done", function);
+		auto *indexSlot = context.builder.CreateAlloca(i64, nullptr, "array.view.copy.index");
+		context.builder.CreateStore(::llvm::ConstantInt::get(i64, 0), indexSlot);
+		context.builder.CreateBr(condBlock);
+
+		context.builder.SetInsertPoint(condBlock);
+		auto *index = context.builder.CreateLoad(i64, indexSlot, "array.view.copy.i");
+		auto *inBounds = context.builder.CreateICmpULT(index, ::llvm::ConstantInt::get(i64, length), "array.view.copy.more");
+		context.builder.CreateCondBr(inBounds, bodyBlock, afterBlock);
+
+		context.builder.SetInsertPoint(bodyBlock);
+		auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {view, index});
+		callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {owned, index, boxedElement});
+		auto *nextIndex = context.builder.CreateAdd(index, ::llvm::ConstantInt::get(i64, 1), "array.view.copy.next");
+		context.builder.CreateStore(nextIndex, indexSlot);
+		context.builder.CreateBr(condBlock);
+
+		context.builder.SetInsertPoint(afterBlock);
+
+		return cast(
+			owned,
+			expectedType ? expectedType : opaquePointer(),
+			targetSemanticType,
+			targetSemanticType
 		);
 	}
 

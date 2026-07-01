@@ -180,8 +180,6 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const value = node.value ? this.visitNode(node.value) : null;
             const expectedReturnType = this.currentFunctionReturnType;
 
-            this.rejectEscapingLocalFixedShapeView(value, node);
-
             if (expectedReturnType && this.rejectsImplicitObjectContractConversion(expectedReturnType, value)) {
                 this.throwImplicitObjectContractConversionError(
                     expectedReturnType,
