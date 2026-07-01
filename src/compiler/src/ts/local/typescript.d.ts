@@ -5450,9 +5450,9 @@ declare namespace ts {
     type StructMember = StructFieldDeclaration | StructFunctionDeclaration;
     interface StructFieldDeclaration extends Node {
         readonly kind: SyntaxKind.StructFieldDeclaration;
-        readonly modifiers?: NodeArray<ModifierLike>;
+        readonly modifiers?: NodeArray<ModifierLike> | undefined;
         readonly name: PropertyName;
-        readonly questionToken?: QuestionToken;
+        readonly questionToken?: QuestionToken | undefined;
         readonly type?: TypeNode;
     }
     interface StructFunctionDeclaration extends NamedDeclaration {

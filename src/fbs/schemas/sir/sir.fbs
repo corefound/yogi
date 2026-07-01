@@ -114,6 +114,7 @@ table PropertyAccessExpression {
 table ElementAccessExpression {
   object:ValueRef;
   index:ValueRef;
+  indices:[ValueRef];
   type:TypeRef;
   source:string;
   position:SourcePosition;

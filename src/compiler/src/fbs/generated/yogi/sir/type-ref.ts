@@ -64,8 +64,28 @@ resolved(obj?:TypeRef):TypeRef|null {
   return offset ? (obj || new TypeRef()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+fixed():boolean {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
+}
+
+shape(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
+  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+shapeLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+shapeArray():Int32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
+  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
 static startTypeRef(builder:flatbuffers.Builder) {
-  builder.startObject(6);
+  builder.startObject(8);
 }
 
 static addKind(builder:flatbuffers.Builder, kind:TypeKind) {
@@ -102,6 +122,31 @@ static addElementType(builder:flatbuffers.Builder, elementTypeOffset:flatbuffers
 
 static addResolved(builder:flatbuffers.Builder, resolvedOffset:flatbuffers.Offset) {
   builder.addFieldOffset(5, resolvedOffset, 0);
+}
+
+static addFixed(builder:flatbuffers.Builder, fixed:boolean) {
+  builder.addFieldInt8(6, +fixed, +false);
+}
+
+static addShape(builder:flatbuffers.Builder, shapeOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(7, shapeOffset, 0);
+}
+
+static createShapeVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createShapeVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createShapeVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startShapeVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
 }
 
 static endTypeRef(builder:flatbuffers.Builder):flatbuffers.Offset {

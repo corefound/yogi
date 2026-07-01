@@ -195,6 +195,7 @@ export type SemanticElementAccessExpression = {
     kind: "ElementAccessExpression";
     object: SemanticValueInput;
     index: SemanticValueInput;
+    indices?: SemanticValueInput[];
     type: SemanticType;
     source?: string;
     position?: SourcePosition;

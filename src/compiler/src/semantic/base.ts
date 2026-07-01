@@ -483,10 +483,24 @@ export class BaseSemantic {
 
         if (expectedType.kind === Kinds.Types.ArrayType) {
             if (actualType.kind === Kinds.Types.ArrayType) {
+                const expectedShape = expectedType.shape ?? [];
+                const actualShape = actualType.shape ?? [];
+
+                if (expectedShape.length > 0 || actualShape.length > 0) {
+                    if (expectedShape.length !== actualShape.length) return false;
+                    if (!expectedShape.every((size: number, index: number) => size === actualShape[index])) {
+                        return false;
+                    }
+                }
+
                 return this.isTypeAssignable(expectedType.elementType, actualType.elementType);
             }
 
             if (actualType.kind === Kinds.Types.TupleType) {
+                if (expectedType.fixed === true && Array.isArray(expectedType.shape) && expectedType.shape.length > 0) {
+                    return this.isTupleAssignableToFixedArray(expectedType, actualType, 0);
+                }
+
                 return (actualType.elements ?? []).every((element: any) => {
                     return this.isTypeAssignable(expectedType.elementType, element);
                 });
@@ -521,6 +535,42 @@ export class BaseSemantic {
         }
 
         return expectedType.kind === actualType.kind;
+    }
+
+    public fixedArraySliceType(arrayType: any, consumedDimensions: number): any {
+        const shape = arrayType?.shape ?? [];
+        const remainingShape = shape.slice(consumedDimensions);
+
+        if (!remainingShape.length) {
+            return arrayType?.elementType;
+        }
+
+        return {
+            ...arrayType,
+            elementType: arrayType?.elementType,
+            fixed: true,
+            shape: remainingShape,
+            raw: `${arrayType?.elementType?.raw ?? "unknown"}[${remainingShape.join(", ")}]`,
+        };
+    }
+
+    public isTupleAssignableToFixedArray(expectedType: any, actualType: any, dimension: number): boolean {
+        const shape = expectedType?.shape ?? [];
+        const elements = actualType?.elements ?? [];
+
+        if (elements.length !== shape[dimension]) return false;
+
+        if (dimension === shape.length - 1) {
+            return elements.every((element: any) => {
+                return this.isTypeAssignable(expectedType.elementType, element);
+            });
+        }
+
+        return elements.every((element: any) => {
+            const resolved = this.resolveType(element);
+            return resolved?.kind === Kinds.Types.TupleType &&
+                this.isTupleAssignableToFixedArray(expectedType, resolved, dimension + 1);
+        });
     }
 
     public scalarStructBaseType(type: any): any {
@@ -733,6 +783,18 @@ export class BaseSemantic {
     public validateTypeUsages(type: any, source: string): void {
         if (!type || typeof type !== "object") return;
 
+        if (type.kind === Kinds.Types.UnknownType && type.reason === "invalid array shape syntax") {
+            const message = `invalid array shape syntax`;
+            type.arrowLength = type.raw?.length ?? 1;
+            this.throwError(
+                message,
+                type.position,
+                source,
+                type,
+                "  = use 'number[2, 3]' instead",
+            );
+        }
+
         if (type.kind === Kinds.Types.TypeReference) {
             const name = this.getTypeReferenceName(type);
             const symbol = name ? this.resolveSymbol(name) : null;
@@ -866,7 +928,33 @@ export class BaseSemantic {
             this.throwError(message, value.position ?? context.position, source, value);
         }
 
+        const shape = expectedType.shape ?? [];
+        if (expectedType.fixed === true && shape.length > 0) {
+            this.validateFixedArrayLiteralShape(expectedType, value, context, source, 0);
+            this.validateFixedArrayLiteralElementTypes(expectedType, value, context, source, 0);
+            return;
+        }
+
         for (const element of value.elements) {
+            const elementExpectedType = this.resolveType(expectedType.elementType);
+
+            if (element.kind === Kinds.Collections.DictionaryExpression) {
+                if (this.isObjectLikeType(elementExpectedType)) {
+                    this.validateObjectLiteralAssignment(elementExpectedType, element, context, source);
+                    continue;
+                }
+            }
+
+            if (element.kind === Kinds.Collections.ArrayExpression) {
+                if (
+                    elementExpectedType?.kind === Kinds.Types.ArrayType ||
+                    elementExpectedType?.kind === Kinds.Types.TupleType
+                ) {
+                    this.validateAggregateAssignment(elementExpectedType, element, context, source);
+                    continue;
+                }
+            }
+
             if (!this.isTypeAssignable(expectedType.elementType, element.type)) {
                 const message =
                     `array ${Helpers.BLUE}'${context.name ?? "value"}'${Helpers.RESET} can only contain ` +
@@ -875,6 +963,69 @@ export class BaseSemantic {
 
                 element.arrowLength = element.source?.length ?? 1;
 
+                this.throwError(
+                    message,
+                    element.position ?? value.position ?? context.position,
+                    source,
+                    element,
+                );
+            }
+        }
+    }
+
+    public validateFixedArrayLiteralShape(expectedType: any, value: any, context: any, source: string, dimension: number): void {
+        const shape = expectedType.shape ?? [];
+        const elements = value.elements ?? [];
+        const expectedLength = shape[dimension];
+
+        if (elements.length !== expectedLength) {
+            const label = shape.length === 1 ? "fixed-size array" : "fixed-shape array";
+            const dimensionText = shape.length === 1
+                ? `${Helpers.BLUE}'${expectedLength}'${Helpers.RESET} element(s)`
+                : `dimension ${Helpers.BLUE}'${dimension}'${Helpers.RESET} length ${Helpers.BLUE}'${expectedLength}'${Helpers.RESET}`;
+            const message =
+                `${label} ${Helpers.BLUE}'${expectedType.raw ?? "array"}'${Helpers.RESET} expects ` +
+                `${dimensionText}, got ${Helpers.RED}'${elements.length}'${Helpers.RESET}`;
+
+            value.arrowLength = value.source?.length ?? 1;
+            this.throwError(message, value.position ?? context.position, source, value);
+        }
+
+        if (dimension >= shape.length - 1) {
+            return;
+        }
+
+        for (const element of elements) {
+            if (element.kind !== Kinds.Collections.ArrayExpression) {
+                const message =
+                    `fixed-shape array ${Helpers.BLUE}'${expectedType.raw ?? "array"}'${Helpers.RESET} expects ` +
+                    `dimension ${Helpers.BLUE}'${dimension + 1}'${Helpers.RESET} to be initialized with array literals`;
+
+                element.arrowLength = element.source?.length ?? 1;
+                this.throwError(message, element.position ?? value.position ?? context.position, source, element);
+            }
+
+            this.validateFixedArrayLiteralShape(expectedType, element, context, source, dimension + 1);
+        }
+    }
+
+    public validateFixedArrayLiteralElementTypes(expectedType: any, value: any, context: any, source: string, dimension: number): void {
+        const shape = expectedType.shape ?? [];
+
+        if (dimension < shape.length - 1) {
+            for (const element of value.elements ?? []) {
+                this.validateFixedArrayLiteralElementTypes(expectedType, element, context, source, dimension + 1);
+            }
+            return;
+        }
+
+        for (const element of value.elements ?? []) {
+            if (!this.isTypeAssignable(expectedType.elementType, element.type)) {
+                const message =
+                    `expected ${Helpers.BLUE}'${expectedType.elementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                    `${Helpers.RED}'${element.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                element.arrowLength = element.source?.length ?? 1;
                 this.throwError(
                     message,
                     element.position ?? value.position ?? context.position,
@@ -907,6 +1058,25 @@ export class BaseSemantic {
 
         expectedElements.forEach((expectedElement: any, index: number) => {
             const actualElement = actualElements[index];
+
+            const resolvedExpected = this.resolveType(expectedElement);
+
+            if (actualElement?.kind === Kinds.Collections.DictionaryExpression) {
+                if (this.isObjectLikeType(resolvedExpected)) {
+                    this.validateObjectLiteralAssignment(resolvedExpected, actualElement, context, source);
+                    return;
+                }
+            }
+
+            if (actualElement?.kind === Kinds.Collections.ArrayExpression) {
+                if (
+                    resolvedExpected?.kind === Kinds.Types.ArrayType ||
+                    resolvedExpected?.kind === Kinds.Types.TupleType
+                ) {
+                    this.validateAggregateAssignment(resolvedExpected, actualElement, context, source);
+                    return;
+                }
+            }
 
             if (!this.isTypeAssignable(expectedElement, actualElement?.type)) {
                 const message =

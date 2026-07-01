@@ -195,7 +195,37 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     );
                 }
 
-                if (!this.isTypeAssignable(expectedType, actualType)) {
+                const resolvedExpected = this.resolveType(expectedType);
+                let validatedByAggregate = false;
+
+                if (args[index].kind === Kinds.Collections.DictionaryExpression) {
+                    if (this.isObjectLikeType(resolvedExpected)) {
+                        this.validateObjectLiteralAssignment(
+                            resolvedExpected,
+                            args[index],
+                            { name: `argument ${index + 1} of '${calleeName}'`, position: args[index].position },
+                            node.fullSource ?? node.source,
+                        );
+                        validatedByAggregate = true;
+                    }
+                }
+
+                if (args[index].kind === Kinds.Collections.ArrayExpression) {
+                    if (
+                        resolvedExpected?.kind === Kinds.Types.ArrayType ||
+                        resolvedExpected?.kind === Kinds.Types.TupleType
+                    ) {
+                        this.validateAggregateAssignment(
+                            expectedType,
+                            args[index],
+                            { name: `argument ${index + 1} of '${calleeName}'`, position: args[index].position },
+                            node.fullSource ?? node.source,
+                        );
+                        validatedByAggregate = true;
+                    }
+                }
+
+                if (!validatedByAggregate && !this.isTypeAssignable(expectedType, actualType)) {
                     const message =
                         `argument ${Helpers.BLUE}'${index + 1}'${Helpers.RESET} of ` +
                         `${Helpers.BLUE}'${calleeName}'${Helpers.RESET} must be ` +
@@ -393,6 +423,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
          * push(element: T): number - mutates array, returns length
          */
         public validateAndCreatePushCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            const pushRoot = this.getAggregateRootIdentifier(receiver);
+            const pushSymbol = pushRoot ? this.resolveSymbol(pushRoot) : null;
+            receiverType = this.resolveType(pushSymbol?.declaredType ?? receiverType);
+
             // Tuples have fixed length; push is not allowed
             if (receiverType?.kind === Kinds.Types.TupleType) {
                 const message =
@@ -402,9 +436,18 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
+            if (receiverType?.kind === Kinds.Types.ArrayType && receiverType.fixed === true) {
+                const message =
+                    `cannot call size-changing method ${Helpers.RED}'push'${Helpers.RESET} on fixed-size array ` +
+                    `${Helpers.BLUE}'${receiverType.raw ?? "array"}'${Helpers.RESET}`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
             // Validate receiver is mutable
-            const root = this.getAggregateRootIdentifier(receiver);
-            const symbol = root ? this.resolveSymbol(root) : null;
+            const root = pushRoot;
+            const symbol = pushSymbol;
 
             if (root && symbol?.mutable !== true) {
                 const message =
@@ -481,6 +524,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
          * pop(): T | undefined - mutates array, returns element
          */
         public validateAndCreatePopCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
+            const popRoot = this.getAggregateRootIdentifier(receiver);
+            const popSymbol = popRoot ? this.resolveSymbol(popRoot) : null;
+            receiverType = this.resolveType(popSymbol?.declaredType ?? receiverType);
+
             // Tuples have fixed length; pop is not allowed
             if (receiverType?.kind === Kinds.Types.TupleType) {
                 const message =
@@ -490,9 +537,18 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
+            if (receiverType?.kind === Kinds.Types.ArrayType && receiverType.fixed === true) {
+                const message =
+                    `cannot call size-changing method ${Helpers.RED}'pop'${Helpers.RESET} on fixed-size array ` +
+                    `${Helpers.BLUE}'${receiverType.raw ?? "array"}'${Helpers.RESET}`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
             // Validate receiver is mutable
-            const root = this.getAggregateRootIdentifier(receiver);
-            const symbol = root ? this.resolveSymbol(root) : null;
+            const root = popRoot;
+            const symbol = popSymbol;
 
             if (root && symbol?.mutable !== true) {
                 const message =
@@ -718,6 +774,20 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     `tuple method ${Helpers.RED}'${methodName}'${Helpers.RESET} is not supported because tuple length is fixed`;
 
                 rawCallee.arrowLength = rawCallee.source?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            const sizeChangingMethods = new Set(["push", "pop", "shift", "unshift", "splice"]);
+            if (
+                receiverType?.kind === Kinds.Types.ArrayType &&
+                receiverType.fixed === true &&
+                sizeChangingMethods.has(methodName)
+            ) {
+                const message =
+                    `cannot call size-changing method ${Helpers.RED}'${methodName}'${Helpers.RESET} on fixed-size array ` +
+                    `${Helpers.BLUE}'${receiverType.raw ?? "array"}'${Helpers.RESET}`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
@@ -1837,10 +1907,32 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
         public visitElementAccessExpression(node: any): any {
             const object = this.visitNode(node.object);
-            const index = this.visitNode(node.index);
+            const indices = (node.indices ?? [node.index]).map((item: any) => this.visitNode(item));
+            const index = indices[0];
             const accessType = object?.declaredType ?? object?.type;
             const objectType = this.resolveOptionalAccessObjectType(accessType);
             const indexValue = this.literalIndexValue(index);
+            const source = node.fullSource ?? node.source;
+
+            if (indices.length > 1) {
+                if (objectType?.kind === Kinds.Types.ArrayType && objectType.fixed !== true) {
+                    const message =
+                        `${Helpers.BLUE}'${objectType.raw ?? "array"}'${Helpers.RESET} expects ` +
+                        `${Helpers.BLUE}'1'${Helpers.RESET} index, got ${Helpers.RED}'${indices.length}'${Helpers.RESET}`;
+
+                    node.arrowLength = node.source?.length ?? 1;
+                    this.throwError(message, node.position, source, node);
+                }
+
+                if (objectType?.kind === Kinds.Types.TupleType || objectType?.kind === Kinds.Types.StringType) {
+                    const message =
+                        `${Helpers.BLUE}'${objectType.raw ?? "value"}'${Helpers.RESET} expects ` +
+                        `${Helpers.BLUE}'1'${Helpers.RESET} index, got ${Helpers.RED}'${indices.length}'${Helpers.RESET}`;
+
+                    node.arrowLength = node.source?.length ?? 1;
+                    this.throwError(message, node.position, source, node);
+                }
+            }
 
             if (objectType?.kind === Kinds.Types.TupleType) {
                 if (typeof indexValue !== "number" || !Number.isInteger(indexValue)) {
@@ -1879,13 +1971,46 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             }
 
             if (objectType?.kind === Kinds.Types.ArrayType) {
-                if (index?.type?.kind !== Kinds.Types.NumberType) {
-                    const message =
-                        `array index must be ${Helpers.BLUE}'number'${Helpers.RESET}, got ` +
-                        `${Helpers.RED}'${index?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+                const shape = objectType.shape ?? [];
+                if (objectType.fixed === true && shape.length > 0) {
+                    if (indices.length > shape.length) {
+                        const message =
+                            `${Helpers.BLUE}'${objectType.raw ?? "array"}'${Helpers.RESET} expects at most ` +
+                            `${Helpers.BLUE}'${shape.length}'${Helpers.RESET} index(es), got ${Helpers.RED}'${indices.length}'${Helpers.RESET}`;
 
-                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
-                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                        node.arrowLength = node.source?.length ?? 1;
+                        this.throwError(message, node.position, source, node);
+                    }
+
+                    for (let dimension = 0; dimension < indices.length; dimension++) {
+                        const constantIndex = this.literalIndexValue(indices[dimension]);
+                        const dimensionSize = shape[dimension];
+
+                        if (
+                            typeof constantIndex === "number" &&
+                            Number.isInteger(constantIndex) &&
+                            typeof dimensionSize === "number" &&
+                            (constantIndex < 0 || constantIndex >= dimensionSize)
+                        ) {
+                            const message =
+                                `index ${Helpers.RED}'${constantIndex}'${Helpers.RESET} is out of bounds for dimension ` +
+                                `${Helpers.BLUE}'${dimension}'${Helpers.RESET} of size ${Helpers.BLUE}'${dimensionSize}'${Helpers.RESET}`;
+
+                            indices[dimension].arrowLength = indices[dimension].source?.length ?? 1;
+                            this.throwError(message, indices[dimension].position ?? node.position, source, indices[dimension]);
+                        }
+                    }
+                }
+
+                for (const currentIndex of indices) {
+                    if (currentIndex?.type?.kind !== Kinds.Types.NumberType) {
+                        const message =
+                            `array index must be ${Helpers.BLUE}'number'${Helpers.RESET}, got ` +
+                            `${Helpers.RED}'${currentIndex?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                        currentIndex.arrowLength = currentIndex.source?.length ?? 1;
+                        this.throwError(message, currentIndex.position ?? node.position, node.fullSource ?? node.source, currentIndex);
+                    }
                 }
 
                 if (node.optional === true) {
@@ -1900,7 +2025,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     ...node,
                     object,
                     index,
-                    type: objectType.elementType,
+                    indices,
+                    type: objectType.fixed === true && shape.length > 0
+                        ? this.fixedArraySliceType(objectType, indices.length)
+                        : objectType.elementType,
                     readonly: objectType.readonly === true,
                 };
             }
@@ -2341,7 +2469,37 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.throwError(message, left.position, context.fullSource ?? node.fullSource ?? node.source, left);
                 }
 
-                if (!this.isTypeAssignable(left.type, right.type)) {
+                const resolvedLeftType = this.resolveType(left.type);
+                let validatedByAggregate = false;
+
+                if (right.kind === Kinds.Collections.DictionaryExpression) {
+                    if (this.isObjectLikeType(resolvedLeftType)) {
+                        this.validateObjectLiteralAssignment(
+                            resolvedLeftType,
+                            right,
+                            { name: left.source ?? "member", position: right.position },
+                            context.fullSource ?? node.fullSource ?? node.source,
+                        );
+                        validatedByAggregate = true;
+                    }
+                }
+
+                if (right.kind === Kinds.Collections.ArrayExpression) {
+                    if (
+                        resolvedLeftType?.kind === Kinds.Types.ArrayType ||
+                        resolvedLeftType?.kind === Kinds.Types.TupleType
+                    ) {
+                        this.validateAggregateAssignment(
+                            left.type,
+                            right,
+                            { name: left.source ?? "member", position: right.position },
+                            context.fullSource ?? node.fullSource ?? node.source,
+                        );
+                        validatedByAggregate = true;
+                    }
+                }
+
+                if (!validatedByAggregate && !this.isTypeAssignable(left.type, right.type)) {
                     const message =
                         `cannot assign value of type ${Helpers.RED}'${right.type?.raw ?? "unknown"}'${Helpers.RESET} to ` +
                         `${Helpers.RED}'${left.source ?? "member"}'${Helpers.RESET} of type ` +

@@ -493,6 +493,39 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
+                case ts.SyntaxKind.IndexedAccessType: {
+                    const indexed = node as ts.IndexedAccessTypeNode;
+                    const elementType = this.visitType(indexed.objectType);
+                    const rawIndexType = indexed.indexType as any;
+                    const rawIndexText = rawIndexType.getText?.() ?? "";
+                    const indexTypes = ts.isTupleTypeNode(indexed.indexType)
+                        ? indexed.indexType.elements.map((element) => this.visitType(element as ts.TypeNode))
+                        : [this.visitType(indexed.indexType)];
+                    const shape = indexTypes.map((indexType) => Number(indexType?.literal));
+
+                    if (rawIndexText.trim().startsWith("[") || !shape.length || shape.some((literal) => !Number.isInteger(literal) || literal <= 0)) {
+                        return {
+                            kind: Kinds.Types.UnknownType,
+                            syntaxKind: ts.SyntaxKind[node.kind],
+                            reason: rawIndexText.trim().startsWith("[")
+                                ? "invalid array shape syntax"
+                                : "invalid array shape dimension",
+                            raw: node.getText(),
+                            position: this.getNodePosistion(node),
+                        };
+                    }
+
+                    return {
+                        kind: Kinds.Types.ArrayType,
+                        elementType,
+                        readonly: false,
+                        fixed: true,
+                        shape,
+                        raw: node.getText(),
+                        position: this.getNodePosistion(node),
+                    };
+                }
+
                 case ts.SyntaxKind.TupleType: {
                     const tuple = node as ts.TupleTypeNode;
 

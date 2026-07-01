@@ -189,6 +189,18 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
+            if (expectedReturnType && value && (
+                value.kind === Kinds.Collections.DictionaryExpression ||
+                value.kind === Kinds.Collections.ArrayExpression
+            )) {
+                this.validateAggregateAssignment(
+                    expectedReturnType,
+                    value,
+                    { name: "return value", position: node.position },
+                    node.fullSource ?? node.source,
+                );
+            }
+
             if (value && this.isAggregateType(value.type)) {
                 this.markAggregateExpressionMoved(
                     value,

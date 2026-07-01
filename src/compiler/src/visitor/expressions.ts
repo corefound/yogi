@@ -206,11 +206,29 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 			};
 		}
 
+		flattenElementAccessIndices(node: ts.Expression): any[] {
+			if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.CommaToken) {
+				return [
+					...this.flattenElementAccessIndices(node.left),
+					...this.flattenElementAccessIndices(node.right),
+				];
+			}
+
+			if (ts.isCommaListExpression?.(node)) {
+				return node.elements.flatMap((element) => this.flattenElementAccessIndices(element));
+			}
+
+			return [this.visitNode(node)];
+		}
+
 		visitElementAccessExpression(node: ts.ElementAccessExpression) {
+			const indices = this.flattenElementAccessIndices(node.argumentExpression);
+
 			return {
 				kind: Kinds.Expressions.ElementAccessExpression,
 				object: this.visitNode(node.expression),
-				index: this.visitNode(node.argumentExpression),
+				index: indices[0],
+				indices,
 				optional: (node as any).questionDotToken !== undefined,
 				source: node.getText(),
 				position: this.getNodePosistion(node),

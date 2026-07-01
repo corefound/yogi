@@ -359,6 +359,129 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(arrayType.stderr).toContain("number");
   });
 
+  test("rejects unknown properties in typed array elements (struct)", () => {
+    const extra = runCompiler(createProject({
+      "main.ts": `
+        struct int8 extends number {
+            age: number
+        }
+
+        const items: int8[] = [
+            {
+                age: 20,
+                name: "test"
+            }
+        ]
+      `,
+    }), "main.ts");
+    expect(extra.status).not.toBe(0);
+    expect(extra.stderr).toContain("unknown property");
+    expect(extra.stderr).toContain("name");
+  });
+
+  test("rejects missing properties in typed array elements (struct)", () => {
+    const missing = runCompiler(createProject({
+      "main.ts": `
+        struct int8 extends number {
+            age: number
+        }
+
+        const items: int8[] = [
+            { }
+        ]
+      `,
+    }), "main.ts");
+    expect(missing.status).not.toBe(0);
+    expect(missing.stderr).toContain("missing required property");
+    expect(missing.stderr).toContain("age");
+  });
+
+  test("accepts valid typed array of structs", () => {
+    const valid = runCompiler(createProject({
+      "main.ts": `
+        struct int8 extends number {
+            age: number
+        }
+
+        const items: int8[] = [
+            {
+                age: 10 + 10
+            },
+            {
+                age: 30
+            }
+        ]
+      `,
+    }), "main.ts");
+    expect(valid.status).toBe(0);
+  });
+
+  test("rejects unknown properties in nested typed array elements", () => {
+    const nested = runCompiler(createProject({
+      "main.ts": `
+        struct int8 extends number {
+            age: number
+        }
+
+        const matrix: int8[][] = [
+            [
+                {
+                    age: 20,
+                    name: "test"
+                }
+            ]
+        ]
+      `,
+    }), "main.ts");
+    expect(nested.status).not.toBe(0);
+    expect(nested.stderr).toContain("unknown property");
+    expect(nested.stderr).toContain("name");
+  });
+
+  test("rejects unknown properties in typed array function arguments", () => {
+    const fnArg = runCompiler(createProject({
+      "main.ts": `
+        struct int8 extends number {
+            age: number
+        }
+
+        function takeItems(items: int8[]): void {}
+
+        takeItems([
+            {
+                age: 20,
+                name: "test"
+            }
+        ])
+      `,
+    }), "main.ts");
+    expect(fnArg.status).not.toBe(0);
+    expect(fnArg.stderr).toContain("unknown property");
+    expect(fnArg.stderr).toContain("name");
+  });
+
+  test("rejects unknown properties in typed array return statements", () => {
+    const fnReturn = runCompiler(createProject({
+      "main.ts": `
+        struct int8 extends number {
+            age: number
+        }
+
+        function getItems(): int8[] {
+            return [
+                {
+                    age: 20,
+                    name: "test"
+                }
+            ]
+        }
+      `,
+    }), "main.ts");
+    expect(fnReturn.status).not.toBe(0);
+    expect(fnReturn.stderr).toContain("unknown property");
+    expect(fnReturn.stderr).toContain("name");
+  });
+
   test("rejects readonly aggregate writes", () => {
     const readonlyObject = runCompiler(createProject({
       "main.io": `

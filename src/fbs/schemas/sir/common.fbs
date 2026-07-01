@@ -34,4 +34,6 @@ table TypeRef {
   types:[TypeRef];
   element_type:TypeRef;
   resolved:TypeRef;
+  fixed:bool = false;
+  shape:[int];
 }

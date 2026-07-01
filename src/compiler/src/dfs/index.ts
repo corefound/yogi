@@ -213,8 +213,12 @@ export class ModuleScanner {
         const sourceFile = this.parseFile(file);
         this.sourceFiles.set(file, sourceFile);
         const imports: any[] = [];
+        const seenNodes = new Set<ts.Node>();
 
         const visitNode = (node: ts.Node) => {
+            if (seenNodes.has(node)) return;
+            seenNodes.add(node);
+
             if (ts.isImportDeclaration(node)) {
                 try {
                     const specifier = (node.moduleSpecifier as ts.StringLiteral).text;

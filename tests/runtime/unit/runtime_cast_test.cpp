@@ -152,7 +152,6 @@ int main() {
 	assert(yogi_array_length(array) == 2);
 	yogi_array_set(array, 1, yogi_any_from_number(10));
 	assert(yogi_any_to_number(yogi_array_get(array, 1)) == 10);
-	assert(yogi_any_is_nullish(yogi_array_get(array, 3)));
 	yogi_array_destroy(array);
 	assert(yogi_debug_ownership_live_aggregates() == 0);
 

@@ -523,7 +523,7 @@ expect_invalid(
 expect_invalid(
 	interface_argument_mismatch
 	"interface Profile {\n    name: string\n    scores: number[]\n}\nfunction score(value: Profile): number {\n    return value.scores.length\n}\nscore({ name: \"ana\" })\n"
-	"argument .* must be"
+	"missing required property .*scores"
 )
 
 expect_invalid(

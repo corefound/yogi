@@ -1692,7 +1692,9 @@ struct TypeRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_NAME = 8,
     VT_TYPES = 10,
     VT_ELEMENT_TYPE = 12,
-    VT_RESOLVED = 14
+    VT_RESOLVED = 14,
+    VT_FIXED = 16,
+    VT_SHAPE = 18
   };
   Yogi::Sir::TypeKind kind() const {
     return static_cast<Yogi::Sir::TypeKind>(GetField<int8_t>(VT_KIND, 0));
@@ -1712,6 +1714,12 @@ struct TypeRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::TypeRef *resolved() const {
     return GetPointer<const Yogi::Sir::TypeRef *>(VT_RESOLVED);
   }
+  bool fixed() const {
+    return GetField<uint8_t>(VT_FIXED, 0) != 0;
+  }
+  const ::flatbuffers::Vector<int32_t> *shape() const {
+    return GetPointer<const ::flatbuffers::Vector<int32_t> *>(VT_SHAPE);
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -1727,6 +1735,9 @@ struct TypeRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyTable(element_type()) &&
            VerifyOffset(verifier, VT_RESOLVED) &&
            verifier.VerifyTable(resolved()) &&
+           VerifyField<uint8_t>(verifier, VT_FIXED, 1) &&
+           VerifyOffset(verifier, VT_SHAPE) &&
+           verifier.VerifyVector(shape()) &&
            verifier.EndTable();
   }
 };
@@ -1753,6 +1764,12 @@ struct TypeRefBuilder {
   void add_resolved(::flatbuffers::Offset<Yogi::Sir::TypeRef> resolved) {
     fbb_.AddOffset(TypeRef::VT_RESOLVED, resolved);
   }
+  void add_fixed(bool fixed) {
+    fbb_.AddElement<uint8_t>(TypeRef::VT_FIXED, static_cast<uint8_t>(fixed), 0);
+  }
+  void add_shape(::flatbuffers::Offset<::flatbuffers::Vector<int32_t>> shape) {
+    fbb_.AddOffset(TypeRef::VT_SHAPE, shape);
+  }
   explicit TypeRefBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -1771,13 +1788,17 @@ inline ::flatbuffers::Offset<TypeRef> CreateTypeRef(
     ::flatbuffers::Offset<::flatbuffers::String> name = 0,
     ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::TypeRef>>> types = 0,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> element_type = 0,
-    ::flatbuffers::Offset<Yogi::Sir::TypeRef> resolved = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> resolved = 0,
+    bool fixed = false,
+    ::flatbuffers::Offset<::flatbuffers::Vector<int32_t>> shape = 0) {
   TypeRefBuilder builder_(_fbb);
+  builder_.add_shape(shape);
   builder_.add_resolved(resolved);
   builder_.add_element_type(element_type);
   builder_.add_types(types);
   builder_.add_name(name);
   builder_.add_raw(raw);
+  builder_.add_fixed(fixed);
   builder_.add_kind(kind);
   return builder_.Finish();
 }
@@ -1789,10 +1810,13 @@ inline ::flatbuffers::Offset<TypeRef> CreateTypeRefDirect(
     const char *name = nullptr,
     const std::vector<::flatbuffers::Offset<Yogi::Sir::TypeRef>> *types = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> element_type = 0,
-    ::flatbuffers::Offset<Yogi::Sir::TypeRef> resolved = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> resolved = 0,
+    bool fixed = false,
+    const std::vector<int32_t> *shape = nullptr) {
   auto raw__ = raw ? _fbb.CreateString(raw) : 0;
   auto name__ = name ? _fbb.CreateString(name) : 0;
   auto types__ = types ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::TypeRef>>(*types) : 0;
+  auto shape__ = shape ? _fbb.CreateVector<int32_t>(*shape) : 0;
   return Yogi::Sir::CreateTypeRef(
       _fbb,
       kind,
@@ -1800,7 +1824,9 @@ inline ::flatbuffers::Offset<TypeRef> CreateTypeRefDirect(
       name__,
       types__,
       element_type,
-      resolved);
+      resolved,
+      fixed,
+      shape__);
 }
 
 struct NumberConstant FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
@@ -3952,15 +3978,19 @@ struct ElementAccessExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_OBJECT = 4,
     VT_INDEX = 6,
-    VT_TYPE = 8,
-    VT_SOURCE = 10,
-    VT_POSITION = 12
+    VT_INDICES = 8,
+    VT_TYPE = 10,
+    VT_SOURCE = 12,
+    VT_POSITION = 14
   };
   const Yogi::Sir::ValueRef *object() const {
     return GetPointer<const Yogi::Sir::ValueRef *>(VT_OBJECT);
   }
   const Yogi::Sir::ValueRef *index() const {
     return GetPointer<const Yogi::Sir::ValueRef *>(VT_INDEX);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *indices() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *>(VT_INDICES);
   }
   const Yogi::Sir::TypeRef *type() const {
     return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
@@ -3978,6 +4008,9 @@ struct ElementAccessExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::
            verifier.VerifyTable(object()) &&
            VerifyOffset(verifier, VT_INDEX) &&
            verifier.VerifyTable(index()) &&
+           VerifyOffset(verifier, VT_INDICES) &&
+           verifier.VerifyVector(indices()) &&
+           verifier.VerifyVectorOfTables(indices()) &&
            VerifyOffset(verifier, VT_TYPE) &&
            verifier.VerifyTable(type()) &&
            VerifyOffset(verifier, VT_SOURCE) &&
@@ -3997,6 +4030,9 @@ struct ElementAccessExpressionBuilder {
   }
   void add_index(::flatbuffers::Offset<Yogi::Sir::ValueRef> index) {
     fbb_.AddOffset(ElementAccessExpression::VT_INDEX, index);
+  }
+  void add_indices(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> indices) {
+    fbb_.AddOffset(ElementAccessExpression::VT_INDICES, indices);
   }
   void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
     fbb_.AddOffset(ElementAccessExpression::VT_TYPE, type);
@@ -4022,6 +4058,7 @@ inline ::flatbuffers::Offset<ElementAccessExpression> CreateElementAccessExpress
     ::flatbuffers::FlatBufferBuilder &_fbb,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> object = 0,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> index = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> indices = 0,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source = 0,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
@@ -4029,6 +4066,7 @@ inline ::flatbuffers::Offset<ElementAccessExpression> CreateElementAccessExpress
   builder_.add_position(position);
   builder_.add_source(source);
   builder_.add_type(type);
+  builder_.add_indices(indices);
   builder_.add_index(index);
   builder_.add_object(object);
   return builder_.Finish();
@@ -4038,14 +4076,17 @@ inline ::flatbuffers::Offset<ElementAccessExpression> CreateElementAccessExpress
     ::flatbuffers::FlatBufferBuilder &_fbb,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> object = 0,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> index = 0,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *indices = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     const char *source = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto indices__ = indices ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>(*indices) : 0;
   auto source__ = source ? _fbb.CreateString(source) : 0;
   return Yogi::Sir::CreateElementAccessExpression(
       _fbb,
       object,
       index,
+      indices__,
       type,
       source__,
       position);

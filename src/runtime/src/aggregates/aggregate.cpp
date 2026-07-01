@@ -463,7 +463,7 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(this, "array set after destroy/drop", "array value");
 
 		if (index >= elementCount) {
-			return;
+			RuntimeError::abortRange("array subscript assignment", static_cast<long long>(index), elementCount);
 		}
 
 		elements[index] = value ? value : AnyValue::undefined();
@@ -473,7 +473,7 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array get after destroy/drop", "array value");
 
 		if (index >= elementCount) {
-			return AnyValue::undefined();
+			RuntimeError::abortRange("array subscript", static_cast<long long>(index), elementCount);
 		}
 
 		return elements[index] ? elements[index] : AnyValue::undefined();

@@ -37,25 +37,35 @@ index(obj?:ValueRef):ValueRef|null {
   return offset ? (obj || new ValueRef()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
-type(obj?:TypeRef):TypeRef|null {
+indices(index: number, obj?:ValueRef):ValueRef|null {
   const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? (obj || new ValueRef()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+indicesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+type(obj?:TypeRef):TypeRef|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
   return offset ? (obj || new TypeRef()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 source():string|null
 source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 source(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 10);
+  const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 position(obj?:SourcePosition):SourcePosition|null {
-  const offset = this.bb!.__offset(this.bb_pos, 12);
+  const offset = this.bb!.__offset(this.bb_pos, 14);
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startElementAccessExpression(builder:flatbuffers.Builder) {
-  builder.startObject(5);
+  builder.startObject(6);
 }
 
 static addObject(builder:flatbuffers.Builder, objectOffset:flatbuffers.Offset) {
@@ -66,16 +76,32 @@ static addIndex(builder:flatbuffers.Builder, indexOffset:flatbuffers.Offset) {
   builder.addFieldOffset(1, indexOffset, 0);
 }
 
+static addIndices(builder:flatbuffers.Builder, indicesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, indicesOffset, 0);
+}
+
+static createIndicesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startIndicesVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
 static addType(builder:flatbuffers.Builder, typeOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(2, typeOffset, 0);
+  builder.addFieldOffset(3, typeOffset, 0);
 }
 
 static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(3, sourceOffset, 0);
+  builder.addFieldOffset(4, sourceOffset, 0);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(4, positionOffset, 0);
+  builder.addFieldOffset(5, positionOffset, 0);
 }
 
 static endElementAccessExpression(builder:flatbuffers.Builder):flatbuffers.Offset {

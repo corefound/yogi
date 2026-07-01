@@ -373,11 +373,18 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const resolved = type?.resolved
                 ? this.createTypeRef(builder, type.resolved)
                 : 0;
+            const shapeValues = Array.isArray((type as any)?.shape)
+                ? (type as any).shape.filter((value: any) => Number.isInteger(value))
+                : [];
+            const shape = shapeValues.length
+                ? TypeRef.createShapeVector(builder, shapeValues)
+                : 0;
 
             TypeRef.startTypeRef(builder);
             TypeRef.addKind(builder, kind);
             TypeRef.addRaw(builder, raw);
             TypeRef.addName(builder, name);
+            TypeRef.addFixed(builder, (type as any)?.fixed === true);
 
             if (typeOffsets.length) {
                 TypeRef.addTypes(builder, types);
@@ -389,6 +396,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (resolved) {
                 TypeRef.addResolved(builder, resolved);
+            }
+
+            if (shape) {
+                TypeRef.addShape(builder, shape);
             }
 
             return TypeRef.endTypeRef(builder);
@@ -538,6 +549,33 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if ((node as any).kind === "ParenthesizedExpression") {
                 return this.createValueRef(builder, (node as any).expression ?? null);
+            }
+
+            if ((node as any).kind === "NumberLiteral") {
+                return this.createValueRef(builder, {
+                    ...(node as any),
+                    kind: "NumberConstant",
+                    value: Number((node as any).value ?? (node as any).source ?? (node as any).raw ?? 0),
+                    type: { kind: "NumberType", raw: "number" },
+                } as any);
+            }
+
+            if ((node as any).kind === "StringLiteral") {
+                return this.createValueRef(builder, {
+                    ...(node as any),
+                    kind: "StringConstant",
+                    value: String((node as any).value ?? (node as any).source ?? (node as any).raw ?? ""),
+                    type: { kind: "StringType", raw: "string" },
+                } as any);
+            }
+
+            if ((node as any).kind === "BooleanLiteral") {
+                return this.createValueRef(builder, {
+                    ...(node as any),
+                    kind: "BooleanConstant",
+                    value: Boolean((node as any).value),
+                    type: { kind: "BooleanType", raw: "boolean" },
+                } as any);
             }
 
             const kind = builder.createString(node.kind);
@@ -992,6 +1030,11 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
         ): fbs.Offset {
             const object = this.createValueRef(builder, expression.object);
             const index = this.createValueRef(builder, expression.index);
+            const indexOffsets = (expression.indices?.length ? expression.indices : [expression.index])
+                .map((item) => this.createValueRef(builder, item));
+            const indices = createVector(builder, indexOffsets, (length) => {
+                ElementAccessExpression.startIndicesVector(builder, length);
+            });
             const type = this.createTypeRef(builder, expression.type);
             const source = builder.createString(expression.source ?? "");
             const position = this.createSourcePosition(builder, expression.position);
@@ -999,6 +1042,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             ElementAccessExpression.startElementAccessExpression(builder);
             ElementAccessExpression.addObject(builder, object);
             ElementAccessExpression.addIndex(builder, index);
+            ElementAccessExpression.addIndices(builder, indices);
             ElementAccessExpression.addType(builder, type);
             ElementAccessExpression.addSource(builder, source);
             ElementAccessExpression.addPosition(builder, position);

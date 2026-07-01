@@ -27532,8 +27532,13 @@ function createNodeFactory(flags, baseFactory2) {
     if (arguments.length === 2) {
       type = name;
       name = modifiers;
-      modifiers = void 0;
       questionToken = void 0;
+      modifiers = void 0;
+    } else if (arguments.length === 3) {
+      type = questionToken;
+      questionToken = void 0;
+      name = modifiers;
+      modifiers = void 0;
     }
     const node = createBaseNode(268 /* StructFieldDeclaration */);
     node.modifiers = asNodeArray(modifiers);
@@ -27547,8 +27552,13 @@ function createNodeFactory(flags, baseFactory2) {
     if (arguments.length === 3) {
       type = name;
       name = modifiers;
-      modifiers = node.modifiers;
       questionToken = node.questionToken;
+      modifiers = node.modifiers;
+    } else if (arguments.length === 4) {
+      type = questionToken;
+      questionToken = name;
+      name = modifiers;
+      modifiers = node.modifiers;
     }
     return node.modifiers !== modifiers || node.name !== name || node.questionToken !== questionToken || node.type !== type ? update(createStructFieldDeclaration(modifiers, name, questionToken, type), node) : node;
   }
@@ -33145,8 +33155,8 @@ function forEachChildInClassDeclarationOrExpression(node, cbNode, cbNodes) {
 function forEachChildInStructDeclaration(node, cbNode, cbNodes) {
   return visitNodes(cbNode, cbNodes, node.modifiers) || visitNode2(cbNode, node.name) || visitNodes(cbNode, cbNodes, node.typeParameters) || visitNode2(cbNode, node.extendsType) || visitNodes(cbNode, cbNodes, node.members);
 }
-function forEachChildInStructFieldDeclaration(node, cbNode, _cbNodes) {
-  return visitNode2(cbNode, node.name) || visitNode2(cbNode, node.type);
+function forEachChildInStructFieldDeclaration(node, cbNode, cbNodes) {
+  return visitNodes(cbNode, cbNodes, node.modifiers) || visitNode2(cbNode, node.name) || visitNode2(cbNode, node.type);
 }
 function forEachChildInStructFunctionDeclaration(node, cbNode, cbNodes) {
   return visitNode2(cbNode, node.name) || visitNodes(cbNode, cbNodes, node.parameters) || visitNode2(cbNode, node.type) || visitNode2(cbNode, node.body);
@@ -35883,7 +35893,14 @@ var Parser;
         case 23 /* OpenBracketToken */:
           parseExpected(23 /* OpenBracketToken */);
           if (isStartOfType()) {
-            const indexType = parseType();
+            const indexTypePos = getNodePos();
+            const indexTypes = [parseType()];
+            while (parseOptional(28 /* CommaToken */)) {
+              indexTypes.push(parseType());
+            }
+            const indexType = indexTypes.length === 1
+              ? indexTypes[0]
+              : finishNode(factory2.createTupleTypeNode(createNodeArray(indexTypes, indexTypePos)), indexTypePos);
             parseExpected(24 /* CloseBracketToken */);
             type = finishNode(factory2.createIndexedAccessTypeNode(type, indexType), pos);
           } else {
@@ -96941,7 +96958,9 @@ var visitEachChildTable = {
   [268 /* StructFieldDeclaration */]: function visitEachChildOfStructFieldDeclaration(node, visitor, context, nodesVisitor, nodeVisitor, _tokenVisitor) {
     return context.factory.updateStructFieldDeclaration(
       node,
+      nodesVisitor(node.modifiers, visitor, isModifier),
       Debug.checkDefined(nodeVisitor(node.name, visitor, isPropertyName)),
+      _tokenVisitor ? nodeVisitor(node.questionToken, _tokenVisitor, isQuestionToken) : node.questionToken,
       nodeVisitor(node.type, visitor, isTypeNode)
     );
   },
