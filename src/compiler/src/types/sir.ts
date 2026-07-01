@@ -166,6 +166,14 @@ export type SemanticArrayExpression = {
     position?: SourcePosition;
 };
 
+export type SemanticSpreadElement = {
+    kind: "SpreadElement";
+    expression: SemanticValueInput;
+    type: SemanticType;
+    source?: string;
+    position?: SourcePosition;
+};
+
 export type SemanticObjectProperty = {
     key: string;
     value: SemanticValueInput;
@@ -217,6 +225,7 @@ export type SemanticValueInput =
     | SemanticAssignmentExpression
     | SemanticConditionalExpression
     | SemanticCallExpression
+    | SemanticSpreadElement
     | SemanticArrayExpression
     | SemanticObjectExpression
     | SemanticPropertyAccessExpression

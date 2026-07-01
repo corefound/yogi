@@ -49,7 +49,8 @@ namespace yogi::core::llvm::internal {
 			bool isAggregateLiteral(const Yogi::Sir::ValueRef *value) const;
 			::llvm::Value *lowerLocalAggregate(
 				const Yogi::Sir::ValueRef *value,
-				const std::string &name
+				const std::string &name,
+				const Yogi::Sir::TypeRef *declaredType = nullptr
 			);
 			void dropLocalAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
 			void destroyEscapedAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
@@ -105,7 +106,11 @@ namespace yogi::core::llvm::internal {
 				::llvm::Value *structValue,
 				bool escaped
 			);
-			void populateArray(const Yogi::Sir::ArrayExpression *array, ::llvm::Value *aggregate);
+			void populateArray(
+				const Yogi::Sir::ArrayExpression *array,
+				::llvm::Value *aggregate,
+				bool appendMode = false
+			);
 			void populateFixedShapeArray(
 				const Yogi::Sir::ArrayExpression *array,
 				::llvm::Value *aggregate,
@@ -113,6 +118,8 @@ namespace yogi::core::llvm::internal {
 			);
 			void populateObject(const Yogi::Sir::ObjectExpression *object, ::llvm::Value *aggregate);
 			bool isFixedShapeArray(const Yogi::Sir::TypeRef *type) const;
+			bool isFixedLengthArray(const Yogi::Sir::TypeRef *type) const;
+			bool arrayContainsSpread(const Yogi::Sir::ArrayExpression *array) const;
 			std::vector<int64_t> fixedShape(const Yogi::Sir::TypeRef *type) const;
 			uint64_t fixedShapeElementCount(const std::vector<int64_t> &shape, size_t start = 0) const;
 			::llvm::Value *fixedShapeLinearOffset(

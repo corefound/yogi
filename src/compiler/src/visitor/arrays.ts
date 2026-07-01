@@ -27,7 +27,19 @@ export function ArrayVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
         }
 
         visitArrayLiteral(node: ts.ArrayLiteralExpression) {
-            const elements = node.elements.map(element => this.visitNode(element));
+            const elements = node.elements.map(element => {
+                if (ts.isSpreadElement(element)) {
+                    return {
+                        kind: Kinds.Expressions.SpreadElement,
+                        expression: this.visitNode(element.expression),
+                        source: element.getText(),
+                        position: this.getNodePosistion(element),
+                    };
+                }
+
+                return this.visitNode(element);
+            });
+
             return {
                 kind: Kinds.Collections.ArrayExpression,
                 elements,

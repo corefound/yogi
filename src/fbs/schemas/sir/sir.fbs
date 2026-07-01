@@ -25,6 +25,7 @@ table ValueRef {
   assignment:AssignmentExpression;
   conditional:ConditionalExpression;
   call:CallExpression;
+  spread:SpreadElement;
   array:ArrayExpression;
   object:ObjectExpression;
   property_access:PropertyAccessExpression;
@@ -79,6 +80,13 @@ table CallArgumentEffect {
   escapes:bool = false;
   mutates:bool = false;
   consumes:bool = false;
+}
+
+table SpreadElement {
+  expression:ValueRef;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
 }
 
 table ArrayExpression {

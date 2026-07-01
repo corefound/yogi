@@ -79,6 +79,7 @@ export namespace Kinds {
         ElementAccessExpression = "ElementAccessExpression",
         CallExpression = "CallExpression",
         ParenthesizedExpression = "ParenthesizedExpression",
+        SpreadElement = "SpreadElement",
 
         IdentifierExpression = "IdentifierExpression",
         ThisExpression = "ThisExpression",

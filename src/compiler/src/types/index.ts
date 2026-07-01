@@ -23,6 +23,7 @@ export namespace Types {
         export type SemanticCallExpression = SirTypes.SemanticCallExpression;
         export type SemanticCallArgumentEffect = SirTypes.SemanticCallArgumentEffect;
         export type SemanticArrayExpression = SirTypes.SemanticArrayExpression;
+        export type SemanticSpreadElement = SirTypes.SemanticSpreadElement;
         export type SemanticObjectProperty = SirTypes.SemanticObjectProperty;
         export type SemanticObjectExpression = SirTypes.SemanticObjectExpression;
         export type SemanticPropertyAccessExpression = SirTypes.SemanticPropertyAccessExpression;

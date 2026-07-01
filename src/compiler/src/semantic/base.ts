@@ -930,6 +930,7 @@ export class BaseSemantic {
 
         const shape = expectedType.shape ?? [];
         if (expectedType.fixed === true && shape.length > 0) {
+            this.validateFixedArraySpreadAssignment(expectedType, value, context, source);
             this.validateFixedArrayLiteralShape(expectedType, value, context, source, 0);
             this.validateFixedArrayLiteralElementTypes(expectedType, value, context, source, 0);
             return;
@@ -937,6 +938,11 @@ export class BaseSemantic {
 
         for (const element of value.elements) {
             const elementExpectedType = this.resolveType(expectedType.elementType);
+
+            if (element.kind === Kinds.Expressions.SpreadElement) {
+                this.validateArraySpreadElement(expectedType.elementType, element, context, source);
+                continue;
+            }
 
             if (element.kind === Kinds.Collections.DictionaryExpression) {
                 if (this.isObjectLikeType(elementExpectedType)) {
@@ -973,19 +979,118 @@ export class BaseSemantic {
         }
     }
 
+    public validateArraySpreadElement(expectedElementType: any, spread: any, context: any, source: string): void {
+        const spreadType = this.resolveType(spread.expression?.type ?? spread.type);
+        const spreadElementTypes = spreadType?.kind === Kinds.Types.TupleType
+            ? spreadType.elements ?? []
+            : spreadType?.kind === Kinds.Types.ArrayType
+                ? [spreadType.elementType]
+                : [];
+
+        for (const elementType of spreadElementTypes) {
+            if (this.isTypeAssignable(expectedElementType, elementType)) {
+                continue;
+            }
+
+            const message =
+                `array spread for ${Helpers.BLUE}'${context.name ?? "value"}'${Helpers.RESET} can only contain ` +
+                `${Helpers.BLUE}'${expectedElementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                `${Helpers.RED}'${elementType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+            spread.arrowLength = spread.source?.length ?? 1;
+            this.throwError(message, spread.position ?? context.position, source, spread);
+        }
+    }
+
+    public validateFixedArraySpreadAssignment(expectedType: any, value: any, context: any, source: string): void {
+        if (!this.arrayLiteralContainsSpread(value)) {
+            return;
+        }
+
+        const shape = expectedType.shape ?? [];
+        if (shape.length !== 1) {
+            const message =
+                `spread inside fixed-shape array ${Helpers.BLUE}'${expectedType.raw ?? "array"}'${Helpers.RESET} ` +
+                `is only supported for one-dimensional fixed arrays`;
+
+            value.arrowLength = value.source?.length ?? 1;
+            this.throwError(message, value.position ?? context.position, source, value);
+        }
+
+        const length = this.arrayLiteralKnownLength(value, context, source);
+        const expectedLength = Number(shape[0] ?? 0);
+
+        if (length !== expectedLength) {
+            const message =
+                `fixed-size array ${Helpers.BLUE}'${expectedType.raw ?? "array"}'${Helpers.RESET} expects ` +
+                `${Helpers.BLUE}'${expectedLength}'${Helpers.RESET} element(s), got ${Helpers.RED}'${length}'${Helpers.RESET}`;
+
+            value.arrowLength = value.source?.length ?? 1;
+            this.throwError(message, value.position ?? context.position, source, value);
+        }
+    }
+
+    public arrayLiteralContainsSpread(value: any): boolean {
+        return (value.elements ?? []).some((element: any) => {
+            return element?.kind === Kinds.Expressions.SpreadElement ||
+                (element?.kind === Kinds.Collections.ArrayExpression && this.arrayLiteralContainsSpread(element));
+        });
+    }
+
+    public arrayLiteralKnownLength(value: any, context: any, source: string): number {
+        let length = 0;
+
+        for (const element of value.elements ?? []) {
+            if (element.kind !== Kinds.Expressions.SpreadElement) {
+                length++;
+                continue;
+            }
+
+            const spreadType = this.resolveType(element.expression?.type ?? element.type);
+
+            if (spreadType?.kind === Kinds.Types.TupleType) {
+                length += spreadType.elements?.length ?? 0;
+                continue;
+            }
+
+            if (
+                spreadType?.kind === Kinds.Types.ArrayType &&
+                spreadType.fixed === true &&
+                Array.isArray(spreadType.shape) &&
+                spreadType.shape.length === 1
+            ) {
+                length += Number(spreadType.shape[0] ?? 0);
+                continue;
+            }
+
+            const message =
+                `cannot spread dynamic array ${Helpers.RED}'${spreadType?.raw ?? "unknown"}'${Helpers.RESET} ` +
+                `into fixed-size array ${Helpers.BLUE}'${context.name ?? "value"}'${Helpers.RESET}; ` +
+                `the spread length must be known at compile time`;
+
+            element.arrowLength = element.source?.length ?? 1;
+            this.throwError(message, element.position ?? value.position ?? context.position, source, element);
+        }
+
+        return length;
+    }
+
     public validateFixedArrayLiteralShape(expectedType: any, value: any, context: any, source: string, dimension: number): void {
         const shape = expectedType.shape ?? [];
         const elements = value.elements ?? [];
         const expectedLength = shape[dimension];
+        const actualLength = dimension === shape.length - 1 && this.arrayLiteralContainsSpread(value)
+            ? this.arrayLiteralKnownLength(value, context, source)
+            : elements.length;
 
-        if (elements.length !== expectedLength) {
+        if (actualLength !== expectedLength) {
             const label = shape.length === 1 ? "fixed-size array" : "fixed-shape array";
             const dimensionText = shape.length === 1
                 ? `${Helpers.BLUE}'${expectedLength}'${Helpers.RESET} element(s)`
                 : `dimension ${Helpers.BLUE}'${dimension}'${Helpers.RESET} length ${Helpers.BLUE}'${expectedLength}'${Helpers.RESET}`;
             const message =
                 `${label} ${Helpers.BLUE}'${expectedType.raw ?? "array"}'${Helpers.RESET} expects ` +
-                `${dimensionText}, got ${Helpers.RED}'${elements.length}'${Helpers.RESET}`;
+                `${dimensionText}, got ${Helpers.RED}'${actualLength}'${Helpers.RESET}`;
 
             value.arrowLength = value.source?.length ?? 1;
             this.throwError(message, value.position ?? context.position, source, value);
@@ -1020,6 +1125,11 @@ export class BaseSemantic {
         }
 
         for (const element of value.elements ?? []) {
+            if (element.kind === Kinds.Expressions.SpreadElement) {
+                this.validateArraySpreadElement(expectedType.elementType, element, context, source);
+                continue;
+            }
+
             if (!this.isTypeAssignable(expectedType.elementType, element.type)) {
                 const message =
                     `expected ${Helpers.BLUE}'${expectedType.elementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
@@ -1396,6 +1506,9 @@ export class BaseSemantic {
             case Kinds.Expressions.ElementAccessExpression:
                 return this.visitElementAccessExpression(node);
 
+            case Kinds.Expressions.SpreadElement:
+                return this.visitSpreadElement(node);
+
             case Kinds.Collections.ArrayExpression:
                 return this.visitArrayExpression(node);
 
@@ -1569,6 +1682,7 @@ export class BaseSemantic {
     visitVariableLikeDeclarations(_: any): any { }
     visitArrayLikeDeclarations(_: any): any { }
     visitArrayExpression(_: any): any { }
+    visitSpreadElement(_: any): any { }
     visitDictionaryExpression(_: any): any { }
     visitReturnStatement(_: any): any { }
     visitExterns(_: any): any { }

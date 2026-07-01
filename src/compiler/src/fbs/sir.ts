@@ -25,6 +25,7 @@ import {
     ConditionalExpression,
     CallExpression,
     CallArgumentEffect,
+    SpreadElement,
     ArrayExpression,
     ObjectExpression,
     ObjectProperty,
@@ -597,6 +598,9 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const call = node.kind === "CallExpression"
                 ? this.createCallExpression(builder, node)
                 : 0;
+            const spread = (node as any).kind === "SpreadElement"
+                ? this.createSpreadElement(builder, node as any)
+                : 0;
             const array = node.kind === "ArrayExpression"
                 ? this.createArrayExpression(builder, node)
                 : 0;
@@ -623,6 +627,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 !assignment &&
                 !conditional &&
                 !call &&
+                !spread &&
                 !array &&
                 !object &&
                 !propertyAccess &&
@@ -658,6 +663,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (call) {
                 ValueRef.addCall(builder, call);
+            }
+
+            if (spread) {
+                ValueRef.addSpread(builder, spread);
             }
 
             if (array) {
@@ -959,6 +968,24 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             ArrayExpression.addPosition(builder, position);
 
             return ArrayExpression.endArrayExpression(builder);
+        }
+
+        static createSpreadElement(
+            builder: fbs.Builder,
+            spread: Types.Sir.SemanticSpreadElement,
+        ): fbs.Offset {
+            const expression = this.createValueRef(builder, spread.expression);
+            const type = this.createTypeRef(builder, spread.type);
+            const source = builder.createString(spread.source ?? "");
+            const position = this.createSourcePosition(builder, spread.position);
+
+            SpreadElement.startSpreadElement(builder);
+            SpreadElement.addExpression(builder, expression);
+            SpreadElement.addType(builder, type);
+            SpreadElement.addSource(builder, source);
+            SpreadElement.addPosition(builder, position);
+
+            return SpreadElement.endSpreadElement(builder);
         }
 
         static createObjectProperty(

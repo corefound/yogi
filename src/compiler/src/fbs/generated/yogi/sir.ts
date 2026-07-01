@@ -42,6 +42,7 @@ export { ReturnStatement } from './sir/return-statement.js';
 export { SirNode } from './sir/sir-node.js';
 export { SirNodeValue } from './sir/sir-node-value.js';
 export { SourcePosition } from './sir/source-position.js';
+export { SpreadElement } from './sir/spread-element.js';
 export { StringConstant } from './sir/string-constant.js';
 export { StructDeclaration } from './sir/struct-declaration.js';
 export { StructFieldDeclaration } from './sir/struct-field-declaration.js';

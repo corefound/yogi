@@ -138,7 +138,7 @@ namespace yogi::core::llvm::internal {
 
 		context.pushMemorySourceLocation(variable->position());
 		auto *initializer = isLocalStackAggregate
-			? values.lowerLocalAggregate(variable->value(), name)
+			? values.lowerLocalAggregate(variable->value(), name, variable->type())
 			: values.lower(variable->value(), type, variable->type());
 		context.popMemorySourceLocation();
 

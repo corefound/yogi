@@ -1568,9 +1568,13 @@ namespace yogi::core::llvm::internal {
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
 		const auto shape = fixedShape(expectedSemanticType);
-		const auto length = isFixedShapeArray(expectedSemanticType)
+		const auto fixedLength = isFixedLengthArray(expectedSemanticType);
+		const auto hasSpread = arrayContainsSpread(array);
+		const auto length = fixedLength
 			? fixedShapeElementCount(shape)
-			: static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
+			: hasSpread
+				? 0
+				: static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
 		context.pushMemorySourceLocation(array->position());
 		auto *aggregate = callRuntime(
 			"yogi_array_create",
@@ -1581,7 +1585,7 @@ namespace yogi::core::llvm::internal {
 		if (isFixedShapeArray(expectedSemanticType)) {
 			populateFixedShapeArray(array, aggregate, expectedSemanticType);
 		} else {
-			populateArray(array, aggregate);
+			populateArray(array, aggregate, hasSpread && !fixedLength);
 		}
 		context.popMemorySourceLocation();
 
@@ -1814,7 +1818,8 @@ namespace yogi::core::llvm::internal {
 
 	::llvm::Value *ValueLowerer::lowerLocalAggregate(
 		const Yogi::Sir::ValueRef *value,
-		const std::string &name
+		const std::string &name,
+		const Yogi::Sir::TypeRef *declaredType
 	) {
 		if (!value) {
 			return ::llvm::ConstantPointerNull::get(opaquePointer());
@@ -1823,11 +1828,15 @@ namespace yogi::core::llvm::internal {
 		const auto safeName = sanitizeSymbol(name);
 
 		if (const auto *array = value->array()) {
-			const auto *arrayType = valueSemanticType(value);
+			const auto *arrayType = declaredType ? declaredType : valueSemanticType(value);
 			const auto shape = fixedShape(arrayType);
-			const auto length = isFixedShapeArray(arrayType)
+			const auto fixedLength = isFixedLengthArray(arrayType);
+			const auto hasSpread = arrayContainsSpread(array);
+			const auto length = fixedLength
 				? fixedShapeElementCount(shape)
-				: static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
+				: hasSpread
+					? 0
+					: static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
 			context.pushMemorySourceLocation(array->position());
 			auto *size = callRuntime("yogi_array_sizeof", ::llvm::Type::getInt64Ty(context.llvmContext), {});
 			auto *storage = context.builder.CreateAlloca(
@@ -1847,7 +1856,7 @@ namespace yogi::core::llvm::internal {
 			if (isFixedShapeArray(arrayType)) {
 				populateFixedShapeArray(array, storage, arrayType);
 			} else {
-				populateArray(array, storage);
+				populateArray(array, storage, hasSpread && !fixedLength);
 			}
 			context.popMemorySourceLocation();
 
@@ -1982,24 +1991,72 @@ namespace yogi::core::llvm::internal {
 		}
 	}
 
-	void ValueLowerer::populateArray(const Yogi::Sir::ArrayExpression *array, ::llvm::Value *aggregate) {
-		if (array->elements()) {
-			for (flatbuffers::uoffset_t index = 0; index < array->elements()->size(); ++index) {
-				const auto *element = array->elements()->Get(index);
-				const auto *elementType = valueSemanticType(element);
-				auto *elementValue = lower(element, types.lower(elementType), elementType);
-				auto *boxedValue = boxAny(elementValue, elementType);
+	void ValueLowerer::populateArray(
+		const Yogi::Sir::ArrayExpression *array,
+		::llvm::Value *aggregate,
+		bool appendMode
+	) {
+		if (!array->elements()) {
+			return;
+		}
 
-				callRuntime(
-					"yogi_array_set",
-					::llvm::Type::getVoidTy(context.llvmContext),
-					{
-						aggregate,
-						::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), index),
-						boxedValue,
-					}
-				);
+		auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
+		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
+		auto *targetIndexSlot = context.builder.CreateAlloca(i64, nullptr, "array.literal.index");
+		context.builder.CreateStore(::llvm::ConstantInt::get(i64, 0), targetIndexSlot);
+
+		const auto emitBoxedValue = [&](::llvm::Value *boxedValue) {
+			if (appendMode) {
+				callRuntime("yogi_array_push", i64, {aggregate, boxedValue});
+				return;
 			}
+
+			auto *targetIndex = context.builder.CreateLoad(i64, targetIndexSlot, "array.literal.target");
+			callRuntime("yogi_array_set", voidType, {aggregate, targetIndex, boxedValue});
+			auto *nextTargetIndex = context.builder.CreateAdd(
+				targetIndex,
+				::llvm::ConstantInt::get(i64, 1),
+				"array.literal.next.target"
+			);
+			context.builder.CreateStore(nextTargetIndex, targetIndexSlot);
+		};
+
+		for (const auto *element: *array->elements()) {
+			if (const auto *spread = element ? element->spread() : nullptr) {
+				auto *sourceArray = lower(spread->expression(), opaquePointer(), spread->type());
+				auto *sourceLength = callRuntime("yogi_array_length", i64, {sourceArray});
+				auto *function = context.builder.GetInsertBlock()->getParent();
+				auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.spread.cond", function);
+				auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.spread.body", function);
+				auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.spread.done", function);
+				auto *sourceIndexSlot = context.builder.CreateAlloca(i64, nullptr, "array.spread.index");
+				context.builder.CreateStore(::llvm::ConstantInt::get(i64, 0), sourceIndexSlot);
+				context.builder.CreateBr(conditionBlock);
+
+				context.builder.SetInsertPoint(conditionBlock);
+				auto *sourceIndex = context.builder.CreateLoad(i64, sourceIndexSlot, "array.spread.i");
+				auto *hasMore = context.builder.CreateICmpULT(sourceIndex, sourceLength, "array.spread.more");
+				context.builder.CreateCondBr(hasMore, bodyBlock, afterBlock);
+
+				context.builder.SetInsertPoint(bodyBlock);
+				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {sourceArray, sourceIndex});
+				emitBoxedValue(boxedElement);
+				auto *nextSourceIndex = context.builder.CreateAdd(
+					sourceIndex,
+					::llvm::ConstantInt::get(i64, 1),
+					"array.spread.next"
+				);
+				context.builder.CreateStore(nextSourceIndex, sourceIndexSlot);
+				context.builder.CreateBr(conditionBlock);
+
+				context.builder.SetInsertPoint(afterBlock);
+				continue;
+			}
+
+			const auto *elementType = valueSemanticType(element);
+			auto *elementValue = lower(element, types.lower(elementType), elementType);
+			auto *boxedValue = boxAny(elementValue, elementType);
+			emitBoxedValue(boxedValue);
 		}
 	}
 
@@ -2048,6 +2105,38 @@ namespace yogi::core::llvm::internal {
 			type->fixed() &&
 			type->shape() &&
 			type->shape()->size() > 1;
+	}
+
+	bool ValueLowerer::isFixedLengthArray(const Yogi::Sir::TypeRef *type) const {
+		return type &&
+			type->kind() == Yogi::Sir::TypeKind_array_type &&
+			type->fixed() &&
+			type->shape() &&
+			type->shape()->size() > 0;
+	}
+
+	bool ValueLowerer::arrayContainsSpread(const Yogi::Sir::ArrayExpression *array) const {
+		if (!array || !array->elements()) {
+			return false;
+		}
+
+		for (const auto *element: *array->elements()) {
+			if (!element) {
+				continue;
+			}
+
+			if (element->spread()) {
+				return true;
+			}
+
+			if (const auto *nestedArray = element->array()) {
+				if (arrayContainsSpread(nestedArray)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	std::vector<int64_t> ValueLowerer::fixedShape(const Yogi::Sir::TypeRef *type) const {

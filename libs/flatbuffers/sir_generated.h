@@ -41,6 +41,9 @@ struct CallExpressionBuilder;
 struct CallArgumentEffect;
 struct CallArgumentEffectBuilder;
 
+struct SpreadElement;
+struct SpreadElementBuilder;
+
 struct ArrayExpression;
 struct ArrayExpressionBuilder;
 
@@ -110,77 +113,88 @@ struct FunctionDeclarationBuilder;
 struct FunctionExpression;
 struct FunctionExpressionBuilder;
 
+struct LayoutMetadata;
+struct LayoutMetadataBuilder;
+
+struct StructFieldDeclaration;
+struct StructFieldDeclarationBuilder;
+
+struct StructDeclaration;
+struct StructDeclarationBuilder;
+
 struct SirNode;
 struct SirNodeBuilder;
 
 struct Module;
 struct ModuleBuilder;
 
-enum class SirNodeValue : uint8_t {
-  NONE = 0,
-  Constant = 1,
-  ExternDeclaration = 2,
-  IdentifierExpression = 3,
-  BinaryExpression = 4,
-  AssignmentExpression = 5,
-  ConditionalExpression = 6,
-  CallExpression = 7,
-  ArrayExpression = 8,
-  ObjectExpression = 9,
-  PropertyAccessExpression = 10,
-  ElementAccessExpression = 11,
-  AggregateAssignmentExpression = 12,
-  VariableDeclaration = 13,
-  ReturnStatement = 14,
-  BlockStatement = 15,
-  IfStatement = 16,
-  WhileStatement = 17,
-  ForStatement = 18,
-  BreakStatement = 19,
-  ContinueStatement = 20,
-  CaseClause = 21,
-  DefaultClause = 22,
-  SwitchStatement = 23,
-  FunctionDeclaration = 24,
-  ArrayDeclaration = 25,
-  MIN = NONE,
-  MAX = ArrayDeclaration
+enum SirNodeValue : uint8_t {
+  SirNodeValue_NONE = 0,
+  SirNodeValue_Constant = 1,
+  SirNodeValue_ExternDeclaration = 2,
+  SirNodeValue_IdentifierExpression = 3,
+  SirNodeValue_BinaryExpression = 4,
+  SirNodeValue_AssignmentExpression = 5,
+  SirNodeValue_ConditionalExpression = 6,
+  SirNodeValue_CallExpression = 7,
+  SirNodeValue_ArrayExpression = 8,
+  SirNodeValue_ObjectExpression = 9,
+  SirNodeValue_PropertyAccessExpression = 10,
+  SirNodeValue_ElementAccessExpression = 11,
+  SirNodeValue_AggregateAssignmentExpression = 12,
+  SirNodeValue_VariableDeclaration = 13,
+  SirNodeValue_ReturnStatement = 14,
+  SirNodeValue_BlockStatement = 15,
+  SirNodeValue_IfStatement = 16,
+  SirNodeValue_WhileStatement = 17,
+  SirNodeValue_ForStatement = 18,
+  SirNodeValue_BreakStatement = 19,
+  SirNodeValue_ContinueStatement = 20,
+  SirNodeValue_CaseClause = 21,
+  SirNodeValue_DefaultClause = 22,
+  SirNodeValue_SwitchStatement = 23,
+  SirNodeValue_FunctionDeclaration = 24,
+  SirNodeValue_ArrayDeclaration = 25,
+  SirNodeValue_StructDeclaration = 26,
+  SirNodeValue_MIN = SirNodeValue_NONE,
+  SirNodeValue_MAX = SirNodeValue_StructDeclaration
 };
 
-inline const SirNodeValue (&EnumValuesSirNodeValue())[26] {
+inline const SirNodeValue (&EnumValuesSirNodeValue())[27] {
   static const SirNodeValue values[] = {
-    SirNodeValue::NONE,
-    SirNodeValue::Constant,
-    SirNodeValue::ExternDeclaration,
-    SirNodeValue::IdentifierExpression,
-    SirNodeValue::BinaryExpression,
-    SirNodeValue::AssignmentExpression,
-    SirNodeValue::ConditionalExpression,
-    SirNodeValue::CallExpression,
-    SirNodeValue::ArrayExpression,
-    SirNodeValue::ObjectExpression,
-    SirNodeValue::PropertyAccessExpression,
-    SirNodeValue::ElementAccessExpression,
-    SirNodeValue::AggregateAssignmentExpression,
-    SirNodeValue::VariableDeclaration,
-    SirNodeValue::ReturnStatement,
-    SirNodeValue::BlockStatement,
-    SirNodeValue::IfStatement,
-    SirNodeValue::WhileStatement,
-    SirNodeValue::ForStatement,
-    SirNodeValue::BreakStatement,
-    SirNodeValue::ContinueStatement,
-    SirNodeValue::CaseClause,
-    SirNodeValue::DefaultClause,
-    SirNodeValue::SwitchStatement,
-    SirNodeValue::FunctionDeclaration,
-    SirNodeValue::ArrayDeclaration
+    SirNodeValue_NONE,
+    SirNodeValue_Constant,
+    SirNodeValue_ExternDeclaration,
+    SirNodeValue_IdentifierExpression,
+    SirNodeValue_BinaryExpression,
+    SirNodeValue_AssignmentExpression,
+    SirNodeValue_ConditionalExpression,
+    SirNodeValue_CallExpression,
+    SirNodeValue_ArrayExpression,
+    SirNodeValue_ObjectExpression,
+    SirNodeValue_PropertyAccessExpression,
+    SirNodeValue_ElementAccessExpression,
+    SirNodeValue_AggregateAssignmentExpression,
+    SirNodeValue_VariableDeclaration,
+    SirNodeValue_ReturnStatement,
+    SirNodeValue_BlockStatement,
+    SirNodeValue_IfStatement,
+    SirNodeValue_WhileStatement,
+    SirNodeValue_ForStatement,
+    SirNodeValue_BreakStatement,
+    SirNodeValue_ContinueStatement,
+    SirNodeValue_CaseClause,
+    SirNodeValue_DefaultClause,
+    SirNodeValue_SwitchStatement,
+    SirNodeValue_FunctionDeclaration,
+    SirNodeValue_ArrayDeclaration,
+    SirNodeValue_StructDeclaration
   };
   return values;
 }
 
 inline const char * const *EnumNamesSirNodeValue() {
-  static const char * const names[27] = {
+  static const char * const names[28] = {
     "NONE",
     "Constant",
     "ExternDeclaration",
@@ -207,131 +221,133 @@ inline const char * const *EnumNamesSirNodeValue() {
     "SwitchStatement",
     "FunctionDeclaration",
     "ArrayDeclaration",
+    "StructDeclaration",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameSirNodeValue(SirNodeValue e) {
-  if (::flatbuffers::IsOutRange(e, SirNodeValue::NONE, SirNodeValue::ArrayDeclaration)) return "";
+  if (::flatbuffers::IsOutRange(e, SirNodeValue_NONE, SirNodeValue_StructDeclaration)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesSirNodeValue()[index];
 }
 
 template<typename T> struct SirNodeValueTraits {
-  static const SirNodeValue enum_value = SirNodeValue::NONE;
+  static const SirNodeValue enum_value = SirNodeValue_NONE;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::Constant> {
-  static const SirNodeValue enum_value = SirNodeValue::Constant;
+  static const SirNodeValue enum_value = SirNodeValue_Constant;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ExternDeclaration> {
-  static const SirNodeValue enum_value = SirNodeValue::ExternDeclaration;
+  static const SirNodeValue enum_value = SirNodeValue_ExternDeclaration;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::IdentifierExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::IdentifierExpression;
+  static const SirNodeValue enum_value = SirNodeValue_IdentifierExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::BinaryExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::BinaryExpression;
+  static const SirNodeValue enum_value = SirNodeValue_BinaryExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::AssignmentExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::AssignmentExpression;
+  static const SirNodeValue enum_value = SirNodeValue_AssignmentExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ConditionalExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::ConditionalExpression;
+  static const SirNodeValue enum_value = SirNodeValue_ConditionalExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::CallExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::CallExpression;
+  static const SirNodeValue enum_value = SirNodeValue_CallExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ArrayExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::ArrayExpression;
+  static const SirNodeValue enum_value = SirNodeValue_ArrayExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ObjectExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::ObjectExpression;
+  static const SirNodeValue enum_value = SirNodeValue_ObjectExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::PropertyAccessExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::PropertyAccessExpression;
+  static const SirNodeValue enum_value = SirNodeValue_PropertyAccessExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ElementAccessExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::ElementAccessExpression;
+  static const SirNodeValue enum_value = SirNodeValue_ElementAccessExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::AggregateAssignmentExpression> {
-  static const SirNodeValue enum_value = SirNodeValue::AggregateAssignmentExpression;
+  static const SirNodeValue enum_value = SirNodeValue_AggregateAssignmentExpression;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::VariableDeclaration> {
-  static const SirNodeValue enum_value = SirNodeValue::VariableDeclaration;
+  static const SirNodeValue enum_value = SirNodeValue_VariableDeclaration;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ReturnStatement> {
-  static const SirNodeValue enum_value = SirNodeValue::ReturnStatement;
+  static const SirNodeValue enum_value = SirNodeValue_ReturnStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::BlockStatement> {
-  static const SirNodeValue enum_value = SirNodeValue::BlockStatement;
+  static const SirNodeValue enum_value = SirNodeValue_BlockStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::IfStatement> {
-  static const SirNodeValue enum_value = SirNodeValue::IfStatement;
+  static const SirNodeValue enum_value = SirNodeValue_IfStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::WhileStatement> {
-  static const SirNodeValue enum_value = SirNodeValue::WhileStatement;
+  static const SirNodeValue enum_value = SirNodeValue_WhileStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ForStatement> {
-  static const SirNodeValue enum_value = SirNodeValue::ForStatement;
+  static const SirNodeValue enum_value = SirNodeValue_ForStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::BreakStatement> {
-  static const SirNodeValue enum_value = SirNodeValue::BreakStatement;
+  static const SirNodeValue enum_value = SirNodeValue_BreakStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ContinueStatement> {
-  static const SirNodeValue enum_value = SirNodeValue::ContinueStatement;
+  static const SirNodeValue enum_value = SirNodeValue_ContinueStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::CaseClause> {
-  static const SirNodeValue enum_value = SirNodeValue::CaseClause;
+  static const SirNodeValue enum_value = SirNodeValue_CaseClause;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::DefaultClause> {
-  static const SirNodeValue enum_value = SirNodeValue::DefaultClause;
+  static const SirNodeValue enum_value = SirNodeValue_DefaultClause;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::SwitchStatement> {
-  static const SirNodeValue enum_value = SirNodeValue::SwitchStatement;
+  static const SirNodeValue enum_value = SirNodeValue_SwitchStatement;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::FunctionDeclaration> {
-  static const SirNodeValue enum_value = SirNodeValue::FunctionDeclaration;
+  static const SirNodeValue enum_value = SirNodeValue_FunctionDeclaration;
 };
 
 template<> struct SirNodeValueTraits<Yogi::Sir::ArrayDeclaration> {
-  static const SirNodeValue enum_value = SirNodeValue::ArrayDeclaration;
+  static const SirNodeValue enum_value = SirNodeValue_ArrayDeclaration;
+};
+
+template<> struct SirNodeValueTraits<Yogi::Sir::StructDeclaration> {
+  static const SirNodeValue enum_value = SirNodeValue_StructDeclaration;
 };
 
 template <bool B = false>
 bool VerifySirNodeValue(::flatbuffers::VerifierTemplate<B> &verifier, const void *obj, SirNodeValue type);
 template <bool B = false>
-bool VerifySirNodeValueVector(::flatbuffers::VerifierTemplate<B> &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<SirNodeValue> *types);
+bool VerifySirNodeValueVector(::flatbuffers::VerifierTemplate<B> &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<uint8_t> *types);
 
 struct IdentifierExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef IdentifierExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.IdentifierExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_NAME = 4,
     VT_TYPE = 6,
@@ -476,9 +492,6 @@ inline ::flatbuffers::Offset<IdentifierExpression> CreateIdentifierExpressionDir
 
 struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ValueRefBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ValueRef";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_KIND = 4,
     VT_CONSTANT = 6,
@@ -487,12 +500,13 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_ASSIGNMENT = 12,
     VT_CONDITIONAL = 14,
     VT_CALL = 16,
-    VT_ARRAY = 18,
-    VT_OBJECT = 20,
-    VT_PROPERTY_ACCESS = 22,
-    VT_ELEMENT_ACCESS = 24,
-    VT_AGGREGATE_ASSIGNMENT = 26,
-    VT_FUNCTION_EXPRESSION = 28
+    VT_SPREAD = 18,
+    VT_ARRAY = 20,
+    VT_OBJECT = 22,
+    VT_PROPERTY_ACCESS = 24,
+    VT_ELEMENT_ACCESS = 26,
+    VT_AGGREGATE_ASSIGNMENT = 28,
+    VT_FUNCTION_EXPRESSION = 30
   };
   const ::flatbuffers::String *kind() const {
     return GetPointer<const ::flatbuffers::String *>(VT_KIND);
@@ -514,6 +528,9 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   }
   const Yogi::Sir::CallExpression *call() const {
     return GetPointer<const Yogi::Sir::CallExpression *>(VT_CALL);
+  }
+  const Yogi::Sir::SpreadElement *spread() const {
+    return GetPointer<const Yogi::Sir::SpreadElement *>(VT_SPREAD);
   }
   const Yogi::Sir::ArrayExpression *array() const {
     return GetPointer<const Yogi::Sir::ArrayExpression *>(VT_ARRAY);
@@ -550,6 +567,8 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyTable(conditional()) &&
            VerifyOffset(verifier, VT_CALL) &&
            verifier.VerifyTable(call()) &&
+           VerifyOffset(verifier, VT_SPREAD) &&
+           verifier.VerifyTable(spread()) &&
            VerifyOffset(verifier, VT_ARRAY) &&
            verifier.VerifyTable(array()) &&
            VerifyOffset(verifier, VT_OBJECT) &&
@@ -591,6 +610,9 @@ struct ValueRefBuilder {
   void add_call(::flatbuffers::Offset<Yogi::Sir::CallExpression> call) {
     fbb_.AddOffset(ValueRef::VT_CALL, call);
   }
+  void add_spread(::flatbuffers::Offset<Yogi::Sir::SpreadElement> spread) {
+    fbb_.AddOffset(ValueRef::VT_SPREAD, spread);
+  }
   void add_array(::flatbuffers::Offset<Yogi::Sir::ArrayExpression> array) {
     fbb_.AddOffset(ValueRef::VT_ARRAY, array);
   }
@@ -629,6 +651,7 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRef(
     ::flatbuffers::Offset<Yogi::Sir::AssignmentExpression> assignment = 0,
     ::flatbuffers::Offset<Yogi::Sir::ConditionalExpression> conditional = 0,
     ::flatbuffers::Offset<Yogi::Sir::CallExpression> call = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SpreadElement> spread = 0,
     ::flatbuffers::Offset<Yogi::Sir::ArrayExpression> array = 0,
     ::flatbuffers::Offset<Yogi::Sir::ObjectExpression> object = 0,
     ::flatbuffers::Offset<Yogi::Sir::PropertyAccessExpression> property_access = 0,
@@ -642,6 +665,7 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRef(
   builder_.add_property_access(property_access);
   builder_.add_object(object);
   builder_.add_array(array);
+  builder_.add_spread(spread);
   builder_.add_call(call);
   builder_.add_conditional(conditional);
   builder_.add_assignment(assignment);
@@ -661,6 +685,7 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
     ::flatbuffers::Offset<Yogi::Sir::AssignmentExpression> assignment = 0,
     ::flatbuffers::Offset<Yogi::Sir::ConditionalExpression> conditional = 0,
     ::flatbuffers::Offset<Yogi::Sir::CallExpression> call = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SpreadElement> spread = 0,
     ::flatbuffers::Offset<Yogi::Sir::ArrayExpression> array = 0,
     ::flatbuffers::Offset<Yogi::Sir::ObjectExpression> object = 0,
     ::flatbuffers::Offset<Yogi::Sir::PropertyAccessExpression> property_access = 0,
@@ -677,6 +702,7 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
       assignment,
       conditional,
       call,
+      spread,
       array,
       object,
       property_access,
@@ -687,9 +713,6 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
 
 struct BinaryExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef BinaryExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.BinaryExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_OPERATOR_ = 4,
     VT_LEFT = 6,
@@ -808,9 +831,6 @@ inline ::flatbuffers::Offset<BinaryExpression> CreateBinaryExpressionDirect(
 
 struct AssignmentExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef AssignmentExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.AssignmentExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_LEFT = 4,
     VT_RIGHT = 6,
@@ -915,9 +935,6 @@ inline ::flatbuffers::Offset<AssignmentExpression> CreateAssignmentExpressionDir
 
 struct ConditionalExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ConditionalExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ConditionalExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_CONDITION = 4,
     VT_WHEN_TRUE = 6,
@@ -1035,9 +1052,6 @@ inline ::flatbuffers::Offset<ConditionalExpression> CreateConditionalExpressionD
 
 struct CallExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef CallExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.CallExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_CALLEE = 4,
     VT_ARGUMENTS = 6,
@@ -1226,9 +1240,6 @@ inline ::flatbuffers::Offset<CallExpression> CreateCallExpressionDirect(
 
 struct CallArgumentEffect FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef CallArgumentEffectBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.CallArgumentEffect";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_INDEX = 4,
     VT_ESCAPES = 6,
@@ -1299,11 +1310,99 @@ inline ::flatbuffers::Offset<CallArgumentEffect> CreateCallArgumentEffect(
   return builder_.Finish();
 }
 
+struct SpreadElement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef SpreadElementBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_EXPRESSION = 4,
+    VT_TYPE = 6,
+    VT_SOURCE = 8,
+    VT_POSITION = 10
+  };
+  const Yogi::Sir::ValueRef *expression() const {
+    return GetPointer<const Yogi::Sir::ValueRef *>(VT_EXPRESSION);
+  }
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_EXPRESSION) &&
+           verifier.VerifyTable(expression()) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct SpreadElementBuilder {
+  typedef SpreadElement Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_expression(::flatbuffers::Offset<Yogi::Sir::ValueRef> expression) {
+    fbb_.AddOffset(SpreadElement::VT_EXPRESSION, expression);
+  }
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(SpreadElement::VT_TYPE, type);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(SpreadElement::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(SpreadElement::VT_POSITION, position);
+  }
+  explicit SpreadElementBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<SpreadElement> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<SpreadElement>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<SpreadElement> CreateSpreadElement(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> expression = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  SpreadElementBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_type(type);
+  builder_.add_expression(expression);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<SpreadElement> CreateSpreadElementDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> expression = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateSpreadElement(
+      _fbb,
+      expression,
+      type,
+      source__,
+      position);
+}
+
 struct ArrayExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ArrayExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ArrayExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_ELEMENTS = 4,
     VT_TYPE = 6,
@@ -1397,9 +1496,6 @@ inline ::flatbuffers::Offset<ArrayExpression> CreateArrayExpressionDirect(
 
 struct ObjectProperty FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ObjectPropertyBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ObjectProperty";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_KEY = 4,
     VT_VALUE = 6,
@@ -1505,9 +1601,6 @@ inline ::flatbuffers::Offset<ObjectProperty> CreateObjectPropertyDirect(
 
 struct ObjectExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ObjectExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ObjectExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_PROPERTIES = 4,
     VT_TYPE = 6,
@@ -1601,9 +1694,6 @@ inline ::flatbuffers::Offset<ObjectExpression> CreateObjectExpressionDirect(
 
 struct PropertyAccessExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef PropertyAccessExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.PropertyAccessExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_OBJECT = 4,
     VT_PROPERTY = 6,
@@ -1709,21 +1799,22 @@ inline ::flatbuffers::Offset<PropertyAccessExpression> CreatePropertyAccessExpre
 
 struct ElementAccessExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ElementAccessExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ElementAccessExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_OBJECT = 4,
     VT_INDEX = 6,
-    VT_TYPE = 8,
-    VT_SOURCE = 10,
-    VT_POSITION = 12
+    VT_INDICES = 8,
+    VT_TYPE = 10,
+    VT_SOURCE = 12,
+    VT_POSITION = 14
   };
   const Yogi::Sir::ValueRef *object() const {
     return GetPointer<const Yogi::Sir::ValueRef *>(VT_OBJECT);
   }
   const Yogi::Sir::ValueRef *index() const {
     return GetPointer<const Yogi::Sir::ValueRef *>(VT_INDEX);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *indices() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *>(VT_INDICES);
   }
   const Yogi::Sir::TypeRef *type() const {
     return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
@@ -1741,6 +1832,9 @@ struct ElementAccessExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::
            verifier.VerifyTable(object()) &&
            VerifyOffset(verifier, VT_INDEX) &&
            verifier.VerifyTable(index()) &&
+           VerifyOffset(verifier, VT_INDICES) &&
+           verifier.VerifyVector(indices()) &&
+           verifier.VerifyVectorOfTables(indices()) &&
            VerifyOffset(verifier, VT_TYPE) &&
            verifier.VerifyTable(type()) &&
            VerifyOffset(verifier, VT_SOURCE) &&
@@ -1760,6 +1854,9 @@ struct ElementAccessExpressionBuilder {
   }
   void add_index(::flatbuffers::Offset<Yogi::Sir::ValueRef> index) {
     fbb_.AddOffset(ElementAccessExpression::VT_INDEX, index);
+  }
+  void add_indices(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> indices) {
+    fbb_.AddOffset(ElementAccessExpression::VT_INDICES, indices);
   }
   void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
     fbb_.AddOffset(ElementAccessExpression::VT_TYPE, type);
@@ -1785,6 +1882,7 @@ inline ::flatbuffers::Offset<ElementAccessExpression> CreateElementAccessExpress
     ::flatbuffers::FlatBufferBuilder &_fbb,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> object = 0,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> index = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> indices = 0,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source = 0,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
@@ -1792,6 +1890,7 @@ inline ::flatbuffers::Offset<ElementAccessExpression> CreateElementAccessExpress
   builder_.add_position(position);
   builder_.add_source(source);
   builder_.add_type(type);
+  builder_.add_indices(indices);
   builder_.add_index(index);
   builder_.add_object(object);
   return builder_.Finish();
@@ -1801,14 +1900,17 @@ inline ::flatbuffers::Offset<ElementAccessExpression> CreateElementAccessExpress
     ::flatbuffers::FlatBufferBuilder &_fbb,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> object = 0,
     ::flatbuffers::Offset<Yogi::Sir::ValueRef> index = 0,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *indices = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     const char *source = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto indices__ = indices ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>(*indices) : 0;
   auto source__ = source ? _fbb.CreateString(source) : 0;
   return Yogi::Sir::CreateElementAccessExpression(
       _fbb,
       object,
       index,
+      indices__,
       type,
       source__,
       position);
@@ -1816,9 +1918,6 @@ inline ::flatbuffers::Offset<ElementAccessExpression> CreateElementAccessExpress
 
 struct AggregateAssignmentExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef AggregateAssignmentExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.AggregateAssignmentExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_TARGET = 4,
     VT_RIGHT = 6,
@@ -1923,9 +2022,6 @@ inline ::flatbuffers::Offset<AggregateAssignmentExpression> CreateAggregateAssig
 
 struct VariableDeclaration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef VariableDeclarationBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.VariableDeclaration";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_NAME = 4,
     VT_TYPE = 6,
@@ -2161,9 +2257,6 @@ inline ::flatbuffers::Offset<VariableDeclaration> CreateVariableDeclarationDirec
 /// Represents: let name: type[] = [elem1, elem2, ...]
 struct ArrayDeclaration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ArrayDeclarationBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ArrayDeclaration";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_NAME = 4,
     VT_TYPE = 6,
@@ -2399,9 +2492,6 @@ inline ::flatbuffers::Offset<ArrayDeclaration> CreateArrayDeclarationDirect(
 
 struct ReturnStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ReturnStatementBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ReturnStatement";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_VALUE = 4,
     VT_SOURCE = 6,
@@ -2480,9 +2570,6 @@ inline ::flatbuffers::Offset<ReturnStatement> CreateReturnStatementDirect(
 
 struct BlockStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef BlockStatementBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.BlockStatement";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_STATEMENTS = 4,
     VT_SOURCE = 6,
@@ -2563,9 +2650,6 @@ inline ::flatbuffers::Offset<BlockStatement> CreateBlockStatementDirect(
 
 struct IfStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef IfStatementBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.IfStatement";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_CONDITION = 4,
     VT_THEN_BLOCK = 6,
@@ -2670,9 +2754,6 @@ inline ::flatbuffers::Offset<IfStatement> CreateIfStatementDirect(
 
 struct WhileStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef WhileStatementBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.WhileStatement";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_CONDITION = 4,
     VT_BODY = 6,
@@ -2764,9 +2845,6 @@ inline ::flatbuffers::Offset<WhileStatement> CreateWhileStatementDirect(
 
 struct ForStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ForStatementBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ForStatement";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_INITIALIZER = 4,
     VT_CONDITION = 6,
@@ -2884,9 +2962,6 @@ inline ::flatbuffers::Offset<ForStatement> CreateForStatementDirect(
 
 struct BreakStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef BreakStatementBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.BreakStatement";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_SOURCE = 4,
     VT_POSITION = 6
@@ -2952,9 +3027,6 @@ inline ::flatbuffers::Offset<BreakStatement> CreateBreakStatementDirect(
 
 struct ContinueStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ContinueStatementBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ContinueStatement";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_SOURCE = 4,
     VT_POSITION = 6
@@ -3020,9 +3092,6 @@ inline ::flatbuffers::Offset<ContinueStatement> CreateContinueStatementDirect(
 
 struct CaseClause FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef CaseClauseBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.CaseClause";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_EXPRESSION = 4,
     VT_BODY = 6,
@@ -3114,9 +3183,6 @@ inline ::flatbuffers::Offset<CaseClause> CreateCaseClauseDirect(
 
 struct DefaultClause FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef DefaultClauseBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.DefaultClause";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_BODY = 4,
     VT_SOURCE = 6,
@@ -3195,9 +3261,6 @@ inline ::flatbuffers::Offset<DefaultClause> CreateDefaultClauseDirect(
 
 struct SwitchStatement FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef SwitchStatementBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.SwitchStatement";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_EXPRESSION = 4,
     VT_CLAUSES = 6,
@@ -3291,9 +3354,6 @@ inline ::flatbuffers::Offset<SwitchStatement> CreateSwitchStatementDirect(
 
 struct FunctionParameter FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef FunctionParameterBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.FunctionParameter";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_NAME = 4,
     VT_TYPE = 6,
@@ -3448,9 +3508,6 @@ inline ::flatbuffers::Offset<FunctionParameter> CreateFunctionParameterDirect(
 
 struct ParameterEffect FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ParameterEffectBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.ParameterEffect";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_INDEX = 4,
     VT_RETURNS = 6,
@@ -3543,9 +3600,6 @@ inline ::flatbuffers::Offset<ParameterEffect> CreateParameterEffect(
 
 struct FunctionEffectSummary FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef FunctionEffectSummaryBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.FunctionEffectSummary";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_PARAMETER_EFFECTS = 4,
     VT_RETURNS_AGGREGATE = 6
@@ -3611,9 +3665,6 @@ inline ::flatbuffers::Offset<FunctionEffectSummary> CreateFunctionEffectSummaryD
 
 struct FunctionDeclaration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef FunctionDeclarationBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.FunctionDeclaration";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_NAME = 4,
     VT_PARAMETERS = 6,
@@ -3849,9 +3900,6 @@ inline ::flatbuffers::Offset<FunctionDeclaration> CreateFunctionDeclarationDirec
 
 struct FunctionExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef FunctionExpressionBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.FunctionExpression";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_CALLBACK_NAME = 4,
     VT_PARAMETERS = 6,
@@ -3996,11 +4044,524 @@ inline ::flatbuffers::Offset<FunctionExpression> CreateFunctionExpressionDirect(
       effect_summary);
 }
 
+struct LayoutMetadata FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef LayoutMetadataBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_POINTER = 4,
+    VT_MUTABLE_ = 6,
+    VT_NULLABLE = 8,
+    VT_BITS = 10,
+    VT_SIGNED_ = 12,
+    VT_ALIGN = 14,
+    VT_PACKED = 16,
+    VT_ENCODING = 18,
+    VT_STORAGE = 20,
+    VT_MAX_LENGTH = 22,
+    VT_NULL_TERMINATED = 24
+  };
+  bool pointer() const {
+    return GetField<uint8_t>(VT_POINTER, 0) != 0;
+  }
+  bool mutable_() const {
+    return GetField<uint8_t>(VT_MUTABLE_, 0) != 0;
+  }
+  bool nullable() const {
+    return GetField<uint8_t>(VT_NULLABLE, 0) != 0;
+  }
+  int32_t bits() const {
+    return GetField<int32_t>(VT_BITS, 0);
+  }
+  bool signed_() const {
+    return GetField<uint8_t>(VT_SIGNED_, 0) != 0;
+  }
+  int32_t align() const {
+    return GetField<int32_t>(VT_ALIGN, 0);
+  }
+  bool packed() const {
+    return GetField<uint8_t>(VT_PACKED, 0) != 0;
+  }
+  const ::flatbuffers::String *encoding() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_ENCODING);
+  }
+  const ::flatbuffers::String *storage() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_STORAGE);
+  }
+  int32_t max_length() const {
+    return GetField<int32_t>(VT_MAX_LENGTH, 0);
+  }
+  bool null_terminated() const {
+    return GetField<uint8_t>(VT_NULL_TERMINATED, 0) != 0;
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<uint8_t>(verifier, VT_POINTER, 1) &&
+           VerifyField<uint8_t>(verifier, VT_MUTABLE_, 1) &&
+           VerifyField<uint8_t>(verifier, VT_NULLABLE, 1) &&
+           VerifyField<int32_t>(verifier, VT_BITS, 4) &&
+           VerifyField<uint8_t>(verifier, VT_SIGNED_, 1) &&
+           VerifyField<int32_t>(verifier, VT_ALIGN, 4) &&
+           VerifyField<uint8_t>(verifier, VT_PACKED, 1) &&
+           VerifyOffset(verifier, VT_ENCODING) &&
+           verifier.VerifyString(encoding()) &&
+           VerifyOffset(verifier, VT_STORAGE) &&
+           verifier.VerifyString(storage()) &&
+           VerifyField<int32_t>(verifier, VT_MAX_LENGTH, 4) &&
+           VerifyField<uint8_t>(verifier, VT_NULL_TERMINATED, 1) &&
+           verifier.EndTable();
+  }
+};
+
+struct LayoutMetadataBuilder {
+  typedef LayoutMetadata Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_pointer(bool pointer) {
+    fbb_.AddElement<uint8_t>(LayoutMetadata::VT_POINTER, static_cast<uint8_t>(pointer), 0);
+  }
+  void add_mutable_(bool mutable_) {
+    fbb_.AddElement<uint8_t>(LayoutMetadata::VT_MUTABLE_, static_cast<uint8_t>(mutable_), 0);
+  }
+  void add_nullable(bool nullable) {
+    fbb_.AddElement<uint8_t>(LayoutMetadata::VT_NULLABLE, static_cast<uint8_t>(nullable), 0);
+  }
+  void add_bits(int32_t bits) {
+    fbb_.AddElement<int32_t>(LayoutMetadata::VT_BITS, bits, 0);
+  }
+  void add_signed_(bool signed_) {
+    fbb_.AddElement<uint8_t>(LayoutMetadata::VT_SIGNED_, static_cast<uint8_t>(signed_), 0);
+  }
+  void add_align(int32_t align) {
+    fbb_.AddElement<int32_t>(LayoutMetadata::VT_ALIGN, align, 0);
+  }
+  void add_packed(bool packed) {
+    fbb_.AddElement<uint8_t>(LayoutMetadata::VT_PACKED, static_cast<uint8_t>(packed), 0);
+  }
+  void add_encoding(::flatbuffers::Offset<::flatbuffers::String> encoding) {
+    fbb_.AddOffset(LayoutMetadata::VT_ENCODING, encoding);
+  }
+  void add_storage(::flatbuffers::Offset<::flatbuffers::String> storage) {
+    fbb_.AddOffset(LayoutMetadata::VT_STORAGE, storage);
+  }
+  void add_max_length(int32_t max_length) {
+    fbb_.AddElement<int32_t>(LayoutMetadata::VT_MAX_LENGTH, max_length, 0);
+  }
+  void add_null_terminated(bool null_terminated) {
+    fbb_.AddElement<uint8_t>(LayoutMetadata::VT_NULL_TERMINATED, static_cast<uint8_t>(null_terminated), 0);
+  }
+  explicit LayoutMetadataBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<LayoutMetadata> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<LayoutMetadata>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<LayoutMetadata> CreateLayoutMetadata(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    bool pointer = false,
+    bool mutable_ = false,
+    bool nullable = false,
+    int32_t bits = 0,
+    bool signed_ = false,
+    int32_t align = 0,
+    bool packed = false,
+    ::flatbuffers::Offset<::flatbuffers::String> encoding = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> storage = 0,
+    int32_t max_length = 0,
+    bool null_terminated = false) {
+  LayoutMetadataBuilder builder_(_fbb);
+  builder_.add_max_length(max_length);
+  builder_.add_storage(storage);
+  builder_.add_encoding(encoding);
+  builder_.add_align(align);
+  builder_.add_bits(bits);
+  builder_.add_null_terminated(null_terminated);
+  builder_.add_packed(packed);
+  builder_.add_signed_(signed_);
+  builder_.add_nullable(nullable);
+  builder_.add_mutable_(mutable_);
+  builder_.add_pointer(pointer);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<LayoutMetadata> CreateLayoutMetadataDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    bool pointer = false,
+    bool mutable_ = false,
+    bool nullable = false,
+    int32_t bits = 0,
+    bool signed_ = false,
+    int32_t align = 0,
+    bool packed = false,
+    const char *encoding = nullptr,
+    const char *storage = nullptr,
+    int32_t max_length = 0,
+    bool null_terminated = false) {
+  auto encoding__ = encoding ? _fbb.CreateString(encoding) : 0;
+  auto storage__ = storage ? _fbb.CreateString(storage) : 0;
+  return Yogi::Sir::CreateLayoutMetadata(
+      _fbb,
+      pointer,
+      mutable_,
+      nullable,
+      bits,
+      signed_,
+      align,
+      packed,
+      encoding__,
+      storage__,
+      max_length,
+      null_terminated);
+}
+
+struct StructFieldDeclaration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef StructFieldDeclarationBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_NAME = 4,
+    VT_TYPE = 6,
+    VT_SOURCE = 8,
+    VT_POSITION = 10
+  };
+  const ::flatbuffers::String *name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NAME);
+  }
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NAME) &&
+           verifier.VerifyString(name()) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct StructFieldDeclarationBuilder {
+  typedef StructFieldDeclaration Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
+    fbb_.AddOffset(StructFieldDeclaration::VT_NAME, name);
+  }
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(StructFieldDeclaration::VT_TYPE, type);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(StructFieldDeclaration::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(StructFieldDeclaration::VT_POSITION, position);
+  }
+  explicit StructFieldDeclarationBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<StructFieldDeclaration> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<StructFieldDeclaration>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<StructFieldDeclaration> CreateStructFieldDeclaration(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> name = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  StructFieldDeclarationBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_type(type);
+  builder_.add_name(name);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<StructFieldDeclaration> CreateStructFieldDeclarationDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *name = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto name__ = name ? _fbb.CreateString(name) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateStructFieldDeclaration(
+      _fbb,
+      name__,
+      type,
+      source__,
+      position);
+}
+
+struct StructDeclaration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef StructDeclarationBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_NAME = 4,
+    VT_TYPE_PARAMETERS = 6,
+    VT_EXTENDS = 8,
+    VT_FIELDS = 10,
+    VT_HAS_LAYOUT = 12,
+    VT_LAYOUT = 14,
+    VT_HAS_VALIDATE = 16,
+    VT_VALIDATE_CHAIN = 18,
+    VT_IS_SCALAR = 20,
+    VT_EXPORTED = 22,
+    VT_SYMBOL_ID = 24,
+    VT_SCOPE_ID = 26,
+    VT_LINKAGE_NAME = 28,
+    VT_QUALIFIED_NAME = 30,
+    VT_SOURCE = 32,
+    VT_POSITION = 34
+  };
+  const ::flatbuffers::String *name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NAME);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::TypeRef>> *type_parameters() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::TypeRef>> *>(VT_TYPE_PARAMETERS);
+  }
+  const Yogi::Sir::TypeRef *extends() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_EXTENDS);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::StructFieldDeclaration>> *fields() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::StructFieldDeclaration>> *>(VT_FIELDS);
+  }
+  bool has_layout() const {
+    return GetField<uint8_t>(VT_HAS_LAYOUT, 0) != 0;
+  }
+  const Yogi::Sir::LayoutMetadata *layout() const {
+    return GetPointer<const Yogi::Sir::LayoutMetadata *>(VT_LAYOUT);
+  }
+  bool has_validate() const {
+    return GetField<uint8_t>(VT_HAS_VALIDATE, 0) != 0;
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *validate_chain() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *>(VT_VALIDATE_CHAIN);
+  }
+  bool is_scalar() const {
+    return GetField<uint8_t>(VT_IS_SCALAR, 0) != 0;
+  }
+  bool exported() const {
+    return GetField<uint8_t>(VT_EXPORTED, 0) != 0;
+  }
+  int32_t symbol_id() const {
+    return GetField<int32_t>(VT_SYMBOL_ID, -1);
+  }
+  int32_t scope_id() const {
+    return GetField<int32_t>(VT_SCOPE_ID, -1);
+  }
+  const ::flatbuffers::String *linkage_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_LINKAGE_NAME);
+  }
+  const ::flatbuffers::String *qualified_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_QUALIFIED_NAME);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NAME) &&
+           verifier.VerifyString(name()) &&
+           VerifyOffset(verifier, VT_TYPE_PARAMETERS) &&
+           verifier.VerifyVector(type_parameters()) &&
+           verifier.VerifyVectorOfTables(type_parameters()) &&
+           VerifyOffset(verifier, VT_EXTENDS) &&
+           verifier.VerifyTable(extends()) &&
+           VerifyOffset(verifier, VT_FIELDS) &&
+           verifier.VerifyVector(fields()) &&
+           verifier.VerifyVectorOfTables(fields()) &&
+           VerifyField<uint8_t>(verifier, VT_HAS_LAYOUT, 1) &&
+           VerifyOffset(verifier, VT_LAYOUT) &&
+           verifier.VerifyTable(layout()) &&
+           VerifyField<uint8_t>(verifier, VT_HAS_VALIDATE, 1) &&
+           VerifyOffset(verifier, VT_VALIDATE_CHAIN) &&
+           verifier.VerifyVector(validate_chain()) &&
+           verifier.VerifyVectorOfStrings(validate_chain()) &&
+           VerifyField<uint8_t>(verifier, VT_IS_SCALAR, 1) &&
+           VerifyField<uint8_t>(verifier, VT_EXPORTED, 1) &&
+           VerifyField<int32_t>(verifier, VT_SYMBOL_ID, 4) &&
+           VerifyField<int32_t>(verifier, VT_SCOPE_ID, 4) &&
+           VerifyOffset(verifier, VT_LINKAGE_NAME) &&
+           verifier.VerifyString(linkage_name()) &&
+           VerifyOffset(verifier, VT_QUALIFIED_NAME) &&
+           verifier.VerifyString(qualified_name()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct StructDeclarationBuilder {
+  typedef StructDeclaration Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
+    fbb_.AddOffset(StructDeclaration::VT_NAME, name);
+  }
+  void add_type_parameters(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::TypeRef>>> type_parameters) {
+    fbb_.AddOffset(StructDeclaration::VT_TYPE_PARAMETERS, type_parameters);
+  }
+  void add_extends(::flatbuffers::Offset<Yogi::Sir::TypeRef> extends) {
+    fbb_.AddOffset(StructDeclaration::VT_EXTENDS, extends);
+  }
+  void add_fields(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::StructFieldDeclaration>>> fields) {
+    fbb_.AddOffset(StructDeclaration::VT_FIELDS, fields);
+  }
+  void add_has_layout(bool has_layout) {
+    fbb_.AddElement<uint8_t>(StructDeclaration::VT_HAS_LAYOUT, static_cast<uint8_t>(has_layout), 0);
+  }
+  void add_layout(::flatbuffers::Offset<Yogi::Sir::LayoutMetadata> layout) {
+    fbb_.AddOffset(StructDeclaration::VT_LAYOUT, layout);
+  }
+  void add_has_validate(bool has_validate) {
+    fbb_.AddElement<uint8_t>(StructDeclaration::VT_HAS_VALIDATE, static_cast<uint8_t>(has_validate), 0);
+  }
+  void add_validate_chain(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> validate_chain) {
+    fbb_.AddOffset(StructDeclaration::VT_VALIDATE_CHAIN, validate_chain);
+  }
+  void add_is_scalar(bool is_scalar) {
+    fbb_.AddElement<uint8_t>(StructDeclaration::VT_IS_SCALAR, static_cast<uint8_t>(is_scalar), 0);
+  }
+  void add_exported(bool exported) {
+    fbb_.AddElement<uint8_t>(StructDeclaration::VT_EXPORTED, static_cast<uint8_t>(exported), 0);
+  }
+  void add_symbol_id(int32_t symbol_id) {
+    fbb_.AddElement<int32_t>(StructDeclaration::VT_SYMBOL_ID, symbol_id, -1);
+  }
+  void add_scope_id(int32_t scope_id) {
+    fbb_.AddElement<int32_t>(StructDeclaration::VT_SCOPE_ID, scope_id, -1);
+  }
+  void add_linkage_name(::flatbuffers::Offset<::flatbuffers::String> linkage_name) {
+    fbb_.AddOffset(StructDeclaration::VT_LINKAGE_NAME, linkage_name);
+  }
+  void add_qualified_name(::flatbuffers::Offset<::flatbuffers::String> qualified_name) {
+    fbb_.AddOffset(StructDeclaration::VT_QUALIFIED_NAME, qualified_name);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(StructDeclaration::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(StructDeclaration::VT_POSITION, position);
+  }
+  explicit StructDeclarationBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<StructDeclaration> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<StructDeclaration>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<StructDeclaration> CreateStructDeclaration(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> name = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::TypeRef>>> type_parameters = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> extends = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::StructFieldDeclaration>>> fields = 0,
+    bool has_layout = false,
+    ::flatbuffers::Offset<Yogi::Sir::LayoutMetadata> layout = 0,
+    bool has_validate = false,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> validate_chain = 0,
+    bool is_scalar = false,
+    bool exported = false,
+    int32_t symbol_id = -1,
+    int32_t scope_id = -1,
+    ::flatbuffers::Offset<::flatbuffers::String> linkage_name = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> qualified_name = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  StructDeclarationBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_qualified_name(qualified_name);
+  builder_.add_linkage_name(linkage_name);
+  builder_.add_scope_id(scope_id);
+  builder_.add_symbol_id(symbol_id);
+  builder_.add_validate_chain(validate_chain);
+  builder_.add_layout(layout);
+  builder_.add_fields(fields);
+  builder_.add_extends(extends);
+  builder_.add_type_parameters(type_parameters);
+  builder_.add_name(name);
+  builder_.add_exported(exported);
+  builder_.add_is_scalar(is_scalar);
+  builder_.add_has_validate(has_validate);
+  builder_.add_has_layout(has_layout);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<StructDeclaration> CreateStructDeclarationDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *name = nullptr,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::TypeRef>> *type_parameters = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> extends = 0,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::StructFieldDeclaration>> *fields = nullptr,
+    bool has_layout = false,
+    ::flatbuffers::Offset<Yogi::Sir::LayoutMetadata> layout = 0,
+    bool has_validate = false,
+    const std::vector<::flatbuffers::Offset<::flatbuffers::String>> *validate_chain = nullptr,
+    bool is_scalar = false,
+    bool exported = false,
+    int32_t symbol_id = -1,
+    int32_t scope_id = -1,
+    const char *linkage_name = nullptr,
+    const char *qualified_name = nullptr,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto name__ = name ? _fbb.CreateString(name) : 0;
+  auto type_parameters__ = type_parameters ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::TypeRef>>(*type_parameters) : 0;
+  auto fields__ = fields ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::StructFieldDeclaration>>(*fields) : 0;
+  auto validate_chain__ = validate_chain ? _fbb.CreateVector<::flatbuffers::Offset<::flatbuffers::String>>(*validate_chain) : 0;
+  auto linkage_name__ = linkage_name ? _fbb.CreateString(linkage_name) : 0;
+  auto qualified_name__ = qualified_name ? _fbb.CreateString(qualified_name) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateStructDeclaration(
+      _fbb,
+      name__,
+      type_parameters__,
+      extends,
+      fields__,
+      has_layout,
+      layout,
+      has_validate,
+      validate_chain__,
+      is_scalar,
+      exported,
+      symbol_id,
+      scope_id,
+      linkage_name__,
+      qualified_name__,
+      source__,
+      position);
+}
+
 struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef SirNodeBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.SirNode";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_VALUE_TYPE = 4,
     VT_VALUE = 6
@@ -4013,79 +4574,82 @@ struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   }
   template<typename T> const T *value_as() const;
   const Yogi::Sir::Constant *value_as_Constant() const {
-    return value_type() == Yogi::Sir::SirNodeValue::Constant ? static_cast<const Yogi::Sir::Constant *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_Constant ? static_cast<const Yogi::Sir::Constant *>(value()) : nullptr;
   }
   const Yogi::Sir::ExternDeclaration *value_as_ExternDeclaration() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ExternDeclaration ? static_cast<const Yogi::Sir::ExternDeclaration *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ExternDeclaration ? static_cast<const Yogi::Sir::ExternDeclaration *>(value()) : nullptr;
   }
   const Yogi::Sir::IdentifierExpression *value_as_IdentifierExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::IdentifierExpression ? static_cast<const Yogi::Sir::IdentifierExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_IdentifierExpression ? static_cast<const Yogi::Sir::IdentifierExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::BinaryExpression *value_as_BinaryExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::BinaryExpression ? static_cast<const Yogi::Sir::BinaryExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_BinaryExpression ? static_cast<const Yogi::Sir::BinaryExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::AssignmentExpression *value_as_AssignmentExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::AssignmentExpression ? static_cast<const Yogi::Sir::AssignmentExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_AssignmentExpression ? static_cast<const Yogi::Sir::AssignmentExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::ConditionalExpression *value_as_ConditionalExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ConditionalExpression ? static_cast<const Yogi::Sir::ConditionalExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ConditionalExpression ? static_cast<const Yogi::Sir::ConditionalExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::CallExpression *value_as_CallExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::CallExpression ? static_cast<const Yogi::Sir::CallExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_CallExpression ? static_cast<const Yogi::Sir::CallExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::ArrayExpression *value_as_ArrayExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ArrayExpression ? static_cast<const Yogi::Sir::ArrayExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ArrayExpression ? static_cast<const Yogi::Sir::ArrayExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::ObjectExpression *value_as_ObjectExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ObjectExpression ? static_cast<const Yogi::Sir::ObjectExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ObjectExpression ? static_cast<const Yogi::Sir::ObjectExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::PropertyAccessExpression *value_as_PropertyAccessExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::PropertyAccessExpression ? static_cast<const Yogi::Sir::PropertyAccessExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_PropertyAccessExpression ? static_cast<const Yogi::Sir::PropertyAccessExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::ElementAccessExpression *value_as_ElementAccessExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ElementAccessExpression ? static_cast<const Yogi::Sir::ElementAccessExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ElementAccessExpression ? static_cast<const Yogi::Sir::ElementAccessExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::AggregateAssignmentExpression *value_as_AggregateAssignmentExpression() const {
-    return value_type() == Yogi::Sir::SirNodeValue::AggregateAssignmentExpression ? static_cast<const Yogi::Sir::AggregateAssignmentExpression *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_AggregateAssignmentExpression ? static_cast<const Yogi::Sir::AggregateAssignmentExpression *>(value()) : nullptr;
   }
   const Yogi::Sir::VariableDeclaration *value_as_VariableDeclaration() const {
-    return value_type() == Yogi::Sir::SirNodeValue::VariableDeclaration ? static_cast<const Yogi::Sir::VariableDeclaration *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_VariableDeclaration ? static_cast<const Yogi::Sir::VariableDeclaration *>(value()) : nullptr;
   }
   const Yogi::Sir::ReturnStatement *value_as_ReturnStatement() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ReturnStatement ? static_cast<const Yogi::Sir::ReturnStatement *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ReturnStatement ? static_cast<const Yogi::Sir::ReturnStatement *>(value()) : nullptr;
   }
   const Yogi::Sir::BlockStatement *value_as_BlockStatement() const {
-    return value_type() == Yogi::Sir::SirNodeValue::BlockStatement ? static_cast<const Yogi::Sir::BlockStatement *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_BlockStatement ? static_cast<const Yogi::Sir::BlockStatement *>(value()) : nullptr;
   }
   const Yogi::Sir::IfStatement *value_as_IfStatement() const {
-    return value_type() == Yogi::Sir::SirNodeValue::IfStatement ? static_cast<const Yogi::Sir::IfStatement *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_IfStatement ? static_cast<const Yogi::Sir::IfStatement *>(value()) : nullptr;
   }
   const Yogi::Sir::WhileStatement *value_as_WhileStatement() const {
-    return value_type() == Yogi::Sir::SirNodeValue::WhileStatement ? static_cast<const Yogi::Sir::WhileStatement *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_WhileStatement ? static_cast<const Yogi::Sir::WhileStatement *>(value()) : nullptr;
   }
   const Yogi::Sir::ForStatement *value_as_ForStatement() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ForStatement ? static_cast<const Yogi::Sir::ForStatement *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ForStatement ? static_cast<const Yogi::Sir::ForStatement *>(value()) : nullptr;
   }
   const Yogi::Sir::BreakStatement *value_as_BreakStatement() const {
-    return value_type() == Yogi::Sir::SirNodeValue::BreakStatement ? static_cast<const Yogi::Sir::BreakStatement *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_BreakStatement ? static_cast<const Yogi::Sir::BreakStatement *>(value()) : nullptr;
   }
   const Yogi::Sir::ContinueStatement *value_as_ContinueStatement() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ContinueStatement ? static_cast<const Yogi::Sir::ContinueStatement *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ContinueStatement ? static_cast<const Yogi::Sir::ContinueStatement *>(value()) : nullptr;
   }
   const Yogi::Sir::CaseClause *value_as_CaseClause() const {
-    return value_type() == Yogi::Sir::SirNodeValue::CaseClause ? static_cast<const Yogi::Sir::CaseClause *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_CaseClause ? static_cast<const Yogi::Sir::CaseClause *>(value()) : nullptr;
   }
   const Yogi::Sir::DefaultClause *value_as_DefaultClause() const {
-    return value_type() == Yogi::Sir::SirNodeValue::DefaultClause ? static_cast<const Yogi::Sir::DefaultClause *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_DefaultClause ? static_cast<const Yogi::Sir::DefaultClause *>(value()) : nullptr;
   }
   const Yogi::Sir::SwitchStatement *value_as_SwitchStatement() const {
-    return value_type() == Yogi::Sir::SirNodeValue::SwitchStatement ? static_cast<const Yogi::Sir::SwitchStatement *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_SwitchStatement ? static_cast<const Yogi::Sir::SwitchStatement *>(value()) : nullptr;
   }
   const Yogi::Sir::FunctionDeclaration *value_as_FunctionDeclaration() const {
-    return value_type() == Yogi::Sir::SirNodeValue::FunctionDeclaration ? static_cast<const Yogi::Sir::FunctionDeclaration *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_FunctionDeclaration ? static_cast<const Yogi::Sir::FunctionDeclaration *>(value()) : nullptr;
   }
   const Yogi::Sir::ArrayDeclaration *value_as_ArrayDeclaration() const {
-    return value_type() == Yogi::Sir::SirNodeValue::ArrayDeclaration ? static_cast<const Yogi::Sir::ArrayDeclaration *>(value()) : nullptr;
+    return value_type() == Yogi::Sir::SirNodeValue_ArrayDeclaration ? static_cast<const Yogi::Sir::ArrayDeclaration *>(value()) : nullptr;
+  }
+  const Yogi::Sir::StructDeclaration *value_as_StructDeclaration() const {
+    return value_type() == Yogi::Sir::SirNodeValue_StructDeclaration ? static_cast<const Yogi::Sir::StructDeclaration *>(value()) : nullptr;
   }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
@@ -4197,6 +4761,10 @@ template<> inline const Yogi::Sir::ArrayDeclaration *SirNode::value_as<Yogi::Sir
   return value_as_ArrayDeclaration();
 }
 
+template<> inline const Yogi::Sir::StructDeclaration *SirNode::value_as<Yogi::Sir::StructDeclaration>() const {
+  return value_as_StructDeclaration();
+}
+
 struct SirNodeBuilder {
   typedef SirNode Table;
   ::flatbuffers::FlatBufferBuilder &fbb_;
@@ -4220,7 +4788,7 @@ struct SirNodeBuilder {
 
 inline ::flatbuffers::Offset<SirNode> CreateSirNode(
     ::flatbuffers::FlatBufferBuilder &_fbb,
-    Yogi::Sir::SirNodeValue value_type = Yogi::Sir::SirNodeValue::NONE,
+    Yogi::Sir::SirNodeValue value_type = Yogi::Sir::SirNodeValue_NONE,
     ::flatbuffers::Offset<void> value = 0) {
   SirNodeBuilder builder_(_fbb);
   builder_.add_value(value);
@@ -4230,9 +4798,6 @@ inline ::flatbuffers::Offset<SirNode> CreateSirNode(
 
 struct Module FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ModuleBuilder Builder;
-  static FLATBUFFERS_CONSTEXPR_CPP11 const char *GetFullyQualifiedName() {
-    return "Yogi.Sir.Module";
-  }
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_SOURCE_PATH = 4,
     VT_NODES = 6
@@ -4301,107 +4866,111 @@ inline ::flatbuffers::Offset<Module> CreateModuleDirect(
 template <bool B>
 inline bool VerifySirNodeValue(::flatbuffers::VerifierTemplate<B> &verifier, const void *obj, SirNodeValue type) {
   switch (type) {
-    case SirNodeValue::NONE: {
+    case SirNodeValue_NONE: {
       return true;
     }
-    case SirNodeValue::Constant: {
+    case SirNodeValue_Constant: {
       auto ptr = reinterpret_cast<const Yogi::Sir::Constant *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ExternDeclaration: {
+    case SirNodeValue_ExternDeclaration: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ExternDeclaration *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::IdentifierExpression: {
+    case SirNodeValue_IdentifierExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::IdentifierExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::BinaryExpression: {
+    case SirNodeValue_BinaryExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::BinaryExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::AssignmentExpression: {
+    case SirNodeValue_AssignmentExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::AssignmentExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ConditionalExpression: {
+    case SirNodeValue_ConditionalExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ConditionalExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::CallExpression: {
+    case SirNodeValue_CallExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::CallExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ArrayExpression: {
+    case SirNodeValue_ArrayExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ArrayExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ObjectExpression: {
+    case SirNodeValue_ObjectExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ObjectExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::PropertyAccessExpression: {
+    case SirNodeValue_PropertyAccessExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::PropertyAccessExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ElementAccessExpression: {
+    case SirNodeValue_ElementAccessExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ElementAccessExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::AggregateAssignmentExpression: {
+    case SirNodeValue_AggregateAssignmentExpression: {
       auto ptr = reinterpret_cast<const Yogi::Sir::AggregateAssignmentExpression *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::VariableDeclaration: {
+    case SirNodeValue_VariableDeclaration: {
       auto ptr = reinterpret_cast<const Yogi::Sir::VariableDeclaration *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ReturnStatement: {
+    case SirNodeValue_ReturnStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ReturnStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::BlockStatement: {
+    case SirNodeValue_BlockStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::BlockStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::IfStatement: {
+    case SirNodeValue_IfStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::IfStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::WhileStatement: {
+    case SirNodeValue_WhileStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::WhileStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ForStatement: {
+    case SirNodeValue_ForStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ForStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::BreakStatement: {
+    case SirNodeValue_BreakStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::BreakStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ContinueStatement: {
+    case SirNodeValue_ContinueStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ContinueStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::CaseClause: {
+    case SirNodeValue_CaseClause: {
       auto ptr = reinterpret_cast<const Yogi::Sir::CaseClause *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::DefaultClause: {
+    case SirNodeValue_DefaultClause: {
       auto ptr = reinterpret_cast<const Yogi::Sir::DefaultClause *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::SwitchStatement: {
+    case SirNodeValue_SwitchStatement: {
       auto ptr = reinterpret_cast<const Yogi::Sir::SwitchStatement *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::FunctionDeclaration: {
+    case SirNodeValue_FunctionDeclaration: {
       auto ptr = reinterpret_cast<const Yogi::Sir::FunctionDeclaration *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case SirNodeValue::ArrayDeclaration: {
+    case SirNodeValue_ArrayDeclaration: {
       auto ptr = reinterpret_cast<const Yogi::Sir::ArrayDeclaration *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case SirNodeValue_StructDeclaration: {
+      auto ptr = reinterpret_cast<const Yogi::Sir::StructDeclaration *>(obj);
       return verifier.VerifyTable(ptr);
     }
     default: return true;
@@ -4409,7 +4978,7 @@ inline bool VerifySirNodeValue(::flatbuffers::VerifierTemplate<B> &verifier, con
 }
 
 template <bool B>
-inline bool VerifySirNodeValueVector(::flatbuffers::VerifierTemplate<B> &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<SirNodeValue> *types) {
+inline bool VerifySirNodeValueVector(::flatbuffers::VerifierTemplate<B> &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<uint8_t> *types) {
   if (!values || !types) return !values && !types;
   if (values->size() != types->size()) return false;
   for (::flatbuffers::uoffset_t i = 0; i < values->size(); ++i) {

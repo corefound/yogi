@@ -183,6 +183,13 @@ export function ArraysSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
 
         public visitArrayExpression(node: any): any {
             const elements = (node.elements ?? []).map((element: any) => this.visitNode(element));
+            const elementTypes = elements.flatMap((element: any) => {
+                if (element.kind === Kinds.Expressions.SpreadElement) {
+                    return this.spreadElementTypes(element);
+                }
+
+                return [element.type];
+            });
 
             return {
                 ...node,
@@ -190,10 +197,52 @@ export function ArraysSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                 elements,
                 type: {
                     kind: Kinds.Types.TupleType,
-                    raw: `[${elements.map((element: any) => element.type?.raw ?? "unknown").join(", ")}]`,
-                    elements: elements.map((element: any) => element.type),
+                    raw: `[${elementTypes.map((type: any) => type?.raw ?? "unknown").join(", ")}]`,
+                    elements: elementTypes,
                 },
             };
+        }
+
+        public visitSpreadElement(node: any): any {
+            const expression = this.visitNode(node.expression);
+            const resolvedType = this.resolveType(expression?.type);
+
+            if (
+                resolvedType?.kind !== Kinds.Types.ArrayType &&
+                resolvedType?.kind !== Kinds.Types.TupleType
+            ) {
+                const message =
+                    `array spread expects an array or tuple, got ${Helpers.RED}'${resolvedType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                node.arrowLength = node.source?.length ?? 1;
+                this.throwError(message, node.position, node.fullSource, node);
+            }
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.SpreadElement,
+                expression,
+                type: resolvedType,
+            };
+        }
+
+        public spreadElementTypes(spread: any): any[] {
+            const resolvedType = this.resolveType(spread?.expression?.type ?? spread?.type);
+
+            if (resolvedType?.kind === Kinds.Types.TupleType) {
+                return resolvedType.elements ?? [];
+            }
+
+            if (resolvedType?.kind === Kinds.Types.ArrayType) {
+                const shape = resolvedType.shape ?? [];
+                const length = resolvedType.fixed === true && shape.length === 1
+                    ? Math.max(0, Number(shape[0] ?? 0))
+                    : 1;
+
+                return Array.from({ length }, () => resolvedType.elementType);
+            }
+
+            return [{ kind: Kinds.Types.UnknownType, raw: "unknown" }];
         }
 
         public visitDictionaryExpression(node: any): any {
