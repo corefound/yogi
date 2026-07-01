@@ -57,11 +57,94 @@ let frozenRow: number[3] = frozenMatrix[1]
 let frozenDynamicIndex: number = 0
 let frozenDynamicRow: number[3] = frozenMatrix[frozenDynamicIndex]
 
+function returnedRowCopy(): number[3] {
+    let localMatrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return localMatrix[1]
+}
+
+function returnedPixelCopy(): number[3] {
+    let localImage: number[2, 2, 3] = [
+        [
+            [1, 2, 3],
+            [4, 5, 6]
+        ],
+        [
+            [7, 8, 9],
+            [10, 11, 12]
+        ]
+    ]
+
+    return localImage[1, 0]
+}
+
+function returnedBlockCopy(): number[2, 3] {
+    let localImage: number[2, 2, 3] = [
+        [
+            [1, 2, 3],
+            [4, 5, 6]
+        ],
+        [
+            [7, 8, 9],
+            [10, 11, 12]
+        ]
+    ]
+
+    return localImage[1]
+}
+
+function returnedUnionRowCopy(): Cell[2] {
+    let localGrid: Cell[2, 2] = [
+        [1, "A"],
+        ["B", 2]
+    ]
+
+    return localGrid[1]
+}
+
+function returnedDynamicRowCopy(index: number): number[3] {
+    let localMatrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return localMatrix[index]
+}
+
+function returnedConstRowCopy(): number[3] {
+    const localMatrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return localMatrix[1]
+}
+
+function returnedFullIndexValue(): number {
+    let localMatrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return localMatrix[1, 2]
+}
+
 matrix[0, 1] = 9
 row[2] = 99
 pixel[1] = 88
 unionRow[0] = 100
 unionRow[1] = "C"
+let ownedRow: number[3] = returnedRowCopy()
+ownedRow[2] = 199
+let ownedPixel: number[3] = returnedPixelCopy()
+let ownedBlock: number[2, 3] = returnedBlockCopy()
+let ownedUnionRow: Cell[2] = returnedUnionRowCopy()
+let ownedDynamicRow: number[3] = returnedDynamicRowCopy(1)
+let ownedConstRow: number[3] = returnedConstRowCopy()
+ownedConstRow[2] = 299
 
 print(vec[2])
 print(values[2])
@@ -78,6 +161,25 @@ print(grid[1, 0] as number)
 print(grid[1, 1] as string)
 print(frozenRow[2])
 print(frozenDynamicRow[1])
+print(ownedRow[0])
+print(ownedRow[1])
+print(ownedRow[2])
+print(ownedPixel[0])
+print(ownedPixel[1])
+print(ownedPixel[2])
+print(ownedBlock[0, 0])
+print(ownedBlock[0, 1])
+print(ownedBlock[0, 2])
+print(ownedBlock[1, 0])
+print(ownedBlock[1, 1])
+print(ownedBlock[1, 2])
+print(ownedUnionRow[0] as string)
+print(ownedUnionRow[1] as number)
+print(ownedDynamicRow[0])
+print(ownedDynamicRow[1])
+print(ownedDynamicRow[2])
+print(ownedConstRow[2])
+print(returnedFullIndexValue())
 ]=])
 
 execute_process(
@@ -112,6 +214,7 @@ file(READ "${IR}" ir)
 
 foreach(symbol
 		yogi_array_get
+		yogi_array_create
 		yogi_array_view
 		yogi_runtime_abort_range)
 	if(NOT ir MATCHES "${symbol}")
@@ -143,7 +246,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array indexing executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n16\n12\n")
+set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n16\n12\n4\n5\n199\n7\n8\n9\n7\n8\n9\n10\n11\n12\nB\n2\n4\n5\n6\n299\n6\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array indexing executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -280,14 +383,14 @@ expect_invalid(
 )
 
 expect_invalid(
-	borrowed_slice_return_from_local
-	"function bad(): number[3] {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    return matrix[1]\n}\n"
-	"cannot return borrowed slice from local fixed-shape array.*matrix"
+	union_view_invalid_assignment
+	"type Cell = number | string\nlet grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\nlet row: Cell[2] = grid[1]\nrow[0] = true\n"
+	"cannot assign value of type.*boolean"
 )
 
 expect_invalid(
-	union_view_invalid_assignment
-	"type Cell = number | string\nlet grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\nlet row: Cell[2] = grid[1]\nrow[0] = true\n"
+	returned_union_view_invalid_assignment
+	"type Cell = number | string\nfunction getRow(): Cell[2] {\n    let grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\n    return grid[1]\n}\nlet row: Cell[2] = getRow()\nrow[0] = true\n"
 	"cannot assign value of type.*boolean"
 )
 
@@ -343,4 +446,10 @@ expect_runtime_error(
 	fixed_shape_dynamic_partial_index_out_of_bounds
 	"let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet r: number = 2\nlet row: number[3] = matrix[r]\nprint(row[0])\n"
 	"main.ts:[0-9]+:.*runtime range error: array subscript.*2.*length 2"
+)
+
+expect_runtime_error(
+	returned_dynamic_row_out_of_bounds
+	"function getRow(index: number): number[3] {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    return matrix[index]\n}\nlet bad: number[3] = getRow(5)\nprint(bad[0])\n"
+	"main.ts:[0-9]+:.*runtime range error: array subscript.*5.*length 2"
 )
