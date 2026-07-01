@@ -30,8 +30,31 @@ let tensor: number[2, 2, 2] = [
 let row: number[3] = matrix[1]
 let matrixValue: number = matrix[1, 2]
 let tensorValue: number = tensor[1, 0, 1]
+let image: number[2, 2, 3] = [
+    [
+        [1, 2, 3],
+        [4, 5, 6]
+    ],
+    [
+        [7, 8, 9],
+        [10, 11, 12]
+    ]
+]
+let pixel: number[3] = image[1, 0]
+let r: number = 1
+let dynamicRow: number[3] = matrix[r]
+type Cell = number | string
+let grid: Cell[2, 2] = [
+    [1, "A"],
+    ["B", 2]
+]
+let unionRow: Cell[2] = grid[1]
 
 matrix[0, 1] = 9
+row[2] = 99
+pixel[1] = 88
+unionRow[0] = 100
+unionRow[1] = "C"
 
 print(vec[2])
 print(values[2])
@@ -39,6 +62,13 @@ print(matrixValue)
 print(row[0])
 print(tensorValue)
 print(matrix[0, 1])
+print(matrix[1, 2])
+print(pixel[0])
+print(pixel[2])
+print(image[1, 0, 1])
+print(dynamicRow[2])
+print(grid[1, 0] as number)
+print(grid[1, 1] as string)
 ]=])
 
 execute_process(
@@ -73,6 +103,7 @@ file(READ "${IR}" ir)
 
 foreach(symbol
 		yogi_array_get
+		yogi_array_view
 		yogi_runtime_abort_range)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected array indexing IR to contain ${symbol}")
@@ -87,6 +118,10 @@ if(NOT ir MATCHES "array\\.shape\\.")
 	message(FATAL_ERROR "expected fixed-shape indexing to use row-major shape lowering blocks:\n${ir}")
 endif()
 
+if(ir MATCHES "array\\.shape\\.slice\\.index")
+	message(FATAL_ERROR "fixed-shape partial indexing still appears to copy slice elements:\n${ir}")
+endif()
+
 execute_process(
 	COMMAND "${EXECUTABLE}"
 	WORKING_DIRECTORY "${TEST_WORK_DIR}"
@@ -99,7 +134,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array indexing executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "30\n3\n6\n4\n6\n9\n")
+set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array indexing executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -235,6 +270,18 @@ expect_invalid(
 	"size-changing method.*push.*fixed-size array"
 )
 
+expect_invalid(
+	borrowed_slice_return_from_local
+	"function bad(): number[3] {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    return matrix[1]\n}\n"
+	"cannot return borrowed slice from local fixed-shape array.*matrix"
+)
+
+expect_invalid(
+	union_view_invalid_assignment
+	"type Cell = number | string\nlet grid: Cell[2, 2] = [[1, \"A\"], [\"B\", 2]]\nlet row: Cell[2] = grid[1]\nrow[0] = true\n"
+	"cannot assign value of type.*boolean"
+)
+
 expect_runtime_error(
 	dynamic_array_read_out_of_bounds
 	"let values: number[] = [1, 2, 3]\nprint(values[5])\n"
@@ -245,4 +292,10 @@ expect_runtime_error(
 	dynamic_array_write_out_of_bounds
 	"let values: number[] = [1, 2, 3]\nvalues[5] = 9\n"
 	"main.ts:[0-9]+:.*runtime range error: array subscript.*5.*length 3"
+)
+
+expect_runtime_error(
+	fixed_shape_dynamic_partial_index_out_of_bounds
+	"let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet r: number = 2\nlet row: number[3] = matrix[r]\nprint(row[0])\n"
+	"main.ts:[0-9]+:.*runtime range error: array subscript.*2.*length 2"
 )

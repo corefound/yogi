@@ -180,6 +180,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const value = node.value ? this.visitNode(node.value) : null;
             const expectedReturnType = this.currentFunctionReturnType;
 
+            this.rejectEscapingLocalFixedShapeView(value, node);
+
             if (expectedReturnType && this.rejectsImplicitObjectContractConversion(expectedReturnType, value)) {
                 this.throwImplicitObjectContractConversionError(
                     expectedReturnType,
@@ -214,6 +216,60 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 kind: Kinds.Statements.ReturnStatement,
                 value,
             };
+        }
+
+        public rejectEscapingLocalFixedShapeView(value: any, node: any): void {
+            if (!value || value.kind !== Kinds.Expressions.ElementAccessExpression) return;
+
+            const objectType = this.resolveType(value.object?.declaredType ?? value.object?.type);
+            const resultType = this.resolveType(value.type);
+            const consumed = value.indices?.length ?? (value.index ? 1 : 0);
+            const shape = objectType?.shape ?? [];
+
+            if (
+                objectType?.kind !== Kinds.Types.ArrayType ||
+                objectType.fixed !== true ||
+                consumed >= shape.length ||
+                resultType?.kind !== Kinds.Types.ArrayType
+            ) {
+                return;
+            }
+
+            const rootName = this.borrowedViewRootName(value.object);
+            const rootSymbol = rootName ? this.resolveSymbol(rootName) : null;
+
+            if (
+                rootSymbol?.kind !== Kinds.ScopeSymbols.Variable ||
+                rootSymbol.storage !== Kinds.Storage.stack
+            ) {
+                return;
+            }
+
+            value.arrowLength = value.source?.length ?? 1;
+            this.throwError(
+                `cannot return borrowed slice from local fixed-shape array ${Helpers.RED}'${rootName}'${Helpers.RESET}`,
+                value.position ?? node.position,
+                node.fullSource ?? node.source,
+                value,
+                "  = partial indexing returns a borrowed view tied to the source array lifetime\n  = return an owned copy once explicit slice-copy syntax is available",
+            );
+        }
+
+        public borrowedViewRootName(node: any): string | null {
+            if (!node) return null;
+
+            if (node.kind === Kinds.Expressions.IdentifierExpression) {
+                return node.value ?? node.name ?? node.raw ?? null;
+            }
+
+            if (
+                node.kind === Kinds.Expressions.PropertyAccessExpression ||
+                node.kind === Kinds.Expressions.ElementAccessExpression
+            ) {
+                return this.borrowedViewRootName(node.object);
+            }
+
+            return null;
         }
 
         public visitFunctionBody(node: any): any {
