@@ -5,6 +5,7 @@
 import * as flatbuffers from 'flatbuffers';
 
 import { ParameterEffect } from '../../yogi/sir/parameter-effect.js';
+import { ReturnBorrowSummary } from '../../yogi/sir/return-borrow-summary.js';
 
 
 export class FunctionEffectSummary {
@@ -40,8 +41,13 @@ returnsAggregate():boolean {
   return offset ? !!this.bb!.readInt8(this.bb_pos + offset) : false;
 }
 
+returnBorrow(obj?:ReturnBorrowSummary):ReturnBorrowSummary|null {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? (obj || new ReturnBorrowSummary()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
 static startFunctionEffectSummary(builder:flatbuffers.Builder) {
-  builder.startObject(2);
+  builder.startObject(3);
 }
 
 static addParameterEffects(builder:flatbuffers.Builder, parameterEffectsOffset:flatbuffers.Offset) {
@@ -64,15 +70,13 @@ static addReturnsAggregate(builder:flatbuffers.Builder, returnsAggregate:boolean
   builder.addFieldInt8(1, +returnsAggregate, +false);
 }
 
+static addReturnBorrow(builder:flatbuffers.Builder, returnBorrowOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, returnBorrowOffset, 0);
+}
+
 static endFunctionEffectSummary(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   return offset;
 }
 
-static createFunctionEffectSummary(builder:flatbuffers.Builder, parameterEffectsOffset:flatbuffers.Offset, returnsAggregate:boolean):flatbuffers.Offset {
-  FunctionEffectSummary.startFunctionEffectSummary(builder);
-  FunctionEffectSummary.addParameterEffects(builder, parameterEffectsOffset);
-  FunctionEffectSummary.addReturnsAggregate(builder, returnsAggregate);
-  return FunctionEffectSummary.endFunctionEffectSummary(builder);
-}
 }

@@ -137,6 +137,7 @@ export type SemanticModuleSymbol = {
     linkageName?: string | null;
     qualifiedName?: string;
     sourcePath: string;
+    effectSummary?: SemanticFunctionEffectSummary;
 };
 
 export type SemanticModuleInfo = {

@@ -39,6 +39,7 @@ export { ObjectExpression } from './sir/object-expression.js';
 export { ObjectProperty } from './sir/object-property.js';
 export { ParameterEffect } from './sir/parameter-effect.js';
 export { PropertyAccessExpression } from './sir/property-access-expression.js';
+export { ReturnBorrowSummary } from './sir/return-borrow-summary.js';
 export { ReturnStatement } from './sir/return-statement.js';
 export { SirNode } from './sir/sir-node.js';
 export { SirNodeValue } from './sir/sir-node-value.js';

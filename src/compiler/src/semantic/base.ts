@@ -92,6 +92,12 @@ export class BaseSemantic {
                 },
             ],
             returnsAggregate: false,
+            returnBorrow: {
+                ownership: "owned",
+                parameterIndex: -1,
+                readonlyFollowsParameter: false,
+                viewShape: [],
+            },
         };
 
         const symbol = this.defineSymbol({
@@ -154,6 +160,7 @@ export class BaseSemantic {
             linkageName: symbol.linkageName ?? null,
             qualifiedName: symbol.qualifiedName,
             sourcePath: this.modulePath.relativePath,
+            effectSummary: symbol.effectSummary,
         });
     }
 

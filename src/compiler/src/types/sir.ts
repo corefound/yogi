@@ -147,6 +147,9 @@ export type SemanticCallExpression = {
     external?: boolean;
     /** Built-in method identifier for array methods (e.g., "array.push", "array.pop", "array.at") */
     builtinMethod?: string;
+    borrowedView?: boolean;
+    borrowedViewReadonly?: boolean;
+    borrowedViewSourceName?: string | null;
     source?: string;
     position?: SourcePosition;
 };
@@ -383,6 +386,14 @@ export type SemanticParameterEffect = {
 export type SemanticFunctionEffectSummary = {
     parameterEffects: SemanticParameterEffect[];
     returnsAggregate: boolean;
+    returnBorrow: SemanticReturnBorrowSummary;
+};
+
+export type SemanticReturnBorrowSummary = {
+    ownership: "owned" | "borrowed";
+    parameterIndex: number;
+    readonlyFollowsParameter: boolean;
+    viewShape?: number[];
 };
 
 export type SemanticFunctionDeclaration = {

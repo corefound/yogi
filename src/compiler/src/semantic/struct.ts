@@ -567,6 +567,12 @@ export function StructSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                 effectSummary: {
                     parameterEffects: [],
                     returnsAggregate: false,
+                    returnBorrow: {
+                        ownership: "owned",
+                        parameterIndex: -1,
+                        readonlyFollowsParameter: false,
+                        viewShape: [],
+                    },
                 },
                 source: validateMember.raw ?? validateMember.source,
                 position: validateMember.position,

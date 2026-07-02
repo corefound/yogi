@@ -132,6 +132,7 @@ export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 storage: null,
                 escapes: false,
                 trusted: true,
+                effectSummary: exportedSymbol.effectSummary,
                 node,
             });
         }
@@ -163,6 +164,7 @@ export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                     linkageName: symbol.linkageName ?? null,
                     qualifiedName: symbol.qualifiedName,
                     sourcePath: this.modulePath.relativePath,
+                    effectSummary: symbol.effectSummary ?? symbol.node?.effectSummary,
                 });
             }
 

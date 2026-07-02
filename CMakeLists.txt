@@ -379,6 +379,14 @@ if(BUILD_TESTING)
                 )
 
                 add_test(
+                        NAME yogi_pipeline_array_borrow_summaries
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-borrow-summaries
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_borrow_summaries.cmake
+                )
+
+                add_test(
                         NAME yogi_pipeline_pointer_core
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>

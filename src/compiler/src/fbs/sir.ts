@@ -49,6 +49,7 @@ import {
     FunctionParameter,
     FunctionEffectSummary,
     ParameterEffect,
+    ReturnBorrowSummary,
     LayoutMetadata,
     StructFieldDeclaration,
     StructDeclaration,
@@ -1063,10 +1064,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             return PropertyAccessExpression.endPropertyAccessExpression(builder);
         }
 
-        static createElementAccessExpression(
-            builder: fbs.Builder,
-            expression: Types.Sir.SemanticElementAccessExpression,
-        ): fbs.Offset {
+	        static createElementAccessExpression(
+	            builder: fbs.Builder,
+	            expression: Types.Sir.SemanticElementAccessExpression,
+	        ): fbs.Offset {
             const object = this.createValueRef(builder, expression.object);
             const index = this.createValueRef(builder, expression.index);
             const indexOffsets = (expression.indices?.length ? expression.indices : [expression.index])
@@ -1086,8 +1087,8 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             ElementAccessExpression.addSource(builder, source);
             ElementAccessExpression.addPosition(builder, position);
 
-            return ElementAccessExpression.endElementAccessExpression(builder);
-        }
+	            return ElementAccessExpression.endElementAccessExpression(builder);
+	        }
 
         static createAddressOfExpression(
             builder: fbs.Builder,
@@ -1107,7 +1108,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             return AddressOfExpression.endAddressOfExpression(builder);
         }
 
-        static createAggregateAssignmentExpression(
+	        static createAggregateAssignmentExpression(
             builder: fbs.Builder,
             expression: Types.Sir.SemanticAggregateAssignmentExpression,
         ): fbs.Offset {
@@ -1435,6 +1436,28 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             );
         }
 
+        static createReturnBorrowSummary(
+            builder: fbs.Builder,
+            summary: Types.Sir.SemanticReturnBorrowSummary,
+        ): fbs.Offset {
+            const ownership = builder.createString(summary.ownership);
+            const viewShape = summary.viewShape ?? [];
+
+            ReturnBorrowSummary.startViewShapeVector(builder, viewShape.length);
+            for (let index = viewShape.length - 1; index >= 0; index--) {
+                builder.addInt32(viewShape[index] ?? 0);
+            }
+            const viewShapeVector = builder.endVector();
+
+            ReturnBorrowSummary.startReturnBorrowSummary(builder);
+            ReturnBorrowSummary.addOwnership(builder, ownership);
+            ReturnBorrowSummary.addParameterIndex(builder, summary.parameterIndex);
+            ReturnBorrowSummary.addReadonlyFollowsParameter(builder, summary.readonlyFollowsParameter);
+            ReturnBorrowSummary.addViewShape(builder, viewShapeVector);
+
+            return ReturnBorrowSummary.endReturnBorrowSummary(builder);
+        }
+
         static createFunctionEffectSummary(
             builder: fbs.Builder,
             summary?: Types.Sir.SemanticFunctionEffectSummary,
@@ -1444,10 +1467,14 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const effectsVector = createVector(builder, effectOffsets, (length) => {
                 FunctionEffectSummary.startParameterEffectsVector(builder, length);
             });
+            const returnBorrow = summary?.returnBorrow
+                ? this.createReturnBorrowSummary(builder, summary.returnBorrow)
+                : 0;
 
             FunctionEffectSummary.startFunctionEffectSummary(builder);
             FunctionEffectSummary.addParameterEffects(builder, effectsVector);
             FunctionEffectSummary.addReturnsAggregate(builder, summary?.returnsAggregate ?? false);
+            FunctionEffectSummary.addReturnBorrow(builder, returnBorrow);
 
             return FunctionEffectSummary.endFunctionEffectSummary(builder);
         }

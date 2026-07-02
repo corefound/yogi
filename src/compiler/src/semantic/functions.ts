@@ -45,6 +45,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 type: node.type,
                 mutable: node.flag?.name !== "const",
                 trusted,
+                declare: node.declare === true,
+                ambient: node.ambient === true || node.declare === true,
                 node,
             });
 
@@ -92,6 +94,10 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             this.validateFunctionReturnType(functionContext);
 
             this.exitScope();
+
+            if (node.export) {
+                this.exportSymbol(symbol);
+            }
 
             return {
                 ...node,
@@ -434,6 +440,12 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     consumes: false,
                 })),
                 returnsAggregate: this.isAggregateType(returnType),
+                returnBorrow: {
+                    ownership: "owned",
+                    parameterIndex: -1,
+                    readonlyFollowsParameter: false,
+                    viewShape: [],
+                },
             };
         }
 
@@ -702,7 +714,131 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     consumes: false,
                 })),
                 returnsAggregate: this.isAggregateType(functionNode.returnType),
+                returnBorrow: this.analyzeReturnBorrowSummary(functionNode),
             };
+        }
+
+        public analyzeReturnBorrowSummary(functionNode: any): Types.Sir.SemanticReturnBorrowSummary {
+            const owned: Types.Sir.SemanticReturnBorrowSummary = {
+                ownership: "owned",
+                parameterIndex: -1,
+                readonlyFollowsParameter: false,
+                viewShape: [],
+            };
+            const returnStatements = this.findFunctionReturnStatements(functionNode.body);
+            const borrowedReturns = returnStatements
+                .map((returnStatement: any) => this.getReturnBorrowFromValue(returnStatement.value, functionNode))
+                .filter((summary: any) => summary !== null);
+
+            if (!borrowedReturns.length) {
+                return owned;
+            }
+
+            const first = borrowedReturns[0];
+            const conflicting = borrowedReturns.find((summary: any) => {
+                return summary.parameterIndex !== first.parameterIndex;
+            });
+
+            if (conflicting) {
+                const value = returnStatements.find((returnStatement: any) => {
+                    const summary = this.getReturnBorrowFromValue(returnStatement.value, functionNode);
+                    return summary?.parameterIndex === conflicting.parameterIndex;
+                })?.value;
+                const message =
+                    `cannot summarize borrowed return for function ${Helpers.BLUE}'${functionNode.name}'${Helpers.RESET} ` +
+                    `because return paths borrow from different parameters`;
+
+                if (value) {
+                    value.arrowLength = value.source?.length ?? 1;
+                }
+
+                this.throwError(
+                    message,
+                    value?.position ?? functionNode.position,
+                    functionNode.fullSource ?? functionNode.source ?? value?.source,
+                    value ?? functionNode,
+                    "  = return a view borrowed from a single parameter or use '.copy()' for an owned result",
+                );
+            }
+
+            return first;
+        }
+
+        public getReturnBorrowFromValue(value: any, functionNode: any): Types.Sir.SemanticReturnBorrowSummary | null {
+            if (!value || !this.isAggregateType(value.type)) {
+                return null;
+            }
+
+            if (value.kind === Kinds.Expressions.ElementAccessExpression) {
+                return this.getReturnBorrowFromElementAccess(value, functionNode);
+            }
+
+            if (value.kind === Kinds.Expressions.CallExpression) {
+                return this.getReturnBorrowFromCall(value, functionNode);
+            }
+
+            return null;
+        }
+
+        public getReturnBorrowFromElementAccess(value: any, functionNode: any): Types.Sir.SemanticReturnBorrowSummary | null {
+            if (value.borrowedView !== true) {
+                return null;
+            }
+
+            const rootName = this.borrowedViewRootName(value.object);
+            const parameterIndex = this.functionParameterIndex(functionNode, rootName);
+
+            if (parameterIndex < 0) {
+                return null;
+            }
+
+            return {
+                ownership: "borrowed",
+                parameterIndex,
+                readonlyFollowsParameter: true,
+                viewShape: this.borrowedReturnViewShape(value.type),
+            };
+        }
+
+        public getReturnBorrowFromCall(value: any, functionNode: any): Types.Sir.SemanticReturnBorrowSummary | null {
+            const callBorrow = value.effectSummary?.returnBorrow;
+
+            if (callBorrow?.ownership !== "borrowed") {
+                return null;
+            }
+
+            const argument = value.arguments?.[callBorrow.parameterIndex];
+            const rootName = this.borrowedViewRootName(argument);
+            const parameterIndex = this.functionParameterIndex(functionNode, rootName);
+
+            if (parameterIndex < 0) {
+                return null;
+            }
+
+            return {
+                ownership: "borrowed",
+                parameterIndex,
+                readonlyFollowsParameter: true,
+                viewShape: this.borrowedReturnViewShape(value.type),
+            };
+        }
+
+        public functionParameterIndex(functionNode: any, name: string | null): number {
+            if (!name) {
+                return -1;
+            }
+
+            return (functionNode.params ?? []).findIndex((param: any) => param.name === name);
+        }
+
+        public borrowedReturnViewShape(type: any): number[] {
+            const resolvedType = this.resolveType(type);
+
+            if (resolvedType?.kind !== Kinds.Types.ArrayType || resolvedType.fixed !== true) {
+                return [];
+            }
+
+            return Array.isArray(resolvedType.shape) ? resolvedType.shape : [];
         }
 
         public getCallEffectSummary(node: any): Types.Sir.SemanticFunctionEffectSummary | null {
@@ -720,7 +856,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node.callee?.raw;
             const symbol = calleeName ? this.resolveSymbol(calleeName) : null;
 
-            return symbol?.effectSummary ?? null;
+            return symbol?.effectSummary ?? symbol?.node?.effectSummary ?? null;
         }
 
         public getDeclarationKey(node: any): string | null {

@@ -269,9 +269,17 @@ table ParameterEffect {
   consumes:bool = false;
 }
 
+table ReturnBorrowSummary {
+  ownership:string;
+  parameter_index:int = -1;
+  readonly_follows_parameter:bool = false;
+  view_shape:[int];
+}
+
 table FunctionEffectSummary {
   parameter_effects:[ParameterEffect];
   returns_aggregate:bool = false;
+  return_borrow:ReturnBorrowSummary;
 }
 
 table FunctionDeclaration {

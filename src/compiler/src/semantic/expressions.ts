@@ -264,7 +264,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 kind: Kinds.Types.UnknownType,
                 raw: "unknown",
             });
-            const effectSummary = symbol.effectSummary ?? null;
+            const effectSummary = symbol.effectSummary ?? symbol.node?.effectSummary ?? null;
             const external = symbol.ambient === true || symbol.declare === true || !effectSummary;
             const argumentEffects = args.map((_: any, index: number) => {
                 const effect = effectSummary?.parameterEffects?.[index];
@@ -293,6 +293,24 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
             });
 
+            const returnBorrow = effectSummary?.returnBorrow;
+            const borrowedReturnParameterIndex =
+                returnBorrow?.ownership === "borrowed"
+                    ? returnBorrow.parameterIndex
+                    : -1;
+            const borrowedReturnArgument =
+                typeof borrowedReturnParameterIndex === "number" &&
+                    borrowedReturnParameterIndex >= 0 &&
+                    borrowedReturnParameterIndex < args.length
+                    ? args[borrowedReturnParameterIndex]
+                    : null;
+            const borrowedReturnInfo = borrowedReturnArgument
+                ? this.borrowedArrayReadonlyInfo(
+                    borrowedReturnArgument,
+                    this.resolveType(borrowedReturnArgument.declaredType ?? borrowedReturnArgument.type),
+                )
+                : null;
+
             return {
                 ...node,
                 kind: Kinds.Expressions.CallExpression,
@@ -306,6 +324,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 external,
                 effectSummary,
                 builtinMethod: symbol.node?.builtinMethod,
+                borrowedView: borrowedReturnInfo !== null,
+                borrowedViewReadonly: borrowedReturnInfo
+                    ? borrowedReturnInfo.borrowedViewReadonly || borrowedReturnInfo.readonly
+                    : false,
+                borrowedViewSourceName: borrowedReturnInfo?.sourceName ?? null,
             };
         }
 
@@ -1815,7 +1838,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
         }
 
-        public visitUnaryExpression(node: any): any {
+	        public visitUnaryExpression(node: any): any {
             if (node.operator !== "++" && node.operator !== "--") {
                 const operand = this.visitNode(node.operand);
 
@@ -1997,7 +2020,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
         }
 
-        /**
+	        /**
          * Handles property access expressions including special handling for array.length and tuple.length.
          * array.length returns the array length as a readonly number.
          * tuple.length returns the fixed tuple length as a readonly number.
