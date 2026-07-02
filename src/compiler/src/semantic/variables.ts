@@ -39,6 +39,14 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const borrowedViewSourceName =
                 value?.borrowedViewSourceName ??
                 (value?.borrowedView === true ? (this as any).getAggregateRootIdentifier(value.object) : null);
+            const pointerProvenance = value?.pointerPermission
+                ? {
+                    pointerRootName: value.pointerRootName ?? null,
+                    pointerRootSymbolId: value.pointerRootSymbolId,
+                    pointerAccessPath: value.pointerAccessPath ?? [],
+                    pointerPermission: value.pointerPermission,
+                }
+                : {};
 
             const symbol = this.defineSymbol({
                 kind: Kinds.ScopeSymbols.Variable,
@@ -56,6 +64,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 borrowedView: value?.borrowedView === true,
                 borrowedViewReadonly: value?.borrowedViewReadonly === true,
                 borrowedViewSourceName,
+                ...pointerProvenance,
 
                 declare: isAmbient,
                 ambient: isAmbient,
@@ -99,6 +108,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
                 trusted,
                 value: runtimeValue,
+                ...pointerProvenance,
             };
         }
 

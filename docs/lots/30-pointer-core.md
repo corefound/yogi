@@ -47,6 +47,15 @@ Pointer values can be copied when the pointer type matches exactly:
 let p2: ptr<number> = p
 ```
 
+Pointers can also be created from `const` storage. The visible type is still
+`ptr<T>`, but the semantic node carries readonly provenance internally:
+
+```ts
+const locked: number = 20
+let p: ptr<number> = &locked
+let copy: ptr<number> = p
+```
+
 Function calls can receive pointer values:
 
 ```ts
@@ -66,7 +75,10 @@ acceptsPointer(&age)
 - Normal values do not implicitly convert to pointer values.
 - Pointer values do not implicitly convert to normal values.
 - Pointer pointee types must match exactly.
-- `const` bindings cannot create mutable `ptr<T>` yet because Yogi does not have `ptr<const T>`.
+- `&constValue` is valid.
+- Pointer mutability is provenance-based: pointers derived from `let` storage are mutable, and pointers derived from `const` storage are readonly.
+- Pointer copy preserves provenance.
+- Pointer arithmetic is rejected in safe Yogi.
 
 ## Rejected
 
@@ -99,11 +111,12 @@ let p: ptr<number> = &(10 + 20)
 let q: ptr<number[3]> = &[1, 2, 3]
 ```
 
-Readonly source:
+Pointer arithmetic:
 
 ```ts
-const age: number = 10
+let age: number = 10
 let p: ptr<number> = &age
+let q: ptr<number> = p + 1
 ```
 
 ## SIR And LLVM
@@ -121,6 +134,10 @@ TypeRef.element_type = T
 AddressOfExpression {
   target: ValueRef
   type: ptr<T>
+  root_symbol_id: number
+  root_name: string
+  access_path: string[]
+  permission: "mutable" | "readonly"
 }
 ```
 
@@ -134,14 +151,12 @@ pointer assignment -> pointer copy
 
 For dynamic arrays, `ptr<number[]>` points at the array descriptor/value storage, not directly at the heap element buffer.
 
-## Future Work
+## Current Limitations
 
-- Pointer parameters and mutation-through-pointer.
+- Mutation-through-pointer.
 - Pointer array indexing.
 - Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`.
-- `ptr<const T>`.
 - Dereference operator.
-- Pointer arithmetic policy.
 - Borrow summaries for functions that return pointer-derived views.
 
 ## Tests
@@ -158,10 +173,12 @@ The suite covers:
 - pointer to fixed-shape array storage
 - pointer to dynamic array storage
 - pointer value copy
+- pointer copy from readonly provenance
 - pointer-to-pointer
 - function pointer parameter
+- `&const` positive behavior
 - missing address-of diagnostics
 - pointer-to-value diagnostics
 - wrong pointer type diagnostics
 - temporary address-of diagnostics
-- address-of const diagnostics
+- pointer arithmetic diagnostics

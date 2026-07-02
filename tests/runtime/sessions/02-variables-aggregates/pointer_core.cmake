@@ -16,9 +16,15 @@ function acceptsPointer(value: ptr<number>): void {
 }
 
 let age: number = 10
+const locked: number = 20
 let p: ptr<number> = &age
 let p2: ptr<number> = p
+let readonlyPointer: ptr<number> = &locked
+let readonlyPointerCopy: ptr<number> = readonlyPointer
 let pp: ptr<ptr<number>> = &p
+
+let fixed: number[3] = [1, 2, 3]
+let fixedPointer: ptr<number[3]> = &fixed
 
 let matrix: number[2, 3] = [
     [1, 2, 3],
@@ -30,6 +36,7 @@ let values: number[] = [1, 2, 3]
 let valuesPointer: ptr<number[]> = &values
 
 acceptsPointer(&age)
+acceptsPointer(&locked)
 print(1)
 ]=])
 
@@ -73,7 +80,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "pointer core executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n1\n")
+set(expected_stdout "1\n1\n1\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "pointer core executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -145,7 +152,25 @@ expect_invalid(
 )
 
 expect_invalid(
-	"address_of_const"
-	"const age: number = 10\nlet p: ptr<number> = &age\n"
-	"cannot create mutable .*ptr<number>.* from readonly value"
+	"address_of_string_literal"
+	"let p: ptr<string> = &\"hello\"\n"
+	"cannot take address of temporary string literal"
+)
+
+expect_invalid(
+	"address_of_call_result"
+	"function getValue(): number {\n    return 10\n}\nlet p: ptr<number> = &getValue()\n"
+	"cannot take address of temporary expression"
+)
+
+expect_invalid(
+	"pointer_addition"
+	"let age: number = 10\nlet p: ptr<number> = &age\nlet q: ptr<number> = p + 1\n"
+	"pointer arithmetic is not supported in safe Yogi"
+)
+
+expect_invalid(
+	"pointer_subtraction"
+	"let age: number = 10\nlet p: ptr<number> = &age\nlet q: ptr<number> = p - 1\n"
+	"pointer arithmetic is not supported in safe Yogi"
 )

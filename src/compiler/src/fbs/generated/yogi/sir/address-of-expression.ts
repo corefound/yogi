@@ -49,8 +49,39 @@ position(obj?:SourcePosition):SourcePosition|null {
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+rootSymbolId():number {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? this.bb!.readInt32(this.bb_pos + offset) : -1;
+}
+
+rootName():string|null
+rootName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+rootName(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 14);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+accessPath(index: number):string|null
+accessPath(index: number, optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+accessPath(index: number, optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? this.bb!.__string(this.bb!.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
+}
+
+accessPathLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+permission():string|null
+permission(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+permission(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
 static startAddressOfExpression(builder:flatbuffers.Builder) {
-  builder.startObject(4);
+  builder.startObject(8);
 }
 
 static addTarget(builder:flatbuffers.Builder, targetOffset:flatbuffers.Offset) {
@@ -67,6 +98,34 @@ static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
   builder.addFieldOffset(3, positionOffset, 0);
+}
+
+static addRootSymbolId(builder:flatbuffers.Builder, rootSymbolId:number) {
+  builder.addFieldInt32(4, rootSymbolId, -1);
+}
+
+static addRootName(builder:flatbuffers.Builder, rootNameOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(5, rootNameOffset, 0);
+}
+
+static addAccessPath(builder:flatbuffers.Builder, accessPathOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(6, accessPathOffset, 0);
+}
+
+static createAccessPathVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startAccessPathVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addPermission(builder:flatbuffers.Builder, permissionOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(7, permissionOffset, 0);
 }
 
 static endAddressOfExpression(builder:flatbuffers.Builder):flatbuffers.Offset {

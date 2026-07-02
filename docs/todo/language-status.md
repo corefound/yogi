@@ -51,6 +51,11 @@ without re-auditing the whole compiler.
 
 - [x] Core pointer type syntax `ptr<T>`
 - [x] Address-of expression `&value` for addressable variables
+- [x] Address-of `const` storage with readonly pointer provenance
+- [x] Strict pointer assignability and pointer parameter passing
+- [x] Pointer copy preserving mutable/readonly provenance
+- [x] Pointer SIR/FBS metadata for root symbol, access path, and permission
+- [x] Pointer arithmetic rejection in safe Yogi
 - [x] Dynamic arrays with runtime descriptor and heap buffer
 - [x] Strict bracket access with runtime range errors
 - [x] Safe `.at(index)` access that may return `undefined`
@@ -75,7 +80,7 @@ without re-auditing the whole compiler.
 - [x] Iterator protocol support for arrays
 - [x] Array print support
 - [x] Const/readonly propagation through borrowed fixed-shape views
-- [ ] Pointer parameters and array pointer indexing
+- [ ] Pointer indexing/dereference and mutation-through-pointer
 - [ ] Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`
 - [ ] Borrow summaries adjusted for `ptr<T>` parameter returns
 - [ ] Interprocedural lifetime summaries for borrowed views

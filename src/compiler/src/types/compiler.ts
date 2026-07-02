@@ -119,6 +119,10 @@ export type SymbolInfo = {
     borrowedView?: boolean;
     borrowedViewReadonly?: boolean;
     borrowedViewSourceName?: string | null;
+    pointerRootName?: string | null;
+    pointerRootSymbolId?: number;
+    pointerAccessPath?: string[];
+    pointerPermission?: "mutable" | "readonly";
     moved?: boolean;
     moveReason?: string;
     movePosition?: any;

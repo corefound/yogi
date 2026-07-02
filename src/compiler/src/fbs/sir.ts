@@ -1098,12 +1098,21 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const type = this.createTypeRef(builder, expression.type);
             const source = builder.createString(expression.source ?? "");
             const position = this.createSourcePosition(builder, expression.position);
+            const rootName = builder.createString(expression.rootName ?? expression.pointerRootName ?? "");
+            const permission = builder.createString(expression.permission ?? expression.pointerPermission ?? "");
+            const accessPathItems = (expression.accessPath ?? expression.pointerAccessPath ?? [])
+                .map((item) => builder.createString(item));
+            const accessPath = AddressOfExpression.createAccessPathVector(builder, accessPathItems);
 
             AddressOfExpression.startAddressOfExpression(builder);
             AddressOfExpression.addTarget(builder, target);
             AddressOfExpression.addType(builder, type);
             AddressOfExpression.addSource(builder, source);
             AddressOfExpression.addPosition(builder, position);
+            AddressOfExpression.addRootSymbolId(builder, expression.rootSymbolId ?? expression.pointerRootSymbolId ?? -1);
+            AddressOfExpression.addRootName(builder, rootName);
+            AddressOfExpression.addAccessPath(builder, accessPath);
+            AddressOfExpression.addPermission(builder, permission);
 
             return AddressOfExpression.endAddressOfExpression(builder);
         }

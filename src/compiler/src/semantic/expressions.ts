@@ -1959,6 +1959,22 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 );
             }
 
+            if (
+                targetNode?.kind === Kinds.Sir.NumberConstant ||
+                targetNode?.kind === Kinds.Literals.NumberLiteral ||
+                targetNode?.kind === Kinds.Literals.BooleanLiteral ||
+                targetNode?.kind === Kinds.Literals.NullLiteral ||
+                targetNode?.kind === Kinds.Literals.UndefinedLiteral
+            ) {
+                targetNode.arrowLength = targetNode.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `cannot take address of temporary expression`,
+                    targetNode.position ?? node.position,
+                    source,
+                    targetNode,
+                );
+            }
+
             if (targetNode?.kind === Kinds.Literals.StringLiteral) {
                 targetNode.arrowLength = targetNode.source?.length ?? node.source?.length ?? 1;
                 this.throwError(
@@ -1966,6 +1982,19 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     targetNode.position ?? node.position,
                     source,
                     targetNode,
+                );
+            }
+
+            if (
+                targetNode?.kind === Kinds.Expressions.CallExpression ||
+                targetNode?.kind === Kinds.Collections.DictionaryExpression
+            ) {
+                targetNode.arrowLength = targetNode?.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `cannot take address of temporary expression`,
+                    targetNode?.position ?? node.position,
+                    source,
+                    targetNode ?? node,
                 );
             }
 
@@ -1993,19 +2022,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 );
             }
 
-            if (symbol.mutable !== true) {
-                const pointerRaw = `ptr<${target.type?.raw ?? "unknown"}>`;
-                target.arrowLength = targetName?.length ?? 1;
-                this.throwError(
-                    `cannot create mutable ${Helpers.BLUE}'${pointerRaw}'${Helpers.RESET} from readonly value ` +
-                    `${Helpers.RED}'${targetName}'${Helpers.RESET}`,
-                    target.position ?? node.position,
-                    source,
-                    target,
-                );
-            }
-
             const pointee = this.toSerializableType(target.type);
+            const permission = symbol.mutable === true ? "mutable" : "readonly";
 
             return {
                 ...node,
@@ -2017,6 +2035,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     elementType: pointee,
                     pointee,
                 },
+                pointerRootName: targetName,
+                pointerRootSymbolId: symbol.id,
+                pointerAccessPath: [],
+                pointerPermission: permission,
+                rootName: targetName,
+                rootSymbolId: symbol.id,
+                accessPath: [],
+                permission,
             };
         }
 
@@ -2316,6 +2342,18 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 const isNumber = (type: any) => this.resolveType(type)?.kind === Kinds.Types.NumberType;
                 const isString = (type: any) => this.resolveType(type)?.kind === Kinds.Types.StringType;
                 const isBoolean = (type: any) => this.resolveType(type)?.kind === Kinds.Types.BooleanType;
+                const rejectPointerArithmetic = () => {
+                    if ((node.operator === "+" || node.operator === "-") && (this.isPointerType(leftType) || this.isPointerType(rightType))) {
+                        node.arrowLength = node.operator?.length ?? 1;
+                        this.throwError(
+                            `pointer arithmetic is not supported in safe Yogi`,
+                            node.position,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            node,
+                            "  = use typed array/matrix indexing instead",
+                        );
+                    }
+                };
 
                 switch (node.operator) {
                     case "??": {
@@ -2534,6 +2572,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             }
                         }
 
+                        if (this.isPointerType(assignmentType)) {
+                            symbol.pointerRootName = right.pointerRootName ?? null;
+                            symbol.pointerRootSymbolId = right.pointerRootSymbolId;
+                            symbol.pointerAccessPath = right.pointerAccessPath ?? [];
+                            symbol.pointerPermission = right.pointerPermission;
+                        }
+
                         return {
                             ...node,
                             kind: Kinds.Expressions.AssignmentExpression,
@@ -2553,6 +2598,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     }
 
                     case "+": {
+                        rejectPointerArithmetic();
+
                         if (isNumber(leftType) && isNumber(rightType)) {
                             return done({ kind: Kinds.Types.NumberType, raw: "number" });
                         }
@@ -2569,6 +2616,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     case "*":
                     case "/":
                     case "%": {
+                        rejectPointerArithmetic();
+
                         if (isNumber(leftType) && isNumber(rightType)) {
                             return done({ kind: Kinds.Types.NumberType, raw: "number" });
                         }

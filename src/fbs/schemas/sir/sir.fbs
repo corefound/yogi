@@ -134,6 +134,10 @@ table AddressOfExpression {
   type:TypeRef;
   source:string;
   position:SourcePosition;
+  root_symbol_id:int = -1;
+  root_name:string;
+  access_path:[string];
+  permission:string;
 }
 
 table AggregateAssignmentExpression {

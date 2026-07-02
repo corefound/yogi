@@ -219,6 +219,14 @@ export type SemanticAddressOfExpression = {
     kind: "AddressOfExpression";
     target: SemanticValueInput;
     type: SemanticType;
+    rootName?: string | null;
+    rootSymbolId?: number;
+    accessPath?: string[];
+    permission?: "mutable" | "readonly";
+    pointerRootName?: string | null;
+    pointerRootSymbolId?: number;
+    pointerAccessPath?: string[];
+    pointerPermission?: "mutable" | "readonly";
     source?: string;
     position?: SourcePosition;
 };

@@ -54,20 +54,20 @@ This means `&constValue` is valid. The only invalid operation is mutating throug
 
 ## 1. Design Decisions
 
-- [ ] `ptr<T>` is the official visible pointer type.
-- [ ] `&value` is the official address-of syntax.
-- [ ] `ptr<T>` can point to `let` storage.
-- [ ] `ptr<T>` can point to `const` storage.
-- [ ] No `ptr<const T>` syntax.
-- [ ] No `readonly` pointer syntax.
-- [ ] No implicit value-to-pointer conversion.
-- [ ] No implicit pointer-to-value conversion.
+- [x] `ptr<T>` is the official visible pointer type.
+- [x] `&value` is the official address-of syntax.
+- [x] `ptr<T>` can point to `let` storage.
+- [x] `ptr<T>` can point to `const` storage.
+- [x] No `ptr<const T>` syntax.
+- [x] No `readonly` pointer syntax.
+- [x] No implicit value-to-pointer conversion.
+- [x] No implicit pointer-to-value conversion.
 - [ ] No implicit dereference.
-- [ ] No pointer arithmetic in safe/default Yogi.
-- [ ] Pointer mutability is tracked internally through provenance/permission.
+- [x] No pointer arithmetic in safe/default Yogi.
+- [x] Pointer mutability is tracked internally through provenance/permission.
 - [ ] `const p: ptr<T>` means the pointer binding cannot be reassigned.
 - [ ] `const p: ptr<T>` does not mean the pointed storage is readonly.
-- [ ] Pointed storage mutability comes from the root storage: `let` or `const`.
+- [x] Pointed storage mutability comes from the root storage: `let` or `const`.
 
 ---
 
@@ -75,25 +75,25 @@ This means `&constValue` is valid. The only invalid operation is mutating throug
 
 ### Parser / Type AST
 
-- [ ] Parse `ptr<T>` in type positions.
-- [ ] Parse nested pointer types: `ptr<ptr<number>>`.
-- [ ] Parse pointer to primitive: `ptr<number>`.
-- [ ] Parse pointer to string: `ptr<string>`.
-- [ ] Parse pointer to boolean: `ptr<boolean>`.
-- [ ] Parse pointer to dynamic array descriptor: `ptr<number[]>`.
-- [ ] Parse pointer to fixed array: `ptr<number[3]>`.
-- [ ] Parse pointer to fixed matrix: `ptr<number[2, 3]>`.
+- [x] Parse `ptr<T>` in type positions.
+- [x] Parse nested pointer types: `ptr<ptr<number>>`.
+- [x] Parse pointer to primitive: `ptr<number>`.
+- [x] Parse pointer to string: `ptr<string>`.
+- [x] Parse pointer to boolean: `ptr<boolean>`.
+- [x] Parse pointer to dynamic array descriptor: `ptr<number[]>`.
+- [x] Parse pointer to fixed array: `ptr<number[3]>`.
+- [x] Parse pointer to fixed matrix: `ptr<number[2, 3]>`.
 - [ ] Parse pointer to custom type: `ptr<User>`.
 - [ ] Parse pointer to object/dictionary type: `ptr<{ age: number }>` if inline object types are supported.
 
 ### Semantic Type Representation
 
-- [ ] Add `PointerType` to the internal type system.
-- [ ] `PointerType` stores `pointeeType`.
-- [ ] `PointerType` supports equality comparison.
-- [ ] `ptr<T>` assignability requires compatible `T`.
-- [ ] `ptr<T>` and `T` are distinct types.
-- [ ] `ptr<ptr<T>>` and `ptr<T>` are distinct types.
+- [x] Add `PointerType` to the internal type system.
+- [x] `PointerType` stores `pointeeType`.
+- [x] `PointerType` supports equality comparison.
+- [x] `ptr<T>` assignability requires compatible `T`.
+- [x] `ptr<T>` and `T` are distinct types.
+- [x] `ptr<ptr<T>>` and `ptr<T>` are distinct types.
 
 Examples:
 
@@ -114,23 +114,23 @@ let pp: ptr<ptr<number>> = &p
 
 ### Parser / AST
 
-- [ ] Parse `&expr` as `AddressOfExpression`.
-- [ ] Preserve source spans for diagnostics.
-- [ ] Support `&identifier`.
-- [ ] Support parenthesized addressable expressions: `&(age)`.
-- [ ] Reject temporary expressions: `&(10 + 20)`.
+- [x] Parse `&expr` as `AddressOfExpression`.
+- [x] Preserve source spans for diagnostics.
+- [x] Support `&identifier`.
+- [x] Support parenthesized addressable expressions: `&(age)`.
+- [x] Reject temporary expressions: `&(10 + 20)`.
 - [ ] Reject literal expressions: `&10`, `&"hello"`, `&true`.
-- [ ] Reject array literals: `&[1, 2, 3]`.
+- [x] Reject array literals: `&[1, 2, 3]`.
 - [ ] Reject object literals directly: `&{ age: 20 }`.
-- [ ] Reject function call result unless future rules explicitly allow addressable returns.
+- [x] Reject function call result unless future rules explicitly allow addressable returns.
 
 ### Type Rules
 
-- [ ] `&expr` has type `ptr<typeof expr>`.
-- [ ] `&letValue` is valid and gets mutable permission.
-- [ ] `&constValue` is valid and gets readonly permission.
-- [ ] Address-of requires a stable l-value path.
-- [ ] Address-of does not copy the value.
+- [x] `&expr` has type `ptr<typeof expr>`.
+- [x] `&letValue` is valid and gets mutable permission.
+- [x] `&constValue` is valid and gets readonly permission.
+- [x] Address-of requires a stable l-value path.
+- [x] Address-of does not copy the value.
 
 Examples:
 
@@ -171,20 +171,20 @@ getPointerPermission(root) -> mutable | readonly
 
 Checklist:
 
-- [ ] Local variables are addressable.
-- [ ] Global variables are addressable.
-- [ ] Function parameters are addressable if they have real storage.
-- [ ] Parenthesized l-values preserve addressability.
+- [x] Local variables are addressable.
+- [x] Global variables are addressable.
+- [x] Function parameters are addressable if they have real storage.
+- [x] Parenthesized l-values preserve addressability.
 - [ ] Field access is addressable if the base is addressable.
 - [ ] Nested field access is addressable if the root is addressable.
 - [ ] Fixed array element access is addressable if the root is addressable.
 - [ ] Fixed matrix element access is addressable if the root is addressable.
 - [ ] Fixed partial array/matrix views are addressable if the root is addressable.
 - [ ] Dynamic array element addressability is rejected initially.
-- [ ] Temporaries are not addressable.
-- [ ] Literals are not addressable.
-- [ ] Function call results are not addressable by default.
-- [ ] Binary/unary computed expressions are not addressable.
+- [x] Temporaries are not addressable.
+- [x] Literals are not addressable.
+- [x] Function call results are not addressable by default.
+- [x] Binary/unary computed expressions are not addressable.
 
 ---
 
@@ -206,10 +206,10 @@ permission: mutable | readonly
 
 Rules:
 
-- [ ] Pointer from `let` root gets mutable permission.
-- [ ] Pointer from `const` root gets readonly permission.
-- [ ] Pointer copy preserves permission.
-- [ ] Pointer assignment updates the target variable's current pointer provenance.
+- [x] Pointer from `let` root gets mutable permission.
+- [x] Pointer from `const` root gets readonly permission.
+- [x] Pointer copy preserves permission.
+- [x] Pointer assignment updates the target variable's current pointer provenance.
 - [ ] Writing through readonly pointer is rejected.
 - [ ] Reading through readonly pointer is allowed.
 - [ ] `const p: ptr<T>` prevents reassignment of `p` only.
@@ -1015,14 +1015,14 @@ help: use typed array/matrix indexing instead
 
 Checklist:
 
-- [ ] Add `PointerType` node/variant.
-- [ ] `PointerType` stores pointee type.
-- [ ] Add `AddressOfExpression` node/variant.
-- [ ] `AddressOfExpression` stores target expression.
-- [ ] `AddressOfExpression` stores result type.
-- [ ] `AddressOfExpression` stores root symbol/provenance.
-- [ ] `AddressOfExpression` stores access path.
-- [ ] `AddressOfExpression` stores permission: mutable/readonly.
+- [x] Add `PointerType` node/variant.
+- [x] `PointerType` stores pointee type.
+- [x] Add `AddressOfExpression` node/variant.
+- [x] `AddressOfExpression` stores target expression.
+- [x] `AddressOfExpression` stores result type.
+- [x] `AddressOfExpression` stores root symbol/provenance.
+- [x] `AddressOfExpression` stores access path.
+- [x] `AddressOfExpression` stores permission: mutable/readonly.
 - [ ] Add pointer read/access expression representation.
 - [ ] Add pointer write-through representation.
 - [ ] Add pointer function parameter metadata.
@@ -1052,13 +1052,13 @@ AccessPath = [] | Field(name) | Index(expr) | IndexList(expr[])
 
 Checklist:
 
-- [ ] Add `pointer_type` to FBS type union/table.
-- [ ] Add `address_of_expression` to FBS expression union/table.
-- [ ] Add access path representation.
-- [ ] Add root symbol/provenance representation.
-- [ ] Add permission representation: mutable/readonly.
-- [ ] Add pointer parameter representation.
-- [ ] Add pointer return type representation.
+- [x] Add `pointer_type` to FBS type union/table.
+- [x] Add `address_of_expression` to FBS expression union/table.
+- [x] Add access path representation.
+- [x] Add root symbol/provenance representation.
+- [x] Add permission representation: mutable/readonly.
+- [x] Add pointer parameter representation.
+- [x] Add pointer return type representation.
 - [ ] Add pointer read/write expressions if needed.
 - [ ] Add function summary metadata for pointer params.
 
@@ -1582,30 +1582,30 @@ function 'change' may mutate pointer parameter 'matrix', but argument '&matrix' 
 
 ### Phase 1 — Core Pointer Type
 
-- [ ] Parser: `ptr<T>`.
-- [ ] Type system: `PointerType`.
-- [ ] Semantic assignability rules.
-- [ ] Pointer variable declarations.
-- [ ] Pointer parameter declarations.
-- [ ] Pointer return types.
+- [x] Parser: `ptr<T>`.
+- [x] Type system: `PointerType`.
+- [x] Semantic assignability rules.
+- [x] Pointer variable declarations.
+- [x] Pointer parameter declarations.
+- [x] Pointer return types.
 
 ### Phase 2 — Basic Address-Of
 
-- [ ] Parser: `&expr`.
-- [ ] Semantic: `AddressOfExpression`.
-- [ ] Support `&localVariable`.
-- [ ] Support `&constVariable`.
-- [ ] Reject temporaries/literals.
-- [ ] Track root symbol and permission.
+- [x] Parser: `&expr`.
+- [x] Semantic: `AddressOfExpression`.
+- [x] Support `&localVariable`.
+- [x] Support `&constVariable`.
+- [x] Reject temporaries/literals.
+- [x] Track root symbol and permission.
 
 ### Phase 3 — SIR/FBS/LLVM Core
 
-- [ ] SIR `PointerType`.
-- [ ] SIR `AddressOfExpression`.
-- [ ] FBS `pointer_type`.
-- [ ] FBS `address_of_expression`.
-- [ ] LLVM pointer lowering.
-- [ ] Function arg pointer passing.
+- [x] SIR `PointerType`.
+- [x] SIR `AddressOfExpression`.
+- [x] FBS `pointer_type`.
+- [x] FBS `address_of_expression`.
+- [x] LLVM pointer lowering.
+- [x] Function arg pointer passing.
 
 ### Phase 4 — Pointer Access
 
@@ -1715,4 +1715,3 @@ Important final rule:
 The storage root decides mutability.
 The visible pointer type does not.
 ```
-
