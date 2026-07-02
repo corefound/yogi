@@ -69,6 +69,7 @@ without re-auditing the whole compiler.
 - [x] Common non-callback array methods
 - [x] Callback array methods
 - [x] Local captures for immediate inline array callbacks
+- [x] Depth-aware semantic result typing for `flat(depth)` with known literal depth
 - [x] Iterator protocol support for arrays
 - [x] Array print support
 - [x] Const/readonly propagation through borrowed fixed-shape views

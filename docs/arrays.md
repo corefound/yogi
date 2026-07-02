@@ -291,14 +291,6 @@ let row: number[3] = getRow()
 row[2] = 99
 print(row[2]) // 99
 ```
-}
-```
-
-Explicit owned copy:
-
-```ts
-return matrix[1].copy()
-```
 
 ---
 
@@ -709,7 +701,7 @@ Notes:
 
 ---
 
-## In Progress / Next Lots
+## Supported Now Details
 
 ### 1. Const / readonly propagation into borrowed views
 
@@ -956,15 +948,27 @@ Still pending:
 
 ### 8. Depth-aware semantic result typing for `flat(depth)`
 
-Current behavior:
+Supported:
 
-- `flat(depth)` honors runtime depth.
-- Semantic typing currently flattens one known static level.
+- `flat()` defaults to depth `1`.
+- `flat(0)` preserves the same array nesting.
+- `flat(N)` removes up to `N` dynamic array nesting layers when `N` is a known numeric literal.
+- Depth greater than nesting clamps at the element array type.
+- Union element types are preserved.
+- Known numeric literal depth must be a non-negative integer.
+- Non-literal depth uses the current conservative one-level fallback typing.
 
-Pending:
+Examples:
 
-- Depth-aware semantic result typing beyond the first static nesting level.
-- Stronger compile-time numeric literal evaluation.
+```ts
+let values: number[][][] = [
+    [[1, 2]],
+    [[3, 4]]
+]
+
+let one: number[][] = values.flat(1)
+let two: number[] = values.flat(2)
+```
 
 ---
 
@@ -1321,7 +1325,7 @@ Inline callback captures are lexical and non-escaping. The callback is lowered d
 
 `sort()` and `toSorted()` support JavaScript-style default string ordering and comparator callbacks that return `number`.
 
-`flat(depth)` honors the runtime depth argument. Semantic typing currently flattens one known static level, which is correct for the supported tests but should become depth-aware once Yogi has stronger compile-time numeric literal evaluation.
+`flat(depth)` honors the runtime depth argument. Semantic typing is depth-aware when the depth is a known numeric literal, including `flat(0)`, `flat(1)`, deeper nesting, and union element arrays. Non-literal depth currently keeps a conservative one-level fallback type.
 
 `with` now uses runtime range diagnostics. Future range-sensitive APIs should reuse the same Yogi runtime range error path unless Yogi later adds catchable exceptions.
 
@@ -1372,12 +1376,12 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ✅ Array spread from fixed arrays and tuples
 ✅ Spread length validation for fixed-size 1D arrays
 ✅ Spread element type checking for dynamic, fixed, tuple, and union targets
+✅ Depth-aware semantic result typing for flat(depth)
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Depth-aware semantic result typing for flat(depth)
 ⬜ String element extraction from string[] through .at() inside struct fields
 ```
 
@@ -1403,22 +1407,17 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ## Recommended Implementation Order
 
 ```txt
-1. Const/readonly propagation into borrowed views
-2. Nested readonly borrowed views
-3. Explicit .copy() for owned slice/view copies
-4. Depth-aware semantic result typing for flat(depth)
-5. String element extraction from string[] through .at() inside struct fields
-6. Borrow summaries interprocedural
-7. Escape analysis complete for borrowed views
-8. Native LLVM fixed array ABI without runtime descriptor
-12. Cleanup/destructor rules for borrowed views
-13. Dynamic shaped arrays: Array<T, Rank>
-14. Dynamic shaped views/slices
-15. Native fixed-shape ABI without runtime descriptor
-16. C ABI interop rules for arrays
-17. Lazy iterator objects
-18. Object stringification inside arrays
-19. Final array method policy
-20. Final diagnostics polish
-21. Documentation final pass
+1. String element extraction from string[] through .at() inside struct fields
+2. Borrow summaries interprocedural
+3. Escape analysis complete for borrowed views
+4. Cleanup/destructor rules for borrowed views
+5. Dynamic shaped arrays: Array<T, Rank>
+6. Dynamic shaped views/slices
+7. Native fixed-shape ABI without runtime descriptor
+8. C ABI interop rules for arrays
+9. Lazy iterator objects
+10. Object stringification inside arrays
+11. Final array method policy
+12. Final diagnostics polish
+13. Documentation final pass
 ```
