@@ -227,6 +227,19 @@ namespace yogi::core::llvm::internal {
 
 	void FunctionLowerer::lowerFunction(const Yogi::Sir::FunctionDeclaration *function) {
 		std::vector<::llvm::Type *> parameterTypes;
+		const auto resolvedKind = [](const Yogi::Sir::TypeRef *type) {
+			const auto *current = type;
+
+			while (
+				current &&
+				current->kind() == Yogi::Sir::TypeKind_type_reference &&
+				current->resolved()
+			) {
+				current = current->resolved();
+			}
+
+			return current ? current->kind() : Yogi::Sir::TypeKind_unknown_type;
+		};
 
 		if (function->parameters()) {
 			for (const auto *parameter: *function->parameters()) {
@@ -256,16 +269,46 @@ namespace yogi::core::llvm::internal {
 			for (const auto *parameter: *function->parameters()) {
 				auto *argument = llvmFunction->getArg(index++);
 				argument->setName(fbString(parameter->name()));
+				auto *storedArgument = static_cast<::llvm::Value *>(argument);
+				const auto parameterKind = resolvedKind(parameter->type());
+				const auto cloneLocalAggregate =
+					parameterKind == Yogi::Sir::TypeKind_array_type ||
+					parameterKind == Yogi::Sir::TypeKind_tuple_type;
+
+				if (cloneLocalAggregate) {
+					auto *opaquePointer = ::llvm::PointerType::get(context.llvmContext, 0);
+					auto *cloneFunction = context.runtimeFunction(
+						"yogi_array_clone",
+						opaquePointer,
+						{opaquePointer}
+					);
+					storedArgument = context.builder.CreateCall(
+						cloneFunction,
+						{argument},
+						sanitizeSymbol(fbString(parameter->name())) + ".param.clone"
+					);
+				}
 
 				auto *slot = context.createEntryAlloca(
 					llvmFunction,
 					fbString(parameter->name()),
 					argument->getType()
 				);
-				context.builder.CreateStore(argument, slot);
+				context.builder.CreateStore(storedArgument, slot);
 				context.locals[fbString(parameter->name())] = slot;
 				context.localTypes[fbString(parameter->name())] = parameter->type();
 				context.localTypeKinds[fbString(parameter->name())] = parameter->type()->kind();
+
+				if (cloneLocalAggregate) {
+					context.registerAggregateOwner(
+						fbString(parameter->name()),
+						parameter->symbol_id(),
+						parameter->type(),
+						storedArgument,
+						true,
+						slot
+					);
+				}
 			}
 		}
 

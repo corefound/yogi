@@ -2142,18 +2142,98 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const source = node.fullSource ?? node.source;
 
             if (objectType?.kind === Kinds.Types.PointerType) {
-                if (indices.length !== 1) {
-                    const message = `scalar pointer access only supports index 0`;
+                const pointee = objectType.elementType ?? objectType.pointee;
+                const resolvedPointee = this.resolveType(pointee);
+
+                for (const currentIndex of indices) {
+                    if (currentIndex?.type?.kind !== Kinds.Types.NumberType) {
+                        const message =
+                            `pointer index must be ${Helpers.BLUE}'number'${Helpers.RESET}, got ` +
+                            `${Helpers.RED}'${currentIndex?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                        currentIndex.arrowLength = currentIndex.source?.length ?? 1;
+                        this.throwError(message, currentIndex.position ?? node.position, source, currentIndex);
+                    }
+                }
+
+                if (node.optional === true) {
+                    const message =
+                        `dynamic optional pointer element access ${Helpers.RED}'${node.source}'${Helpers.RESET} is not lowerable yet`;
+
                     node.arrowLength = node.source?.length ?? 1;
                     this.throwError(message, node.position, source, node);
                 }
 
-                if (index?.type?.kind !== Kinds.Types.NumberType) {
-                    const message =
-                        `pointer index must be ${Helpers.BLUE}'number'${Helpers.RESET}, got ` +
-                        `${Helpers.RED}'${index?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+                if (resolvedPointee?.kind === Kinds.Types.ArrayType) {
+                    const shape = resolvedPointee.shape ?? [];
+                    const isFixedShape = resolvedPointee.fixed === true && shape.length > 0;
 
-                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
+                    if (isFixedShape) {
+                        if (indices.length < shape.length) {
+                            const message =
+                                `partial indexing through pointer is not implemented yet; use full indexing or wait for pointer view support`;
+
+                            node.arrowLength = node.source?.length ?? 1;
+                            this.throwError(message, node.position, source, node);
+                        }
+
+                        if (indices.length > shape.length) {
+                            const message =
+                                `${Helpers.BLUE}'${resolvedPointee.raw ?? pointee?.raw ?? "array"}'${Helpers.RESET} pointer expects ` +
+                                `${Helpers.BLUE}'${shape.length}'${Helpers.RESET} index(es), got ${Helpers.RED}'${indices.length}'${Helpers.RESET}`;
+
+                            node.arrowLength = node.source?.length ?? 1;
+                            this.throwError(message, node.position, source, node);
+                        }
+
+                        for (let dimension = 0; dimension < indices.length; dimension++) {
+                            const constantIndex = this.literalIndexValue(indices[dimension]);
+                            const dimensionSize = shape[dimension];
+
+                            if (
+                                typeof constantIndex === "number" &&
+                                Number.isInteger(constantIndex) &&
+                                typeof dimensionSize === "number" &&
+                                (constantIndex < 0 || constantIndex >= dimensionSize)
+                            ) {
+                                const message =
+                                    `index ${Helpers.RED}'${constantIndex}'${Helpers.RESET} is out of bounds for dimension ` +
+                                    `${Helpers.BLUE}'${dimension}'${Helpers.RESET} of size ${Helpers.BLUE}'${dimensionSize}'${Helpers.RESET}`;
+
+                                indices[dimension].arrowLength = indices[dimension].source?.length ?? 1;
+                                this.throwError(message, indices[dimension].position ?? node.position, source, indices[dimension]);
+                            }
+                        }
+                    } else if (indices.length !== 1) {
+                        const message =
+                            `${Helpers.BLUE}'${resolvedPointee.raw ?? pointee?.raw ?? "array"}'${Helpers.RESET} pointer expects ` +
+                            `${Helpers.BLUE}'1'${Helpers.RESET} index, got ${Helpers.RED}'${indices.length}'${Helpers.RESET}`;
+
+                        node.arrowLength = node.source?.length ?? 1;
+                        this.throwError(message, node.position, source, node);
+                    }
+
+                    return {
+                        ...node,
+                        object,
+                        index,
+                        indices,
+                        type: resolvedPointee.elementType,
+                        pointerAccess: true,
+                        pointerRootName: object.pointerRootName ?? null,
+                        pointerRootSymbolId: object.pointerRootSymbolId,
+                        pointerAccessPath: [
+                            ...(object.pointerAccessPath ?? []),
+                            `[${indices.map((item: any) => item.source ?? "?").join(", ")}]`,
+                        ],
+                        pointerPermission: object.pointerPermission,
+                        readonly: object.pointerPermission === "readonly",
+                    };
+                }
+
+                if (indices.length !== 1) {
+                    const message = `scalar pointer access only supports index 0`;
+                    node.arrowLength = node.source?.length ?? 1;
                     this.throwError(message, node.position, source, node);
                 }
 
@@ -2168,8 +2248,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
                     this.throwError(message, node.position, source, node);
                 }
-
-                const pointee = objectType.elementType ?? objectType.pointee;
 
                 return {
                     ...node,
@@ -2769,9 +2847,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     }
 
                     if (!this.isTypeAssignable(left.type, right.type)) {
-                        const message =
-                            `expected ${Helpers.BLUE}'${left.type?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
-                            `${Helpers.RED}'${right.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+                        const pointerElementType = this.resolveType(objectType.elementType ?? objectType.pointee);
+                        const resolvedTargetType = this.resolveType(left.type);
+                        const message = pointerElementType?.kind === Kinds.Types.ArrayType
+                            ? `cannot assign ${Helpers.RED}'${right.type?.raw ?? "unknown"}'${Helpers.RESET} to array element type ` +
+                                `${Helpers.BLUE}'${resolvedTargetType?.raw ?? left.type?.raw ?? "unknown"}'${Helpers.RESET}`
+                            : `expected ${Helpers.BLUE}'${left.type?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                                `${Helpers.RED}'${right.type?.raw ?? "unknown"}'${Helpers.RESET}`;
 
                         right.arrowLength = right.source?.length ?? 1;
                         this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);

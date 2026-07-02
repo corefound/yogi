@@ -38,6 +38,90 @@ namespace yogi::core::llvm::internal {
 
 			return kind == Yogi::Sir::TypeKind_string_type;
 		}
+
+		const Yogi::Sir::TypeRef *semanticTypeOf(const Yogi::Sir::ValueRef *value) {
+			if (!value) {
+				return nullptr;
+			}
+
+			if (const auto *constant = value->constant()) {
+				return constant->type();
+			}
+			if (const auto *identifier = value->identifier()) {
+				return identifier->type();
+			}
+			if (const auto *binary = value->binary()) {
+				return binary->type();
+			}
+			if (const auto *assignment = value->assignment()) {
+				return assignment->type();
+			}
+			if (const auto *conditional = value->conditional()) {
+				return conditional->type();
+			}
+			if (const auto *array = value->array()) {
+				return array->type();
+			}
+			if (const auto *object = value->object()) {
+				return object->type();
+			}
+			if (const auto *access = value->property_access()) {
+				return access->type();
+			}
+			if (const auto *access = value->element_access()) {
+				return access->type();
+			}
+			if (const auto *addressOf = value->address_of()) {
+				return addressOf->type();
+			}
+			if (const auto *assignment = value->aggregate_assignment()) {
+				return assignment->type();
+			}
+			if (const auto *functionExpression = value->function_expression()) {
+				return functionExpression->type();
+			}
+			if (const auto *call = value->call()) {
+				return call->type();
+			}
+
+			return nullptr;
+		}
+
+		const Yogi::Sir::TypeRef *resolvedType(const Yogi::Sir::TypeRef *type) {
+			auto *current = type;
+
+			while (
+				current &&
+				current->kind() == Yogi::Sir::TypeKind_type_reference &&
+				current->resolved()
+			) {
+				current = current->resolved();
+			}
+
+			return current;
+		}
+
+		bool returnsFixedShapeView(const Yogi::Sir::ValueRef *value) {
+			const auto *access = value ? value->element_access() : nullptr;
+			if (!access) {
+				return false;
+			}
+
+			const auto *objectType = resolvedType(semanticTypeOf(access->object()));
+			if (
+				!objectType ||
+				objectType->kind() != Yogi::Sir::TypeKind_array_type ||
+				!objectType->fixed() ||
+				!objectType->shape() ||
+				objectType->shape()->size() == 0
+			) {
+				return false;
+			}
+
+			const auto *indices = access->indices();
+			const auto consumedDimensions = indices && indices->size() > 0 ? indices->size() : 1;
+			return consumedDimensions < objectType->shape()->size();
+		}
 	}
 
 	StatementLowerer::StatementLowerer(
@@ -389,6 +473,21 @@ namespace yogi::core::llvm::internal {
 			returnType,
 			context.currentReturnType
 		);
+		if (returnsFixedShapeView(statement->value())) {
+			auto *opaquePointer = ::llvm::PointerType::get(context.llvmContext, 0);
+			auto *cloneFunction = context.runtimeFunction(
+				"yogi_array_clone",
+				opaquePointer,
+				{opaquePointer}
+			);
+			auto *ownedCopy = context.builder.CreateCall(
+				cloneFunction,
+				{returnValue},
+				"return.array.clone"
+			);
+			values.destroyEscapedAggregate(context.currentReturnType, returnValue);
+			returnValue = values.cast(ownedCopy, returnType, context.currentReturnType, context.currentReturnType);
+		}
 		context.popMemorySourceLocation();
 
 		const auto returnedName = identifierName(statement->value());

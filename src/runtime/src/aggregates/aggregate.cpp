@@ -673,7 +673,10 @@ namespace yogi::runtime {
 		auto *result = ArrayValue::create(elementCount);
 
 		for (std::size_t index = 0; index < elementCount; ++index) {
-			result->elements[index] = elements[index] ? elements[index] : AnyValue::undefined();
+			auto *value = isView()
+				? get(index)
+				: elements[index];
+			result->elements[index] = value ? value : AnyValue::undefined();
 		}
 
 		return result;

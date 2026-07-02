@@ -458,7 +458,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                             kind: Kinds.Types.PointerType,
                             elementType,
                             pointee: elementType,
-                            raw: ref.getText(),
+                            raw: `ptr<${elementType.raw ?? "unknown"}>`,
                             position: this.getNodePosistion(node),
                         };
                     }
@@ -538,7 +538,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                         readonly: false,
                         fixed: true,
                         shape,
-                        raw: node.getText(),
+                        raw: `${elementType.raw ?? "unknown"}[${shape.join(", ")}]`,
                         position: this.getNodePosistion(node),
                     };
                 }

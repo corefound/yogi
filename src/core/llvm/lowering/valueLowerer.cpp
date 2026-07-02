@@ -2370,6 +2370,49 @@ namespace yogi::core::llvm::internal {
 			auto *pointer = lower(access->object(), opaquePointer(), objectSemanticType);
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+			const auto *pointeeSemanticType = objectSemanticType && objectSemanticType->element_type()
+				? objectSemanticType->element_type()
+				: access->type();
+
+			if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
+				auto *array = context.builder.CreateLoad(
+					opaquePointer(),
+					pointer,
+					"ptr.array.load"
+				);
+				const auto *indices = access->indices();
+				const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
+				::llvm::Value *boxedValue = nullptr;
+
+				if (isFixedLengthArray(pointeeSemanticType)) {
+					const auto shape = fixedShape(pointeeSemanticType);
+					auto *offset = fixedShapeLinearOffset(access, shape, static_cast<size_t>(indexCount), false);
+					boxedValue = callRuntime("yogi_array_get", opaquePointer(), {array, offset});
+				} else {
+					const auto *indexRef = indices && indices->size() > 0
+						? indices->Get(0)
+						: access->index();
+					auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
+					auto *index = toIndex(indexValue);
+					auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+					auto *inBounds = context.builder.CreateICmpULT(index, length, "ptr.array.elem.inbounds");
+					auto *inBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.array.elem.ok", context.builder.GetInsertBlock()->getParent());
+					auto *abortBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.array.elem.abort", context.builder.GetInsertBlock()->getParent());
+					context.builder.CreateCondBr(inBounds, inBlock, abortBlock);
+
+					context.builder.SetInsertPoint(abortBlock);
+					context.pushMemorySourceLocation(access->position());
+					auto *operationString = context.builder.CreateGlobalString("array subscript");
+					callRuntime("yogi_runtime_abort_range", ::llvm::Type::getVoidTy(context.llvmContext), {operationString, index, length});
+					context.builder.CreateUnreachable();
+
+					context.builder.SetInsertPoint(inBlock);
+					boxedValue = callRuntime("yogi_array_get", opaquePointer(), {array, index});
+				}
+
+				return cast(unboxAny(boxedValue, targetSemanticType), targetType, targetSemanticType, targetSemanticType);
+			}
+
 			auto *loaded = context.builder.CreateLoad(
 				types.lower(access->type()),
 				pointer,
@@ -2455,6 +2498,38 @@ namespace yogi::core::llvm::internal {
 			const auto *objectType = valueSemanticType(element->object());
 			if (resolvedTypeKind(objectType) == Yogi::Sir::TypeKind_pointer_type) {
 				auto *pointer = lower(element->object(), opaquePointer(), objectType);
+				const auto *pointeeSemanticType = objectType && objectType->element_type()
+					? objectType->element_type()
+					: element->type();
+
+				if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
+					auto *array = context.builder.CreateLoad(
+						opaquePointer(),
+						pointer,
+						"ptr.array.load"
+					);
+					auto *boxedValue = boxAny(rightValue, rightType);
+					const auto *indices = element->indices();
+					const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
+					context.pushMemorySourceLocation(element->position());
+
+					if (isFixedLengthArray(pointeeSemanticType)) {
+						const auto shape = fixedShape(pointeeSemanticType);
+						auto *offset = fixedShapeLinearOffset(element, shape, static_cast<size_t>(indexCount), false);
+						callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, offset, boxedValue});
+						context.popMemorySourceLocation();
+						return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
+					}
+
+					const auto *indexRef = indices && indices->size() > 0
+						? indices->Get(0)
+						: element->index();
+					auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
+					callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, toIndex(indexValue), boxedValue});
+					context.popMemorySourceLocation();
+					return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
+				}
+
 				auto *pointeeType = types.lower(element->type());
 				auto *storedValue = cast(rightValue, pointeeType, element->type(), rightType);
 				context.builder.CreateStore(storedValue, pointer);
