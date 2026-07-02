@@ -254,7 +254,7 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
-  test("rejects inline callback captures for now", () => {
+  test("accepts inline callback captures", () => {
     const root = createProject({
       "main.io": `
         let offset: number = 2
@@ -265,8 +265,8 @@ describe("Yogi frontend semantic pipeline", () => {
 
     const result = runCompiler(root);
 
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("cannot capture");
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
   });
 
   test("rejects block-bodied inline callbacks without required return", () => {

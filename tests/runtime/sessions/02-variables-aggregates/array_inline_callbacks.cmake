@@ -179,12 +179,6 @@ function(expect_invalid case_name source expected)
 endfunction()
 
 expect_invalid(
-	inline_capture
-	"let offset: number = 2\nlet scores: number[] = [1, 2]\nlet shifted: number[] = scores.map((value: number): number => value + offset)\n"
-	"cannot capture"
-)
-
-expect_invalid(
 	block_body_missing_return
 	"let scores: number[] = [1, 2]\nlet shifted: number[] = scores.map((value: number): number => {\n    let shifted: number = value + 1\n})\n"
 	"must return"
