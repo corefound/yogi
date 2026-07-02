@@ -1649,7 +1649,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 node,
                 rawCallee,
                 receiver,
-                [semanticCallback],
+                [semanticCallback, ...args.slice(1)],
                 returnType,
                 methodName,
             );
@@ -1680,7 +1680,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             const callbackName = `inline_callback_${this.createSymbolId()}`;
             this.enterScope();
-            const callbackScopeId = this.getCurrentScopeId();
             const params = (callback.params ?? []).map((param: any) => {
                 return (this as any).visitFunctionParameterDeclaration(
                     {
@@ -1693,7 +1692,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             });
 
             const body = (this as any).visitFunctionBody(callback.body);
-            this.validateInlineCallbackCaptures(body, callbackScopeId, callback, source);
 
             const functionContext = {
                 ...callback,
@@ -1723,43 +1721,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 type: this.toSerializableType(functionType),
                 effectSummary,
             };
-        }
-
-        public validateInlineCallbackCaptures(body: any, callbackScopeId: number, callback: any, source: string): void {
-            const visit = (node: any): void => {
-                if (!node || typeof node !== "object") {
-                    return;
-                }
-
-                if (Array.isArray(node)) {
-                    node.forEach(visit);
-                    return;
-                }
-
-                if (node.kind === Kinds.Expressions.IdentifierExpression) {
-                    const symbol = this.getSymbolById(node.symbolId);
-                    const capturesLocal =
-                        symbol &&
-                        (
-                            symbol.kind === Kinds.ScopeSymbols.Variable ||
-                            symbol.kind === Kinds.ScopeSymbols.Parameter
-                        ) &&
-                        symbol.scopeId !== callbackScopeId;
-
-                    if (capturesLocal) {
-                        const name = node.name ?? node.value ?? node.raw ?? "value";
-                        const message =
-                            `inline callbacks cannot capture local value ${Helpers.RED}'${name}'${Helpers.RESET} yet`;
-
-                        node.arrowLength = name.length;
-                        this.throwError(message, node.position ?? callback.position, source, node);
-                    }
-                }
-
-                Object.values(node).forEach(visit);
-            };
-
-            visit(body);
         }
 
         public removeNullishFromType(type: any): any {
