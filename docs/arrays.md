@@ -448,6 +448,10 @@ Current behavior:
 - Mutating through the view mutates the original storage.
 - 3D views work.
 - Dynamic partial indices keep runtime bounds checks.
+- Functions may return borrowed fixed-shape views from parameters.
+- Returned parameter views carry a borrow summary such as `return borrows from parameter 0`.
+- At call sites, the returned view borrows from the actual argument.
+- Readonly follows the actual argument, not the mutability of the receiving binding.
 - Returning a partial view from a local fixed-shape owner requires `.copy()`.
 - `.copy()` contains only the selected view shape, not the full owner.
 
@@ -486,6 +490,28 @@ pixel[1] = 88
 
 print(image[1, 0, 1]) // 88
 ```
+
+Interprocedural borrowed view:
+
+```ts
+function firstRow(matrix: number[2, 3]): number[3] {
+    return matrix[0]
+}
+
+let matrix: number[2, 3] = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+
+let row: number[3] = firstRow(matrix)
+
+row[2] = 99
+
+print(matrix[0, 2]) // 99
+```
+
+The function records a borrow summary for the return value. `.copy()` breaks the
+borrow relationship and returns owned storage.
 
 ---
 
@@ -982,11 +1008,9 @@ Known issue:
 
 ---
 
-## Future Work
+### 10. Borrow summaries interprocedural
 
-### 1. Borrow summaries interprocedural
-
-Needed for functions that return views borrowed from parameters.
+Supported for functions that return views borrowed from parameters.
 
 Example:
 
@@ -1013,11 +1037,20 @@ let matrix: number[2, 3] = [
 let row: number[3] = firstRow(matrix)
 ```
 
-But must reject unsafe cases where the owner dies before the view.
+The caller attaches the returned view to the actual argument owner. If the
+actual argument is readonly, the returned borrowed view is readonly too, even
+when the receiving binding uses `let`.
+
+Returning a borrowed view from a local owner is still rejected unless `.copy()`
+is used, and `.copy()` returns owned storage.
+
+General borrowed-view escape analysis is still future work.
 
 ---
 
-### 2. Escape analysis complete for borrowed views
+## Future Work
+
+### 1. Escape analysis complete for borrowed views
 
 Cases to analyze:
 
@@ -1040,7 +1073,7 @@ If a borrowed view escapes beyond the owner:
 
 ---
 
-### 3. Cleanup / destructor rules for views
+### 2. Cleanup / destructor rules for views
 
 Borrowed views are non-owning.
 
@@ -1066,7 +1099,7 @@ Views should clean up only their descriptor metadata if required, never the borr
 
 ---
 
-### 4. Dynamic shaped arrays
+### 3. Dynamic shaped arrays
 
 Future syntax:
 
@@ -1106,7 +1139,7 @@ offset = y * stride0 + x * stride1 + 0
 
 ---
 
-### 5. Dynamic shaped views/slices
+### 4. Dynamic shaped views/slices
 
 For dynamic shaped arrays:
 
@@ -1126,7 +1159,7 @@ base = image.base + offset
 
 ---
 
-### 6. Native fixed-shape ABI without runtime descriptor
+### 5. Native fixed-shape ABI without runtime descriptor
 
 Current state:
 
@@ -1146,7 +1179,7 @@ uint8[1080, 1920, 4] -> [8294400 x i8]
 
 ---
 
-### 7. C ABI interop rules for arrays
+### 6. C ABI interop rules for arrays
 
 Need rules for exporting/importing arrays.
 
@@ -1176,7 +1209,7 @@ external C ABI: explicit pointer or descriptor rules
 
 ---
 
-### 8. Lazy iterator objects
+### 7. Lazy iterator objects
 
 Current state:
 
@@ -1195,7 +1228,7 @@ Yogi does not have lazy iterator objects yet.
 
 ---
 
-### 9. Object stringification inside arrays
+### 8. Object stringification inside arrays
 
 Current state:
 
@@ -1208,7 +1241,7 @@ Future work:
 
 ---
 
-### 10. Final array method policy
+### 9. Final array method policy
 
 Need to finalize the method policy across:
 
@@ -1265,7 +1298,7 @@ Special:
 
 ---
 
-### 11. Final diagnostics polish
+### 10. Final diagnostics polish
 
 Improve diagnostics for:
 
@@ -1377,18 +1410,22 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ✅ Spread length validation for fixed-size 1D arrays
 ✅ Spread element type checking for dynamic, fixed, tuple, and union targets
 ✅ Depth-aware semantic result typing for flat(depth)
+✅ Borrow summaries interprocedural
+✅ Core pointer type: ptr<T>
+✅ Address-of expression: &value
 ```
 
 ### Next Lots
 
 ```txt
-⬜ String element extraction from string[] through .at() inside struct fields
+⬜ Pointer parameters and array pointer indexing
 ```
 
 ### Future Work
 
 ```txt
-⬜ Borrow summaries interprocedural
+⬜ Pointer partial views: ptr<number[2, 3]>[0] -> ptr<number[3]>
+⬜ Adjust borrow summaries to ptr<T> parameter returns
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for borrowed views
 ⬜ Dynamic shaped arrays: Array<T, Rank>
@@ -1408,16 +1445,15 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 
 ```txt
 1. String element extraction from string[] through .at() inside struct fields
-2. Borrow summaries interprocedural
-3. Escape analysis complete for borrowed views
-4. Cleanup/destructor rules for borrowed views
-5. Dynamic shaped arrays: Array<T, Rank>
-6. Dynamic shaped views/slices
-7. Native fixed-shape ABI without runtime descriptor
-8. C ABI interop rules for arrays
-9. Lazy iterator objects
-10. Object stringification inside arrays
-11. Final array method policy
-12. Final diagnostics polish
-13. Documentation final pass
+2. Escape analysis complete for borrowed views
+3. Cleanup/destructor rules for borrowed views
+4. Dynamic shaped arrays: Array<T, Rank>
+5. Dynamic shaped views/slices
+6. Native fixed-shape ABI without runtime descriptor
+7. C ABI interop rules for arrays
+8. Lazy iterator objects
+9. Object stringification inside arrays
+10. Final array method policy
+11. Final diagnostics polish
+12. Documentation final pass
 ```

@@ -132,8 +132,8 @@ The copy contains only the selected `number[3]` row. It does not keep the whole
 `number[2, 3]` owner alive. Copying from a `const` local owner also produces an
 owned mutable value because the result no longer borrows readonly storage.
 
-Interprocedural borrowed-view summaries and explicit borrowed return types are
-future work.
+Interprocedural borrowed-view summaries are implemented in Lot 29. Explicit
+borrowed return types remain future work.
 
 ## Current Status
 
@@ -148,9 +148,9 @@ Working:
 - mutating array methods reject readonly borrowed view receivers
 - returning a partial view from a local fixed-shape owner is rejected unless `.copy()` is used
 - `.copy()` creates an owned copy of the selected view shape
+- interprocedural summaries for views returned from parameters
 
 TODO:
 
-- model borrowed views in interprocedural ownership summaries
 - explicit borrowed-view syntax
 - native fixed-shape ABI without runtime descriptors
