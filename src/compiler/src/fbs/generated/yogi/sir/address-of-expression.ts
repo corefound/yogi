@@ -61,9 +61,9 @@ rootName(optionalEncoding?:any):string|Uint8Array|null {
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-accessPath(index: number):string|null
-accessPath(index: number, optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-accessPath(index: number, optionalEncoding?:any):string|Uint8Array|null {
+accessPath(index: number):string
+accessPath(index: number,optionalEncoding:flatbuffers.Encoding):string|Uint8Array
+accessPath(index: number,optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 16);
   return offset ? this.bb!.__string(this.bb!.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
 }
