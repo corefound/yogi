@@ -1427,25 +1427,69 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, args[0].position ?? node.position, source, args[0]);
             }
 
-            const elementType = this.arrayReadableElementType(receiverType);
-            const flattenedType = this.resolveType(elementType)?.kind === Kinds.Types.ArrayType ||
-                this.resolveType(elementType)?.kind === Kinds.Types.TupleType
-                    ? this.arrayReadableElementType(this.resolveType(elementType))
-                    : elementType;
-
             return this.createArrayBuiltinCall(
                 node,
                 rawCallee,
                 receiver,
                 args,
-                {
-                    kind: Kinds.Types.ArrayType,
-                    raw: `${flattenedType?.raw ?? "unknown"}[]`,
-                    elementType: flattenedType,
-                    readonly: false,
-                },
+                this.flatReturnTypeByDepth(receiverType, args[0], node, source),
                 methodName,
             );
+        }
+
+        public flatReturnTypeByDepth(receiverType: any, depthArgument: any, node: any, source: string): any {
+            const literalDepth = depthArgument
+                ? this.knownFlatDepthLiteral(depthArgument, node, source)
+                : 1;
+
+            const depth = literalDepth ?? 1;
+            let flattenedType = receiverType;
+
+            for (let index = 0; index < depth; index++) {
+                const readable = this.arrayReadableElementType(flattenedType);
+                const resolvedReadable = this.resolveType(readable);
+
+                if (
+                    resolvedReadable?.kind !== Kinds.Types.ArrayType &&
+                    resolvedReadable?.kind !== Kinds.Types.TupleType
+                ) {
+                    flattenedType = {
+                        kind: Kinds.Types.ArrayType,
+                        raw: `${readable?.raw ?? "unknown"}[]`,
+                        elementType: readable,
+                        readonly: false,
+                    };
+                    break;
+                }
+
+                flattenedType = {
+                    kind: Kinds.Types.ArrayType,
+                    raw: `${this.arrayReadableElementType(resolvedReadable)?.raw ?? "unknown"}[]`,
+                    elementType: this.arrayReadableElementType(resolvedReadable),
+                    readonly: false,
+                };
+            }
+
+            return this.toSerializableType(flattenedType);
+        }
+
+        public knownFlatDepthLiteral(depthArgument: any, node: any, source: string): number | null {
+            if (depthArgument?.kind !== Kinds.Sir.NumberConstant) {
+                return null;
+            }
+
+            const value = Number(depthArgument.value);
+
+            if (!Number.isInteger(value) || value < 0) {
+                const message =
+                    `array method ${Helpers.BLUE}'flat'${Helpers.RESET} depth must be a ` +
+                    `${Helpers.BLUE}'non-negative integer'${Helpers.RESET}`;
+
+                depthArgument.arrowLength = depthArgument.source?.length ?? 1;
+                this.throwError(message, depthArgument.position ?? node.position, source, depthArgument);
+            }
+
+            return value;
         }
 
         public validateAndCreateIteratorArrayCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
