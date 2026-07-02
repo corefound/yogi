@@ -363,6 +363,14 @@ if(BUILD_TESTING)
                 )
 
                 add_test(
+                        NAME yogi_pipeline_array_flat_depth_semantics
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-flat-depth-semantics
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_flat_depth_semantics.cmake
+                )
+
+                add_test(
                         NAME yogi_pipeline_array_indexing_semantics
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
