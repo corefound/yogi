@@ -78,6 +78,10 @@ namespace yogi::core::llvm::internal {
 			return lowerElementAccess(access, expectedType, expectedSemanticType);
 		}
 
+		if (const auto *addressOf = value->address_of()) {
+			return lowerAddressOf(addressOf, expectedType, expectedSemanticType);
+		}
+
 		if (const auto *assignment = value->aggregate_assignment()) {
 			return lowerAggregateAssignment(assignment);
 		}
@@ -1560,6 +1564,49 @@ namespace yogi::core::llvm::internal {
 		}
 
 		return types.zero(expectedType);
+	}
+
+	::llvm::Value *ValueLowerer::lowerAddressOf(
+		const Yogi::Sir::AddressOfExpression *addressOf,
+		::llvm::Type *expectedType,
+		const Yogi::Sir::TypeRef *expectedSemanticType
+	) {
+		const auto *identifier = addressOf->target() ? addressOf->target()->identifier() : nullptr;
+		const auto name = identifier ? fbString(identifier->name()) : "";
+		::llvm::Value *address = nullptr;
+
+		if (!name.empty() && context.locals.contains(name)) {
+			address = context.locals[name];
+		} else if (!name.empty() && context.globals.contains(name)) {
+			address = context.globals[name];
+		} else if (identifier && identifier->qualified_name()) {
+			const auto qualifiedName = fbString(identifier->qualified_name());
+			const auto symbolName = "_yogi_" + sanitizeSymbol(qualifiedName);
+			address = context.module->getGlobalVariable(symbolName);
+
+			if (!address) {
+				auto *type = types.lower(identifier->type());
+				address = new ::llvm::GlobalVariable(
+					*context.module,
+					type,
+					false,
+					::llvm::GlobalValue::ExternalLinkage,
+					nullptr,
+					symbolName
+				);
+			}
+		}
+
+		if (!address) {
+			return types.zero(expectedType ? expectedType : opaquePointer());
+		}
+
+		return cast(
+			address,
+			expectedType ? expectedType : opaquePointer(),
+			expectedSemanticType ? expectedSemanticType : addressOf->type(),
+			addressOf->type()
+		);
 	}
 
 	::llvm::Value *ValueLowerer::lowerArray(
@@ -3308,6 +3355,10 @@ namespace yogi::core::llvm::internal {
 
 		if (const auto *access = value->element_access()) {
 			return access->type();
+		}
+
+		if (const auto *addressOf = value->address_of()) {
+			return addressOf->type();
 		}
 
 		if (const auto *assignment = value->aggregate_assignment()) {

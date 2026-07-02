@@ -281,6 +281,16 @@ export class BaseSemantic {
             };
         }
 
+        if (type.kind === Kinds.Types.PointerType) {
+            const elementType = type.elementType ?? type.pointee;
+
+            return {
+                ...type,
+                elementType: this.substituteType(elementType, substitutions),
+                pointee: this.substituteType(elementType, substitutions),
+            };
+        }
+
         if (type.kind === Kinds.Types.TupleType) {
             return {
                 ...type,
@@ -374,6 +384,16 @@ export class BaseSemantic {
             return serialized;
         }
 
+        if (type.kind === Kinds.Types.PointerType) {
+            const elementType = type.elementType ?? type.pointee;
+
+            return {
+                ...type,
+                elementType: elementType ? this.toSerializableType(elementType, seen) : elementType,
+                pointee: elementType ? this.toSerializableType(elementType, seen) : elementType,
+            };
+        }
+
         if (Array.isArray(type.types)) {
             return {
                 ...type,
@@ -439,6 +459,10 @@ export class BaseSemantic {
 
         if (actualType.kind === Kinds.Types.NeverType) {
             return true;
+        }
+
+        if (this.isPointerType(expectedType) || this.isPointerType(actualType)) {
+            return this.isPointerAssignable(expectedType, actualType);
         }
 
         const expectedScalarBase = this.scalarStructBaseType(expectedType);
@@ -535,6 +559,84 @@ export class BaseSemantic {
         }
 
         return expectedType.kind === actualType.kind;
+    }
+
+    public isPointerType(type: any): boolean {
+        return this.resolveType(type)?.kind === Kinds.Types.PointerType;
+    }
+
+    public isPointerAssignable(expectedType: any, actualType: any): boolean {
+        const expected = this.resolveType(expectedType);
+        const actual = this.resolveType(actualType);
+
+        if (
+            expected?.kind !== Kinds.Types.PointerType ||
+            actual?.kind !== Kinds.Types.PointerType
+        ) {
+            return false;
+        }
+
+        return this.areTypesStructurallySame(
+            expected.elementType ?? expected.pointee,
+            actual.elementType ?? actual.pointee,
+        );
+    }
+
+    public areTypesStructurallySame(leftType: any, rightType: any): boolean {
+        const left = this.resolveType(leftType);
+        const right = this.resolveType(rightType);
+
+        if (!left || !right || left.kind !== right.kind) {
+            return false;
+        }
+
+        if (left.kind === Kinds.Types.PointerType) {
+            return this.areTypesStructurallySame(
+                left.elementType ?? left.pointee,
+                right.elementType ?? right.pointee,
+            );
+        }
+
+        if (left.kind === Kinds.Types.ArrayType) {
+            const leftShape = left.shape ?? [];
+            const rightShape = right.shape ?? [];
+
+            if (left.fixed === true || right.fixed === true) {
+                if (left.fixed !== right.fixed) return false;
+                if (leftShape.length !== rightShape.length) return false;
+                if (!leftShape.every((size: number, index: number) => size === rightShape[index])) return false;
+            }
+
+            return this.areTypesStructurallySame(left.elementType, right.elementType);
+        }
+
+        if (left.kind === Kinds.Types.TupleType) {
+            const leftElements = left.elements ?? [];
+            const rightElements = right.elements ?? [];
+
+            if (leftElements.length !== rightElements.length) return false;
+
+            return leftElements.every((item: any, index: number) =>
+                this.areTypesStructurallySame(item, rightElements[index]),
+            );
+        }
+
+        if (left.kind === Kinds.Types.UnionType || left.kind === Kinds.Types.IntersectionType) {
+            const leftTypes = left.types ?? [];
+            const rightTypes = right.types ?? [];
+
+            if (leftTypes.length !== rightTypes.length) return false;
+
+            return leftTypes.every((item: any, index: number) =>
+                this.areTypesStructurallySame(item, rightTypes[index]),
+            );
+        }
+
+        if (left.kind === Kinds.Types.TypeReference) {
+            return this.getTypeReferenceName(left) === this.getTypeReferenceName(right);
+        }
+
+        return left.raw === right.raw || left.kind === right.kind;
     }
 
     public fixedArraySliceType(arrayType: any, consumedDimensions: number): any {
@@ -811,6 +913,10 @@ export class BaseSemantic {
 
         if (type.elementType) {
             this.validateTypeUsages(type.elementType, source);
+        }
+
+        if (type.pointee) {
+            this.validateTypeUsages(type.pointee, source);
         }
 
         for (const child of type.types ?? type.elements ?? []) {
@@ -1506,6 +1612,9 @@ export class BaseSemantic {
             case Kinds.Expressions.ElementAccessExpression:
                 return this.visitElementAccessExpression(node);
 
+            case Kinds.Expressions.AddressOfExpression:
+                return this.visitAddressOfExpression(node);
+
             case Kinds.Expressions.SpreadElement:
                 return this.visitSpreadElement(node);
 
@@ -1683,6 +1792,7 @@ export class BaseSemantic {
     visitArrayLikeDeclarations(_: any): any { }
     visitArrayExpression(_: any): any { }
     visitSpreadElement(_: any): any { }
+    visitAddressOfExpression(_: any): any { }
     visitDictionaryExpression(_: any): any { }
     visitReturnStatement(_: any): any { }
     visitExterns(_: any): any { }

@@ -205,6 +205,17 @@ export type SemanticElementAccessExpression = {
     index: SemanticValueInput;
     indices?: SemanticValueInput[];
     type: SemanticType;
+    borrowedView?: boolean;
+    borrowedViewReadonly?: boolean;
+    borrowedViewSourceName?: string | null;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticAddressOfExpression = {
+    kind: "AddressOfExpression";
+    target: SemanticValueInput;
+    type: SemanticType;
     source?: string;
     position?: SourcePosition;
 };
@@ -230,6 +241,7 @@ export type SemanticValueInput =
     | SemanticObjectExpression
     | SemanticPropertyAccessExpression
     | SemanticElementAccessExpression
+    | SemanticAddressOfExpression
     | SemanticAggregateAssignmentExpression;
 
 export type SemanticVariableDeclaration = {

@@ -4,6 +4,7 @@
 
 import * as flatbuffers from 'flatbuffers';
 
+import { AddressOfExpression } from '../../yogi/sir/address-of-expression.js';
 import { AggregateAssignmentExpression } from '../../yogi/sir/aggregate-assignment-expression.js';
 import { ArrayExpression } from '../../yogi/sir/array-expression.js';
 import { AssignmentExpression } from '../../yogi/sir/assignment-expression.js';
@@ -99,18 +100,23 @@ elementAccess(obj?:ElementAccessExpression):ElementAccessExpression|null {
   return offset ? (obj || new ElementAccessExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
-aggregateAssignment(obj?:AggregateAssignmentExpression):AggregateAssignmentExpression|null {
+addressOf(obj?:AddressOfExpression):AddressOfExpression|null {
   const offset = this.bb!.__offset(this.bb_pos, 28);
+  return offset ? (obj || new AddressOfExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
+aggregateAssignment(obj?:AggregateAssignmentExpression):AggregateAssignmentExpression|null {
+  const offset = this.bb!.__offset(this.bb_pos, 30);
   return offset ? (obj || new AggregateAssignmentExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 functionExpression(obj?:FunctionExpression):FunctionExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 30);
+  const offset = this.bb!.__offset(this.bb_pos, 32);
   return offset ? (obj || new FunctionExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startValueRef(builder:flatbuffers.Builder) {
-  builder.startObject(14);
+  builder.startObject(15);
 }
 
 static addKind(builder:flatbuffers.Builder, kindOffset:flatbuffers.Offset) {
@@ -161,12 +167,16 @@ static addElementAccess(builder:flatbuffers.Builder, elementAccessOffset:flatbuf
   builder.addFieldOffset(11, elementAccessOffset, 0);
 }
 
+static addAddressOf(builder:flatbuffers.Builder, addressOfOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(12, addressOfOffset, 0);
+}
+
 static addAggregateAssignment(builder:flatbuffers.Builder, aggregateAssignmentOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(12, aggregateAssignmentOffset, 0);
+  builder.addFieldOffset(13, aggregateAssignmentOffset, 0);
 }
 
 static addFunctionExpression(builder:flatbuffers.Builder, functionExpressionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(13, functionExpressionOffset, 0);
+  builder.addFieldOffset(14, functionExpressionOffset, 0);
 }
 
 static endValueRef(builder:flatbuffers.Builder):flatbuffers.Offset {

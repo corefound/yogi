@@ -19,5 +19,6 @@ export enum TypeKind {
   array_type = 13,
   tuple_type = 14,
   function_type = 15,
-  type_literal = 16
+  type_literal = 16,
+  pointer_type = 17
 }

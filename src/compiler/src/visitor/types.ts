@@ -451,6 +451,18 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const ref = node as ts.TypeReferenceNode;
                     const nameText = ref.typeName.getText();
 
+                    if (nameText === "ptr" && ref.typeArguments?.length === 1) {
+                        const elementType = this.visitType(ref.typeArguments[0]);
+
+                        return {
+                            kind: Kinds.Types.PointerType,
+                            elementType,
+                            pointee: elementType,
+                            raw: ref.getText(),
+                            position: this.getNodePosistion(node),
+                        };
+                    }
+
                     if (nameText === "ReadonlyArray" && ref.typeArguments?.length === 1) {
                         return {
                             kind: Kinds.Types.ArrayType,

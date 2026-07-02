@@ -226,6 +226,29 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
 
                 if (!validatedByAggregate && !this.isTypeAssignable(expectedType, actualType)) {
+                    const resolvedExpected = this.resolveType(expectedType);
+                    const resolvedActual = this.resolveType(actualType);
+                    const expectedIsPointer = resolvedExpected?.kind === Kinds.Types.PointerType;
+                    const actualIsPointer = resolvedActual?.kind === Kinds.Types.PointerType;
+
+                    if (expectedIsPointer || actualIsPointer) {
+                        const message =
+                            `expected ${Helpers.BLUE}'${expectedType?.raw ?? resolvedExpected?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                            `${Helpers.RED}'${actualType?.raw ?? resolvedActual?.raw ?? "unknown"}'${Helpers.RESET}`;
+                        const help = expectedIsPointer && args[index]?.kind === Kinds.Expressions.IdentifierExpression
+                            ? `  = pass '&${args[index].name ?? args[index].value ?? args[index].raw}'`
+                            : undefined;
+
+                        args[index].arrowLength = args[index].source?.length ?? 1;
+                        this.throwError(
+                            message,
+                            args[index].position ?? node.position,
+                            node.fullSource ?? node.source,
+                            args[index],
+                            help,
+                        );
+                    }
+
                     const message =
                         `argument ${Helpers.BLUE}'${index + 1}'${Helpers.RESET} of ` +
                         `${Helpers.BLUE}'${calleeName}'${Helpers.RESET} must be ` +
@@ -1877,7 +1900,101 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     type: { kind: Kinds.Types.NumberType, raw: "number" },
                 },
                 node.fullSource ?? node.source,
-            );
+	            );
+	        }
+
+        public visitAddressOfExpression(node: any): any {
+            const targetNode = node.target;
+            const source = node.fullSource ?? node.source;
+
+            if (targetNode?.kind === Kinds.Expressions.ParenthesizedExpression) {
+                const inner = targetNode.expression;
+
+                if (inner?.kind === Kinds.Expressions.IdentifierExpression) {
+                    return this.visitAddressOfExpression({
+                        ...node,
+                        target: inner,
+                    });
+                }
+
+                targetNode.arrowLength = targetNode.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `cannot take address of temporary expression`,
+                    targetNode.position ?? node.position,
+                    source,
+                    targetNode,
+                );
+            }
+
+            if (targetNode?.kind === Kinds.Collections.ArrayExpression) {
+                targetNode.arrowLength = targetNode.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `cannot take address of temporary array literal`,
+                    targetNode.position ?? node.position,
+                    source,
+                    targetNode,
+                );
+            }
+
+            if (targetNode?.kind === Kinds.Literals.StringLiteral) {
+                targetNode.arrowLength = targetNode.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `cannot take address of temporary string literal`,
+                    targetNode.position ?? node.position,
+                    source,
+                    targetNode,
+                );
+            }
+
+            if (targetNode?.kind !== Kinds.Expressions.IdentifierExpression) {
+                targetNode.arrowLength = targetNode?.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `address-of is currently supported only for local variables`,
+                    targetNode?.position ?? node.position,
+                    source,
+                    targetNode ?? node,
+                );
+            }
+
+            const target = this.visitNode(targetNode);
+            const targetName = target.name ?? target.value ?? target.raw;
+            const symbol = targetName ? this.resolveSymbol(targetName) : null;
+
+            if (!symbol) {
+                target.arrowLength = targetName?.length ?? 1;
+                this.throwError(
+                    `cannot find name ${Helpers.RED}'${targetName ?? "unknown"}'${Helpers.RESET}`,
+                    target.position ?? node.position,
+                    source,
+                    target,
+                );
+            }
+
+            if (symbol.mutable !== true) {
+                const pointerRaw = `ptr<${target.type?.raw ?? "unknown"}>`;
+                target.arrowLength = targetName?.length ?? 1;
+                this.throwError(
+                    `cannot create mutable ${Helpers.BLUE}'${pointerRaw}'${Helpers.RESET} from readonly value ` +
+                    `${Helpers.RED}'${targetName}'${Helpers.RESET}`,
+                    target.position ?? node.position,
+                    source,
+                    target,
+                );
+            }
+
+            const pointee = this.toSerializableType(target.type);
+
+            return {
+                ...node,
+                target,
+                kind: Kinds.Expressions.AddressOfExpression,
+                type: {
+                    kind: Kinds.Types.PointerType,
+                    raw: `ptr<${pointee?.raw ?? "unknown"}>`,
+                    elementType: pointee,
+                    pointee,
+                },
+            };
         }
 
         /**

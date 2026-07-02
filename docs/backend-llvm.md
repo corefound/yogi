@@ -75,6 +75,36 @@ yogi_print_string
 yogi_print_any
 ```
 
+## Pointer Values
+
+Yogi pointer syntax is explicit:
+
+```ts
+let age: number = 10
+let p: ptr<number> = &age
+```
+
+The frontend serializes `ptr<T>` as a SIR `TypeRef` with:
+
+```text
+kind = pointer_type
+element_type = T
+```
+
+The address-of expression `&value` is serialized as `AddressOfExpression`.
+For this first pointer lot, address-of is supported for variables and lowers to
+the storage address for that local/global binding. The backend does not insert
+implicit dereference operations, pointer arithmetic, pointer indexing, or
+pointer-based borrowed views yet.
+
+LLVM lowering uses pointer values directly:
+
+```text
+ptr<T> -> LLVM pointer to T storage
+&local -> alloca/global address
+pointer assignment -> pointer value copy
+```
+
 ## Fixed-Shape Arrays
 
 Fixed-shape arrays use Yogi's rectangular coordinate syntax:

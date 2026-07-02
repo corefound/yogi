@@ -65,6 +65,7 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_any_type:
 			case Yogi::Sir::TypeKind_union_type:
 			case Yogi::Sir::TypeKind_unknown_type:
+			case Yogi::Sir::TypeKind_pointer_type:
 				return opaquePointerType(context.llvmContext);
 
 			case Yogi::Sir::TypeKind_type_reference: {

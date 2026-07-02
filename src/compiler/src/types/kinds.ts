@@ -77,6 +77,7 @@ export namespace Kinds {
         ConditionalExpression = "ConditionalExpression",
         PropertyAccessExpression = "PropertyAccessExpression",
         ElementAccessExpression = "ElementAccessExpression",
+        AddressOfExpression = "AddressOfExpression",
         CallExpression = "CallExpression",
         ParenthesizedExpression = "ParenthesizedExpression",
         SpreadElement = "SpreadElement",
@@ -191,6 +192,7 @@ export namespace Kinds {
 
         ArrayType = "ArrayType",
         TupleType = "TupleType",
+        PointerType = "PointerType",
 
         UnionType = "UnionType",
         IntersectionType = "IntersectionType",

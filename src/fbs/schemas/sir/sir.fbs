@@ -30,6 +30,7 @@ table ValueRef {
   object:ObjectExpression;
   property_access:PropertyAccessExpression;
   element_access:ElementAccessExpression;
+  address_of:AddressOfExpression;
   aggregate_assignment:AggregateAssignmentExpression;
   function_expression:FunctionExpression;
 }
@@ -123,6 +124,13 @@ table ElementAccessExpression {
   object:ValueRef;
   index:ValueRef;
   indices:[ValueRef];
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+}
+
+table AddressOfExpression {
+  target:ValueRef;
   type:TypeRef;
   source:string;
   position:SourcePosition;

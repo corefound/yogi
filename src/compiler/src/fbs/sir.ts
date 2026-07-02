@@ -31,6 +31,7 @@ import {
     ObjectProperty,
     PropertyAccessExpression,
     ElementAccessExpression,
+    AddressOfExpression,
     AggregateAssignmentExpression,
     VariableDeclaration,
     ArrayDeclaration,
@@ -484,6 +485,9 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 case "TupleType":
                     return TypeKind.tuple_type;
 
+                case "PointerType":
+                    return TypeKind.pointer_type;
+
                 case "FunctionType":
                     return TypeKind.function_type;
 
@@ -613,6 +617,9 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const elementAccess = node.kind === "ElementAccessExpression"
                 ? this.createElementAccessExpression(builder, node)
                 : 0;
+            const addressOf = node.kind === "AddressOfExpression"
+                ? this.createAddressOfExpression(builder, node as any)
+                : 0;
             const aggregateAssignment = node.kind === "AggregateAssignmentExpression"
                 ? this.createAggregateAssignmentExpression(builder, node)
                 : 0;
@@ -632,6 +639,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 !object &&
                 !propertyAccess &&
                 !elementAccess &&
+                !addressOf &&
                 !aggregateAssignment &&
                 !functionExpression
             ) {
@@ -683,6 +691,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
 
             if (elementAccess) {
                 ValueRef.addElementAccess(builder, elementAccess);
+            }
+
+            if (addressOf) {
+                ValueRef.addAddressOf(builder, addressOf);
             }
 
             if (aggregateAssignment) {
@@ -1075,6 +1087,24 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             ElementAccessExpression.addPosition(builder, position);
 
             return ElementAccessExpression.endElementAccessExpression(builder);
+        }
+
+        static createAddressOfExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticAddressOfExpression,
+        ): fbs.Offset {
+            const target = this.createValueRef(builder, expression.target);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+
+            AddressOfExpression.startAddressOfExpression(builder);
+            AddressOfExpression.addTarget(builder, target);
+            AddressOfExpression.addType(builder, type);
+            AddressOfExpression.addSource(builder, source);
+            AddressOfExpression.addPosition(builder, position);
+
+            return AddressOfExpression.endAddressOfExpression(builder);
         }
 
         static createAggregateAssignmentExpression(

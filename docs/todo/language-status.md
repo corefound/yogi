@@ -49,6 +49,8 @@ without re-auditing the whole compiler.
 
 ## Arrays
 
+- [x] Core pointer type syntax `ptr<T>`
+- [x] Address-of expression `&value` for addressable variables
 - [x] Dynamic arrays with runtime descriptor and heap buffer
 - [x] Strict bracket access with runtime range errors
 - [x] Safe `.at(index)` access that may return `undefined`
@@ -73,6 +75,9 @@ without re-auditing the whole compiler.
 - [x] Iterator protocol support for arrays
 - [x] Array print support
 - [x] Const/readonly propagation through borrowed fixed-shape views
+- [ ] Pointer parameters and array pointer indexing
+- [ ] Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`
+- [ ] Borrow summaries adjusted for `ptr<T>` parameter returns
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions

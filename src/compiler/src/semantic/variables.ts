@@ -257,6 +257,31 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
             if (!isAmbient && !this.checkDataType(context.type, value)) {
                 const actualType = value?.type;
+                const expectedResolved = this.resolveType(context.type);
+                const actualResolved = this.resolveType(actualType);
+                const expectedIsPointer = expectedResolved?.kind === Kinds.Types.PointerType;
+                const actualIsPointer = actualResolved?.kind === Kinds.Types.PointerType;
+                const expectedRaw = context.type?.raw ?? expectedResolved?.raw ?? "unknown";
+                const actualRaw = actualType?.raw ?? actualResolved?.raw ?? "unknown";
+
+                if (expectedIsPointer || actualIsPointer) {
+                    const message =
+                        `expected ${Helpers.BLUE}'${expectedRaw}'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${actualRaw}'${Helpers.RESET}`;
+                    const help = expectedIsPointer && value?.kind === Kinds.Expressions.IdentifierExpression
+                        ? `  = use '&${value.name ?? value.value ?? value.raw}' to create a pointer`
+                        : undefined;
+
+                    value.arrowLength = value.source?.length ?? context.name?.length ?? 1;
+                    this.throwError(
+                        message,
+                        value.position ?? context.position,
+                        source,
+                        value,
+                        help,
+                    );
+                }
+
                 const message = actualType?.kind === Kinds.Types.AnyType
                     ? `cannot initialize ${Helpers.BLUE}'${context.name}'${Helpers.RESET} of type ` +
                     `${Helpers.BLUE}'${context.type.raw}'${Helpers.RESET} from ${Helpers.RED}'any'${Helpers.RESET} without an explicit cast`
