@@ -144,8 +144,10 @@ print(unionRow[0] as string)
 print(unionRow[1] as number)
 unionRow[0] = 99
 unionRow[1] = "C"
-print(grid[1, 0] as number)
-print(grid[1, 1] as string)
+print(unionRow[0] as number)
+print(unionRow[1] as string)
+print(grid[1, 0] as string)
+print(grid[1, 1] as number)
 
 let matrixF: number[2, 3] = [
     [1, 2, 3],
@@ -195,7 +197,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array borrow summaries executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n2\n3\n99\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\n99\n")
+set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array borrow summaries executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
