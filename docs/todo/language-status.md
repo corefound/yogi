@@ -58,6 +58,10 @@ without re-auditing the whole compiler.
 - [x] Pointer arithmetic rejection in safe Yogi
 - [x] Scalar pointer access/read with `p[0]` for `ptr<number>`, `ptr<string>`, and `ptr<boolean>`
 - [x] Scalar pointer write-through with `p[0] = value`
+- [x] Pointer parameters for scalar values, dynamic 1D arrays, and fixed-shape arrays
+- [x] Full fixed-shape array pointer indexing read/write through caller storage
+- [x] Dynamic 1D array pointer indexing through `ptr<number[]>`
+- [x] Normal fixed-shape array parameters use local/value semantics
 - [x] Readonly provenance enforcement for pointer write-through
 - [x] `const p: ptr<T>` binding behavior separated from pointed storage mutability
 - [x] Basic function pointer mutation summaries and call-site rejection for `&const`
@@ -86,9 +90,10 @@ without re-auditing the whole compiler.
 - [x] Iterator protocol support for arrays
 - [x] Array print support
 - [x] Const/readonly propagation through borrowed fixed-shape views
-- [ ] General pointer indexing/dereference beyond scalar literal `0`
+- [x] General array pointer indexing beyond scalar literal `0`
 - [ ] Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`
 - [ ] Borrow summaries adjusted for `ptr<T>` parameter returns
+- [ ] General dereference operator syntax
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions

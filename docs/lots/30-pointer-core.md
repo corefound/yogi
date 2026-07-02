@@ -79,6 +79,27 @@ print(age)
 
 The same scalar access path works for `ptr<string>` and `ptr<boolean>`.
 
+Pointer parameters can also index array storage through the caller's descriptor.
+Full fixed-shape indexing reads or writes scalar elements:
+
+```ts
+function change(matrix: ptr<number[2, 3]>): void {
+    matrix[0, 2] = 99
+}
+
+function read(matrix: ptr<number[2, 3]>): number {
+    return matrix[1, 2]
+}
+```
+
+Dynamic 1D array pointers use the same descriptor path:
+
+```ts
+function setFirst(values: ptr<number[]>): void {
+    values[0] = 99
+}
+```
+
 ## Rules
 
 - `ptr<T>` appears only in type positions.
@@ -95,8 +116,11 @@ The same scalar access path works for `ptr<string>` and `ptr<boolean>`.
 - Scalar pointer access uses `p[0]`.
 - Scalar pointer write-through uses `p[0] = value`.
 - Scalar pointer access currently requires literal index `0`.
+- Fixed-shape array pointer access requires full coordinate indexing for now.
+- Dynamic 1D array pointer access uses one index.
+- Normal array parameters use local/value semantics; pointer array parameters mutate caller storage.
 - Write-through permission comes from the pointed storage, not from the pointer binding.
-- Function summaries mark pointer parameters as `mutates` when the body writes through `param[0]`.
+- Function summaries mark pointer parameters as `mutates` when the body writes through pointer indexing.
 - Passing `&constValue` to a pointer parameter that may mutate is rejected at the call site.
 
 ## Rejected
@@ -184,17 +208,20 @@ ptr<T> -> LLVM pointer to T storage
 pointer assignment -> pointer copy
 p[0] read -> load pointee from pointer value
 p[0] write -> store value through pointer value
+ptr<array>[i, j] read -> load caller array descriptor, row-major offset, yogi_array_get
+ptr<array>[i, j] write -> load caller array descriptor, row-major offset, yogi_array_set
 ```
 
-For dynamic arrays, `ptr<number[]>` points at the array descriptor/value storage, not directly at the heap element buffer.
+For dynamic arrays, `ptr<number[]>` points at the array descriptor/value storage,
+not directly at the heap element buffer. Pointer array indexing keeps the same
+runtime bounds checking path as normal array indexing.
 
 ## Current Limitations
 
-- Pointer array indexing.
 - Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`.
 - Dereference operator.
 - Borrow summaries for functions that return pointer-derived views.
-- Pointer access beyond scalar literal `0`.
+- Dynamic shaped array pointers such as `ptr<Array<T, Rank>>`.
 
 ## Tests
 
@@ -202,6 +229,7 @@ CTest:
 
 ```txt
 yogi_pipeline_pointer_core
+yogi_pipeline_pointer_array_indexing
 ```
 
 The suite covers:
@@ -214,6 +242,11 @@ The suite covers:
 - pointer-to-pointer
 - function pointer parameter
 - scalar pointer read and write-through
+- fixed-shape array pointer read and write-through
+- dynamic 1D array pointer read and write-through
+- normal fixed-shape array parameter local/value semantics
+- union element pointer indexing
+- dynamic index runtime bounds checks through fixed-shape pointer indexing
 - readonly provenance write rejection
 - const pointer binding write-through to mutable roots
 - function pointer read/write summaries

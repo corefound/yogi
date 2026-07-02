@@ -245,13 +245,13 @@ const p: ptr<number> = &age
 
 ## 6. Strict Assignability
 
-- [ ] Assigning `T` to `ptr<T>` without `&` is rejected.
-- [ ] Assigning `ptr<T>` to `T` is rejected.
-- [ ] Passing `T` to a parameter expecting `ptr<T>` without `&` is rejected.
-- [ ] Passing `ptr<T>` to a parameter expecting `T` is rejected.
-- [ ] `ptr<number>` is not assignable to `ptr<string>`.
-- [ ] `ptr<number[2,3]>` is not assignable to `ptr<number[]>`.
-- [ ] `ptr<ptr<number>>` is not assignable to `ptr<number>`.
+- [x] Assigning `T` to `ptr<T>` without `&` is rejected.
+- [x] Assigning `ptr<T>` to `T` is rejected.
+- [x] Passing `T` to a parameter expecting `ptr<T>` without `&` is rejected.
+- [x] Passing `ptr<T>` to a parameter expecting `T` is rejected.
+- [x] `ptr<number>` is not assignable to `ptr<string>`.
+- [x] `ptr<number[2,3]>` is not assignable to `ptr<number[]>`.
+- [x] `ptr<ptr<number>>` is not assignable to `ptr<number>`.
 
 Invalid:
 
@@ -346,14 +346,14 @@ Uses explicit pointer/reference semantics.
 
 Checklist:
 
-- [ ] Function parameters can use `ptr<T>`.
+- [x] Function parameters can use `ptr<T>`.
 - [ ] Return types can use `ptr<T>`.
-- [ ] Call site must pass `&value` or existing pointer for `ptr<T>` parameter.
-- [ ] Normal value parameter still uses local/value semantics.
-- [ ] Passing pointer to normal value parameter is rejected.
-- [ ] Passing normal value to pointer parameter is rejected.
-- [ ] Pointer parameters can be copied as pointer values.
-- [ ] Pointer parameters preserve provenance/permission from call site.
+- [x] Call site must pass `&value` or existing pointer for `ptr<T>` parameter.
+- [x] Normal value parameter still uses local/value semantics.
+- [x] Passing pointer to normal value parameter is rejected.
+- [x] Passing normal value to pointer parameter is rejected.
+- [x] Pointer parameters can be copied as pointer values.
+- [x] Pointer parameters preserve provenance/permission from call site.
 
 Example:
 
@@ -472,8 +472,9 @@ Checklist:
 
 - [x] Define read from `ptr<number>` using `p[0]`.
 - [x] Define read from `ptr<string>` if string pointer access is supported.
-- [ ] Define read from `ptr<number[N]>` using `p[i]`.
-- [ ] Define read from `ptr<number[R,C]>` using `p[i,j]`.
+- [x] Define read from `ptr<number[N]>` using `p[i]`.
+- [x] Define read from `ptr<number[R,C]>` using `p[i,j]`.
+- [x] Define read from `ptr<number[]>` using `p[i]`.
 - [x] No implicit pointer-to-value conversion.
 - [x] Optional `*p` dereference is not part of initial model.
 
@@ -492,8 +493,8 @@ let value: number = p[0]
 Checklist:
 
 - [x] Assignment through pointer is supported for scalar pointer access.
-- [ ] Assignment through fixed array pointer access is supported.
-- [ ] Assignment through fixed matrix pointer access is supported.
+- [x] Assignment through fixed array pointer access is supported.
+- [x] Assignment through fixed matrix pointer access is supported.
 - [x] Write-through checks pointer permission.
 - [x] Write-through is allowed for mutable provenance.
 - [x] Write-through is rejected for readonly provenance.
@@ -527,12 +528,12 @@ error: cannot mutate storage derived from const value 'age'
 
 Checklist:
 
-- [ ] `&array` produces `ptr<number[N]>` for fixed arrays.
-- [ ] `&matrix` produces `ptr<number[R,C]>` for fixed matrices.
-- [ ] Passing `&matrix` to `ptr<number[R,C]>` parameter does not copy the matrix.
-- [ ] Pointer to fixed array preserves shape.
-- [ ] Pointer to fixed matrix preserves rank and shape.
-- [ ] Shape mismatch is rejected.
+- [x] `&array` produces `ptr<number[N]>` for fixed arrays.
+- [x] `&matrix` produces `ptr<number[R,C]>` for fixed matrices.
+- [x] Passing `&matrix` to `ptr<number[R,C]>` parameter does not copy the matrix.
+- [x] Pointer to fixed array preserves shape.
+- [x] Pointer to fixed matrix preserves rank and shape.
+- [x] Shape mismatch is rejected.
 
 Example:
 
@@ -563,12 +564,12 @@ error: expected ptr<number[3, 2]>, got ptr<number[2, 3]>
 
 Checklist:
 
-- [ ] If `values: ptr<number[N]>`, then `values[i]` in read position returns `number`.
-- [ ] If `values: ptr<number[N]>`, then `values[i] = x` writes through pointer if mutable.
-- [ ] If `matrix: ptr<number[R,C]>`, then `matrix[i,j]` in read position returns `number`.
-- [ ] If `matrix: ptr<number[R,C]>`, then `matrix[i,j] = x` writes through pointer if mutable.
-- [ ] Index rank must match shape for full element access.
-- [ ] Bounds checking is performed according to Yogi's array rules.
+- [x] If `values: ptr<number[N]>`, then `values[i]` in read position returns `number`.
+- [x] If `values: ptr<number[N]>`, then `values[i] = x` writes through pointer if mutable.
+- [x] If `matrix: ptr<number[R,C]>`, then `matrix[i,j]` in read position returns `number`.
+- [x] If `matrix: ptr<number[R,C]>`, then `matrix[i,j] = x` writes through pointer if mutable.
+- [x] Index rank must match shape for full element access.
+- [x] Bounds checking is performed according to Yogi's array rules.
 - [x] Const provenance blocks write-through.
 
 Example:
@@ -1115,13 +1116,13 @@ LLVM concept:
 
 ## 30. Diagnostics Checklist
 
-- [ ] `expected ptr<T>, got T`
-- [ ] `help: use '&value' to create a pointer`
-- [ ] `expected T, got ptr<T>`
-- [ ] `expected ptr<X>, got ptr<Y>`
-- [ ] `cannot take address of temporary expression`
-- [ ] `cannot take address of temporary string literal`
-- [ ] `cannot take address of temporary array literal`
+- [x] `expected ptr<T>, got T`
+- [x] `help: use '&value' to create a pointer`
+- [x] `expected T, got ptr<T>`
+- [x] `expected ptr<X>, got ptr<Y>`
+- [x] `cannot take address of temporary expression`
+- [x] `cannot take address of temporary string literal`
+- [x] `cannot take address of temporary array literal`
 - [ ] `cannot take address of object literal`
 - [ ] `cannot take address of field from temporary value`
 - [ ] `cannot mutate storage derived from const value 'name'`
@@ -1474,7 +1475,7 @@ cannot take address of field 'age' from temporary value
 
 ### Pointer to fixed array
 
-- [ ] Implemented
+- [x] Implemented
 
 ```ts
 let values: number[3] = [1, 2, 3]
@@ -1490,7 +1491,7 @@ Expected:
 
 ### Pointer to fixed matrix
 
-- [ ] Implemented
+- [x] Implemented
 
 ```ts
 let matrix: number[2, 3] = [
@@ -1510,7 +1511,7 @@ Expected:
 
 ### Pointer matrix read
 
-- [ ] Implemented
+- [x] Implemented
 
 ```ts
 function read(matrix: ptr<number[2, 3]>): number {
@@ -1533,7 +1534,7 @@ Expected:
 
 ### Pointer matrix write
 
-- [ ] Implemented
+- [x] Implemented
 
 ```ts
 function change(matrix: ptr<number[2, 3]>): void {
@@ -1557,7 +1558,7 @@ Expected:
 
 ### Pointer matrix write from const root
 
-- [ ] Implemented
+- [x] Implemented
 
 ```ts
 function change(matrix: ptr<number[2, 3]>): void {
@@ -1626,11 +1627,11 @@ function 'change' may mutate pointer parameter 'matrix', but argument '&matrix' 
 
 ### Phase 6 — Arrays / Matrices
 
-- [ ] `ptr<number[N]>` support.
-- [ ] `ptr<number[R,C]>` support.
-- [ ] Pointer indexing read.
-- [ ] Pointer indexing write.
-- [ ] Fixed array/matrix GEP lowering.
+- [x] `ptr<number[N]>` support.
+- [x] `ptr<number[R,C]>` support.
+- [x] Pointer indexing read.
+- [x] Pointer indexing write.
+- [x] Fixed array/matrix row-major descriptor lowering.
 - [ ] Partial views.
 
 ### Phase 7 — Object / Struct Fields

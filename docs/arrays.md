@@ -9,10 +9,52 @@ Yogi arrays are designed to be explicit, strict, shape-aware, and efficient for 
 Core model:
 
 ```ts
-T[]          // dynamic 1D array
-T[N]         // fixed-size 1D array
-T[N, M]      // fixed-shape 2D array
-T[N, M, K]   // fixed-shape multidimensional array
+T[]             // dynamic 1D array, simple ergonomic array
+T[N]            // fixed-size 1D array
+T[N, M]         // fixed-shape 2D rectangular array
+T[N, M, K]      // fixed-shape multidimensional rectangular array
+
+Array<T, Rank>  // dynamic shaped rectangular array with compile-time known rank
+Array<T>        // dynamic shaped rectangular array with runtime-known rank
+```
+
+Important distinction:
+
+```txt
+T[]             = simple dynamic rank-1 array
+Array<T, 1>     = shaped dynamic rank-1 array
+Array<T, Rank>  = shaped dynamic array with rank known at compile-time
+Array<T>        = shaped dynamic array with rank checked at runtime
+```
+
+Yogi should not treat `T[]` as an implicit nested/multidimensional array.
+
+Invalid:
+
+```ts
+let matrix: number[] = [
+    [1, 2],
+    [3, 4]
+]
+// error: array 'matrix' expects element type 'number', got 'number[]'
+```
+
+Correct dynamic shaped 2D array:
+
+```ts
+let matrix: Array<number, 2> = [
+    [1, 2],
+    [3, 4]
+]
+```
+
+Correct fixed-shape 2D array:
+
+```ts
+let matrix: number[2, 2] = [
+    [1, 2],
+    [3, 4]
+]
 ```
 
 Yogi does not need a separate native `Vector` container. Domain-specific vector/matrix types can be built with `type`, `interface`, or `struct`.
@@ -123,6 +165,40 @@ Array<Array<number>>
 
 `Array<Array<number>>` is a jagged/dynamic array of arrays.
 
+Yogi's preferred multidimensional dynamic syntax should not be `number[][]` or
+`number[,]`. The preferred form is `Array<T, Rank>` or `Array<T>`.
+
+```ts
+Array<number, 2>  // dynamic rectangular 2D
+Array<number, 3>  // dynamic rectangular 3D
+Array<number>     // dynamic rectangular array with runtime rank
+```
+
+This avoids both visually noisy empty comma syntax:
+
+```ts
+number[,]
+number[,,]
+number[,,,]
+```
+
+and indefinitely repeated bracket syntax:
+
+```ts
+number[][]
+number[][][]
+number[][][][]
+```
+
+The main Yogi model is:
+
+```txt
+Use T[] for simple dynamic one-dimensional arrays.
+Use T[N, M, ...] for fixed-shape rectangular arrays.
+Use Array<T, Rank> for dynamic shaped rectangular arrays with known rank.
+Use Array<T> for dynamic shaped rectangular arrays whose rank is known only at runtime.
+```
+
 ---
 
 ### Coordinate indexing
@@ -164,6 +240,339 @@ let values: number[] = [1, 2, 3]
 
 values[0, 1]
 // error: number[] expects 1 index, got 2
+```
+
+---
+
+### Dynamic shaped arrays: `Array<T, Rank>` and `Array<T>`
+
+Dynamic shaped arrays represent rectangular arrays whose dimensions are known at
+runtime instead of compile time.
+
+Known-rank dynamic shaped array:
+
+```ts
+let matrix: Array<number, 2> = [
+    [1, 2],
+    [3, 4]
+]
+```
+
+Meaning:
+
+```txt
+element type = number
+rank = 2 known at compile-time
+dimensions = dynamic at runtime
+rectangular = yes
+```
+
+Runtime-rank dynamic shaped array:
+
+```ts
+let data: Array<number> = loadArray()
+```
+
+Meaning:
+
+```txt
+element type = number
+rank = known only at runtime
+dimensions = dynamic at runtime
+rectangular = yes
+```
+
+`Array<T>` is intentionally flexible. Coordinate indexing is allowed, but Yogi
+performs runtime rank and bounds checks.
+
+```ts
+let data: Array<number> = loadArray()
+
+let value: number = data[0, 1]
+```
+
+Runtime checks:
+
+```txt
+- data.rank must be 2 because the code used 2 indices
+- index 0 must be inside dimension 0
+- index 1 must be inside dimension 1
+```
+
+If the runtime rank does not match:
+
+```txt
+runtime error: cannot index Array<number> with 2 indices because runtime rank is 3
+```
+
+For known-rank arrays, index count errors are compile-time errors.
+
+```ts
+let matrix: Array<number, 2> = loadMatrix()
+
+matrix[0, 1]     // OK
+matrix[0, 1, 2]  // compile-time error: Array<number, 2> expects 2 indices, got 3
+```
+
+Yogi design principle:
+
+```txt
+If rank is known, Yogi checks it at compile time.
+If rank is unknown, Yogi allows the operation and checks it at runtime.
+```
+
+This gives the language controlled flexibility without falling into `any`-style
+dynamic behavior.
+
+Runtime descriptor:
+
+```txt
+data pointer
+rank
+dims
+strides
+total length
+capacity / allocator metadata, if applicable
+```
+
+Example image-like array:
+
+```ts
+let image: Array<uint8, 3> = loadImage("photo.png")
+
+let red: uint8 = image[y, x, 0]
+```
+
+---
+
+### Union element dynamic shaped arrays
+
+The element type of `Array<T, Rank>` and `Array<T>` can be a union type.
+
+```ts
+let data: Array<number | string, 2> = [
+    [1, "A"],
+    [2, "B"]
+]
+```
+
+This means:
+
+```txt
+rank = 2 known at compile-time
+each cell accepts number or string
+boolean is not allowed
+```
+
+Valid:
+
+```ts
+data[0, 0] = 99
+data[0, 1] = "hello"
+```
+
+Invalid:
+
+```ts
+data[1, 0] = true
+// error: Array<number | string, 2> only accepts number | string, got boolean
+```
+
+Runtime-rank union array:
+
+```ts
+let data: Array<number | string> = loadData()
+
+let value: number | string = data[0, 1]
+```
+
+Yogi validates the rank and bounds at runtime, while the value type remains a
+strict union. To use the result as a concrete type, the developer must narrow it.
+
+```ts
+let value: number | string = data[0, 1]
+
+if (typeof value == "number") {
+    print(value + 10)
+}
+```
+
+Rule:
+
+```txt
+Array<any> should not be the default flexibility mechanism.
+Array<T union> should be the controlled flexible mechanism.
+```
+
+---
+
+### Pointer parameters and full array pointer indexing
+
+Yogi now supports pointer parameters for normal scalar values, dynamic 1D arrays,
+and fixed-shape arrays.
+
+```ts
+function change(matrix: ptr<number[2, 3]>): void {
+    matrix[0, 2] = 99
+}
+
+let matrix: number[2, 3] = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+
+change(&matrix)
+
+print(matrix[0, 2]) // 99
+```
+
+Rules:
+
+```txt
+T parameter      = local/value parameter
+ptr<T> parameter = pointer to caller/external storage
+&value           = address-of expression
+```
+
+Normal aggregate parameters are cloned into local function storage before the
+function body runs. Mutating a normal `number[2, 3]` parameter does not mutate
+the caller. A `ptr<number[2, 3]>` parameter points at the caller's storage and
+write-through mutates the original.
+
+Full coordinate indexing through fixed-shape array pointers returns the scalar
+element type:
+
+```ts
+function readCell(matrix: ptr<number[2, 3]>): number {
+    return matrix[1, 2]
+}
+
+function setAt(matrix: ptr<number[2, 3]>, row: number, col: number, value: number): void {
+    matrix[row, col] = value
+}
+```
+
+Dynamic indices keep the existing runtime bounds checks. Pointer indexing also
+preserves union element assignability:
+
+```ts
+type Cell = number | string
+
+function update(grid: ptr<Cell[2, 2]>): void {
+    grid[0, 0] = 123
+    grid[0, 1] = "ok"
+}
+```
+
+Dynamic 1D array pointers are supported through the descriptor:
+
+```ts
+function setFirst(values: ptr<number[]>): void {
+    values[0] = 99
+}
+```
+
+Partial pointer views are intentionally rejected for now:
+
+```ts
+function row(matrix: ptr<number[2, 3]>): number[3] {
+    return matrix[0] // error
+}
+```
+
+```txt
+partial indexing through pointer is not implemented yet
+```
+
+### Future: pointers to dynamic shaped arrays
+
+Pointers to `Array<T, Rank>` and runtime-rank `Array<T>` are planned future
+work. They are separate from the currently supported `ptr<number[]>` dynamic
+1D descriptor pointer.
+
+```ts
+ptr<Array<number, 2>> // pointer to dynamic shaped rank-2 array
+ptr<Array<number>>    // pointer to dynamic shaped array with runtime rank
+```
+
+A pointer to a dynamic shaped array points to the array descriptor, not just to
+the first element. The descriptor contains the data pointer, rank, dims, strides,
+and ownership/runtime metadata.
+
+Known-rank pointer example:
+
+```ts
+function change(matrix: ptr<Array<number, 2>>): void {
+    matrix[0, 1] = 99
+}
+
+let matrix: Array<number, 2> = [
+    [1, 2],
+    [3, 4]
+]
+
+change(&matrix)
+
+print(matrix[0, 1]) // 99
+```
+
+Runtime-rank pointer example:
+
+```ts
+function change(data: ptr<Array<number>>): void {
+    data[0, 1] = 99
+}
+
+let data: Array<number> = loadArray()
+
+change(&data)
+```
+
+This compiles, but runtime validates:
+
+```txt
+- data.rank must be 2 because the code used 2 indices
+- each index must be within bounds
+```
+
+If the runtime rank is not 2:
+
+```txt
+runtime error: cannot index Array<number> with 2 indices because runtime rank is 1
+```
+
+Pointer partial views are also possible as future work.
+
+Known-rank partial pointer view:
+
+```ts
+function firstRow(matrix: ptr<Array<number, 2>>): ptr<Array<number, 1>> {
+    return matrix[0]
+}
+```
+
+Runtime-rank partial pointer view:
+
+```ts
+function firstSlice(data: ptr<Array<number>>): ptr<Array<number>> {
+    return data[0]
+}
+```
+
+For runtime-rank views, Yogi computes the result rank dynamically:
+
+```txt
+result rank = input rank - number of consumed indices
+```
+
+If the consumed index count is not valid for the runtime rank, Yogi raises a
+runtime error.
+
+Pointer rule:
+
+```txt
+ptr<Array<T, R>> = pointer to dynamic shaped array with compile-time known rank R
+ptr<Array<T>>    = pointer to dynamic shaped array with runtime-known rank
 ```
 
 ---
@@ -448,10 +857,8 @@ Current behavior:
 - Mutating through the view mutates the original storage.
 - 3D views work.
 - Dynamic partial indices keep runtime bounds checks.
-- Functions may return borrowed fixed-shape views from parameters.
-- Returned parameter views carry a borrow summary such as `return borrows from parameter 0`.
-- At call sites, the returned view borrows from the actual argument.
-- Readonly follows the actual argument, not the mutability of the receiving binding.
+- Normal array parameters use local/value semantics.
+- Returning a partial view from a normal parameter materializes an owned copy.
 - Returning a partial view from a local fixed-shape owner requires `.copy()`.
 - `.copy()` contains only the selected view shape, not the full owner.
 
@@ -491,7 +898,7 @@ pixel[1] = 88
 print(image[1, 0, 1]) // 88
 ```
 
-Interprocedural borrowed view:
+Interprocedural value return:
 
 ```ts
 function firstRow(matrix: number[2, 3]): number[3] {
@@ -507,11 +914,14 @@ let row: number[3] = firstRow(matrix)
 
 row[2] = 99
 
-print(matrix[0, 2]) // 99
+print(matrix[0, 2]) // 3
 ```
 
-The function records a borrow summary for the return value. `.copy()` breaks the
-borrow relationship and returns owned storage.
+The function parameter is a local clone. Returning `matrix[0]` clones the
+borrowed view into owned return storage before function cleanup, so the caller
+does not receive a dangling descriptor and mutating the returned row does not
+mutate the caller's matrix. `.copy()` remains the explicit spelling when the
+source is a local owner inside the function body.
 
 ---
 
@@ -1008,9 +1418,9 @@ Known issue:
 
 ---
 
-### 10. Borrow summaries interprocedural
+### 10. Returned partial views from parameters
 
-Supported for functions that return views borrowed from parameters.
+Supported by materializing the returned view as an owned copy.
 
 Example:
 
@@ -1020,13 +1430,17 @@ function firstRow(matrix: number[2, 3]): number[3] {
 }
 ```
 
-Conceptual summary:
+Runtime behavior:
 
 ```txt
-return borrows from parameter 0
+1. normal parameter is cloned into local function storage
+2. matrix[0] creates a borrowed fixed-shape view
+3. return clones that view into owned return storage
+4. local parameter clone and temporary view are cleaned before the function exits
 ```
 
-This allows safe usage when the owner outlives the returned view:
+This keeps normal parameter semantics local and prevents returned views from
+pointing into dead stack/local function storage:
 
 ```ts
 let matrix: number[2, 3] = [
@@ -1035,14 +1449,11 @@ let matrix: number[2, 3] = [
 ]
 
 let row: number[3] = firstRow(matrix)
+
+row[2] = 99
+
+print(matrix[0, 2]) // 3
 ```
-
-The caller attaches the returned view to the actual argument owner. If the
-actual argument is readonly, the returned borrowed view is readonly too, even
-when the receiving binding uses `let`.
-
-Returning a borrowed view from a local owner is still rejected unless `.copy()`
-is used, and `.copy()` returns owned storage.
 
 General borrowed-view escape analysis is still future work.
 
@@ -1101,17 +1512,22 @@ Views should clean up only their descriptor metadata if required, never the borr
 
 ### 3. Dynamic shaped arrays
 
-Future syntax:
+Future implementation target:
 
 ```ts
-let image: Array<uint8, 3> = loadImage("photo.png")
+let matrix: Array<number, 2> = [
+    [1, 2],
+    [3, 4]
+]
+
+let data: Array<number> = loadArray()
 ```
 
 Meaning:
 
 ```txt
-rank = 3
-dimensions known at runtime
+Array<T, Rank> = dynamic rectangular array with compile-time known rank
+Array<T>       = dynamic rectangular array with runtime-known rank
 ```
 
 Runtime descriptor:
@@ -1122,44 +1538,127 @@ rank
 dims
 strides
 total length
-capacity, if applicable
+capacity / allocator metadata, if applicable
 ```
 
-Example:
+Known-rank indexing:
 
 ```ts
+let image: Array<uint8, 3> = loadImage("photo.png")
 let red: uint8 = image[y, x, 0]
+```
+
+Runtime-rank indexing:
+
+```ts
+let data: Array<number> = loadArray()
+let value: number = data[0, 1]
+```
+
+Runtime checks for `Array<T>`:
+
+```txt
+- runtime rank must match the number of indices used
+- every index must be within its runtime dimension
 ```
 
 Offset:
 
 ```txt
-offset = y * stride0 + x * stride1 + 0
+offset = index0 * stride0 + index1 * stride1 + ...
 ```
 
 ---
 
 ### 4. Dynamic shaped views/slices
 
-For dynamic shaped arrays:
+For known-rank dynamic shaped arrays:
 
 ```ts
 let image: Array<uint8, 3> = loadImage("photo.png")
 
-let pixel = image[y, x]
+let pixel: Array<uint8, 1> = image[y, x]
 ```
 
-`pixel` should become a dynamic shaped borrowed view:
+For runtime-rank dynamic shaped arrays:
+
+```ts
+let data: Array<uint8> = loadImage("photo.png")
+
+let slice: Array<uint8> = data[0]
+```
+
+The result should become a dynamic shaped borrowed view.
+
+Known-rank view:
 
 ```txt
-rank = 1
-dims = [channels]
-base = image.base + offset
+input rank = 3
+consumed indices = 2
+result rank = 1
+```
+
+Runtime-rank view:
+
+```txt
+result rank = input.rank - consumedIndices
+```
+
+Descriptor:
+
+```txt
+rank = remaining rank
+dims = remaining dimensions
+base = source.base + offset
+strides = remaining strides
+owner = source owner
 ```
 
 ---
 
-### 5. Native fixed-shape ABI without runtime descriptor
+### 5. Pointers to dynamic shaped arrays
+
+Pointers should support dynamic shaped arrays directly.
+
+```ts
+ptr<Array<number, 2>>
+ptr<Array<number>>
+ptr<Array<number | string, 2>>
+ptr<Array<number | string>>
+```
+
+The pointer points to the dynamic array descriptor. Indexing through the pointer
+reads/writes the original storage.
+
+Known-rank pointer:
+
+```ts
+function update(data: ptr<Array<number, 2>>, row: number, col: number): void {
+    data[row, col] = 99
+}
+```
+
+Runtime-rank pointer:
+
+```ts
+function update(data: ptr<Array<number>>, row: number, col: number): void {
+    data[row, col] = 99
+}
+```
+
+For `ptr<Array<T>>`, indexing is allowed and checked at runtime.
+
+Future pointer partial view:
+
+```ts
+function row(data: ptr<Array<number, 2>>): ptr<Array<number, 1>> {
+    return data[0]
+}
+```
+
+---
+
+### 6. Native fixed-shape ABI without runtime descriptor
 
 Current state:
 
@@ -1179,7 +1678,7 @@ uint8[1080, 1920, 4] -> [8294400 x i8]
 
 ---
 
-### 6. C ABI interop rules for arrays
+### 7. C ABI interop rules for arrays
 
 Need rules for exporting/importing arrays.
 
@@ -1209,7 +1708,7 @@ external C ABI: explicit pointer or descriptor rules
 
 ---
 
-### 7. Lazy iterator objects
+### 8. Lazy iterator objects
 
 Current state:
 
@@ -1228,7 +1727,7 @@ Yogi does not have lazy iterator objects yet.
 
 ---
 
-### 8. Object stringification inside arrays
+### 9. Object stringification inside arrays
 
 Current state:
 
@@ -1241,7 +1740,7 @@ Future work:
 
 ---
 
-### 9. Final array method policy
+### 10. Final array method policy
 
 Need to finalize the method policy across:
 
@@ -1298,7 +1797,7 @@ Special:
 
 ---
 
-### 10. Final diagnostics polish
+### 11. Final diagnostics polish
 
 Improve diagnostics for:
 
@@ -1366,6 +1865,45 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 
 ---
 
+## Dynamic Shaped Array Design Summary
+
+Final design direction:
+
+```ts
+number[]                    // dynamic 1D simple
+number[3]                   // fixed-size 1D
+number[2, 3]                // fixed-shape rectangular 2D
+
+Array<number, 2>            // dynamic shaped rectangular 2D, rank known
+Array<number, 3>            // dynamic shaped rectangular 3D, rank known
+Array<number>               // dynamic shaped rectangular array, runtime rank
+
+Array<number | string, 2>   // dynamic shaped 2D union element array
+Array<number | string>      // runtime-rank union element array
+
+ptr<Array<number, 2>>       // pointer to dynamic shaped rank-2 array
+ptr<Array<number>>          // pointer to runtime-rank dynamic shaped array
+```
+
+Rules:
+
+```txt
+T[] remains strict rank-1. It does not infer nested arrays.
+Array<T, Rank> gives compile-time rank checking.
+Array<T> gives runtime-rank flexibility with runtime checks.
+Union element types provide controlled element flexibility.
+Pointers can point to dynamic shaped array descriptors and mutate original storage.
+```
+
+Preferred philosophy:
+
+```txt
+Yogi is strict when the type carries enough information.
+Yogi is flexible when the runtime can validate safely.
+```
+
+---
+
 ## Implementation Checklist
 
 ### Completed
@@ -1413,12 +1951,19 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ✅ Borrow summaries interprocedural
 ✅ Core pointer type: ptr<T>
 ✅ Address-of expression: &value
+✅ Pointer parameters
+✅ Full fixed-shape array pointer indexing
+✅ Dynamic 1D array pointer indexing through ptr<number[]>
+✅ Pointer indexing read/write mutates caller storage
+✅ Normal array parameters use local/value semantics
+✅ Pointer call diagnostics for missing &, value/pointer mismatch, shape mismatch, and pointer-to-pointer mismatch
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Pointer parameters and array pointer indexing
+⬜ Pointer partial views for fixed-shape arrays
+⬜ Adjust borrow summaries to ptr<T> parameter returns
 ```
 
 ### Future Work
@@ -1429,7 +1974,10 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for borrowed views
 ⬜ Dynamic shaped arrays: Array<T, Rank>
+⬜ Runtime-rank dynamic shaped arrays: Array<T>
+⬜ Union element dynamic shaped arrays: Array<T union, Rank> and Array<T union>
 ⬜ Dynamic shaped views/slices
+⬜ Pointers to dynamic shaped arrays: ptr<Array<T, Rank>> and ptr<Array<T>>
 ⬜ Native fixed-shape ABI without runtime descriptor
 ⬜ C ABI interop rules for arrays
 ⬜ Lazy iterator objects
@@ -1444,16 +1992,21 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ## Recommended Implementation Order
 
 ```txt
-1. String element extraction from string[] through .at() inside struct fields
-2. Escape analysis complete for borrowed views
-3. Cleanup/destructor rules for borrowed views
+1. Pointer partial views for fixed-shape arrays
+2. Adjust borrow summaries to ptr<T> parameter returns
+3. String element extraction from string[] through .at() inside struct fields
 4. Dynamic shaped arrays: Array<T, Rank>
-5. Dynamic shaped views/slices
-6. Native fixed-shape ABI without runtime descriptor
-7. C ABI interop rules for arrays
-8. Lazy iterator objects
-9. Object stringification inside arrays
-10. Final array method policy
-11. Final diagnostics polish
-12. Documentation final pass
+5. Runtime-rank dynamic shaped arrays: Array<T>
+6. Union element dynamic shaped arrays
+7. Pointers to dynamic shaped arrays: ptr<Array<T, Rank>> and ptr<Array<T>>
+8. Dynamic shaped views/slices
+9. Escape analysis complete for borrowed views
+10. Cleanup/destructor rules for borrowed views
+11. Native fixed-shape ABI without runtime descriptor
+12. C ABI interop rules for arrays
+13. Lazy iterator objects
+14. Object stringification inside arrays
+15. Final array method policy
+16. Final diagnostics polish
+17. Documentation final pass
 ```

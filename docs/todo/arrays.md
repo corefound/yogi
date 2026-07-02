@@ -1096,9 +1096,10 @@ This should not be the default scripting path.
 
 ---
 
-### 2. Borrow summaries interprocedural
+### 2. Returned partial views from parameters
 
-Needed for functions that return views borrowed from parameters.
+Normal array parameters use local/value semantics. Returning a partial view from
+a parameter should materialize an owned copy before function cleanup.
 
 Example:
 
@@ -1111,7 +1112,7 @@ function firstRow(matrix: number[2, 3]): number[3] {
 Current default semantics:
 
 ```txt
-return matrix[0]        -> rejected when it would escape a local owner
+return matrix[0]        -> owned copy when matrix is a normal parameter
 return matrix[0].copy() -> owned copy
 ```
 
@@ -1498,16 +1499,24 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ✅ Expression-bodied inline arrow callbacks
 ✅ Block-bodied inline arrow callbacks
 ✅ Comparator overloads for sort and toSorted
+✅ Array spread in dynamic/fixed/tuple/union contexts
+✅ Local capture/closure semantics for immediate inline callbacks
+✅ Depth-aware semantic result typing for flat(depth)
+✅ Borrow summaries interprocedural
+✅ Core pointer type: ptr<T>
+✅ Address-of expression: &value
+✅ Pointer parameters
+✅ Full fixed-shape array pointer indexing
+✅ Dynamic 1D array pointer indexing through ptr<number[]>
+✅ Pointer indexing read/write mutates caller storage
+✅ Normal array parameters use local/value semantics
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Spread operator for arrays
-⬜ Spread length validation for fixed arrays
-⬜ Spread type checking for union/fixed/dynamic arrays
-⬜ Local capture/closure semantics for inline callbacks
-⬜ Depth-aware semantic result typing for flat(depth)
+⬜ Pointer partial views for fixed-shape arrays
+⬜ Adjust borrow summaries to ptr<T> parameter returns
 ⬜ String element extraction from string[] through .at() inside struct fields
 ```
 
@@ -1516,6 +1525,7 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ```txt
 ⬜ Explicit borrowed return/view types
 ⬜ Borrow summaries interprocedural for explicit borrowed views
+⬜ Pointer partial views: ptr<number[2, 3]>[0] -> ptr<number[3]>
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for borrowed views and materialized copies
 ⬜ Dynamic shaped arrays: Array<T, Rank>
@@ -1534,27 +1544,20 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ## Recommended Implementation Order
 
 ```txt
-1. Const/readonly propagation into borrowed views
-2. Nested readonly borrowed views
-3. Explicit .copy() for owned slice/view copies
-4. Explicit borrowed-view syntax for advanced borrowed escapes
-5. Spread operator for arrays
-6. Spread length validation for fixed arrays
-7. Spread type checking for union/fixed/dynamic arrays
-8. Local capture/closure semantics for inline callbacks
-9. Depth-aware semantic result typing for flat(depth)
-10. String element extraction from string[] through .at() inside struct fields
-11. Explicit borrowed return/view types
-12. Borrow summaries interprocedural for explicit borrowed views
-13. Escape analysis complete for borrowed views
-14. Cleanup/destructor rules for borrowed views and materialized copies
-15. Dynamic shaped arrays: Array<T, Rank>
-16. Dynamic shaped views/slices
-17. Native fixed-shape ABI without runtime descriptor
-18. C ABI interop rules for arrays
-19. Lazy iterator objects
-20. Object stringification inside arrays
-21. Final array method policy
-22. Final diagnostics polish
-23. Documentation final pass
+1. Pointer partial views for fixed-shape arrays
+2. Adjust borrow summaries to ptr<T> parameter returns
+3. String element extraction from string[] through .at() inside struct fields
+4. Explicit borrowed return/view types
+5. Borrow summaries interprocedural for explicit borrowed views
+6. Escape analysis complete for borrowed views
+7. Cleanup/destructor rules for borrowed views and materialized copies
+8. Dynamic shaped arrays: Array<T, Rank>
+9. Dynamic shaped views/slices
+10. Native fixed-shape ABI without runtime descriptor
+11. C ABI interop rules for arrays
+12. Lazy iterator objects
+13. Object stringification inside arrays
+14. Final array method policy
+15. Final diagnostics polish
+16. Documentation final pass
 ```
