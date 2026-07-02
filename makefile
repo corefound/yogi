@@ -3,9 +3,8 @@
 
 run: build start
 
-
 build:
-	@rm -rf ./build
+# 	@rm -rf ./build
 	@cmake -G Ninja -B build && cmake --build build
 	@echo
 	@echo Build complete
@@ -20,6 +19,7 @@ fbs-build:
 	@mv $(CURDIR)/src/fbs/generated/yogi $(CURDIR)/src/compiler/src/fbs/generated/yogi
 	@mv -f $(CURDIR)/src/fbs/generated/main_generated.h  $(CURDIR)/libs/flatbuffers/fbs_generated.h
 	@cd $(CURDIR)/src/fbs && rm -rf generated
+
 
 test:
 	@make cpp-test
