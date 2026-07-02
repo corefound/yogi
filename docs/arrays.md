@@ -703,8 +703,9 @@ Supported inside block-bodied inline arrows:
 
 Notes:
 
-- Inline callbacks currently lower inside the array loop.
-- Captures should wait until Yogi has closure/lifetime rules for captured locals.
+- Inline callbacks lower inside the array loop.
+- Inline callbacks passed directly to array methods may capture surrounding locals.
+- Captures are lexical and non-escaping; Yogi does not create heap closure objects for this batch.
 
 ---
 
@@ -936,16 +937,20 @@ let b: int[3] = [0, ...a]
 
 ### 7. Local capture / closure semantics for inline callbacks
 
+Supported for inline callbacks consumed immediately by array methods:
+
+- Read captures from surrounding lexical scopes.
+- Mutable writes to captured local variables when the captured binding itself is mutable.
+- Captured dynamic arrays, fixed-shape arrays, and borrowed views.
+- Normal shadowing: callback parameters and callback locals shadow outer names.
+- Readonly borrowed view mutation checks still apply inside callbacks.
+
 Still pending:
 
-- Closures that capture outer locals.
-- Lifetime rules for captured locals.
-- Closure lowering for callbacks that escape the immediate array loop.
-
-Current note:
-
-- Inline callbacks currently lower inside the array loop.
-- Captures should wait until Yogi has closure/lifetime rules for captured locals.
+- General escaping closures.
+- Assigning callbacks into variables/properties.
+- Returning callbacks from functions.
+- Heap closure objects and capture lifetime extension.
 
 ---
 
@@ -1308,9 +1313,9 @@ error: cannot mutate borrowed view 'row' because it borrows from readonly source
 
 ## Notes
 
-Callback methods should wait until function values or callable references are represented in semantic analysis and LLVM lowering. Named function references and expression-bodied inline arrows are now supported for the first callback batch.
+Named callback references, expression-bodied inline arrows, block-bodied inline arrows, and immediate inline callback captures are supported for array methods.
 
-Inline callbacks currently lower inside the array loop. Captures should wait until Yogi has closure/lifetime rules for captured locals.
+Inline callback captures are lexical and non-escaping. The callback is lowered directly inside the array loop, so captured locals are read from the surrounding function storage at execution time.
 
 `find`, `at`, `pop`, and `shift` return `T | undefined`. They can now unbox into primitive contexts that explicitly expect `T`, and they can remain boxed when a variable explicitly stores the union.
 
@@ -1361,6 +1366,7 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ✅ Named callback references for array methods
 ✅ Expression-bodied inline arrow callbacks
 ✅ Block-bodied inline arrow callbacks
+✅ Local capture/closure semantics for immediate inline array callbacks
 ✅ Comparator overloads for sort and toSorted
 ✅ Array spread in dynamic array literals
 ✅ Array spread from fixed arrays and tuples
@@ -1371,7 +1377,6 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 ### Next Lots
 
 ```txt
-⬜ Local capture/closure semantics for inline callbacks
 ⬜ Depth-aware semantic result typing for flat(depth)
 ⬜ String element extraction from string[] through .at() inside struct fields
 ```
@@ -1401,12 +1406,11 @@ Yogi treats `value[i, j, k]` as multidimensional indexing. It is not the JavaScr
 1. Const/readonly propagation into borrowed views
 2. Nested readonly borrowed views
 3. Explicit .copy() for owned slice/view copies
-4. Local capture/closure semantics for inline callbacks
-5. Depth-aware semantic result typing for flat(depth)
-6. String element extraction from string[] through .at() inside struct fields
-7. Borrow summaries interprocedural
-8. Escape analysis complete for borrowed views
-9. Native LLVM fixed array ABI without runtime descriptor
+4. Depth-aware semantic result typing for flat(depth)
+5. String element extraction from string[] through .at() inside struct fields
+6. Borrow summaries interprocedural
+7. Escape analysis complete for borrowed views
+8. Native LLVM fixed array ABI without runtime descriptor
 12. Cleanup/destructor rules for borrowed views
 13. Dynamic shaped arrays: Array<T, Rank>
 14. Dynamic shaped views/slices

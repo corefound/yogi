@@ -68,6 +68,7 @@ without re-auditing the whole compiler.
 - [x] Spread element type checking for dynamic, fixed, tuple, and union targets
 - [x] Common non-callback array methods
 - [x] Callback array methods
+- [x] Local captures for immediate inline array callbacks
 - [x] Iterator protocol support for arrays
 - [x] Array print support
 - [x] Const/readonly propagation through borrowed fixed-shape views
