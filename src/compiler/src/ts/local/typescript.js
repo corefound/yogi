@@ -33155,8 +33155,8 @@ function forEachChildInClassDeclarationOrExpression(node, cbNode, cbNodes) {
 function forEachChildInStructDeclaration(node, cbNode, cbNodes) {
   return visitNodes(cbNode, cbNodes, node.modifiers) || visitNode2(cbNode, node.name) || visitNodes(cbNode, cbNodes, node.typeParameters) || visitNode2(cbNode, node.extendsType) || visitNodes(cbNode, cbNodes, node.members);
 }
-function forEachChildInStructFieldDeclaration(node, cbNode, cbNodes) {
-  return visitNodes(cbNode, cbNodes, node.modifiers) || visitNode2(cbNode, node.name) || visitNode2(cbNode, node.type);
+function forEachChildInStructFieldDeclaration(node, cbNode, _cbNodes) {
+  return visitNode2(cbNode, node.name) || visitNode2(cbNode, node.type);
 }
 function forEachChildInStructFunctionDeclaration(node, cbNode, cbNodes) {
   return visitNode2(cbNode, node.name) || visitNodes(cbNode, cbNodes, node.parameters) || visitNode2(cbNode, node.type) || visitNode2(cbNode, node.body);
@@ -35893,14 +35893,7 @@ var Parser;
         case 23 /* OpenBracketToken */:
           parseExpected(23 /* OpenBracketToken */);
           if (isStartOfType()) {
-            const indexTypePos = getNodePos();
-            const indexTypes = [parseType()];
-            while (parseOptional(28 /* CommaToken */)) {
-              indexTypes.push(parseType());
-            }
-            const indexType = indexTypes.length === 1
-              ? indexTypes[0]
-              : finishNode(factory2.createTupleTypeNode(createNodeArray(indexTypes, indexTypePos)), indexTypePos);
+            const indexType = parseType();
             parseExpected(24 /* CloseBracketToken */);
             type = finishNode(factory2.createIndexedAccessTypeNode(type, indexType), pos);
           } else {
@@ -96958,9 +96951,7 @@ var visitEachChildTable = {
   [268 /* StructFieldDeclaration */]: function visitEachChildOfStructFieldDeclaration(node, visitor, context, nodesVisitor, nodeVisitor, _tokenVisitor) {
     return context.factory.updateStructFieldDeclaration(
       node,
-      nodesVisitor(node.modifiers, visitor, isModifier),
       Debug.checkDefined(nodeVisitor(node.name, visitor, isPropertyName)),
-      _tokenVisitor ? nodeVisitor(node.questionToken, _tokenVisitor, isQuestionToken) : node.questionToken,
       nodeVisitor(node.type, visitor, isTypeNode)
     );
   },

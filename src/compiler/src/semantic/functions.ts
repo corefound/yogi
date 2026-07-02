@@ -456,6 +456,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const returned = new Set<string>();
             const stored = new Set<string>();
             const mutated = new Set<string>();
+            const pointerMutated = new Set<string>();
             const propertyStores: Array<{ root: string | null; value: string | null }> = [];
             const paramKeys: Array<string | null> = (functionNode.params ?? []).map((param: any) => {
                 const key = this.getDeclarationKey(param);
@@ -501,6 +502,32 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 if (key) mutated.add(key);
             };
 
+            const getPointerIdentifierKey = (value: any): string | null => {
+                if (!value || value.kind !== Kinds.Expressions.IdentifierExpression) {
+                    return null;
+                }
+
+                if (!this.isPointerType(value.type)) {
+                    return null;
+                }
+
+                if (typeof value.symbolId === "number" && value.symbolId >= 0) {
+                    return `symbol:${value.symbolId}`;
+                }
+
+                const name = value.value ?? value.name ?? value.raw;
+                if (typeof name === "string" && typeof value.scopeId === "number") {
+                    return `scope:${value.scopeId}:${name}`;
+                }
+
+                return null;
+            };
+
+            const addPointerMutatedIdentifier = (value: any): void => {
+                const key = getPointerIdentifierKey(value);
+                if (key) pointerMutated.add(key);
+            };
+
             const visit = (node: any): void => {
                 if (!node) return;
 
@@ -540,6 +567,14 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
                 if (node.kind === "AggregateAssignmentExpression") {
                     const root = this.getAggregateRootExpression(node.target);
+                    const targetObjectType = node.target?.object?.declaredType ?? node.target?.object?.type;
+
+                    if (targetObjectType?.kind === Kinds.Types.PointerType) {
+                        addPointerMutatedIdentifier(root);
+                        visit(node.target);
+                        visit(node.right);
+                        return;
+                    }
 
                     if (this.isGlobalIdentifier(root)) {
                         addStoredIdentifier(node.right);
@@ -659,6 +694,17 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 }
 
                 for (const [target, sources] of aliases.entries()) {
+                    if (!pointerMutated.has(target)) continue;
+
+                    for (const source of sources) {
+                        if (!pointerMutated.has(source)) {
+                            pointerMutated.add(source);
+                            changed = true;
+                        }
+                    }
+                }
+
+                for (const [target, sources] of aliases.entries()) {
                     if (!stored.has(target)) continue;
 
                     for (const source of sources) {
@@ -710,7 +756,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     returns: key ? returned.has(key) : false,
                     stores: key ? stored.has(key) : false,
                     escapes: key ? escaping.has(key) : false,
-                    mutates: key ? mutated.has(key) : false,
+                    mutates: key ? (mutated.has(key) || pointerMutated.has(key)) : false,
                     consumes: false,
                 })),
                 returnsAggregate: this.isAggregateType(functionNode.returnType),

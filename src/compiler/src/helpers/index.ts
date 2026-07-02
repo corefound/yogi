@@ -10,7 +10,7 @@ export class Helpers {
     static BLUE = "\x1b[34m";
     static parseFile = (filePath: string): ts.SourceFile => {
         try {
-            const code = fs.readFileSync(filePath, "utf-8");
+            const code = Helpers.normalizeFixedShapeTypeAnnotations(fs.readFileSync(filePath, "utf-8"));
             return ts.createSourceFile(
                 filePath,
                 code,
@@ -22,6 +22,50 @@ export class Helpers {
             throw error?.toString()
         }
     };
+
+    static normalizeFixedShapeTypeAnnotations(source: string): string {
+        let output = "";
+        let inTypeAnnotation = false;
+        let index = 0;
+
+        while (index < source.length) {
+            const current = source[index];
+
+            if (current === ":") {
+                inTypeAnnotation = true;
+                output += current;
+                index++;
+                continue;
+            }
+
+            if (inTypeAnnotation) {
+                if (current === "[") {
+                    const end = source.indexOf("]", index + 1);
+                    const followsTypeName = /[A-Za-z_]\w*\s*$/.test(output);
+
+                    if (end > index && followsTypeName) {
+                        const content = source.slice(index + 1, end);
+                        const isNumericShape = /^\s*\d+\s*(,\s*\d+\s*)+$/.test(content);
+
+                        output += isNumericShape
+                            ? `[${content.replace(/,/g, "|")}]`
+                            : `[${content}]`;
+                        index = end + 1;
+                        continue;
+                    }
+                }
+
+                if (current === "=" || current === "{" || current === ";" || current === "\n" || current === ",") {
+                    inTypeAnnotation = false;
+                }
+            }
+
+            output += current;
+            index++;
+        }
+
+        return output;
+    }
 
     static getQualifiedName(modulePath: string, symbolName: string): string {
         return `${modulePath?.replace(/[\\/]/g, ":")}:${symbolName}`;
@@ -97,4 +141,3 @@ export class Helpers {
         fs.writeFileSync(output, JSON.stringify(data, null, 2), "utf8");
     }
 }
-

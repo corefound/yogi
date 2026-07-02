@@ -908,6 +908,17 @@ export class BaseSemantic {
             const name = this.getTypeReferenceName(type);
             const symbol = name ? this.resolveSymbol(name) : null;
 
+            if (!symbol && name === "prt") {
+                type.arrowLength = name.length;
+                this.throwError(
+                    `unknown type ${Helpers.RED}'${name}'${Helpers.RESET}`,
+                    type.position,
+                    source,
+                    type,
+                    `  = did you mean 'ptr<${(type.arguments ?? type.typeArguments ?? [])[0]?.raw ?? "T"}>'?`,
+                );
+            }
+
             if (symbol) {
                 (this as any).checkTypeArguments?.(type, symbol);
             }

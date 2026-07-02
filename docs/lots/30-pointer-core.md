@@ -66,6 +66,19 @@ function acceptsPointer(value: ptr<number>): void {
 acceptsPointer(&age)
 ```
 
+Scalar pointers can be read and written through index `0`:
+
+```ts
+let age: number = 31
+let p: ptr<number> = &age
+
+print(p[0])
+p[0] = 32
+print(age)
+```
+
+The same scalar access path works for `ptr<string>` and `ptr<boolean>`.
+
 ## Rules
 
 - `ptr<T>` appears only in type positions.
@@ -79,6 +92,12 @@ acceptsPointer(&age)
 - Pointer mutability is provenance-based: pointers derived from `let` storage are mutable, and pointers derived from `const` storage are readonly.
 - Pointer copy preserves provenance.
 - Pointer arithmetic is rejected in safe Yogi.
+- Scalar pointer access uses `p[0]`.
+- Scalar pointer write-through uses `p[0] = value`.
+- Scalar pointer access currently requires literal index `0`.
+- Write-through permission comes from the pointed storage, not from the pointer binding.
+- Function summaries mark pointer parameters as `mutates` when the body writes through `param[0]`.
+- Passing `&constValue` to a pointer parameter that may mutate is rejected at the call site.
 
 ## Rejected
 
@@ -119,6 +138,22 @@ let p: ptr<number> = &age
 let q: ptr<number> = p + 1
 ```
 
+Readonly write-through:
+
+```ts
+const age: number = 31
+let p: ptr<number> = &age
+p[0] = 32
+```
+
+Nonzero scalar pointer index:
+
+```ts
+let age: number = 31
+let p: ptr<number> = &age
+print(p[1])
+```
+
 ## SIR And LLVM
 
 `ptr<T>` serializes as:
@@ -147,17 +182,19 @@ LLVM lowering uses pointer values directly:
 ptr<T> -> LLVM pointer to T storage
 &local -> alloca/global address
 pointer assignment -> pointer copy
+p[0] read -> load pointee from pointer value
+p[0] write -> store value through pointer value
 ```
 
 For dynamic arrays, `ptr<number[]>` points at the array descriptor/value storage, not directly at the heap element buffer.
 
 ## Current Limitations
 
-- Mutation-through-pointer.
 - Pointer array indexing.
 - Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`.
 - Dereference operator.
 - Borrow summaries for functions that return pointer-derived views.
+- Pointer access beyond scalar literal `0`.
 
 ## Tests
 
@@ -176,6 +213,11 @@ The suite covers:
 - pointer copy from readonly provenance
 - pointer-to-pointer
 - function pointer parameter
+- scalar pointer read and write-through
+- readonly provenance write rejection
+- const pointer binding write-through to mutable roots
+- function pointer read/write summaries
+- `prt<T>` typo diagnostic
 - `&const` positive behavior
 - missing address-of diagnostics
 - pointer-to-value diagnostics

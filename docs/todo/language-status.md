@@ -56,6 +56,12 @@ without re-auditing the whole compiler.
 - [x] Pointer copy preserving mutable/readonly provenance
 - [x] Pointer SIR/FBS metadata for root symbol, access path, and permission
 - [x] Pointer arithmetic rejection in safe Yogi
+- [x] Scalar pointer access/read with `p[0]` for `ptr<number>`, `ptr<string>`, and `ptr<boolean>`
+- [x] Scalar pointer write-through with `p[0] = value`
+- [x] Readonly provenance enforcement for pointer write-through
+- [x] `const p: ptr<T>` binding behavior separated from pointed storage mutability
+- [x] Basic function pointer mutation summaries and call-site rejection for `&const`
+- [x] `prt<T>` typo diagnostic for pointer type annotations
 - [x] Dynamic arrays with runtime descriptor and heap buffer
 - [x] Strict bracket access with runtime range errors
 - [x] Safe `.at(index)` access that may return `undefined`
@@ -80,7 +86,7 @@ without re-auditing the whole compiler.
 - [x] Iterator protocol support for arrays
 - [x] Array print support
 - [x] Const/readonly propagation through borrowed fixed-shape views
-- [ ] Pointer indexing/dereference and mutation-through-pointer
+- [ ] General pointer indexing/dereference beyond scalar literal `0`
 - [ ] Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`
 - [ ] Borrow summaries adjusted for `ptr<T>` parameter returns
 - [ ] Interprocedural lifetime summaries for borrowed views

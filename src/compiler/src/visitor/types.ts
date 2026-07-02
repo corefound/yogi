@@ -510,12 +510,17 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     const elementType = this.visitType(indexed.objectType);
                     const rawIndexType = indexed.indexType as any;
                     const rawIndexText = rawIndexType.getText?.() ?? "";
+                    const normalizedShape = rawIndexText.includes("|")
+                        ? rawIndexText
+                            .split("|")
+                            .map((part: string) => Number(part.trim()))
+                        : null;
                     const indexTypes = ts.isTupleTypeNode(indexed.indexType)
                         ? indexed.indexType.elements.map((element) => this.visitType(element as ts.TypeNode))
                         : [this.visitType(indexed.indexType)];
-                    const shape = indexTypes.map((indexType) => Number(indexType?.literal));
+                    const shape = normalizedShape ?? indexTypes.map((indexType) => Number(indexType?.literal));
 
-                    if (rawIndexText.trim().startsWith("[") || !shape.length || shape.some((literal) => !Number.isInteger(literal) || literal <= 0)) {
+                    if (rawIndexText.trim().startsWith("[") || !shape.length || shape.some((literal: number) => !Number.isInteger(literal) || literal <= 0)) {
                         return {
                             kind: Kinds.Types.UnknownType,
                             syntaxKind: ts.SyntaxKind[node.kind],

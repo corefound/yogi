@@ -62,11 +62,11 @@ This means `&constValue` is valid. The only invalid operation is mutating throug
 - [x] No `readonly` pointer syntax.
 - [x] No implicit value-to-pointer conversion.
 - [x] No implicit pointer-to-value conversion.
-- [ ] No implicit dereference.
+- [x] No implicit dereference.
 - [x] No pointer arithmetic in safe/default Yogi.
 - [x] Pointer mutability is tracked internally through provenance/permission.
-- [ ] `const p: ptr<T>` means the pointer binding cannot be reassigned.
-- [ ] `const p: ptr<T>` does not mean the pointed storage is readonly.
+- [x] `const p: ptr<T>` means the pointer binding cannot be reassigned.
+- [x] `const p: ptr<T>` does not mean the pointed storage is readonly.
 - [x] Pointed storage mutability comes from the root storage: `let` or `const`.
 
 ---
@@ -210,10 +210,10 @@ Rules:
 - [x] Pointer from `const` root gets readonly permission.
 - [x] Pointer copy preserves permission.
 - [x] Pointer assignment updates the target variable's current pointer provenance.
-- [ ] Writing through readonly pointer is rejected.
-- [ ] Reading through readonly pointer is allowed.
-- [ ] `const p: ptr<T>` prevents reassignment of `p` only.
-- [ ] `const p: ptr<T>` does not change pointed storage permission.
+- [x] Writing through readonly pointer is rejected.
+- [x] Reading through readonly pointer is allowed.
+- [x] `const p: ptr<T>` prevents reassignment of `p` only.
+- [x] `const p: ptr<T>` does not change pointed storage permission.
 
 Examples:
 
@@ -387,14 +387,14 @@ Because `&constValue` is valid, the compiler needs to know whether a function wr
 
 Checklist:
 
-- [ ] Analyze function bodies for pointer parameter reads.
-- [ ] Analyze function bodies for pointer parameter writes.
-- [ ] Mark pointer parameters as `read-only-use` if only read.
-- [ ] Mark pointer parameters as `may-write` if write-through occurs.
+- [x] Analyze function bodies for pointer parameter reads.
+- [x] Analyze function bodies for pointer parameter writes.
+- [x] Mark pointer parameters as `read-only-use` if only read.
+- [x] Mark pointer parameters as `may-write` if write-through occurs.
 - [ ] Mark pointer parameters as `returned-view` if returned pointer derives from them.
 - [ ] Mark pointer parameters as `retained` if stored globally/heap/closure.
-- [ ] At call site, allow `&constValue` for read-only pointer params.
-- [ ] At call site, reject `&constValue` for may-write pointer params.
+- [x] At call site, allow `&constValue` for read-only pointer params.
+- [x] At call site, reject `&constValue` for may-write pointer params.
 - [ ] Unknown/external functions are conservative by default.
 
 Read-only function:
@@ -470,12 +470,12 @@ matrixPtr[i,j] // fixed matrix pointer access
 
 Checklist:
 
-- [ ] Define read from `ptr<number>` using `p[0]`.
-- [ ] Define read from `ptr<string>` if string pointer access is supported.
+- [x] Define read from `ptr<number>` using `p[0]`.
+- [x] Define read from `ptr<string>` if string pointer access is supported.
 - [ ] Define read from `ptr<number[N]>` using `p[i]`.
 - [ ] Define read from `ptr<number[R,C]>` using `p[i,j]`.
-- [ ] No implicit pointer-to-value conversion.
-- [ ] Optional `*p` dereference is not part of initial model.
+- [x] No implicit pointer-to-value conversion.
+- [x] Optional `*p` dereference is not part of initial model.
 
 Example:
 
@@ -491,13 +491,13 @@ let value: number = p[0]
 
 Checklist:
 
-- [ ] Assignment through pointer is supported for scalar pointer access.
+- [x] Assignment through pointer is supported for scalar pointer access.
 - [ ] Assignment through fixed array pointer access is supported.
 - [ ] Assignment through fixed matrix pointer access is supported.
-- [ ] Write-through checks pointer permission.
-- [ ] Write-through is allowed for mutable provenance.
-- [ ] Write-through is rejected for readonly provenance.
-- [ ] Assigned value type must match pointed element type.
+- [x] Write-through checks pointer permission.
+- [x] Write-through is allowed for mutable provenance.
+- [x] Write-through is rejected for readonly provenance.
+- [x] Assigned value type must match pointed element type.
 
 Example:
 
@@ -569,7 +569,7 @@ Checklist:
 - [ ] If `matrix: ptr<number[R,C]>`, then `matrix[i,j] = x` writes through pointer if mutable.
 - [ ] Index rank must match shape for full element access.
 - [ ] Bounds checking is performed according to Yogi's array rules.
-- [ ] Const provenance blocks write-through.
+- [x] Const provenance blocks write-through.
 
 Example:
 
@@ -1023,10 +1023,10 @@ Checklist:
 - [x] `AddressOfExpression` stores root symbol/provenance.
 - [x] `AddressOfExpression` stores access path.
 - [x] `AddressOfExpression` stores permission: mutable/readonly.
-- [ ] Add pointer read/access expression representation.
-- [ ] Add pointer write-through representation.
-- [ ] Add pointer function parameter metadata.
-- [ ] Add function pointer summary metadata.
+- [x] Add pointer read/access expression representation.
+- [x] Add pointer write-through representation.
+- [x] Add pointer function parameter metadata.
+- [x] Add function pointer summary metadata.
 
 Suggested shape:
 
@@ -1059,8 +1059,8 @@ Checklist:
 - [x] Add permission representation: mutable/readonly.
 - [x] Add pointer parameter representation.
 - [x] Add pointer return type representation.
-- [ ] Add pointer read/write expressions if needed.
-- [ ] Add function summary metadata for pointer params.
+- [x] Add pointer read/write expressions if needed.
+- [x] Add function summary metadata for pointer params.
 
 Suggested fields:
 
@@ -1082,12 +1082,14 @@ AddressOfExpressionFbs:
 
 Checklist:
 
-- [ ] Lower `ptr<T>` to LLVM pointer type.
-- [ ] Lower `&localVariable` to address of local alloca/storage.
-- [ ] Lower `&globalVariable` to global address.
-- [ ] Lower `&parameter` to parameter storage address where applicable.
-- [ ] Lower pointer copy as pointer value copy.
-- [ ] Lower pointer function argument as address, not pointee copy.
+- [x] Lower `ptr<T>` to LLVM pointer type.
+- [x] Lower `&localVariable` to address of local alloca/storage.
+- [x] Lower `&globalVariable` to global address.
+- [x] Lower `&parameter` to parameter storage address where applicable.
+- [x] Lower pointer copy as pointer value copy.
+- [x] Lower pointer function argument as address, not pointee copy.
+- [x] Lower scalar `p[0]` read as pointee load.
+- [x] Lower scalar `p[0] = value` as pointee store.
 - [ ] Lower `&object.field` using GEP field index.
 - [ ] Lower `&struct.field` using GEP field index.
 - [ ] Lower `&fixedArray[index]` using GEP element offset.
@@ -1609,18 +1611,18 @@ function 'change' may mutate pointer parameter 'matrix', but argument '&matrix' 
 
 ### Phase 4 — Pointer Access
 
-- [ ] `p[0]` read for scalar pointer.
-- [ ] `p[0]` write for scalar pointer.
-- [ ] Permission check for write-through.
-- [ ] Const provenance diagnostic.
+- [x] `p[0]` read for scalar pointer.
+- [x] `p[0]` write for scalar pointer.
+- [x] Permission check for write-through.
+- [x] Const provenance diagnostic.
 
 ### Phase 5 — Function Summaries
 
-- [ ] Detect read-only pointer params.
-- [ ] Detect may-write pointer params.
+- [x] Detect read-only pointer params.
+- [x] Detect may-write pointer params.
 - [ ] Detect returned pointer views.
 - [ ] Detect retained pointer params.
-- [ ] Call-site check for `&constValue`.
+- [x] Call-site check for `&constValue`.
 
 ### Phase 6 — Arrays / Matrices
 
@@ -1679,10 +1681,10 @@ Update this section as implementation progresses.
 
 ### In Progress
 
-- [ ] pointer access/read
-- [ ] pointer write-through
-- [ ] provenance/permission tracking
-- [ ] function read/write summaries
+- [x] pointer access/read
+- [x] pointer write-through
+- [x] provenance/permission tracking
+- [x] function read/write summaries
 - [ ] pointer indexing for arrays
 - [ ] partial views
 

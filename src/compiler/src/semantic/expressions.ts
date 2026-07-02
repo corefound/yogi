@@ -266,6 +266,31 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             });
             const effectSummary = symbol.effectSummary ?? symbol.node?.effectSummary ?? null;
             const external = symbol.ambient === true || symbol.declare === true || !effectSummary;
+            if (!external) {
+                args.forEach((argument: any, index: number) => {
+                    const expectedType = parameters[index]?.type;
+                    const expectedIsPointer = this.isPointerType(expectedType);
+                    const effect = effectSummary?.parameterEffects?.[index];
+
+                    if (
+                        expectedIsPointer &&
+                        effect?.mutates === true &&
+                        argument?.pointerPermission === "readonly"
+                    ) {
+                        const parameterName = parameters[index]?.name ?? `argument ${index + 1}`;
+                        const rootName = argument.pointerRootName ?? "unknown";
+                        argument.arrowLength = argument.source?.length ?? 1;
+                        this.throwError(
+                            `function ${Helpers.BLUE}'${calleeName}'${Helpers.RESET} may mutate pointer parameter ` +
+                            `${Helpers.BLUE}'${parameterName}'${Helpers.RESET}, but argument ` +
+                            `${Helpers.RED}'${argument.source ?? rootName}'${Helpers.RESET} points to const storage`,
+                            argument.position ?? node.position,
+                            node.fullSource ?? node.source,
+                            argument,
+                        );
+                    }
+                });
+            }
             const argumentEffects = args.map((_: any, index: number) => {
                 const effect = effectSummary?.parameterEffects?.[index];
 
@@ -2116,6 +2141,54 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const indexValue = this.literalIndexValue(index);
             const source = node.fullSource ?? node.source;
 
+            if (objectType?.kind === Kinds.Types.PointerType) {
+                if (indices.length !== 1) {
+                    const message = `scalar pointer access only supports index 0`;
+                    node.arrowLength = node.source?.length ?? 1;
+                    this.throwError(message, node.position, source, node);
+                }
+
+                if (index?.type?.kind !== Kinds.Types.NumberType) {
+                    const message =
+                        `pointer index must be ${Helpers.BLUE}'number'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${index?.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(message, node.position, source, node);
+                }
+
+                if (typeof indexValue !== "number" || !Number.isInteger(indexValue)) {
+                    const message = `scalar pointer access currently requires literal index 0`;
+                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(message, node.position, source, node);
+                }
+
+                if (indexValue !== 0) {
+                    const message = `scalar pointer access only supports index 0`;
+                    node.arrowLength = node.index?.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(message, node.position, source, node);
+                }
+
+                const pointee = objectType.elementType ?? objectType.pointee;
+
+                return {
+                    ...node,
+                    object,
+                    index,
+                    indices,
+                    type: pointee,
+                    pointerAccess: true,
+                    pointerRootName: object.pointerRootName ?? null,
+                    pointerRootSymbolId: object.pointerRootSymbolId,
+                    pointerAccessPath: [
+                        ...(object.pointerAccessPath ?? []),
+                        "[0]",
+                    ],
+                    pointerPermission: object.pointerPermission,
+                    readonly: object.pointerPermission === "readonly",
+                };
+            }
+
             if (indices.length > 1) {
                 if (objectType?.kind === Kinds.Types.ArrayType && objectType.fixed !== true) {
                     const message =
@@ -2681,6 +2754,37 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const checkAggregateAssignment = (node: any, left: any, right: any, context: any): any => {
                 const root = this.getAggregateRootIdentifier(left.object);
                 const symbol = root ? this.resolveSymbol(root) : null;
+                const objectType = this.resolveType(left.object?.declaredType ?? left.object?.type);
+
+                if (objectType?.kind === Kinds.Types.PointerType) {
+                    if (left.pointerPermission === "readonly") {
+                        const rootName = left.pointerRootName ?? root ?? "unknown";
+                        left.arrowLength = left.source?.length ?? 1;
+                        this.throwError(
+                            `cannot mutate storage derived from const value ${Helpers.RED}'${rootName}'${Helpers.RESET}`,
+                            left.position,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            left,
+                        );
+                    }
+
+                    if (!this.isTypeAssignable(left.type, right.type)) {
+                        const message =
+                            `expected ${Helpers.BLUE}'${left.type?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                            `${Helpers.RED}'${right.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                        right.arrowLength = right.source?.length ?? 1;
+                        this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
+                    }
+
+                    return {
+                        ...node,
+                        kind: "AggregateAssignmentExpression",
+                        target: left,
+                        right,
+                        type: left.type,
+                    };
+                }
 
                 if (!symbol) {
                     const message = `left side of assignment must start from a known variable`;

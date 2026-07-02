@@ -2366,6 +2366,19 @@ namespace yogi::core::llvm::internal {
 	) {
 		const auto *objectSemanticType = valueSemanticType(access->object());
 		const auto objectKind = resolvedTypeKind(objectSemanticType);
+		if (objectKind == Yogi::Sir::TypeKind_pointer_type) {
+			auto *pointer = lower(access->object(), opaquePointer(), objectSemanticType);
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+			auto *loaded = context.builder.CreateLoad(
+				types.lower(access->type()),
+				pointer,
+				"ptr.scalar.load"
+			);
+
+			return cast(loaded, targetType, targetSemanticType, access->type());
+		}
+
 		if (objectKind == Yogi::Sir::TypeKind_string_type) {
 			auto *text = lower(access->object(), opaquePointer(), objectSemanticType);
 			auto *indexValue = lower(access->index(), ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(access->index()));
@@ -2437,6 +2450,17 @@ namespace yogi::core::llvm::internal {
 		const auto *target = assignment->target();
 		const auto *rightType = valueSemanticType(assignment->right());
 		auto *rightValue = lower(assignment->right(), types.lower(rightType), rightType);
+
+		if (const auto *element = target ? target->element_access() : nullptr) {
+			const auto *objectType = valueSemanticType(element->object());
+			if (resolvedTypeKind(objectType) == Yogi::Sir::TypeKind_pointer_type) {
+				auto *pointer = lower(element->object(), opaquePointer(), objectType);
+				auto *pointeeType = types.lower(element->type());
+				auto *storedValue = cast(rightValue, pointeeType, element->type(), rightType);
+				context.builder.CreateStore(storedValue, pointer);
+				return cast(storedValue, types.lower(assignment->type()), assignment->type(), element->type());
+			}
+		}
 
 		if (const auto *property = target ? target->property_access() : nullptr) {
 			const auto *objectType = valueSemanticType(property->object());
