@@ -472,16 +472,27 @@ function setFirst(values: ptr<number[]>): void {
 }
 ```
 
-Partial pointer views are intentionally rejected for now:
+Partial pointer views are supported for fixed-shape arrays. A partial access
+returns a borrowed pointer view into the same backing storage:
 
 ```ts
-function row(matrix: ptr<number[2, 3]>): number[3] {
-    return matrix[0] // error
+function row(matrix: ptr<number[2, 3]>): ptr<number[3]> {
+    return matrix[0]
+}
+
+function setSecond(row: ptr<number[3]>): void {
+    row[1] = 77
 }
 ```
 
-```txt
-partial indexing through pointer is not implemented yet
+The view does not copy. Mutating through the returned pointer mutates the
+original fixed-shape array. Direct assignment to the slice expression is still
+rejected:
+
+```ts
+function bad(matrix: ptr<number[2, 3]>, row: number[3]): void {
+    matrix[0] = row // error
+}
 ```
 
 ### Future: pointers to dynamic shaped arrays
@@ -541,7 +552,7 @@ If the runtime rank is not 2:
 runtime error: cannot index Array<number> with 2 indices because runtime rank is 1
 ```
 
-Pointer partial views are also possible as future work.
+Dynamic shaped pointer partial views are also possible as future work.
 
 Known-rank partial pointer view:
 
@@ -1954,6 +1965,7 @@ Yogi is flexible when the runtime can validate safely.
 ✅ Pointer parameters
 ✅ Full fixed-shape array pointer indexing
 ✅ Dynamic 1D array pointer indexing through ptr<number[]>
+✅ Pointer partial views for fixed-shape arrays
 ✅ Pointer indexing read/write mutates caller storage
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer call diagnostics for missing &, value/pointer mismatch, shape mismatch, and pointer-to-pointer mismatch
@@ -1962,14 +1974,12 @@ Yogi is flexible when the runtime can validate safely.
 ### Next Lots
 
 ```txt
-⬜ Pointer partial views for fixed-shape arrays
 ⬜ Adjust borrow summaries to ptr<T> parameter returns
 ```
 
 ### Future Work
 
 ```txt
-⬜ Pointer partial views: ptr<number[2, 3]>[0] -> ptr<number[3]>
 ⬜ Adjust borrow summaries to ptr<T> parameter returns
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for borrowed views
@@ -1992,21 +2002,20 @@ Yogi is flexible when the runtime can validate safely.
 ## Recommended Implementation Order
 
 ```txt
-1. Pointer partial views for fixed-shape arrays
-2. Adjust borrow summaries to ptr<T> parameter returns
-3. String element extraction from string[] through .at() inside struct fields
-4. Dynamic shaped arrays: Array<T, Rank>
-5. Runtime-rank dynamic shaped arrays: Array<T>
-6. Union element dynamic shaped arrays
-7. Pointers to dynamic shaped arrays: ptr<Array<T, Rank>> and ptr<Array<T>>
-8. Dynamic shaped views/slices
-9. Escape analysis complete for borrowed views
-10. Cleanup/destructor rules for borrowed views
-11. Native fixed-shape ABI without runtime descriptor
-12. C ABI interop rules for arrays
-13. Lazy iterator objects
-14. Object stringification inside arrays
-15. Final array method policy
-16. Final diagnostics polish
-17. Documentation final pass
+1. Adjust borrow summaries to ptr<T> parameter returns
+2. String element extraction from string[] through .at() inside struct fields
+3. Dynamic shaped arrays: Array<T, Rank>
+4. Runtime-rank dynamic shaped arrays: Array<T>
+5. Union element dynamic shaped arrays
+6. Pointers to dynamic shaped arrays: ptr<Array<T, Rank>> and ptr<Array<T>>
+7. Dynamic shaped views/slices
+8. Escape analysis complete for borrowed views
+9. Cleanup/destructor rules for borrowed views
+10. Native fixed-shape ABI without runtime descriptor
+11. C ABI interop rules for arrays
+12. Lazy iterator objects
+13. Object stringification inside arrays
+14. Final array method policy
+15. Final diagnostics polish
+16. Documentation final pass
 ```

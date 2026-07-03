@@ -91,7 +91,7 @@ without re-auditing the whole compiler.
 - [x] Array print support
 - [x] Const/readonly propagation through borrowed fixed-shape views
 - [x] General array pointer indexing beyond scalar literal `0`
-- [ ] Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`
+- [x] Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`
 - [ ] Borrow summaries adjusted for `ptr<T>` parameter returns
 - [ ] General dereference operator syntax
 - [ ] Interprocedural lifetime summaries for borrowed views

@@ -596,13 +596,13 @@ Partial indexing returns a pointer/view into the original storage.
 
 Checklist:
 
-- [ ] If `matrix: ptr<number[2,3]>`, then `matrix[0]` returns `ptr<number[3]>`.
-- [ ] If `image: ptr<number[2,2,3]>`, then `image[1]` returns `ptr<number[2,3]>`.
-- [ ] If `image: ptr<number[2,2,3]>`, then `image[1,0]` returns `ptr<number[3]>`.
-- [ ] Full indexing returns scalar value in read position.
-- [ ] Partial views do not copy.
-- [ ] Partial views inherit provenance/permission.
-- [ ] Partial views can be returned only when derived from pointer params or storage that outlives return.
+- [x] If `matrix: ptr<number[2,3]>`, then `matrix[0]` returns `ptr<number[3]>`.
+- [x] If `image: ptr<number[2,2,3]>`, then `image[1]` returns `ptr<number[2,3]>`.
+- [x] If `image: ptr<number[2,2,3]>`, then `image[1,0]` returns `ptr<number[3]>`.
+- [x] Full indexing returns scalar value in read position.
+- [x] Partial views do not copy.
+- [x] Partial views inherit direct provenance/permission.
+- [ ] Interprocedural borrow/lifetime summaries for returned pointer-derived views.
 
 Example:
 
@@ -610,6 +610,11 @@ Example:
 function firstRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {
     return matrix[0]
 }
+
+let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+let row: ptr<number[3]> = firstRow(&matrix)
+row[1] = 77
+print(matrix[0, 1]) // 77
 ```
 
 ---

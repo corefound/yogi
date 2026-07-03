@@ -208,8 +208,9 @@ ptr<T> -> LLVM pointer to T storage
 pointer assignment -> pointer copy
 p[0] read -> load pointee from pointer value
 p[0] write -> store value through pointer value
-ptr<array>[i, j] read -> load caller array descriptor, row-major offset, yogi_array_get
-ptr<array>[i, j] write -> load caller array descriptor, row-major offset, yogi_array_set
+ptr<array>[i, j] read -> array descriptor pointer, row-major offset, yogi_array_get
+ptr<array>[i, j] write -> array descriptor pointer, row-major offset, yogi_array_set
+ptr<array>[i] partial view -> yogi_array_view borrowed descriptor
 ```
 
 For dynamic arrays, `ptr<number[]>` points at the array descriptor/value storage,
@@ -218,7 +219,6 @@ runtime bounds checking path as normal array indexing.
 
 ## Current Limitations
 
-- Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`.
 - Dereference operator.
 - Borrow summaries for functions that return pointer-derived views.
 - Dynamic shaped array pointers such as `ptr<Array<T, Rank>>`.
@@ -243,6 +243,7 @@ The suite covers:
 - function pointer parameter
 - scalar pointer read and write-through
 - fixed-shape array pointer read and write-through
+- fixed-shape pointer partial views through `yogi_array_view`
 - dynamic 1D array pointer read and write-through
 - normal fixed-shape array parameter local/value semantics
 - union element pointer indexing
