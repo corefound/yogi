@@ -1601,6 +1601,30 @@ namespace yogi::core::llvm::internal {
 			return types.zero(expectedType ? expectedType : opaquePointer());
 		}
 
+		const auto *pointerType = addressOf->type();
+		const auto *pointeeSemanticType = pointerType && pointerType->element_type()
+			? pointerType->element_type()
+			: nullptr;
+		const auto pointeeKind = resolvedTypeKind(pointeeSemanticType);
+
+		if (
+			pointeeKind == Yogi::Sir::TypeKind_array_type ||
+			pointeeKind == Yogi::Sir::TypeKind_tuple_type
+		) {
+			auto *loaded = context.builder.CreateLoad(
+				opaquePointer(),
+				address,
+				sanitizeSymbol(name.empty() ? "aggregate" : name) + ".ptr.load"
+			);
+
+			return cast(
+				loaded,
+				expectedType ? expectedType : opaquePointer(),
+				expectedSemanticType ? expectedSemanticType : addressOf->type(),
+				addressOf->type()
+			);
+		}
+
 		return cast(
 			address,
 			expectedType ? expectedType : opaquePointer(),
@@ -2375,18 +2399,26 @@ namespace yogi::core::llvm::internal {
 				: access->type();
 
 			if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
-				auto *array = context.builder.CreateLoad(
-					opaquePointer(),
-					pointer,
-					"ptr.array.load"
-				);
+				auto *array = pointer;
 				const auto *indices = access->indices();
 				const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
 				::llvm::Value *boxedValue = nullptr;
 
 				if (isFixedLengthArray(pointeeSemanticType)) {
 					const auto shape = fixedShape(pointeeSemanticType);
-					auto *offset = fixedShapeLinearOffset(access, shape, static_cast<size_t>(indexCount), false);
+					const auto consumedDimensions = static_cast<size_t>(indexCount);
+
+					if (consumedDimensions < shape.size()) {
+						auto *startOffset = fixedShapeLinearOffset(access, shape, consumedDimensions, true);
+						auto *view = createBorrowedFixedShapeView(
+							array,
+							startOffset,
+							fixedShapeElementCount(shape, consumedDimensions)
+						);
+						return cast(view, targetType, targetSemanticType, targetSemanticType);
+					}
+
+					auto *offset = fixedShapeLinearOffset(access, shape, consumedDimensions, false);
 					boxedValue = callRuntime("yogi_array_get", opaquePointer(), {array, offset});
 				} else {
 					const auto *indexRef = indices && indices->size() > 0
@@ -2503,11 +2535,7 @@ namespace yogi::core::llvm::internal {
 					: element->type();
 
 				if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
-					auto *array = context.builder.CreateLoad(
-						opaquePointer(),
-						pointer,
-						"ptr.array.load"
-					);
+					auto *array = pointer;
 					auto *boxedValue = boxAny(rightValue, rightType);
 					const auto *indices = element->indices();
 					const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
@@ -2515,6 +2543,11 @@ namespace yogi::core::llvm::internal {
 
 					if (isFixedLengthArray(pointeeSemanticType)) {
 						const auto shape = fixedShape(pointeeSemanticType);
+						if (static_cast<size_t>(indexCount) < shape.size()) {
+							context.popMemorySourceLocation();
+							return types.zero(types.lower(assignment->type()));
+						}
+
 						auto *offset = fixedShapeLinearOffset(element, shape, static_cast<size_t>(indexCount), false);
 						callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, offset, boxedValue});
 						context.popMemorySourceLocation();

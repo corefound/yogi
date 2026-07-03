@@ -2169,14 +2169,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     const isFixedShape = resolvedPointee.fixed === true && shape.length > 0;
 
                     if (isFixedShape) {
-                        if (indices.length < shape.length) {
-                            const message =
-                                `partial indexing through pointer is not implemented yet; use full indexing or wait for pointer view support`;
-
-                            node.arrowLength = node.source?.length ?? 1;
-                            this.throwError(message, node.position, source, node);
-                        }
-
                         if (indices.length > shape.length) {
                             const message =
                                 `${Helpers.BLUE}'${resolvedPointee.raw ?? pointee?.raw ?? "array"}'${Helpers.RESET} pointer expects ` +
@@ -2203,6 +2195,34 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 indices[dimension].arrowLength = indices[dimension].source?.length ?? 1;
                                 this.throwError(message, indices[dimension].position ?? node.position, source, indices[dimension]);
                             }
+                        }
+
+                        if (indices.length < shape.length) {
+                            const viewType = this.fixedArraySliceType(resolvedPointee, indices.length);
+                            const pointerViewType = {
+                                kind: Kinds.Types.PointerType,
+                                raw: `ptr<${viewType?.raw ?? "unknown"}>`,
+                                elementType: viewType,
+                                pointee: viewType,
+                            };
+
+                            return {
+                                ...node,
+                                object,
+                                index,
+                                indices,
+                                type: pointerViewType,
+                                pointerAccess: true,
+                                pointerPartialView: true,
+                                pointerRootName: object.pointerRootName ?? null,
+                                pointerRootSymbolId: object.pointerRootSymbolId,
+                                pointerAccessPath: [
+                                    ...(object.pointerAccessPath ?? []),
+                                    `[${indices.map((item: any) => item.source ?? "?").join(", ")}]`,
+                                ],
+                                pointerPermission: object.pointerPermission,
+                                readonly: object.pointerPermission === "readonly",
+                            };
                         }
                     } else if (indices.length !== 1) {
                         const message =
@@ -2835,6 +2855,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 const objectType = this.resolveType(left.object?.declaredType ?? left.object?.type);
 
                 if (objectType?.kind === Kinds.Types.PointerType) {
+                    if (left.pointerPartialView === true) {
+                        left.arrowLength = left.source?.length ?? 1;
+                        this.throwError(
+                            `cannot assign directly to pointer slice ${Helpers.RED}'${left.source ?? "view"}'${Helpers.RESET}; ` +
+                            `mutate through the returned pointer or use full element indexing`,
+                            left.position,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            left,
+                        );
+                    }
+
                     if (left.pointerPermission === "readonly") {
                         const rootName = left.pointerRootName ?? root ?? "unknown";
                         left.arrowLength = left.source?.length ?? 1;
