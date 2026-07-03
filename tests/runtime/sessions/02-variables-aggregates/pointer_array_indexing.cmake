@@ -40,7 +40,7 @@ function(expect_run case_name source expected_stdout)
 	endforeach()
 
 	file(READ "${ir}" ir_text)
-	foreach(symbol IN ITEMS ptr.array.load yogi_array_get yogi_array_set yogi_array_clone array.shape)
+	foreach(symbol IN ITEMS yogi_array_get yogi_array_set yogi_array_clone yogi_array_view array.shape)
 		if(NOT ir_text MATCHES "${symbol}")
 			message(FATAL_ERROR "${case_name} IR did not contain ${symbol}:\n${ir_text}")
 		endif()
@@ -126,8 +126,8 @@ endfunction()
 
 expect_run(
 	"pointer_array_indexing"
-	"function change(matrix: ptr<number[2, 3]>): void {\n    matrix[0, 2] = 99\n}\n\nfunction changeLocal(matrix: number[2, 3]): void {\n    matrix[0, 2] = 77\n}\n\nfunction readCell(matrix: ptr<number[2, 3]>): number {\n    return matrix[1, 2]\n}\n\nfunction setAt(matrix: ptr<number[2, 3]>, row: number, col: number, value: number): void {\n    matrix[row, col] = value\n}\n\nfunction setVector(values: ptr<number[3]>): void {\n    values[2] = 42\n}\n\nfunction setFirst(values: ptr<number[]>): void {\n    values[0] = 55\n}\n\nfunction first(values: ptr<number[]>): number {\n    return values[0]\n}\n\ntype Cell = number | string\n\nfunction updateGrid(grid: ptr<Cell[2, 2]>): void {\n    grid[0, 0] = 123\n    grid[0, 1] = \"ok\"\n}\n\nlet matrix: number[2, 3] = [\n    [1, 2, 3],\n    [4, 5, 6]\n]\nchange(&matrix)\nprint(matrix[0, 2])\nprint(readCell(&matrix))\nsetAt(&matrix, 1, 1, 88)\nprint(matrix[1, 1])\n\nlet localMatrix: number[2, 3] = [\n    [1, 2, 3],\n    [4, 5, 6]\n]\nchangeLocal(localMatrix)\nprint(localMatrix[0, 2])\n\nlet vector: number[3] = [7, 8, 9]\nsetVector(&vector)\nprint(vector[2])\n\nlet values: number[] = [1, 2, 3]\nsetFirst(&values)\nprint(values[0])\nprint(first(&values))\n\nlet grid: Cell[2, 2] = [\n    [1, \"a\"],\n    [2, \"b\"]\n]\nupdateGrid(&grid)\nprint(grid[0, 0] as number)\nprint(grid[0, 1] as string)\n"
-	"99\n6\n88\n3\n42\n55\n55\n123\nok\n"
+	"function change(matrix: ptr<number[2, 3]>): void {\n    matrix[0, 2] = 99\n}\n\nfunction changeLocal(matrix: number[2, 3]): void {\n    matrix[0, 2] = 77\n}\n\nfunction readCell(matrix: ptr<number[2, 3]>): number {\n    return matrix[1, 2]\n}\n\nfunction setAt(matrix: ptr<number[2, 3]>, row: number, col: number, value: number): void {\n    matrix[row, col] = value\n}\n\nfunction firstRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {\n    return matrix[0]\n}\n\nfunction setSecond(row: ptr<number[3]>): void {\n    row[1] = 77\n}\n\nfunction firstPixel(image: ptr<number[2, 2, 3]>): ptr<number[3]> {\n    return image[1, 0]\n}\n\nfunction setVector(values: ptr<number[3]>): void {\n    values[2] = 42\n}\n\nfunction setFirst(values: ptr<number[]>): void {\n    values[0] = 55\n}\n\nfunction first(values: ptr<number[]>): number {\n    return values[0]\n}\n\ntype Cell = number | string\n\nfunction updateGrid(grid: ptr<Cell[2, 2]>): void {\n    grid[0, 0] = 123\n    grid[0, 1] = \"ok\"\n}\n\nlet matrix: number[2, 3] = [\n    [1, 2, 3],\n    [4, 5, 6]\n]\nchange(&matrix)\nprint(matrix[0, 2])\nprint(readCell(&matrix))\nsetAt(&matrix, 1, 1, 88)\nprint(matrix[1, 1])\nlet row: ptr<number[3]> = firstRow(&matrix)\nrow[1] = 66\nprint(matrix[0, 1])\nsetSecond(firstRow(&matrix))\nprint(matrix[0, 1])\n\nlet image: number[2, 2, 3] = [\n    [[1, 2, 3], [4, 5, 6]],\n    [[7, 8, 9], [10, 11, 12]]\n]\nlet pixel: ptr<number[3]> = firstPixel(&image)\npixel[2] = 44\nprint(image[1, 0, 2])\n\nlet localMatrix: number[2, 3] = [\n    [1, 2, 3],\n    [4, 5, 6]\n]\nchangeLocal(localMatrix)\nprint(localMatrix[0, 2])\n\nlet vector: number[3] = [7, 8, 9]\nsetVector(&vector)\nprint(vector[2])\n\nlet values: number[] = [1, 2, 3]\nsetFirst(&values)\nprint(values[0])\nprint(first(&values))\n\nlet grid: Cell[2, 2] = [\n    [1, \"a\"],\n    [2, \"b\"]\n]\nupdateGrid(&grid)\nprint(grid[0, 0] as number)\nprint(grid[0, 1] as string)\n"
+	"99\n6\n88\n66\n77\n44\n3\n42\n55\n55\n123\nok\n"
 )
 
 expect_invalid(
@@ -155,9 +155,21 @@ expect_invalid(
 )
 
 expect_invalid(
-	"partial_pointer_indexing"
+	"pointer_partial_view_return_type_mismatch"
 	"function firstRow(matrix: ptr<number[2, 3]>): number[3] {\n    return matrix[0]\n}\n"
-	"partial indexing through pointer is not implemented yet"
+	"must return .*number\\[3\\].*got .*ptr<number\\[3\\]>"
+)
+
+expect_invalid(
+	"pointer_partial_view_direct_assignment"
+	"function replaceRow(matrix: ptr<number[2, 3]>, row: number[3]): void {\n    matrix[0] = row\n}\n"
+	"cannot assign directly to pointer slice"
+)
+
+expect_invalid(
+	"readonly_pointer_partial_view"
+	"const matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet p: ptr<number[2, 3]> = &matrix\nlet row: ptr<number[3]> = p[0]\nrow[1] = 99\n"
+	"cannot mutate storage derived from const value"
 )
 
 expect_invalid(
