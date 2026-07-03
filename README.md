@@ -15,7 +15,7 @@ model is intentionally stricter and closer to systems programming:
 The compiler currently lowers source code through this pipeline:
 
 ```text
-.ts/.io source
+.ts source
   -> TypeScript-style parser AST
   -> AST FlatBuffer
   -> semantic analysis
