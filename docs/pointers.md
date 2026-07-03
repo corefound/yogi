@@ -2,7 +2,7 @@
 
 This document tracks the full pointer model for Yogi/Joki.
 
-It is meant to be a living implementation checklist for Codex. Update each checkbox from `[ ]` to `[x]` as the compiler supports the feature.
+It is meant to be a living implementation checklist. Update each checkbox from `[ ]` to `[x]` as the compiler supports the feature.
 
 ---
 
@@ -1700,7 +1700,7 @@ Update this section as implementation progresses.
 
 ---
 
-## 38. Notes for Codex
+## 38. Notes
 
 When updating this file:
 

@@ -1293,7 +1293,7 @@ body-scope aggregate cleanup
 
 ---
 
-## 18. Codex Implementation Order
+## 18. Implementation Order
 
 This is not a toy-language staged design. This is the implementation order for completing the full loop design cleanly.
 
