@@ -138,69 +138,69 @@ This section summarizes where Yogi stands today. It is derived from the
 
 ### Frontend And Language Semantics
 
-- [Frontend Pipeline](frontend-pipeline.md)
-- [Variables](variables.md)
-- [Externs](externs.md)
-- [Loops and Aggregate Methods](loops-and-methods.md)
-- [Package Manager CLI](package-manager.md)
+- [Frontend Pipeline](docs/frontend-pipeline.md)
+- [Variables](docs/variables.md)
+- [Externs](docs/externs.md)
+- [Loops](docs/loops.md)
+- [Package Manager CLI](docs/package-manager.md)
 
 ### Memory And Ownership
 
-- [Memory Model](memory-model.md)
-- [Function Ownership](ownership.md)
-- [Aggregate Assignment Ownership](memory/aggregate-assignment.md)
-- [Move-State Validation](move-state-validation.md)
-- [Destructor Scheduling](destructor-scheduling.md)
+- [Memory Model](docs/memory-model.md)
+- [Function Ownership](docs/ownership.md)
+- [Aggregate Assignment Ownership](docs/memory/aggregate-assignment.md)
+- [Move-State Validation](docs/move-state-validation.md)
+- [Destructor Scheduling](docs/destructor-scheduling.md)
 
 ### Runtime
 
-- [Runtime Debug Ownership](runtime-debug.md)
-- [Runtime Allocator](runtime-allocator.md)
-- [Runtime Memory Telemetry](runtime-memory-telemetry.md)
+- [Runtime Debug Ownership](docs/runtime-debug.md)
+- [Runtime Allocator](docs/runtime-allocator.md)
+- [Runtime Memory Telemetry](docs/runtime-memory-telemetry.md)
 
 ### Backend
 
-- [Backend and LLVM](backend-llvm.md)
+- [Backend and LLVM](docs/backend-llvm.md)
 
 ### Control Flow
 
-- [Loops And Iterator Protocol](control-flow/loops.md)
+- [Loops And Iterator Protocol](docs/loops.md)
 
 ### Lots
 
-- [Array Serialization](lots/02-array-serialization.md)
-- [Runtime Array Lowering](lots/03-array-pop-at-lowering.md)
-- [Non-Callback Array Methods](lots/05-array-methods-without-callbacks.md)
-- [Array Copy and Splice Methods](lots/06-array-copy-splice-methods.md)
-- [Array With and Range Diagnostics](lots/07-array-with-range-diagnostics.md)
-- [Array Named Callback Methods](lots/08-array-named-callback-methods.md)
-- [Array Inline Callback Expressions](lots/09-array-inline-callbacks.md)
-- [Array At And Richer Print](lots/10-array-at-and-print.md)
-- [Array Stringification And Ordering](lots/11-array-stringification-and-ordering.md)
-- [Array Completion](lots/12-array-completion.md)
-- [Iterator Protocol And Loops](lots/13-iterator-protocol-and-loops.md)
-- [String Operators And Template Literals](lots/14-string-operators-and-template-literals.md)
-- [String Methods](lots/15-string-methods.md)
-- [String Lifetime And Array At Extraction](lots/16-string-lifetime-and-array-at.md)
-- [String Expression Temporaries](lots/17-string-expression-temporaries.md)
-- [Strict String Method Batch](lots/18-strict-string-methods.md)
-- [Strict Operator Semantics](lots/19-strict-operator-semantics.md)
-- [Struct Declarations](lots/20-struct-declarations.md)
+- [Array Serialization](docs/lots/02-array-serialization.md)
+- [Runtime Array Lowering](docs/lots/03-array-pop-at-lowering.md)
+- [Non-Callback Array Methods](docs/lots/05-array-methods-without-callbacks.md)
+- [Array Copy and Splice Methods](docs/lots/06-array-copy-splice-methods.md)
+- [Array With and Range Diagnostics](docs/lots/07-array-with-range-diagnostics.md)
+- [Array Named Callback Methods](docs/lots/08-array-named-callback-methods.md)
+- [Array Inline Callback Expressions](docs/lots/09-array-inline-callbacks.md)
+- [Array At And Richer Print](docs/lots/10-array-at-and-print.md)
+- [Array Stringification And Ordering](docs/lots/11-array-stringification-and-ordering.md)
+- [Array Completion](docs/lots/12-array-completion.md)
+- [Iterator Protocol And Loops](docs/lots/13-iterator-protocol-and-loops.md)
+- [String Operators And Template Literals](docs/lots/14-string-operators-and-template-literals.md)
+- [String Methods](docs/lots/15-string-methods.md)
+- [String Lifetime And Array At Extraction](docs/lots/16-string-lifetime-and-array-at.md)
+- [String Expression Temporaries](docs/lots/17-string-expression-temporaries.md)
+- [Strict String Method Batch](docs/lots/18-strict-string-methods.md)
+- [Strict Operator Semantics](docs/lots/19-strict-operator-semantics.md)
+- [Struct Declarations](docs/lots/20-struct-declarations.md)
 
 ### To Do
 
-- [Language Status](todo/language-status.md)
-- [Arrays](todo/arrays.md)
-- [Strings](todo/strings.md)
+- [Language Status](docs/todo/language-status.md)
+- [Arrays](docs/todo/arrays.md)
+- [Strings](docs/todo/strings.md)
 
 ### Testing
 
-- [Runtime Test Organization](testing/runtime-test-organization.md)
+- [Runtime Test Organization](docs/testing/runtime-test-organization.md)
 
 ### Audits
 
-- [Switch/Case/Default Audit](audit/control-flow/switch-case-default-audit.md)
-- [Aggregate Assignment Ownership Audit](audit/memory/aggregate-assignment-ownership-audit.md)
+- [Switch/Case/Default Audit](docs/audit/control-flow/switch-case-default-audit.md)
+- [Aggregate Assignment Ownership Audit](docs/audit/memory/aggregate-assignment-ownership-audit.md)
 
 These docs describe the current implementation plus the intended direction when
 a feature is still partial.
