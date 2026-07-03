@@ -25,6 +25,115 @@ The compiler currently lowers source code through this pipeline:
   -> linked executable
 ```
 
+## Language Status
+
+This section summarizes where Yogi stands today. It is derived from the
+`docs/` folder and updated as implementation lots land.
+
+### Implemented and Working
+
+- **Core language surface**
+  - `let` (mutable) and `const` (immutable) declarations.
+  - `var` is rejected.
+  - Explicit type annotations are required; type inference is not used.
+  - Variables must be initialized.
+  - Primitive types: `number`, `string`, `boolean`, `void`, `undefined`, `null`, `any`.
+  - `any` requires an explicit cast before use as a concrete type.
+  - Union types and basic equality narrowing.
+  - `null`/`undefined` coalescing (`??`, `??=`).
+
+- **Aggregates and structured data**
+  - Fixed-shape object literals, `type` aliases, and `interface` contracts.
+  - Tuples: `[number, string]`.
+  - Dynamic 1D arrays: `T[]`.
+  - Fixed-size 1D arrays: `T[N]`.
+  - Fixed-shape multidimensional arrays: `T[N, M]` with coordinate indexing `m[i, j]`.
+  - Partial array indexing produces borrowed views; `.copy()` creates an owned copy.
+  - Readonly propagation through borrowed array views.
+  - Array spread in dynamic, fixed, tuple, and union contexts.
+  - Array iterator protocol and `for...of` over arrays and strings.
+  - Common array methods (mutating, non-mutating, and callback-based) including
+    `map`, `filter`, `reduce`, `find`, `flat`, `with`, `sort`, `toSorted`, etc.
+
+- **Structs**
+  - Real `struct` declarations that lower to named LLVM struct types.
+  - Struct fields with primitives, strings, arrays, nested structs, and inherited members.
+  - Struct extension from other structs, interfaces, and object-like type aliases.
+  - Generic interfaces/type aliases with real substitution, defaults, and constraints.
+  - Readonly and optional properties in interfaces, type aliases, and struct bodies.
+  - Object-like intersection types.
+  - `layout()` and `validate()` hooks with inherited validate chains.
+  - Numeric scalar structs with explicit `IntegerLayout` lowering to fixed-width integers.
+  - Explicit object-literal adapters between real structs and object-runtime contracts.
+
+- **Pointers and addressability**
+  - Explicit `ptr<T>` type and `&value` address-of expression.
+  - Pointer parameters and pointer assignment with provenance tracking.
+  - Read/write through scalar, fixed-array, fixed-matrix, and dynamic 1D array pointers.
+  - Provenance-based mutability: `&const` produces readonly pointers.
+  - Function pointer read/write summaries that reject `&const` arguments for may-write params.
+
+- **Functions and control flow**
+  - Function declarations with explicit parameter and return types.
+  - `if` / `else`, `while`, classic `for`, `for...of`, `switch`, `break`, `continue`.
+  - TypeScript-style `switch` fall-through with definite-assignment validation.
+  - Exported/internal function visibility.
+
+- **Memory and ownership**
+  - Stack-first local lifetime model.
+  - Escape analysis for globals, exports, returned aggregates, and alias chains.
+  - Function-effect summaries (`returnsParam`, `storesParam`, `mutatesParam`, etc.).
+  - Aggregate assignment ownership (local-to-global, alias chains, returned values).
+  - Destructor scheduling across common control flow including early returns,
+    `break`, and `continue`.
+  - RAII-like cleanup for non-escaping aggregates.
+
+- **Externs and runtime**
+  - `extern` blocks for external functions and variables.
+  - External link inputs: `.a`, `.dylib`, `.so`, `.asm`.
+  - Runtime allocator abstraction (mimalloc / jemalloc / system).
+  - Runtime debug ownership checks (double free, use-after-drop, leak reports).
+  - Runtime memory telemetry with source-location attribution.
+  - Builtin `print(...)` for primitives, arrays, tuples, and strings.
+
+- **Tooling and build**
+  - Package-manager CLI: `yogi init`, `yogi build`, `yogi run`, `yogi start`,
+    direct-file compile.
+  - Ahead-of-time compilation to native executables through LLVM and LLD.
+
+### In Progress / Partial
+
+- `do while` loops.
+- `for...in` loops over arrays and objects.
+- Object helper methods `keys()`, `values()`, `entries()`.
+- Pointer partial views for fixed-shape arrays (`ptr<number[2, 3]>[0] -> ptr<number[3]>`).
+- Borrow summaries adjusted for `ptr<T>` parameter returns.
+- Returning pointers and views with lifetime rules.
+- Object and struct field addressability (`&object.field`, `&struct.field`).
+- Dynamic shaped arrays (`Array<T, Rank>`) with runtime dimensions.
+- Final audit of all JavaScript/TypeScript Array methods.
+- Final audit of all JavaScript/TypeScript String methods.
+- More precise cleanup for string temporaries in complex control flow and callbacks.
+- Explicit copy/move constructors for resource-owning structs.
+- Escape analysis for closures and captured variables.
+
+### Not Started / Future Work
+
+- Function-value model for interface/type behavior contracts (methods as values).
+- Higher-order type machinery: mapped, conditional, `infer`, `keyof`-style operators.
+- Full closure capture with lifetime rules.
+- Reference counting or shared ownership.
+- Explicit `move` / `consume` syntax.
+- Lazy iterator objects.
+- Native fixed-shape ABI without runtime array descriptors.
+- Complete C ABI interop rules for aggregates, pointers, and arrays.
+- Dynamic key/value collection type (`map<K, V>`).
+- Dynamic index signatures in object types (intentionally not supported).
+- Regular expressions and string methods that depend on them (`match`, `split`, etc.).
+- Unicode-aware string semantics (current runtime is byte-oriented).
+- Catchable exceptions / error handling.
+- A full standard library.
+
 ## Documents
 
 ### Frontend And Language Semantics
