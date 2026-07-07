@@ -1,46 +1,53 @@
 name: Build & Release
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+  push:
+    tags:
+      - "v*"
 
 env:
   CMAKE_BUILD_TYPE: Release
 
 jobs:
   build:
+    name: Build ${{ matrix.package_name }}
+    runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            arch: x86_64
             label: linux-x64
-            cmake-args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
+            package_name: yogi-linux-x64
+            archive_name: yogi-linux-x64.tar.gz
+            archive_type: tar
+            cmake_args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
 
-          - os: macos-latest
-            arch: arm64
+          - os: macos-15
             label: macos-arm64
-            cmake-args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
+            package_name: yogi-macos-arm64
+            archive_name: yogi-macos-arm64.tar.gz
+            archive_type: tar
+            cmake_args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
 
           - os: macos-13
-            arch: x86_64
             label: macos-x64
-            cmake-args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
+            package_name: yogi-macos-x64
+            archive_name: yogi-macos-x64.tar.gz
+            archive_type: tar
+            cmake_args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
 
           - os: windows-latest
-            arch: x86_64
             label: win-x64
-            cmake-args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
-
-    runs-on: ${{ matrix.os }}
+            package_name: yogi-windows-x64
+            archive_name: yogi-windows-x64.zip
+            archive_type: zip
+            cmake_args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
 
     steps:
-      - name: Enable long paths (Windows)
+      - name: Enable long paths Windows
         if: runner.os == 'Windows'
         run: git config --global core.longpaths true
 
@@ -49,68 +56,85 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install dependencies (Linux)
+      - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build
 
-      - name: Install dependencies (macOS)
+      - name: Install macOS dependencies
         if: runner.os == 'macOS'
-        run: brew install cmake ninja
+        run: |
+          brew install cmake ninja
 
-      - name: Install dependencies (Windows)
+      - name: Configure Windows
         if: runner.os == 'Windows'
-        run: choco install cmake ninja
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DBUILD_TESTING=OFF `
+            -DYOGI_PORTABLE_BUILD=ON `
+            ${{ matrix.cmake_args }}
 
-      - name: Configure
-        run: cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} ${{ matrix.cmake-args }}
+      - name: Configure Unix
+        if: runner.os != 'Windows'
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+            -DBUILD_TESTING=OFF \
+            -DYOGI_PORTABLE_BUILD=ON \
+            ${{ matrix.cmake_args }}
 
       - name: Build
-        run: cmake --build build
+        run: |
+          cmake --build build --target yogi --config ${{ env.CMAKE_BUILD_TYPE }}
 
-      - name: Upload build artifacts
+      - name: Create portable folder
+        run: |
+          cmake --install build --prefix dist/${{ matrix.package_name }} --config ${{ env.CMAKE_BUILD_TYPE }}
+
+      - name: Compress Windows package
+        if: matrix.archive_type == 'zip'
+        shell: powershell
+        run: |
+          Compress-Archive -Path "dist/${{ matrix.package_name }}/*" -DestinationPath "dist/${{ matrix.archive_name }}" -Force
+
+      - name: Compress Unix package
+        if: matrix.archive_type == 'tar'
+        run: |
+          cd dist
+          tar -czf "${{ matrix.archive_name }}" "${{ matrix.package_name }}"
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: yogi-${{ matrix.label }}
-          path: |
-            build/yogi
-            build/yogi.exe
-            build/*.dll
-            build/*.so
-            build/*.dylib
-            build/lib/*.dll
-            build/lib/*.so
-            build/lib/*.dylib
+          name: ${{ matrix.package_name }}
+          path: dist/${{ matrix.archive_name }}
           compression-level: 9
 
   release:
+    name: Create GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build]
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
 
     steps:
-      - name: Download all artifacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
+        with:
+          path: release-assets
 
-      - name: Create release archives
+      - name: Show release assets
         run: |
-          for dir in yogi-*/; do
-            label="${dir%/}"
-            if [ "$RUNNER_OS" = "Windows" ]; then
-              (cd "$dir" && 7z a -tzip "../${label}.zip" .)
-            else
-              tar -czf "${label}.tar.gz" -C "$dir" .
-            fi
-          done
+          find release-assets -type f
 
-      - name: Create Release
+      - name: Create draft release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
           files: |
-            yogi-*.tar.gz
-            yogi-*.zip
+            release-assets/**/*.zip
+            release-assets/**/*.tar.gz
