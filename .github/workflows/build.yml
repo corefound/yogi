@@ -38,8 +38,9 @@ jobs:
             archive_name: yogi-macos-x64.tar.gz
             archive_type: tar
             cmake_args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
-
-          - os: windows-latest
+            
+          - os: windows-2022
+            arch: x86_64
             label: win-x64
             package_name: yogi-windows-x64
             archive_name: yogi-windows-x64.zip
