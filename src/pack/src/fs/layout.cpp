@@ -5,7 +5,9 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <limits.h>
+#ifdef __APPLE__
 #include <mach-o/dyld.h>
+#endif
 
 namespace yogi::fs {
 namespace fs = std::filesystem;
@@ -34,7 +36,7 @@ static std::string getBinaryDir() {
     if (pos != std::string::npos)
       return path.substr(0, pos);
   }
-  // macOS fallback
+#ifdef __APPLE__
   uint32_t size = PATH_MAX;
   if (_NSGetExecutablePath(buf, &size) == 0) {
     std::string path = buf;
@@ -42,6 +44,7 @@ static std::string getBinaryDir() {
     if (pos != std::string::npos)
       return path.substr(0, pos);
   }
+#endif
   return "";
 }
 
