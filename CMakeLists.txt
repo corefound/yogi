@@ -1,10 +1,18 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.20)
+
+# ============================================================
+#                  MACOS SETUP
+# ============================================================
+# Must be set before project() for macOS builds.
+if(APPLE)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS deployment target")
+endif()
+
 project(yogi VERSION 0.0.1 LANGUAGES C CXX)
 
 # ============================================================
-#                  MACOS & LLVM SETUP
+#                  GLOBAL CONFIG
 # ============================================================
-set(CMAKE_OSX_DEPLOYMENT_TARGET "26.0")
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
@@ -12,11 +20,19 @@ set(CMAKE_C_STANDARD 11)
 set(LIBS_DIR "${CMAKE_SOURCE_DIR}/libs")
 set(CORE_DIR "${CMAKE_SOURCE_DIR}/src/core")
 set(TS_PARSER_DIR "${CMAKE_SOURCE_DIR}/src/core")
+
 set(LLVM_ROOT "${LIBS_DIR}/llvm-project/build/llvm-custom" CACHE PATH "Path to the vendored LLVM installation")
+
 set(YOGI_ENABLE_LLVM "ON" CACHE STRING "Enable LLVM support: ON or OFF")
 set_property(CACHE YOGI_ENABLE_LLVM PROPERTY STRINGS ON OFF)
+
 set(YOGI_ALLOCATOR "mimalloc" CACHE STRING "Runtime allocator: mimalloc, jemalloc, or system")
 set_property(CACHE YOGI_ALLOCATOR PROPERTY STRINGS mimalloc jemalloc system)
+
+# When ON, compile Yogi with relative paths suitable for portable preview packages.
+# For normal local development, leave OFF.
+set(YOGI_PORTABLE_BUILD "OFF" CACHE STRING "Build Yogi with portable relative runtime paths: ON or OFF")
+set_property(CACHE YOGI_PORTABLE_BUILD PROPERTY STRINGS ON OFF)
 
 unset(ENV{LLVM_CONFIG})
 unset(ENV{LLVM_DIR})
@@ -40,6 +56,12 @@ endforeach()
 # ============================================================
 set(YOGI_LLVM_ENABLED OFF)
 set(llvm_libs "")
+
+set(YOGI_LLD_EXECUTABLE "")
+set(YOGI_LD64_LLD_EXECUTABLE "")
+set(YOGI_LLD_FILENAME "")
+set(YOGI_LD64_LLD_FILENAME "")
+set(YOGI_MACOS_SDK_PATH "")
 
 if(NOT YOGI_ENABLE_LLVM STREQUAL "OFF")
         if(EXISTS "${LLVM_ROOT}/lib/cmake/llvm/LLVMConfig.cmake")
@@ -112,26 +134,25 @@ if(NOT YOGI_ENABLE_LLVM STREQUAL "OFF")
                 list(REMOVE_DUPLICATES llvm_libs)
 
                 find_program(YOGI_LLD_EXECUTABLE
-                        NAMES ld.lld lld
+                        NAMES ld.lld lld lld.exe
                         PATHS "${LLVM_TOOLS_BINARY_DIR}" "${LLVM_ROOT}/bin"
                         NO_DEFAULT_PATH
                 )
 
                 find_program(YOGI_LD64_LLD_EXECUTABLE
-                        NAMES ld64.lld
+                        NAMES ld64.lld ld64.lld.exe
                         PATHS "${LLVM_TOOLS_BINARY_DIR}" "${LLVM_ROOT}/bin"
                         NO_DEFAULT_PATH
                 )
 
-                if(NOT YOGI_LLD_EXECUTABLE)
-                        set(YOGI_LLD_EXECUTABLE "")
+                if(YOGI_LLD_EXECUTABLE)
+                        get_filename_component(YOGI_LLD_FILENAME "${YOGI_LLD_EXECUTABLE}" NAME)
                 endif()
 
-                if(NOT YOGI_LD64_LLD_EXECUTABLE)
-                        set(YOGI_LD64_LLD_EXECUTABLE "")
+                if(YOGI_LD64_LLD_EXECUTABLE)
+                        get_filename_component(YOGI_LD64_LLD_FILENAME "${YOGI_LD64_LLD_EXECUTABLE}" NAME)
                 endif()
 
-                set(YOGI_MACOS_SDK_PATH "")
                 if(APPLE)
                         execute_process(
                                 COMMAND xcrun --show-sdk-path
@@ -142,6 +163,24 @@ if(NOT YOGI_ENABLE_LLVM STREQUAL "OFF")
                 endif()
 
                 find_package(OpenSSL QUIET)
+
+                find_library(YOGI_LLD_COMMON_LIB
+                        NAMES lldCommon liblldCommon
+                        PATHS ${LLVM_LIBRARY_DIRS} "${LLVM_ROOT}/lib"
+                        NO_DEFAULT_PATH
+                )
+
+                find_library(YOGI_LLD_ELF_LIB
+                        NAMES lldELF liblldELF
+                        PATHS ${LLVM_LIBRARY_DIRS} "${LLVM_ROOT}/lib"
+                        NO_DEFAULT_PATH
+                )
+
+                find_library(YOGI_LLD_MACHO_LIB
+                        NAMES lldMachO liblldMachO
+                        PATHS ${LLVM_LIBRARY_DIRS} "${LLVM_ROOT}/lib"
+                        NO_DEFAULT_PATH
+                )
         else()
                 message(FATAL_ERROR
                         "YOGI_ENABLE_LLVM is ON, but vendored LLVM was not found at ${LLVM_ROOT}. "
@@ -157,16 +196,29 @@ file(GLOB_RECURSE PROD_SOURCES
         "${CMAKE_SOURCE_DIR}/src/core/*.cpp"
         "${CMAKE_SOURCE_DIR}/src/pack/src/*.cpp"
 )
-file(GLOB_RECURSE LLVM_SOURCE_FILES "${CMAKE_SOURCE_DIR}/src/core/llvm/*.cpp")
+
+file(GLOB_RECURSE LLVM_SOURCE_FILES
+        "${CMAKE_SOURCE_DIR}/src/core/llvm/*.cpp"
+)
+
 list(REMOVE_ITEM PROD_SOURCES
         "${CMAKE_SOURCE_DIR}/src/core/yogi.cpp"
         "${CMAKE_SOURCE_DIR}/src/pack/src/cli/main.cpp"
 )
 
-set_source_files_properties(
-        ${LLVM_SOURCE_FILES}
-        PROPERTIES COMPILE_OPTIONS "-std=gnu++20"
-)
+if(LLVM_SOURCE_FILES)
+        if(MSVC)
+                set_source_files_properties(
+                        ${LLVM_SOURCE_FILES}
+                        PROPERTIES COMPILE_OPTIONS "/std:c++20"
+                )
+        else()
+                set_source_files_properties(
+                        ${LLVM_SOURCE_FILES}
+                        PROPERTIES COMPILE_OPTIONS "-std=gnu++20"
+                )
+        endif()
+endif()
 
 # ============================================================
 #                       RUNTIME
@@ -182,7 +234,6 @@ add_executable(${PROJECT_NAME}
         ${PROD_SOURCES}
 )
 
-# target_* calls must come AFTER add_executable
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CORE_DIR}
         ${CMAKE_SOURCE_DIR}
@@ -192,13 +243,49 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         ${LIBS_DIR}
 )
 
-if(YOGI_LLVM_ENABLED)
-        set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH "")
+# ============================================================
+#                  PORTABLE PATH DEFINES
+# ============================================================
+set(YOGI_TS_PARSERS_DEFINE "${CMAKE_SOURCE_DIR}/src/compiler/bin")
+set(YOGI_TEST_PATH_DEFINE "${CMAKE_SOURCE_DIR}/tests/main.io")
+set(YOGI_RUNTIME_LIBRARY_PATH_DEFINE "$<TARGET_FILE:yogi_runtime>")
+set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH_DEFINE "")
+set(YOGI_LLD_PATH_DEFINE "${YOGI_LLD_EXECUTABLE}")
+set(YOGI_LD64_LLD_PATH_DEFINE "${YOGI_LD64_LLD_EXECUTABLE}")
+
+if(DEFINED YOGI_RUNTIME_ALLOCATOR_TARGET AND TARGET ${YOGI_RUNTIME_ALLOCATOR_TARGET})
+        set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH_DEFINE "$<TARGET_FILE:${YOGI_RUNTIME_ALLOCATOR_TARGET}>")
+endif()
+
+if(YOGI_PORTABLE_BUILD STREQUAL "ON")
+        # These are relative to the portable package root.
+        # Expected usage:
+        #   cd yogi-macos-arm64
+        #   ./bin/yogi examples/hello.yogi
+        #
+        # For full portability from any working directory, the C++ side should resolve
+        # these relative to the executable path or package root.
+        set(YOGI_TS_PARSERS_DEFINE "parsers")
+        set(YOGI_TEST_PATH_DEFINE "tests/main.io")
+        set(YOGI_RUNTIME_LIBRARY_PATH_DEFINE "lib/$<TARGET_FILE_NAME:yogi_runtime>")
 
         if(DEFINED YOGI_RUNTIME_ALLOCATOR_TARGET AND TARGET ${YOGI_RUNTIME_ALLOCATOR_TARGET})
-                set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH "$<TARGET_FILE:${YOGI_RUNTIME_ALLOCATOR_TARGET}>")
+                set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH_DEFINE "lib/$<TARGET_FILE_NAME:${YOGI_RUNTIME_ALLOCATOR_TARGET}>")
         endif()
 
+        if(YOGI_LLD_FILENAME)
+                set(YOGI_LLD_PATH_DEFINE "bin/tools/${YOGI_LLD_FILENAME}")
+        endif()
+
+        if(YOGI_LD64_LLD_FILENAME)
+                set(YOGI_LD64_LLD_PATH_DEFINE "bin/tools/${YOGI_LD64_LLD_FILENAME}")
+        endif()
+endif()
+
+# ============================================================
+#                       LLVM LINKING
+# ============================================================
+if(YOGI_LLVM_ENABLED)
         target_include_directories(${PROJECT_NAME} PRIVATE
                 ${LLVM_ROOT}/include
                 ${LLVM_INCLUDE_DIRS}
@@ -212,29 +299,23 @@ if(YOGI_LLVM_ENABLED)
 
         target_compile_definitions(${PROJECT_NAME} PUBLIC
                 YOGI_HAS_LLVM=1
-                YOGI_LLD_PATH="${YOGI_LLD_EXECUTABLE}"
-                YOGI_LD64_LLD_PATH="${YOGI_LD64_LLD_EXECUTABLE}"
+                YOGI_LLD_PATH="${YOGI_LLD_PATH_DEFINE}"
+                YOGI_LD64_LLD_PATH="${YOGI_LD64_LLD_PATH_DEFINE}"
                 YOGI_MACOS_SDK_PATH="${YOGI_MACOS_SDK_PATH}"
                 YOGI_MACOS_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}"
-                YOGI_RUNTIME_LIBRARY_PATH="$<TARGET_FILE:yogi_runtime>"
-                YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH="${YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH}"
+                YOGI_RUNTIME_LIBRARY_PATH="${YOGI_RUNTIME_LIBRARY_PATH_DEFINE}"
+                YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH="${YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH_DEFINE}"
         )
 
         target_link_libraries(${PROJECT_NAME} PRIVATE
                 ${llvm_libs}
         )
 
-        if(EXISTS "${LLVM_LIBRARY_DIRS}/liblldCommon.a")
+        if(YOGI_LLD_COMMON_LIB AND YOGI_LLD_ELF_LIB AND YOGI_LLD_MACHO_LIB)
                 target_link_libraries(${PROJECT_NAME} PRIVATE
-                        "${LLVM_LIBRARY_DIRS}/liblldCommon.a"
-                        "${LLVM_LIBRARY_DIRS}/liblldELF.a"
-                        "${LLVM_LIBRARY_DIRS}/liblldMachO.a"
-                )
-        elseif(EXISTS "${LLVM_ROOT}/lib/liblldCommon.a")
-                target_link_libraries(${PROJECT_NAME} PRIVATE
-                        "${LLVM_ROOT}/lib/liblldCommon.a"
-                        "${LLVM_ROOT}/lib/liblldELF.a"
-                        "${LLVM_ROOT}/lib/liblldMachO.a"
+                        "${YOGI_LLD_COMMON_LIB}"
+                        "${YOGI_LLD_ELF_LIB}"
+                        "${YOGI_LLD_MACHO_LIB}"
                 )
         endif()
 
@@ -247,14 +328,16 @@ else()
         )
 endif()
 
-#src/compiler/bin/ts-parser-macos-arm64
-target_compile_definitions(yogi PUBLIC
-        TS_PARSERS="${CMAKE_SOURCE_DIR}/src/compiler/bin"
-        TEST_PATH="${CMAKE_SOURCE_DIR}/tests/main.io"
+target_compile_definitions(${PROJECT_NAME} PUBLIC
+        TS_PARSERS="${YOGI_TS_PARSERS_DEFINE}"
+        TEST_PATH="${YOGI_TEST_PATH_DEFINE}"
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE yogi_runtime)
 
+# ============================================================
+#                       TESTS
+# ============================================================
 include(CTest)
 
 if(BUILD_TESTING)
@@ -263,6 +346,7 @@ if(BUILD_TESTING)
         )
 
         target_link_libraries(yogi_runtime_cast_test PRIVATE yogi_runtime)
+
         target_compile_definitions(yogi_runtime_cast_test PRIVATE
                 YOGI_EXPECTED_ALLOCATOR="${YOGI_ALLOCATOR}"
         )
@@ -305,285 +389,300 @@ if(BUILD_TESTING)
                 COMMAND yogi_runtime_string_test
         )
 
+        function(add_yogi_pipeline_test TEST_NAME TEST_WORK_DIR TEST_SCRIPT)
+                add_test(
+                        NAME ${TEST_NAME}
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/${TEST_WORK_DIR}
+                                -P ${CMAKE_SOURCE_DIR}/${TEST_SCRIPT}
+                )
+        endfunction()
+
         if(YOGI_LLVM_ENABLED)
-                add_test(
-                        NAME yogi_pipeline_runtime_any
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-runtime-any
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/01-runtime/runtime_any.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_runtime_any
+                        pipeline-runtime-any
+                        tests/runtime/sessions/01-runtime/runtime_any.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_dynamic_expressions
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-dynamic-expressions
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/dynamic_expressions.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_dynamic_expressions
+                        pipeline-dynamic-expressions
+                        tests/runtime/sessions/02-variables-aggregates/dynamic_expressions.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_strict_operators
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-strict-operators
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/strict_operators.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_strict_operators
+                        pipeline-strict-operators
+                        tests/runtime/sessions/02-variables-aggregates/strict_operators.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_aggregates
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-aggregates
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/aggregates.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_aggregates
+                        pipeline-aggregates
+                        tests/runtime/sessions/02-variables-aggregates/aggregates.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_struct_declarations
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-struct-declarations
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/struct_declarations.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_struct_declarations
+                        pipeline-struct-declarations
+                        tests/runtime/sessions/02-variables-aggregates/struct_declarations.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_data_type_lowering_ir
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-data-type-lowering-ir
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/data_type_lowering_ir.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_data_type_lowering_ir
+                        pipeline-data-type-lowering-ir
+                        tests/runtime/sessions/02-variables-aggregates/data_type_lowering_ir.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_methods
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-methods
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_methods.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_methods
+                        pipeline-array-methods
+                        tests/runtime/sessions/02-variables-aggregates/array_methods.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_flat_depth_semantics
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-flat-depth-semantics
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_flat_depth_semantics.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_flat_depth_semantics
+                        pipeline-array-flat-depth-semantics
+                        tests/runtime/sessions/02-variables-aggregates/array_flat_depth_semantics.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_indexing_semantics
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-indexing-semantics
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_indexing_semantics.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_indexing_semantics
+                        pipeline-array-indexing-semantics
+                        tests/runtime/sessions/02-variables-aggregates/array_indexing_semantics.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_borrow_summaries
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-borrow-summaries
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_borrow_summaries.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_borrow_summaries
+                        pipeline-array-borrow-summaries
+                        tests/runtime/sessions/02-variables-aggregates/array_borrow_summaries.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_pointer_core
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-pointer-core
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/pointer_core.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_pointer_core
+                        pipeline-pointer-core
+                        tests/runtime/sessions/02-variables-aggregates/pointer_core.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_pointer_array_indexing
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-pointer-array-indexing
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/pointer_array_indexing.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_pointer_array_indexing
+                        pipeline-pointer-array-indexing
+                        tests/runtime/sessions/02-variables-aggregates/pointer_array_indexing.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_spread
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-spread
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_spread.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_spread
+                        pipeline-array-spread
+                        tests/runtime/sessions/02-variables-aggregates/array_spread.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_print_collections
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-print-collections
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/print_collections.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_print_collections
+                        pipeline-print-collections
+                        tests/runtime/sessions/02-variables-aggregates/print_collections.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_copy_splice_methods
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-copy-splice-methods
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_copy_splice_methods.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_copy_splice_methods
+                        pipeline-array-copy-splice-methods
+                        tests/runtime/sessions/02-variables-aggregates/array_copy_splice_methods.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_with_range
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-with-range
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_with_range.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_with_range
+                        pipeline-array-with-range
+                        tests/runtime/sessions/02-variables-aggregates/array_with_range.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_named_callbacks
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-named-callbacks
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_named_callbacks.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_named_callbacks
+                        pipeline-array-named-callbacks
+                        tests/runtime/sessions/02-variables-aggregates/array_named_callbacks.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_inline_callbacks
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-inline-callbacks
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_inline_callbacks.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_inline_callbacks
+                        pipeline-array-inline-callbacks
+                        tests/runtime/sessions/02-variables-aggregates/array_inline_callbacks.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_array_callback_captures
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-array-callback-captures
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/array_callback_captures.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_callback_captures
+                        pipeline-array-callback-captures
+                        tests/runtime/sessions/02-variables-aggregates/array_callback_captures.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_string_operators
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-string-operators
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/string_operators.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_string_operators
+                        pipeline-string-operators
+                        tests/runtime/sessions/02-variables-aggregates/string_operators.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_string_methods
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-string-methods
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/string_methods.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_string_methods
+                        pipeline-string-methods
+                        tests/runtime/sessions/02-variables-aggregates/string_methods.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_string_extended_methods
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-string-extended-methods
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/02-variables-aggregates/string_extended_methods.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_string_extended_methods
+                        pipeline-string-extended-methods
+                        tests/runtime/sessions/02-variables-aggregates/string_extended_methods.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_string_lifetime
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-string-lifetime
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/string_lifetime.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_string_lifetime
+                        pipeline-string-lifetime
+                        tests/runtime/sessions/03-memory-management/string_lifetime.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_escape_analysis
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-escape-analysis
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/escape_analysis.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_escape_analysis
+                        pipeline-escape-analysis
+                        tests/runtime/sessions/03-memory-management/escape_analysis.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_function_ownership
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-function-ownership
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/function_ownership.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_function_ownership
+                        pipeline-function-ownership
+                        tests/runtime/sessions/03-memory-management/function_ownership.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_aggregate_assignment_ownership
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-aggregate-assignment-ownership
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/aggregate_assignment_ownership.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_aggregate_assignment_ownership
+                        pipeline-aggregate-assignment-ownership
+                        tests/runtime/sessions/03-memory-management/aggregate_assignment_ownership.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_destructor_scheduling
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-destructor-scheduling
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/destructor_scheduling.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_destructor_scheduling
+                        pipeline-destructor-scheduling
+                        tests/runtime/sessions/03-memory-management/destructor_scheduling.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_move_state_validation
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-move-state-validation
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/03-memory-management/move_state_validation.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_move_state_validation
+                        pipeline-move-state-validation
+                        tests/runtime/sessions/03-memory-management/move_state_validation.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_loops_and_methods
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-loops-and-methods
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/loops_and_methods.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_loops_and_methods
+                        pipeline-loops-and-methods
+                        tests/runtime/sessions/04-control-flow/loops_and_methods.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_iterator_protocol
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-iterator-protocol
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/iterator_protocol.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_iterator_protocol
+                        pipeline-iterator-protocol
+                        tests/runtime/sessions/04-control-flow/iterator_protocol.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_switch
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-switch
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/switch.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_switch
+                        pipeline-switch
+                        tests/runtime/sessions/04-control-flow/switch.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_switch_ownership
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-switch-ownership
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/switch_ownership.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_switch_ownership
+                        pipeline-switch-ownership
+                        tests/runtime/sessions/04-control-flow/switch_ownership.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_switch_definite_assignment
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-switch-definite-assignment
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/switch_definite_assignment.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_switch_definite_assignment
+                        pipeline-switch-definite-assignment
+                        tests/runtime/sessions/04-control-flow/switch_definite_assignment.cmake
                 )
 
-                add_test(
-                        NAME yogi_pipeline_break
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/pipeline-break
-                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/sessions/04-control-flow/break.cmake
+                add_yogi_pipeline_test(
+                        yogi_pipeline_break
+                        pipeline-break
+                        tests/runtime/sessions/04-control-flow/break.cmake
                 )
 
-                add_test(
-                        NAME yogi_package_manager_init_build_run
-                        COMMAND ${CMAKE_COMMAND}
-                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
-                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/package-manager-init-build-run
-                                -P ${CMAKE_SOURCE_DIR}/tests/package-manager/init_build_run.cmake
+                add_yogi_pipeline_test(
+                        yogi_package_manager_init_build_run
+                        package-manager-init-build-run
+                        tests/package-manager/init_build_run.cmake
                 )
         endif()
+endif()
+
+# ============================================================
+#                  PORTABLE PREVIEW INSTALL
+# ============================================================
+install(TARGETS ${PROJECT_NAME}
+        RUNTIME DESTINATION bin
+)
+
+if(TARGET yogi_runtime)
+        install(TARGETS yogi_runtime
+                RUNTIME DESTINATION bin
+                LIBRARY DESTINATION lib
+                ARCHIVE DESTINATION lib
+        )
+endif()
+
+if(DEFINED YOGI_RUNTIME_ALLOCATOR_TARGET AND TARGET ${YOGI_RUNTIME_ALLOCATOR_TARGET})
+        install(TARGETS ${YOGI_RUNTIME_ALLOCATOR_TARGET}
+                RUNTIME DESTINATION bin
+                LIBRARY DESTINATION lib
+                ARCHIVE DESTINATION lib
+        )
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/src/compiler/bin")
+        install(DIRECTORY "${CMAKE_SOURCE_DIR}/src/compiler/bin/"
+                DESTINATION parsers
+                USE_SOURCE_PERMISSIONS
+        )
+endif()
+
+if(YOGI_LLD_EXECUTABLE)
+        install(PROGRAMS "${YOGI_LLD_EXECUTABLE}"
+                DESTINATION bin/tools
+        )
+endif()
+
+if(YOGI_LD64_LLD_EXECUTABLE)
+        install(PROGRAMS "${YOGI_LD64_LLD_EXECUTABLE}"
+                DESTINATION bin/tools
+        )
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/examples")
+        install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/"
+                DESTINATION examples
+                FILES_MATCHING
+                        PATTERN "*.yogi"
+                        PATTERN "*.io"
+        )
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/docs")
+        install(DIRECTORY "${CMAKE_SOURCE_DIR}/docs/"
+                DESTINATION docs
+        )
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/README.md")
+        install(FILES "${CMAKE_SOURCE_DIR}/README.md"
+                DESTINATION .
+        )
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/yogi.json")
+        install(FILES "${CMAKE_SOURCE_DIR}/yogi.json"
+                DESTINATION .
+        )
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/yogi.lock")
+        install(FILES "${CMAKE_SOURCE_DIR}/yogi.lock"
+                DESTINATION .
+        )
 endif()

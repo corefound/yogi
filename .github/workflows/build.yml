@@ -1,0 +1,112 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CMAKE_BUILD_TYPE: Release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            label: linux-x64
+            cmake-args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
+
+          - os: macos-latest
+            arch: arm64
+            label: macos-arm64
+            cmake-args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
+
+          - os: macos-13
+            arch: x86_64
+            label: macos-x64
+            cmake-args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
+
+          - os: windows-latest
+            arch: x86_64
+            label: win-x64
+            cmake-args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake ninja
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: choco install cmake ninja
+
+      - name: Configure
+        run: cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} ${{ matrix.cmake-args }}
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yogi-${{ matrix.label }}
+          path: |
+            build/yogi
+            build/yogi.exe
+            build/*.dll
+            build/*.so
+            build/*.dylib
+            build/lib/*.dll
+            build/lib/*.so
+            build/lib/*.dylib
+          compression-level: 9
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create release archives
+        run: |
+          for dir in yogi-*/; do
+            label="${dir%/}"
+            if [ "$RUNNER_OS" = "Windows" ]; then
+              (cd "$dir" && 7z a -tzip "../${label}.zip" .)
+            else
+              tar -czf "${label}.tar.gz" -C "$dir" .
+            fi
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            yogi-*.tar.gz
+            yogi-*.zip
