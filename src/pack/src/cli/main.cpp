@@ -21,6 +21,16 @@
 #include "fs/layout.hpp"
 #include "fs/paths.hpp"
 
+#include <cstdio>
+
+#ifdef _WIN32
+    #define YOGI_POPEN _popen
+    #define YOGI_PCLOSE _pclose
+#else
+    #define YOGI_POPEN popen
+    #define YOGI_PCLOSE pclose
+#endif
+
 static void printHelp() {
   std::cerr << "Yogi Package Manager" << std::endl;
   std::cerr << "Usage: yogi <command> [options]" << std::endl;
