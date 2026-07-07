@@ -1,4 +1,5 @@
 #include "cacheKeys.hpp"
+#include <cstdint>
 #include <sstream>
 #include <iomanip>
 
