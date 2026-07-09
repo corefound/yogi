@@ -184,6 +184,25 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             for (let index = 0; index < args.length; index++) {
                 const expectedType = parameters[index]?.type;
+                const pointerPointeeType = this.pointerPointeeType(args[index]?.type);
+                const forcePrintReadThrough =
+                    symbol.node?.builtinMethod === "print" &&
+                    pointerPointeeType &&
+                    !this.isAggregateType(pointerPointeeType);
+
+                if (
+                    forcePrintReadThrough ||
+                    this.canReadThroughPointer(expectedType, args[index]?.type)
+                ) {
+                    args[index] = this.createImplicitPointerReadThrough(
+                        args[index],
+                        forcePrintReadThrough
+                            ? pointerPointeeType
+                            : expectedType,
+                        node.fullSource ?? node.source,
+                    );
+                }
+
                 const actualType = args[index]?.type;
 
                 if (this.rejectsImplicitObjectContractConversion(expectedType, args[index])) {
@@ -232,9 +251,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     const actualIsPointer = resolvedActual?.kind === Kinds.Types.PointerType;
 
                     if (expectedIsPointer || actualIsPointer) {
-                        const message =
-                            `expected ${Helpers.BLUE}'${expectedType?.raw ?? resolvedExpected?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
-                            `${Helpers.RED}'${actualType?.raw ?? resolvedActual?.raw ?? "unknown"}'${Helpers.RESET}`;
+                        const message = actualIsPointer && !expectedIsPointer
+                            ? this.pointerReadThroughMismatchMessage(expectedType, actualType)
+                            : `expected ${Helpers.BLUE}'${expectedType?.raw ?? resolvedExpected?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                                `${Helpers.RED}'${actualType?.raw ?? resolvedActual?.raw ?? "unknown"}'${Helpers.RESET}`;
                         const help = expectedIsPointer && args[index]?.kind === Kinds.Expressions.IdentifierExpression
                             ? `  = pass '&${args[index].name ?? args[index].value ?? args[index].raw}'`
                             : undefined;
@@ -1966,7 +1986,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             if (targetNode?.kind === Kinds.Expressions.ParenthesizedExpression) {
                 const inner = targetNode.expression;
 
-                if (inner?.kind === Kinds.Expressions.IdentifierExpression) {
+                if (
+                    inner?.kind === Kinds.Expressions.IdentifierExpression ||
+                    inner?.kind === Kinds.Expressions.PropertyAccessExpression ||
+                    inner?.kind === Kinds.Expressions.ElementAccessExpression
+                ) {
                     return this.visitAddressOfExpression({
                         ...node,
                         target: inner,
@@ -2031,17 +2055,89 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 );
             }
 
+            if (targetNode?.kind === Kinds.Expressions.ElementAccessExpression) {
+                targetNode.arrowLength = targetNode?.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `address-of array elements is not lowerable while arrays use runtime descriptors`,
+                    targetNode?.position ?? node.position,
+                    source,
+                    targetNode,
+                    "  = use pointer indexing like p[i] or p[i, j] instead of taking a raw element address",
+                );
+            }
+
+            const target = this.visitNode(targetNode);
+
+            if (targetNode?.kind === Kinds.Expressions.PropertyAccessExpression) {
+                const objectType = this.resolveType(target.object?.declaredType ?? target.object?.type);
+
+                if (!this.isStructResolvedType(objectType)) {
+                    target.arrowLength = target.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(
+                        `address-of runtime object properties is not lowerable yet`,
+                        target.position ?? node.position,
+                        source,
+                        target,
+                        "  = use a real struct field for &value.field or pass the object itself",
+                    );
+                }
+
+                const rootName = this.getAggregateRootIdentifier(target.object);
+                const rootSymbol = rootName ? this.resolveSymbol(rootName) : null;
+
+                if (!rootSymbol) {
+                    target.arrowLength = target.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(
+                        `cannot take address of non-addressable struct field`,
+                        target.position ?? node.position,
+                        source,
+                        target,
+                    );
+                }
+
+                const pointee = this.toSerializableType(target.type);
+                const permission =
+                    rootSymbol.mutable === true && target.readonly !== true
+                        ? "mutable"
+                        : "readonly";
+
+                return {
+                    ...node,
+                    target,
+                    kind: Kinds.Expressions.AddressOfExpression,
+                    type: {
+                        kind: Kinds.Types.PointerType,
+                        raw: `ptr<${pointee?.raw ?? "unknown"}>`,
+                        elementType: pointee,
+                        pointee,
+                    },
+                    pointerRootName: rootName,
+                    pointerRootSymbolId: rootSymbol.id,
+                    pointerAccessPath: [
+                        ...(target.object?.pointerAccessPath ?? target.object?.accessPath ?? []),
+                        `.${target.property}`,
+                    ],
+                    pointerPermission: permission,
+                    rootName,
+                    rootSymbolId: rootSymbol.id,
+                    accessPath: [
+                        ...(target.object?.pointerAccessPath ?? target.object?.accessPath ?? []),
+                        `.${target.property}`,
+                    ],
+                    permission,
+                };
+            }
+
             if (targetNode?.kind !== Kinds.Expressions.IdentifierExpression) {
                 targetNode.arrowLength = targetNode?.source?.length ?? node.source?.length ?? 1;
                 this.throwError(
-                    `address-of is currently supported only for local variables`,
+                    `address-of is currently supported only for variables and struct fields`,
                     targetNode?.position ?? node.position,
                     source,
                     targetNode ?? node,
                 );
             }
 
-            const target = this.visitNode(targetNode);
             const targetName = target.name ?? target.value ?? target.raw;
             const symbol = targetName ? this.resolveSymbol(targetName) : null;
 
@@ -2080,6 +2176,16 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
         }
 
         public visitDereferenceExpression(node: any): any {
+            if (node.implicitPointerReadThrough !== true) {
+                node.arrowLength = node.source?.length ?? 1;
+                this.throwError(
+                    `Yogi does not use ${Helpers.RED}'*p'${Helpers.RESET} pointer dereference syntax; use ${Helpers.BLUE}'p'${Helpers.RESET} directly`,
+                    node.position,
+                    node.fullSource ?? node.source,
+                    node,
+                );
+            }
+
             const target = this.visitNode(node.target);
             const source = node.fullSource ?? node.source;
             const pointerType = this.resolveType(target?.declaredType ?? target?.type);
@@ -2560,11 +2666,33 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
 
             const checkBinary = (node: any): any => {
+                const publicDereferenceTarget = (candidate: any): any => {
+                    if (!candidate) return null;
+                    if (candidate.kind === Kinds.Expressions.DereferenceExpression) return candidate;
+                    if (candidate.kind === Kinds.Expressions.ParenthesizedExpression) {
+                        return publicDereferenceTarget(candidate.expression);
+                    }
+                    return null;
+                };
+
+                if (node.operator === "=") {
+                    const publicDereference = publicDereferenceTarget(node.left);
+                    if (publicDereference && publicDereference.implicitPointerReadThrough !== true) {
+                        publicDereference.arrowLength = publicDereference.source?.length ?? 1;
+                        this.throwError(
+                            `Yogi does not use ${Helpers.RED}'(*p) = value'${Helpers.RESET}; assign to ${Helpers.BLUE}'p'${Helpers.RESET} directly`,
+                            publicDereference.position ?? node.position,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            publicDereference,
+                        );
+                    }
+                }
+
                 const left = checkExpression(node.left);
-                const right = checkExpression(node.right);
+                let right = checkExpression(node.right);
 
                 const leftType = left?.type;
-                const rightType = right?.type;
+                let rightType = right?.type;
 
                 const done = (type: any) => ({
                     ...node,
@@ -2774,7 +2902,9 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
-                        if (symbol.mutable !== true) {
+                        const assignmentType = symbol.declaredType ?? symbol.type;
+
+                        if (symbol.mutable !== true && !this.isPointerType(assignmentType)) {
                             const message = `cannot assign to ${Helpers.RED}'${identifierName}'${Helpers.RESET} because it was declared as a ${Helpers.BLUE}'const'${Helpers.RESET}`;
                             left.arrowLength = identifierName?.length ?? 1;
 
@@ -2786,12 +2916,108 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
-                        const assignmentType = symbol.declaredType ?? symbol.type;
+                        if (this.isPointerType(assignmentType)) {
+                            const pointeeType = this.pointerPointeeType(assignmentType);
+
+                            if (this.isPointerType(rightType)) {
+                                if (symbol.mutable !== true) {
+                                    left.arrowLength = identifierName?.length ?? 1;
+                                    this.throwError(
+                                        `cannot reassign const pointer binding ${Helpers.RED}'${identifierName}'${Helpers.RESET}`,
+                                        left.position,
+                                        context.fullSource ?? node.fullSource ?? left.fullSource ?? left.source,
+                                        left,
+                                    );
+                                }
+
+                                if (!this.isTypeAssignable(assignmentType, rightType)) {
+                                    const message =
+                                        `cannot assign ${Helpers.RED}'${rightType?.raw ?? "unknown"}'${Helpers.RESET} to ` +
+                                        `${Helpers.BLUE}'${assignmentType?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                                    right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
+                                    this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
+                                }
+
+                                symbol.pointerRootName = right.pointerRootName ?? null;
+                                symbol.pointerRootSymbolId = right.pointerRootSymbolId;
+                                symbol.pointerAccessPath = right.pointerAccessPath ?? [];
+                                symbol.pointerPermission = right.pointerPermission;
+
+                                return {
+                                    ...node,
+                                    kind: Kinds.Expressions.AssignmentExpression,
+                                    left: {
+                                        ...left,
+                                        symbolId: symbol.id,
+                                        scopeId: symbol.scopeId,
+                                        type: symbol.type,
+                                        declaredType: assignmentType,
+                                        mutable: symbol.mutable,
+                                        linkageName: symbol.linkageName ?? null,
+                                        qualifiedName: symbol.qualifiedName,
+                                    },
+                                    right,
+                                    type: assignmentType,
+                                };
+                            }
+
+                            if (pointeeType && this.isTypeAssignable(pointeeType, rightType)) {
+                                if (this.isAggregateType(pointeeType)) {
+                                    right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
+                                    this.throwError(
+                                        `full aggregate replacement through pointer is not supported`,
+                                        right.position ?? node.position,
+                                        context.fullSource ?? node.fullSource ?? node.source,
+                                        right,
+                                        "  = assign individual elements or use an explicit copy/replace API when it exists",
+                                    );
+                                }
+
+                                if (left.pointerPermission === "readonly" || symbol.pointerPermission === "readonly") {
+                                    const rootName = left.pointerRootName ?? symbol.pointerRootName ?? "unknown";
+                                    left.arrowLength = identifierName?.length ?? 1;
+                                    this.throwError(
+                                        `cannot write through pointer ${Helpers.RED}'${identifierName}'${Helpers.RESET} because it points to readonly value ${Helpers.RED}'${rootName}'${Helpers.RESET}`,
+                                        left.position,
+                                        context.fullSource ?? node.fullSource ?? left.fullSource ?? left.source,
+                                        left,
+                                    );
+                                }
+
+                                return {
+                                    ...node,
+                                    kind: "AggregateAssignmentExpression",
+                                    target: this.createImplicitPointerReadThrough(left, pointeeType, context.fullSource ?? node.fullSource ?? node.source),
+                                    right,
+                                    type: pointeeType,
+                                };
+                            }
+
+                            const message =
+                                `cannot assign ${Helpers.RED}'${rightType?.raw ?? "unknown"}'${Helpers.RESET} to pointer ` +
+                                `${Helpers.BLUE}'${identifierName}'${Helpers.RESET}; expected ` +
+                                `${Helpers.BLUE}'${assignmentType?.raw ?? "unknown"}'${Helpers.RESET}` +
+                                (pointeeType ? ` or ${Helpers.BLUE}'${pointeeType.raw ?? "unknown"}'${Helpers.RESET}` : "");
+
+                            right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
+                            this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
+                        }
+
+                        if (this.canReadThroughPointer(assignmentType, rightType)) {
+                            right = this.createImplicitPointerReadThrough(
+                                right,
+                                assignmentType,
+                                context.fullSource ?? node.fullSource ?? node.source,
+                            );
+                            rightType = right.type;
+                        }
 
                         if (!this.isTypeAssignable(assignmentType, rightType)) {
-                            const message =
-                                `cannot assign value of type ${Helpers.RED}'${rightType?.raw}'${Helpers.RESET} to variable ` +
-                                `${Helpers.RED}'${identifierName}'${Helpers.RESET} of type ${Helpers.RED}'${assignmentType?.raw}'${Helpers.RESET}`;
+                            const message = this.isPointerType(rightType)
+                                ? this.pointerReadThroughMismatchMessage(assignmentType, rightType)
+                                : `cannot assign value of type ${Helpers.RED}'${rightType?.raw}'${Helpers.RESET} to variable ` +
+                                    `${Helpers.RED}'${identifierName}'${Helpers.RESET} of type ${Helpers.RED}'${assignmentType?.raw}'${Helpers.RESET}`;
 
                             right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
 

@@ -289,12 +289,13 @@ export class BaseSemantic {
         }
 
         if (type.kind === Kinds.Types.PointerType) {
-            const elementType = type.elementType ?? type.pointee;
+            const elementType = type.elementType ?? type.pointee ?? type.pointeeType;
 
             return {
                 ...type,
                 elementType: this.substituteType(elementType, substitutions),
                 pointee: this.substituteType(elementType, substitutions),
+                pointeeType: this.substituteType(elementType, substitutions),
             };
         }
 
@@ -392,12 +393,13 @@ export class BaseSemantic {
         }
 
         if (type.kind === Kinds.Types.PointerType) {
-            const elementType = type.elementType ?? type.pointee;
+            const elementType = type.elementType ?? type.pointee ?? type.pointeeType;
 
             return {
                 ...type,
                 elementType: elementType ? this.toSerializableType(elementType, seen) : elementType,
                 pointee: elementType ? this.toSerializableType(elementType, seen) : elementType,
+                pointeeType: elementType ? this.toSerializableType(elementType, seen) : elementType,
             };
         }
 
@@ -572,6 +574,107 @@ export class BaseSemantic {
         return this.resolveType(type)?.kind === Kinds.Types.PointerType;
     }
 
+    public pointerPointeeType(type: any): any | null {
+        const resolved = this.resolveType(type);
+
+        if (resolved?.kind !== Kinds.Types.PointerType) {
+            return null;
+        }
+
+        return this.resolveType(resolved.elementType ?? resolved.pointee ?? resolved.pointeeType);
+    }
+
+    public canReadThroughPointer(expectedType: any, actualType: any): boolean {
+        const expected = this.resolveType(expectedType);
+        const actual = this.resolveType(actualType);
+        const pointee = this.pointerPointeeType(actual);
+
+        if (!expected || !actual || !pointee) {
+            return false;
+        }
+
+        if (expected.kind === Kinds.Types.PointerType) {
+            return false;
+        }
+
+        if (this.isAggregateType(pointee)) {
+            return false;
+        }
+
+        return this.isTypeAssignable(expected, pointee);
+    }
+
+    public createImplicitPointerReadThrough(value: any, expectedType: any, source: string): any {
+        const pointerType = this.resolveType(value?.declaredType ?? value?.type);
+        const pointee = this.toSerializableType(this.pointerPointeeType(pointerType) ?? {
+            kind: Kinds.Types.UnknownType,
+            raw: "unknown",
+        });
+        const identifierName = value?.kind === Kinds.Expressions.IdentifierExpression
+            ? value.value ?? value.name ?? value.raw ?? null
+            : null;
+        const rootName =
+            value?.pointerRootName ??
+            value?.rootName ??
+            identifierName;
+        const rootSymbol =
+            typeof value?.pointerRootSymbolId === "number"
+                ? this.getSymbolById(value.pointerRootSymbolId)
+                : typeof value?.rootSymbolId === "number"
+                    ? this.getSymbolById(value.rootSymbolId)
+                    : rootName
+                        ? this.resolveSymbol(rootName)
+                        : null;
+        const permission = value?.pointerPermission ?? value?.permission ?? "mutable";
+        const borrowedView = this.isAggregateType(pointee);
+
+        return {
+            kind: Kinds.Expressions.DereferenceExpression,
+            target: value,
+            type: pointee,
+            rootName,
+            rootSymbolId:
+                value?.pointerRootSymbolId ??
+                value?.rootSymbolId ??
+                rootSymbol?.id,
+            accessPath: [
+                ...(value?.pointerAccessPath ?? value?.accessPath ?? []),
+                "read",
+            ],
+            permission,
+            pointerRootName: rootName,
+            pointerRootSymbolId:
+                value?.pointerRootSymbolId ??
+                value?.rootSymbolId ??
+                rootSymbol?.id,
+            pointerAccessPath: [
+                ...(value?.pointerAccessPath ?? value?.accessPath ?? []),
+                "read",
+            ],
+            pointerPermission: permission,
+            borrowedView,
+            borrowedViewReadonly: borrowedView && permission === "readonly",
+            borrowedViewSourceName: borrowedView ? rootName : null,
+            readonly: permission === "readonly",
+            implicitPointerReadThrough: true,
+            source: value?.source ?? value?.raw ?? source,
+            fullSource: value?.fullSource ?? source,
+            position: value?.position,
+        };
+    }
+
+    public pointerReadThroughMismatchMessage(expectedType: any, actualType: any): string {
+        const expected = this.resolveType(expectedType);
+        const actual = this.resolveType(actualType);
+        const pointee = this.pointerPointeeType(actual);
+
+        return `expected ${Helpers.BLUE}'${expectedType?.raw ?? expected?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+            `${Helpers.RED}'${actualType?.raw ?? actual?.raw ?? "unknown"}'${Helpers.RESET}` +
+            (pointee
+                ? ` pointing to ${Helpers.BLUE}'${pointee.raw ?? "unknown"}'${Helpers.RESET}`
+                : "");
+    }
+
     public isPointerAssignable(expectedType: any, actualType: any): boolean {
         const expected = this.resolveType(expectedType);
         const actual = this.resolveType(actualType);
@@ -584,8 +687,8 @@ export class BaseSemantic {
         }
 
         return this.areTypesStructurallySame(
-            expected.elementType ?? expected.pointee,
-            actual.elementType ?? actual.pointee,
+            expected.elementType ?? expected.pointee ?? expected.pointeeType,
+            actual.elementType ?? actual.pointee ?? actual.pointeeType,
         );
     }
 

@@ -1575,7 +1575,91 @@ namespace yogi::core::llvm::internal {
 			::llvm::Type *expectedType,
 			const Yogi::Sir::TypeRef *expectedSemanticType
 		) {
-		const auto *identifier = addressOf->target() ? addressOf->target()->identifier() : nullptr;
+		const auto *target = addressOf->target();
+		const auto *property = target ? target->property_access() : nullptr;
+
+		if (property) {
+			const auto *objectSemanticType = valueSemanticType(property->object());
+			const auto structName = structTypeName(objectSemanticType);
+
+			if (!structName.empty() && context.structTypes.contains(structName)) {
+				const auto *objectIdentifier = property->object() ? property->object()->identifier() : nullptr;
+				const auto objectName = objectIdentifier ? fbString(objectIdentifier->name()) : "";
+				::llvm::Value *storage = nullptr;
+
+				if (!objectName.empty() && context.locals.contains(objectName)) {
+					storage = context.locals[objectName];
+				} else if (!objectName.empty() && context.globals.contains(objectName)) {
+					storage = context.globals[objectName];
+				} else if (objectIdentifier && objectIdentifier->qualified_name()) {
+					const auto qualifiedName = fbString(objectIdentifier->qualified_name());
+					const auto symbolName = "_yogi_" + sanitizeSymbol(qualifiedName);
+					storage = context.module->getGlobalVariable(symbolName);
+
+					if (!storage) {
+						auto *type = types.lower(objectSemanticType);
+						storage = new ::llvm::GlobalVariable(
+							*context.module,
+							type,
+							false,
+							::llvm::GlobalValue::ExternalLinkage,
+							nullptr,
+							symbolName
+						);
+					}
+				}
+
+				if (!storage) {
+					return types.zero(expectedType ? expectedType : opaquePointer());
+				}
+
+				auto *structType = context.structTypes[structName];
+				const auto propertyName = fbString(property->property());
+
+				for (const auto &field: context.structFields[structName]) {
+					if (field.name != propertyName) {
+						continue;
+					}
+
+					auto *fieldAddress = context.builder.CreateStructGEP(
+						structType,
+						storage,
+						static_cast<unsigned>(field.index),
+						"addr." + sanitizeSymbol(objectName.empty() ? structName : objectName) + "." + sanitizeSymbol(field.name)
+					);
+					const auto fieldKind = resolvedTypeKind(field.type);
+
+					if (
+						fieldKind == Yogi::Sir::TypeKind_array_type ||
+						fieldKind == Yogi::Sir::TypeKind_tuple_type
+					) {
+						auto *loaded = context.builder.CreateLoad(
+							opaquePointer(),
+							fieldAddress,
+							"addr." + sanitizeSymbol(field.name) + ".ptr.load"
+						);
+
+						return cast(
+							loaded,
+							expectedType ? expectedType : opaquePointer(),
+							expectedSemanticType ? expectedSemanticType : addressOf->type(),
+							addressOf->type()
+						);
+					}
+
+					return cast(
+						fieldAddress,
+						expectedType ? expectedType : opaquePointer(),
+						expectedSemanticType ? expectedSemanticType : addressOf->type(),
+						addressOf->type()
+					);
+				}
+			}
+
+			return types.zero(expectedType ? expectedType : opaquePointer());
+		}
+
+		const auto *identifier = target ? target->identifier() : nullptr;
 		const auto name = identifier ? fbString(identifier->name()) : "";
 		::llvm::Value *address = nullptr;
 

@@ -183,8 +183,20 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
         }
 
         public visitReturnStatement(node: any): any {
-            const value = node.value ? this.visitNode(node.value) : null;
+            let value = node.value ? this.visitNode(node.value) : null;
             const expectedReturnType = this.currentFunctionReturnType;
+
+            if (
+                value &&
+                expectedReturnType &&
+                this.canReadThroughPointer(expectedReturnType, value.type)
+            ) {
+                value = this.createImplicitPointerReadThrough(
+                    value,
+                    expectedReturnType,
+                    node.fullSource ?? node.source,
+                );
+            }
 
             this.rejectEscapingLocalFixedShapeView(value, node);
             this.rejectReturningLocalPointerDerivedValue(value, node);

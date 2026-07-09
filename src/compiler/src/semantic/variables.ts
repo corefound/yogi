@@ -15,10 +15,20 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
         }
 
         public visitVariableDeclarations(node: any) {
-            const value = node.value ? this.visitNode(node.value) : null;
+            let value = node.value ? this.visitNode(node.value) : null;
+            const declaredType = this.toSerializableType(node.type);
+            const source = node.fullSource ?? node.source ?? node.raw;
+
+            if (
+                value &&
+                this.canReadThroughPointer(declaredType, value.type)
+            ) {
+                value = this.createImplicitPointerReadThrough(value, declaredType, source);
+            }
+
             const context = { ...node, value };
             const { trusted } = this.declarationVariableDiagnostics(context);
-            const type = this.toSerializableType(node.type);
+            const type = declaredType;
             const runtimeValue = this.createRuntimeInitializerValue(value, type);
 
             const linkageName = node.export
@@ -287,9 +297,10 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 const actualRaw = actualType?.raw ?? actualResolved?.raw ?? "unknown";
 
                 if (expectedIsPointer || actualIsPointer) {
-                    const message =
-                        `expected ${Helpers.BLUE}'${expectedRaw}'${Helpers.RESET}, got ` +
-                        `${Helpers.RED}'${actualRaw}'${Helpers.RESET}`;
+                    const message = actualIsPointer && !expectedIsPointer
+                        ? this.pointerReadThroughMismatchMessage(context.type, actualType)
+                        : `expected ${Helpers.BLUE}'${expectedRaw}'${Helpers.RESET}, got ` +
+                            `${Helpers.RED}'${actualRaw}'${Helpers.RESET}`;
                     const help = expectedIsPointer && value?.kind === Kinds.Expressions.IdentifierExpression
                         ? `  = use '&${value.name ?? value.value ?? value.raw}' to create a pointer`
                         : undefined;
