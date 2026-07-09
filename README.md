@@ -1,216 +1,468 @@
-# Yogi Documentation
+# Yogi
 
-Yogi is a programming language with TypeScript-like syntax and an ahead-of-time
-native backend. The frontend accepts familiar TypeScript forms, but the semantic
-model is intentionally stricter and closer to systems programming:
+**Yogi** is a statically typed, ahead-of-time compiled programming language with a TypeScript-like syntax and a systems-level execution model.
 
-- Types must be explicit.
-- Variables must be initialized.
-- `var` is not allowed.
-- `let` is mutable and `const` is immutable.
-- Values are local by default.
-- Heap allocation is reserved for values that escape, dynamic storage, or future
-  ownership features.
+Yogi is designed for developers who like the clarity and familiarity of TypeScript syntax, but want native performance, explicit memory behavior, C ABI interoperability, strict typing, and predictable compiled output.
 
-The compiler currently lowers source code through this pipeline:
+The language is built around a simple idea:
 
-```text
-.ts source
-  -> TypeScript-style parser AST
-  -> AST FlatBuffer
-  -> semantic analysis
-  -> Semantic Intermediate Representation FlatBuffer
-  -> LLVM IR
-  -> object file
-  -> linked executable
+> Write code that feels familiar, but compiles like a serious native language.
+
+Yogi is not a JavaScript runtime, not a TypeScript transpiler, and not a garbage-collected scripting language. It uses its own compiler pipeline, static type system, ownership model, native backend, and runtime rules.
+
+---
+
+## Goals
+
+Yogi focuses on:
+
+- **Ahead-of-time compilation** to native binaries.
+- **TypeScript-like syntax** without JavaScript runtime semantics.
+- **Strict static typing** with explicit types everywhere.
+- **No type inference** at declarations.
+- **RAII-style lifetime management** instead of garbage collection.
+- **Pointer support** with safe syntax and strict provenance rules.
+- **Native C ABI interop** through `extern` declarations.
+- **Predictable objects, arrays, structs, and memory layouts**.
+- **LLVM-based backend** for optimized native code generation.
+
+---
+
+## Basic Syntax
+
+Yogi keeps the surface syntax close to TypeScript while making the type system stricter.
+
+```ts
+function add(a: number, b: number): number {
+    return a + b
+}
+
+let result: number = add(10, 20)
+print(result)
 ```
 
-## Language Status
+All variable declarations must include an explicit type:
 
-This section summarizes where Yogi stands today. It is derived from the
-`docs/` folder and updated as implementation lots land.
+```ts
+let name: string = "Yogi"
+let version: number = 1.0
+let enabled: boolean = true
+```
 
-### Implemented and Working
+Yogi does **not** infer declaration types:
 
-- **Core language surface**
-  - `let` (mutable) and `const` (immutable) declarations.
-  - `var` is rejected.
-  - Explicit type annotations are required; type inference is not used.
-  - Variables must be initialized.
-  - Primitive types: `number`, `string`, `boolean`, `void`, `undefined`, `null`, `any`.
-  - `any` requires an explicit cast before use as a concrete type.
-  - Union types and basic equality narrowing.
-  - `null`/`undefined` coalescing (`??`, `??=`).
+```ts
+// Invalid in Yogi
+let value = 10
 
-- **Aggregates and structured data**
-  - Fixed-shape object literals, `type` aliases, and `interface` contracts.
-  - Tuples: `[number, string]`.
-  - Dynamic 1D arrays: `T[]`.
-  - Fixed-size 1D arrays: `T[N]`.
-  - Fixed-shape multidimensional arrays: `T[N, M]` with coordinate indexing `m[i, j]`.
-  - Partial array indexing produces borrowed views; `.copy()` creates an owned copy.
-  - Readonly propagation through borrowed array views.
-  - Array spread in dynamic, fixed, tuple, and union contexts.
-  - Array iterator protocol and `for...of` over arrays and strings.
-  - Common array methods (mutating, non-mutating, and callback-based) including
-    `map`, `filter`, `reduce`, `find`, `flat`, `with`, `sort`, `toSorted`, etc.
+// Valid in Yogi
+let value: number = 10
+```
 
-- **Structs**
-  - Real `struct` declarations that lower to named LLVM struct types.
-  - Struct fields with primitives, strings, arrays, nested structs, and inherited members.
-  - Struct extension from other structs, interfaces, and object-like type aliases.
-  - Generic interfaces/type aliases with real substitution, defaults, and constraints.
-  - Readonly and optional properties in interfaces, type aliases, and struct bodies.
-  - Object-like intersection types.
-  - `layout()` and `validate()` hooks with inherited validate chains.
-  - Numeric scalar structs with explicit `IntegerLayout` lowering to fixed-width integers.
-  - Explicit object-literal adapters between real structs and object-runtime contracts.
+---
 
-- **Pointers and addressability**
-  - Explicit `ptr<T>` type and `&value` address-of expression.
-  - Pointer parameters and pointer assignment with provenance tracking.
-  - Read/write through scalar, fixed-array, fixed-matrix, and dynamic 1D array pointers.
-  - Provenance-based mutability: `&const` produces readonly pointers.
-  - Function pointer read/write summaries that reject `&const` arguments for may-write params.
+## Pointers
 
-- **Functions and control flow**
-  - Function declarations with explicit parameter and return types.
-  - `if` / `else`, `while`, classic `for`, `for...of`, `switch`, `break`, `continue`.
-  - TypeScript-style `switch` fall-through with definite-assignment validation.
-  - Exported/internal function visibility.
+Yogi supports pointers through the `ptr<T>` type.
 
-- **Memory and ownership**
-  - Stack-first local lifetime model.
-  - Escape analysis for globals, exports, returned aggregates, and alias chains.
-  - Function-effect summaries (`returnsParam`, `storesParam`, `mutatesParam`, etc.).
-  - Aggregate assignment ownership (local-to-global, alias chains, returned values).
-  - Destructor scheduling across common control flow including early returns,
-    `break`, and `continue`.
-  - RAII-like cleanup for non-escaping aggregates.
+Pointers are explicit. Address-of uses `&value`, and dereference uses `*pointer`.
 
-- **Externs and runtime**
-  - `extern` blocks for external functions and variables.
-  - External link inputs: `.a`, `.dylib`, `.so`, `.asm`.
-  - Runtime allocator abstraction (mimalloc / jemalloc / system).
-  - Runtime debug ownership checks (double free, use-after-drop, leak reports).
-  - Runtime memory telemetry with source-location attribution.
-  - Builtin `print(...)` for primitives, arrays, tuples, and strings.
+```ts
+let value: number = 7
+let p: ptr<number> = &value
 
-- **Tooling and build**
-  - Package-manager CLI: `yogi init`, `yogi build`, `yogi run`, `yogi start`,
-    direct-file compile.
-  - Ahead-of-time compilation to native executables through LLVM and LLD.
+print(p)
 
-### In Progress / Partial
+p = 42
+print(value)
+```
 
-- `do while` loops.
-- `for...in` loops over arrays and objects.
-- Object helper methods `keys()`, `values()`, `entries()`.
-- Pointer partial views for fixed-shape arrays (`ptr<number[2, 3]>[0] -> ptr<number[3]>`).
-- Borrow summaries adjusted for `ptr<T>` parameter returns.
-- Returning pointers and views with lifetime rules.
-- Object and struct field addressability (`&object.field`, `&struct.field`).
-- Dynamic shaped arrays (`Array<T, Rank>`) with runtime dimensions.
-- Final audit of all JavaScript/TypeScript Array methods.
-- Final audit of all JavaScript/TypeScript String methods.
-- More precise cleanup for string temporaries in complex control flow and callbacks.
-- Explicit copy/move constructors for resource-owning structs.
-- Escape analysis for closures and captured variables.
+Output:
 
-### Not Started / Future Work
+```txt
+7
+42
+```
 
-- Function-value model for interface/type behavior contracts (methods as values).
-- Higher-order type machinery: mapped, conditional, `infer`, `keyof`-style operators.
-- Full closure capture with lifetime rules.
-- Reference counting or shared ownership.
-- Explicit `move` / `consume` syntax.
-- Lazy iterator objects.
-- Native fixed-shape ABI without runtime array descriptors.
-- Complete C ABI interop rules for aggregates, pointers, and arrays.
-- Dynamic key/value collection type (`map<K, V>`).
-- Dynamic index signatures in object types (intentionally not supported).
-- Regular expressions and string methods that depend on them (`match`, `split`, etc.).
-- Unicode-aware string semantics (current runtime is byte-oriented).
-- Catchable exceptions / error handling.
-- A full standard library.
+A pointer can only point to a compatible value:
 
-## Documents
+```ts
+let count: number = 10
+let countPtr: ptr<number> = &count
+```
 
-### Frontend And Language Semantics
+---
+## Pointer Mutability
 
-- [Frontend Pipeline](docs/frontend-pipeline.md)
-- [Variables](docs/variables.md)
-- [Externs](docs/externs.md)
-- [Loops](docs/loops.md)
-- [Package Manager CLI](docs/package-manager.md)
+### Pointer write access comes from the original value.
 
-### Memory And Ownership
+#### A pointer to a `let` value can write through the pointer:
 
-- [Memory Model](docs/memory-model.md)
-- [Function Ownership](docs/ownership.md)
-- [Aggregate Assignment Ownership](docs/memory/aggregate-assignment.md)
-- [Move-State Validation](docs/move-state-validation.md)
-- [Destructor Scheduling](docs/destructor-scheduling.md)
+```ts
+let value: number = 1
+let p: ptr<number> = &value
 
-### Runtime
+p = 2
+print(value)
+```
 
-- [Runtime Debug Ownership](docs/runtime-debug.md)
-- [Runtime Allocator](docs/runtime-allocator.md)
-- [Runtime Memory Telemetry](docs/runtime-memory-telemetry.md)
+#### A pointer to a `const` value is read-only:
 
-### Backend
+```ts
+const value: number = 1
+let p: ptr<number> = &value
 
-- [Backend and LLVM](docs/backend-llvm.md)
+// Invalid: cannot write through pointer to const origin
+p = 2
+print(p)
+```
 
-### Control Flow
+A `const` pointer means the pointer variable cannot be reassigned, but it does not automatically make the pointed value read-only:
 
-- [Loops And Iterator Protocol](docs/loops.md)
+```ts
+let value: number = 10
+const p: ptr<number> = &value
 
-### Lots
+p = 20      // Valid: value is mutable
+print(p)
 
-- [Array Serialization](docs/lots/02-array-serialization.md)
-- [Runtime Array Lowering](docs/lots/03-array-pop-at-lowering.md)
-- [Non-Callback Array Methods](docs/lots/05-array-methods-without-callbacks.md)
-- [Array Copy and Splice Methods](docs/lots/06-array-copy-splice-methods.md)
-- [Array With and Range Diagnostics](docs/lots/07-array-with-range-diagnostics.md)
-- [Array Named Callback Methods](docs/lots/08-array-named-callback-methods.md)
-- [Array Inline Callback Expressions](docs/lots/09-array-inline-callbacks.md)
-- [Array At And Richer Print](docs/lots/10-array-at-and-print.md)
-- [Array Stringification And Ordering](docs/lots/11-array-stringification-and-ordering.md)
-- [Array Completion](docs/lots/12-array-completion.md)
-- [Iterator Protocol And Loops](docs/lots/13-iterator-protocol-and-loops.md)
-- [String Operators And Template Literals](docs/lots/14-string-operators-and-template-literals.md)
-- [String Methods](docs/lots/15-string-methods.md)
-- [String Lifetime And Array At Extraction](docs/lots/16-string-lifetime-and-array-at.md)
-- [String Expression Temporaries](docs/lots/17-string-expression-temporaries.md)
-- [Strict String Method Batch](docs/lots/18-strict-string-methods.md)
-- [Strict Operator Semantics](docs/lots/19-strict-operator-semantics.md)
-- [Struct Declarations](docs/lots/20-struct-declarations.md)
+```
 
-### To Do
+```ts
+let value: number = 10
+const p: ptr<number> = &value
 
-- [Language Status](docs/todo/language-status.md)
-- [Arrays](docs/todo/arrays.md)
-- [Strings](docs/todo/strings.md)
+p = 20 // Valid: value is mutable
 
-### Testing
+let other: number = 20
+p = &other // Invalid: p itself is const
 
-- [Runtime Test Organization](docs/testing/runtime-test-organization.md)
+print(p)
+```
 
-### Audits
+Yogi does not use `ptr<const T>`. Mutability is tracked from the pointer origin instead of encoded as a separate pointer type.
 
-- [Switch/Case/Default Audit](docs/audit/control-flow/switch-case-default-audit.md)
-- [Aggregate Assignment Ownership Audit](docs/audit/memory/aggregate-assignment-ownership-audit.md)
+---
 
-These docs describe the current implementation plus the intended direction when
-a feature is still partial.
+## Pointers to Arrays and Matrix Values
 
-## Test Layout
+Pointers can reference array elements and multidimensional matrix elements.
 
-Runtime pipeline tests are grouped by implementation session:
+```ts
+let numbers: number[] = [10, 20, 30]
+let second: ptr<number> = &numbers[1]
 
-- `tests/runtime/unit/`: C++ runtime unit tests.
-- `tests/runtime/sessions/01-runtime/`: runtime ABI and `any` behavior.
-- `tests/runtime/sessions/02-variables-aggregates/`: variables, dynamic expressions, arrays, tuples, and objects.
-- `tests/runtime/sessions/03-memory-management/`: escape analysis, ownership, destructor scheduling, and move-state validation.
-- `tests/runtime/sessions/04-control-flow/`: loops, `break`, and TypeScript-style `switch` behavior.
+second = 99
+print(numbers[1])
+```
+
+Fixed-size multidimensional arrays use explicit dimensions:
+
+```ts
+let matrix: number[2, 3] = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+
+let cell: ptr<number> = &matrix[1, 2]
+print(cell)
+```
+
+Output:
+
+```txt
+6
+```
+
+A pointer can also point to the full matrix:
+
+```ts
+function read(matrix: ptr<number[2, 3]>): number {
+    return matrix[1, 2]
+}
+
+let data: number[2, 3] = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+
+print(data)
+```
+
+---
+
+## Objects Are Fixed Layout Records
+
+Yogi objects are not dynamic JavaScript maps by default. Object shapes are known at compile time, and every field has a declared type.
+
+```ts
+type User = {
+    id: number
+    name: string
+    active: boolean
+}
+
+let user: User = {
+    id: 1,
+    name: "Ada",
+    active: true
+}
+
+print(user.name)
+```
+
+Because object fields have stable, known layouts, Yogi can safely take pointers to fields:
+
+```ts
+let namePtr: ptr<string> = &user.name
+
+namePtr = "Grace"
+print(user.name)
+```
+
+Dynamic index signatures are not part of regular object shapes:
+
+```ts
+// Invalid in Yogi
+// type Bag = {
+//     [key: string]: number
+// }
+```
+
+---
+
+## Native Interop with `extern`
+
+Yogi can call native libraries through explicit `extern` declarations.
+
+The `extern` block describes native functions available from an object file, static library, dynamic library, or C-compatible native module.
+
+```ts
+extern ffmpeg from "./native/ffmpeg.o" {
+    toMP3(input: string, output: string): void
+}
+
+function main(): void {
+    ffmpeg.toMP3("input.wav", "output.mp3")
+}
+```
+
+Another example using a native math library:
+
+```ts
+extern mathlib from "./native/mathlib.o" {
+    fastSqrt(value: number): number
+    distance(x1: number, y1: number, x2: number, y2: number): number
+}
+
+let d: number = mathlib.distance(0, 0, 10, 20)
+print(d)
+```
+
+The goal is to make native interoperability explicit, predictable, and safe from the Yogi side.
+
+---
+
+## Structs and Custom Runtime Layouts
+
+Yogi supports `struct` declarations for custom types with explicit runtime layout and validation behavior.
+
+A struct can define:
+
+- `layout` for its native representation.
+- `validate()` for runtime validation rules.
+
+```ts
+struct int8 extends number {
+    layout ctx: Layout<number> {
+        size: 8,
+        signed: true,
+        align: 1
+    }
+
+    validate(): boolean {
+        return this % 1 == 0 && this >= -128 && this <= 127
+    }
+}
+
+let port: int8 = 80
+```
+
+Structs are meant for real native layout control, not only type branding.
+
+---
+
+## Arrays
+
+Yogi supports dynamic arrays:
+
+```ts
+let values: number[] = [1, 2, 3]
+
+values.push(4)
+print(values[3])
+```
+
+Fixed-size arrays:
+
+```ts
+let rgb: number[3] = [255, 128, 64]
+```
+
+And multidimensional fixed arrays:
+
+```ts
+let image: number[2, 2, 3] = [
+    [
+        [255, 0, 0],
+        [0, 255, 0]
+    ],
+    [
+        [0, 0, 255],
+        [255, 255, 255]
+    ]
+]
+```
+
+Fixed-size arrays cannot use size-changing methods like `push`, `pop`, `shift`, or `splice`.
+
+---
+
+## Control Flow
+
+Yogi supports familiar control flow syntax:
+
+```ts
+function factorial(n: number): number {
+    let result: number = 1
+    let i: number = 2
+
+    while (i <= n) {
+        result = result * i
+        i = i + 1
+    }
+
+    return result
+}
+
+print(factorial(5))
+```
+
+Loop conditions must be boolean. Yogi does not use JavaScript truthy or falsy coercion.
+
+```ts
+let count: number = 10
+
+// Invalid in Yogi
+// if (count) {}
+
+// Valid in Yogi
+if (count > 0) {
+    print("count is positive")
+}
+```
+
+---
+
+## Casting
+
+Yogi does not use TypeScript-style `as` casting.
+
+The `as` keyword is reserved for import/export aliasing. Explicit casts use `cast<T>(value)`.
+
+```ts
+let value: number = 65
+let byte: int8 = cast<int8>(value)
+```
+
+Higher-level conversions use constructors or conversion functions:
+
+```ts
+let amount: number = 123
+let text: string = String(amount)
+```
+
+---
+
+## Example Program
+
+```ts
+extern audio from "./native/audio.o" {
+    normalize(input: string, output: string): void
+}
+
+type Track = {
+    id: number
+    input: string
+    output: string
+}
+
+function process(track: ptr<Track>): void {
+    print(track.input)
+    audio.normalize(track.input, track.output)
+}
+
+function main(): void {
+    let track: Track = {
+        id: 1,
+        input: "song.wav",
+        output: "song-normalized.wav"
+    }
+
+    process(&track)
+}
+```
+
+This example shows several core Yogi ideas together:
+
+- Explicit types.
+- Fixed object layout.
+- Pointer parameters.
+- Native library interop.
+- TypeScript-like syntax with native compilation semantics.
+
+---
+
+## Compiler Architecture
+
+Yogi is built as a native compiler pipeline:
+
+```txt
+Yogi source
+   ↓
+TypeScript-like frontend parser
+   ↓
+Semantic analysis and strict type checking
+   ↓
+Yogi intermediate representation
+   ↓
+LLVM backend
+   ↓
+Native object files / executable
+```
+
+The compiler is designed around ahead-of-time compilation, predictable memory behavior, and native binary output.
+
+---
+
+## Project Status
+
+Yogi is under active development.
+
+Current language work includes:
+
+- Strict type checking.
+- Arrays and multidimensional arrays.
+- Pointer syntax and pointer validation.
+- Native `extern` declarations.
+- Struct layout and validation design.
+- LLVM-backed native compilation.
+- Package manager and toolchain workflow.
+
+The language design is intentionally strict: Yogi favors explicitness, predictable behavior, and native compilation over dynamic runtime flexibility.
+
+---
+
+## License
+
+License information will be added here.

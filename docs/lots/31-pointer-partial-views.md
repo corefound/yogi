@@ -88,11 +88,13 @@ Negative coverage:
 - mutating a partial view derived from `const` storage
 - invalid union element assignment
 
+## Follow-Up
+
+Lot 32 adds the interprocedural borrow/lifetime summaries for functions that
+return pointer-derived views. It also rejects returning pointer views derived
+from local stack storage.
+
 ## Remaining Work
 
-- Interprocedural borrow/lifetime summaries for functions that return
-  pointer-derived views.
-- Reject returning pointer views derived from local storage once return-view
-  lifetime validation is implemented.
 - Dynamic shaped array pointers such as `ptr<Array<T, Rank>>`.
-- General dereference syntax.
+- General dereference syntax was completed in Lot 33.

@@ -26,10 +26,11 @@ export namespace Types {
         export type SemanticSpreadElement = SirTypes.SemanticSpreadElement;
         export type SemanticObjectProperty = SirTypes.SemanticObjectProperty;
         export type SemanticObjectExpression = SirTypes.SemanticObjectExpression;
-        export type SemanticPropertyAccessExpression = SirTypes.SemanticPropertyAccessExpression;
-        export type SemanticElementAccessExpression = SirTypes.SemanticElementAccessExpression;
-        export type SemanticAddressOfExpression = SirTypes.SemanticAddressOfExpression;
-        export type SemanticAggregateAssignmentExpression = SirTypes.SemanticAggregateAssignmentExpression;
+	        export type SemanticPropertyAccessExpression = SirTypes.SemanticPropertyAccessExpression;
+	        export type SemanticElementAccessExpression = SirTypes.SemanticElementAccessExpression;
+	        export type SemanticAddressOfExpression = SirTypes.SemanticAddressOfExpression;
+	        export type SemanticDereferenceExpression = SirTypes.SemanticDereferenceExpression;
+	        export type SemanticAggregateAssignmentExpression = SirTypes.SemanticAggregateAssignmentExpression;
         export type SemanticValueInput = SirTypes.SemanticValueInput;
         export type SemanticVariableDeclaration = SirTypes.SemanticVariableDeclaration;
         export type SemanticArrayDeclaration = SirTypes.SemanticArrayDeclaration;

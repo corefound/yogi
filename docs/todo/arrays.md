@@ -1510,12 +1510,16 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ✅ Dynamic 1D array pointer indexing through ptr<number[]>
 ✅ Pointer indexing read/write mutates caller storage
 ✅ Normal array parameters use local/value semantics
+✅ Pointer partial views: ptr<number[2, 3]>[0] -> ptr<number[3]>
+✅ Borrow summaries for ptr<T> parameter-derived returns
+✅ Rejection for returning pointer views derived from local storage
+✅ Rejection for conflicting pointer-return borrow roots
+✅ General dereference syntax: *p read, scalar (*p) = value write-through
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Adjust borrow summaries to ptr<T> parameter returns
 ⬜ String element extraction from string[] through .at() inside struct fields
 ```
 
@@ -1524,7 +1528,6 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ```txt
 ⬜ Explicit borrowed return/view types
 ⬜ Borrow summaries interprocedural for explicit borrowed views
-✅ Pointer partial views: ptr<number[2, 3]>[0] -> ptr<number[3]>
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for borrowed views and materialized copies
 ⬜ Dynamic shaped arrays: Array<T, Rank>
@@ -1543,19 +1546,18 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ## Recommended Implementation Order
 
 ```txt
-1. Adjust borrow summaries to ptr<T> parameter returns
-2. String element extraction from string[] through .at() inside struct fields
-3. Explicit borrowed return/view types
-4. Borrow summaries interprocedural for explicit borrowed views
-5. Escape analysis complete for borrowed views
-6. Cleanup/destructor rules for borrowed views and materialized copies
-7. Dynamic shaped arrays: Array<T, Rank>
-8. Dynamic shaped views/slices
-9. Native fixed-shape ABI without runtime descriptor
-10. C ABI interop rules for arrays
-11. Lazy iterator objects
-12. Object stringification inside arrays
-13. Final array method policy
-14. Final diagnostics polish
-15. Documentation final pass
+1. String element extraction from string[] through .at() inside struct fields
+2. Explicit borrowed return/view types
+3. Borrow summaries interprocedural for explicit borrowed views
+4. Escape analysis complete for borrowed views
+5. Cleanup/destructor rules for borrowed views and materialized copies
+6. Dynamic shaped arrays: Array<T, Rank>
+7. Dynamic shaped views/slices
+8. Native fixed-shape ABI without runtime descriptor
+9. C ABI interop rules for arrays
+10. Lazy iterator objects
+11. Object stringification inside arrays
+12. Final array method policy
+13. Final diagnostics polish
+14. Documentation final pass
 ```

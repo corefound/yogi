@@ -156,18 +156,31 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 				node.operatorToken.kind === ts.SyntaxKind.AmpersandToken &&
 				node.left.getText().trim() === ""
 			) {
-				return {
-					kind: Kinds.Expressions.AddressOfExpression,
-					target: this.visitNode(node.right),
-					source: node.getText(),
-					fullSource: node.getFullText(),
-					position: this.getNodePosistion(node),
-				};
-			}
+                return {
+                    kind: Kinds.Expressions.AddressOfExpression,
+                    target: this.visitNode(node.right),
+                    source: node.getText(),
+                    fullSource: node.getFullText(),
+                    position: this.getNodePosistion(node),
+                };
+            }
 
-			return {
-				kind: Kinds.Expressions.BinaryExpression,
-				left: this.visitNode(node.left),
+            if (
+                node.operatorToken.kind === ts.SyntaxKind.AsteriskToken &&
+                node.left.getText().trim() === ""
+            ) {
+                return {
+                    kind: Kinds.Expressions.DereferenceExpression,
+                    target: this.visitNode(node.right),
+                    source: node.getText(),
+                    fullSource: node.getFullText(),
+                    position: this.getNodePosistion(node),
+                };
+            }
+
+            return {
+                kind: Kinds.Expressions.BinaryExpression,
+                left: this.visitNode(node.left),
 				operator: node.operatorToken.getText(),
 				right: this.visitNode(node.right),
 				source: node.getText(),

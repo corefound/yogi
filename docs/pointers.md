@@ -13,6 +13,7 @@ Yogi pointer syntax is:
 ```ts
 ptr<T>
 &value
+*pointer
 ```
 
 Meaning:
@@ -21,6 +22,7 @@ Meaning:
 T        = normal value/local semantics
 ptr<T>   = pointer to addressable storage shaped as T
 &value   = address-of expression producing ptr<T>
+*pointer = explicit dereference of ptr<T>
 ```
 
 Pointers are explicit. Values do not become pointers automatically, and pointers do not become values automatically.
@@ -63,6 +65,7 @@ This means `&constValue` is valid. The only invalid operation is mutating throug
 - [x] No implicit value-to-pointer conversion.
 - [x] No implicit pointer-to-value conversion.
 - [x] No implicit dereference.
+- [x] Explicit `*p` dereference.
 - [x] No pointer arithmetic in safe/default Yogi.
 - [x] Pointer mutability is tracked internally through provenance/permission.
 - [x] `const p: ptr<T>` means the pointer binding cannot be reassigned.
@@ -458,11 +461,10 @@ error: cannot pass pointer derived from const storage to external function 'proc
 
 ## 11. Pointer Reads
 
-Dereference syntax is not required initially.
-
-Recommended access model:
+Pointer reads support both explicit dereference and index-style pointer access.
 
 ```ts
+*p            // scalar pointer dereference
 p[0]          // scalar pointer access
 arrayPtr[i]   // fixed array pointer access
 matrixPtr[i,j] // fixed matrix pointer access
@@ -476,7 +478,9 @@ Checklist:
 - [x] Define read from `ptr<number[R,C]>` using `p[i,j]`.
 - [x] Define read from `ptr<number[]>` using `p[i]`.
 - [x] No implicit pointer-to-value conversion.
-- [x] Optional `*p` dereference is not part of initial model.
+- [x] Explicit `*p` dereference for scalar pointees.
+- [x] `*p` over aggregate pointees behaves as a borrowed aggregate view.
+- [x] `*value` where `value` is not a pointer is rejected.
 
 Example:
 
@@ -484,6 +488,7 @@ Example:
 let age: number = 10
 let p: ptr<number> = &age
 let value: number = p[0]
+let same: number = *p
 ```
 
 ---
@@ -506,6 +511,19 @@ Example:
 let age: number = 10
 let p: ptr<number> = &age
 p[0] = 20
+(*p) = 30
+```
+
+`(*p) = value` currently supports scalar pointees. Full aggregate replacement
+through dereference is rejected so ownership cannot be accidentally moved
+through an arbitrary pointer:
+
+```ts
+let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+let p: ptr<number[2, 3]> = &matrix
+
+(*p) = [[7, 8, 9], [10, 11, 12]] // error
+(*p)[1, 2] = 99                  // ok
 ```
 
 Invalid:
@@ -1096,12 +1114,14 @@ Checklist:
 - [x] Lower pointer function argument as address, not pointee copy.
 - [x] Lower scalar `p[0]` read as pointee load.
 - [x] Lower scalar `p[0] = value` as pointee store.
+- [x] Lower scalar `*p` read as pointee load.
+- [x] Lower scalar `(*p) = value` as pointee store.
 - [ ] Lower `&object.field` using GEP field index.
 - [ ] Lower `&struct.field` using GEP field index.
 - [ ] Lower `&fixedArray[index]` using GEP element offset.
 - [ ] Lower `&matrix[i,j]` using row-major offset / GEP.
-- [ ] Lower pointer read as LLVM load.
-- [ ] Lower pointer write as LLVM store after permission check.
+- [x] Lower pointer read as LLVM load for scalar dereference.
+- [x] Lower pointer write as LLVM store after permission check for scalar dereference.
 - [ ] Do not emit copy of large matrix when passing `&matrix`.
 - [ ] Optionally attach readonly/noalias metadata in future when safe.
 
@@ -1610,8 +1630,10 @@ function 'change' may mutate pointer parameter 'matrix', but argument '&matrix' 
 
 - [x] SIR `PointerType`.
 - [x] SIR `AddressOfExpression`.
+- [x] SIR `DereferenceExpression`.
 - [x] FBS `pointer_type`.
 - [x] FBS `address_of_expression`.
+- [x] FBS `dereference_expression`.
 - [x] LLVM pointer lowering.
 - [x] Function arg pointer passing.
 
@@ -1619,6 +1641,8 @@ function 'change' may mutate pointer parameter 'matrix', but argument '&matrix' 
 
 - [x] `p[0]` read for scalar pointer.
 - [x] `p[0]` write for scalar pointer.
+- [x] `*p` read for scalar pointer.
+- [x] `(*p) = value` write-through for scalar pointer.
 - [x] Permission check for write-through.
 - [x] Const provenance diagnostic.
 
@@ -1691,8 +1715,9 @@ Update this section as implementation progresses.
 - [x] pointer write-through
 - [x] provenance/permission tracking
 - [x] function read/write summaries
-- [ ] pointer indexing for arrays
-- [ ] partial views
+- [x] pointer indexing for arrays
+- [x] partial views
+- [x] dereference expression
 
 ### Not Started
 

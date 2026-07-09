@@ -19,6 +19,7 @@ export { Constant } from './sir/constant.js';
 export { ConstantValue } from './sir/constant-value.js';
 export { ContinueStatement } from './sir/continue-statement.js';
 export { DefaultClause } from './sir/default-clause.js';
+export { DereferenceExpression } from './sir/dereference-expression.js';
 export { ElementAccessExpression } from './sir/element-access-expression.js';
 export { ExternDeclaration } from './sir/extern-declaration.js';
 export { ExternFunction } from './sir/extern-function.js';

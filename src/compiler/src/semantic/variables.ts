@@ -39,10 +39,22 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const borrowedViewSourceName =
                 value?.borrowedViewSourceName ??
                 (value?.borrowedView === true ? (this as any).getAggregateRootIdentifier(value.object) : null);
-            const pointerProvenance = value?.pointerPermission
+            const pointerRootName =
+                value?.pointerRootName ??
+                value?.rootName ??
+                (value?.pointerPartialView === true && value?.object
+                    ? (this as any).getAggregateRootIdentifier(value.object)
+                    : null);
+            const pointerProvenance = this.isPointerType(type) && (
+                value?.pointerPermission ||
+                pointerRootName ||
+                typeof value?.pointerRootSymbolId === "number" ||
+                typeof value?.rootSymbolId === "number" ||
+                value?.pointerPartialView === true
+            )
                 ? {
-                    pointerRootName: value.pointerRootName ?? null,
-                    pointerRootSymbolId: value.pointerRootSymbolId,
+                    pointerRootName,
+                    pointerRootSymbolId: value.pointerRootSymbolId ?? value.rootSymbolId,
                     pointerAccessPath: value.pointerAccessPath ?? [],
                     pointerPermission: value.pointerPermission,
                 }

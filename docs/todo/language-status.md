@@ -92,8 +92,10 @@ without re-auditing the whole compiler.
 - [x] Const/readonly propagation through borrowed fixed-shape views
 - [x] General array pointer indexing beyond scalar literal `0`
 - [x] Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`
-- [ ] Borrow summaries adjusted for `ptr<T>` parameter returns
-- [ ] General dereference operator syntax
+- [x] Borrow summaries adjusted for `ptr<T>` parameter-derived returns
+- [x] Semantic rejection for returning pointer views derived from local storage
+- [x] Semantic rejection for pointer-return paths borrowing from different parameters
+- [x] General dereference operator syntax: `*p` read and scalar `(*p) = value` write-through
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions

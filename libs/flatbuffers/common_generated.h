@@ -40,11 +40,12 @@ enum TypeKind : int8_t {
   TypeKind_tuple_type = 14,
   TypeKind_function_type = 15,
   TypeKind_type_literal = 16,
+  TypeKind_pointer_type = 17,
   TypeKind_MIN = TypeKind_unknown,
-  TypeKind_MAX = TypeKind_type_literal
+  TypeKind_MAX = TypeKind_pointer_type
 };
 
-inline const TypeKind (&EnumValuesTypeKind())[17] {
+inline const TypeKind (&EnumValuesTypeKind())[18] {
   static const TypeKind values[] = {
     TypeKind_unknown,
     TypeKind_number_type,
@@ -62,13 +63,14 @@ inline const TypeKind (&EnumValuesTypeKind())[17] {
     TypeKind_array_type,
     TypeKind_tuple_type,
     TypeKind_function_type,
-    TypeKind_type_literal
+    TypeKind_type_literal,
+    TypeKind_pointer_type
   };
   return values;
 }
 
 inline const char * const *EnumNamesTypeKind() {
-  static const char * const names[18] = {
+  static const char * const names[19] = {
     "unknown",
     "number_type",
     "string_type",
@@ -86,13 +88,14 @@ inline const char * const *EnumNamesTypeKind() {
     "tuple_type",
     "function_type",
     "type_literal",
+    "pointer_type",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameTypeKind(TypeKind e) {
-  if (::flatbuffers::IsOutRange(e, TypeKind_unknown, TypeKind_type_literal)) return "";
+  if (::flatbuffers::IsOutRange(e, TypeKind_unknown, TypeKind_pointer_type)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesTypeKind()[index];
 }

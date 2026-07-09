@@ -32,7 +32,7 @@ jobs:
             archive_type: tar
             cmake_args: -DYOGI_ENABLE_LLVM=OFF -DYOGI_ALLOCATOR=system
 
-          - os: macos-13
+          - os: macos-15-intel
             label: macos-x64
             package_name: yogi-macos-x64
             archive_name: yogi-macos-x64.tar.gz

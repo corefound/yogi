@@ -57,8 +57,6 @@ endforeach()
 set(YOGI_LLVM_ENABLED OFF)
 set(llvm_libs "")
 
-set(YOGI_LLD_EXECUTABLE "")
-set(YOGI_LD64_LLD_EXECUTABLE "")
 set(YOGI_LLD_FILENAME "")
 set(YOGI_LD64_LLD_FILENAME "")
 set(YOGI_MACOS_SDK_PATH "")

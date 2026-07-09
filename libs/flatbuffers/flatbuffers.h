@@ -13,7 +13,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 
-#include "fbs_generated.h"
+#include "main_generated.h"
 
 namespace yogi::libs::fbs {
 

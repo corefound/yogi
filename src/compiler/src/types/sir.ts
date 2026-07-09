@@ -231,9 +231,28 @@ export type SemanticAddressOfExpression = {
     position?: SourcePosition;
 };
 
+export type SemanticDereferenceExpression = {
+    kind: "DereferenceExpression";
+    target: SemanticValueInput;
+    type: SemanticType;
+    rootName?: string | null;
+    rootSymbolId?: number;
+    accessPath?: string[];
+    permission?: "mutable" | "readonly";
+    pointerRootName?: string | null;
+    pointerRootSymbolId?: number;
+    pointerAccessPath?: string[];
+    pointerPermission?: "mutable" | "readonly";
+    borrowedView?: boolean;
+    borrowedViewReadonly?: boolean;
+    borrowedViewSourceName?: string | null;
+    source?: string;
+    position?: SourcePosition;
+};
+
 export type SemanticAggregateAssignmentExpression = {
     kind: "AggregateAssignmentExpression";
-    target: SemanticPropertyAccessExpression | SemanticElementAccessExpression;
+    target: SemanticPropertyAccessExpression | SemanticElementAccessExpression | SemanticDereferenceExpression;
     right: SemanticValueInput;
     type: SemanticType;
     source?: string;
@@ -253,6 +272,7 @@ export type SemanticValueInput =
     | SemanticPropertyAccessExpression
     | SemanticElementAccessExpression
     | SemanticAddressOfExpression
+    | SemanticDereferenceExpression
     | SemanticAggregateAssignmentExpression;
 
 export type SemanticVariableDeclaration = {

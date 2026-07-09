@@ -82,6 +82,8 @@ Yogi pointer syntax is explicit:
 ```ts
 let age: number = 10
 let p: ptr<number> = &age
+let value: number = *p
+(*p) = 20
 ```
 
 The frontend serializes `ptr<T>` as a SIR `TypeRef` with:
@@ -92,10 +94,9 @@ element_type = T
 ```
 
 The address-of expression `&value` is serialized as `AddressOfExpression`.
-For this first pointer lot, address-of is supported for variables and lowers to
-the storage address for that local/global binding. The backend does not insert
-implicit dereference operations, pointer arithmetic, pointer indexing, or
-pointer-based borrowed views yet.
+The explicit dereference expression `*p` is serialized as
+`DereferenceExpression`. Address-of is supported for variables and lowers to
+the storage address for that local/global binding.
 
 LLVM lowering uses pointer values directly:
 
@@ -103,7 +104,14 @@ LLVM lowering uses pointer values directly:
 ptr<T> -> LLVM pointer to T storage
 &local -> alloca/global address
 pointer assignment -> pointer value copy
+*p read -> LLVM load for scalar pointees
+(*p) = value -> LLVM store for scalar pointees
 ```
+
+For aggregate pointees, dereference produces a borrowed view/descriptor rather
+than a deep copy. Full aggregate assignment through dereference is rejected for
+now; element mutation should use pointer indexing such as `matrix[row, col] =
+value` or `(*matrix)[row, col] = value`.
 
 ## Fixed-Shape Arrays
 
@@ -203,8 +211,9 @@ function getRow(): number[3] {
 The backend lowers `array.copy` by evaluating the receiver, allocating
 `yogi_array_create(yogi_array_length(receiver))`, and copying elements with
 `yogi_array_get`/`yogi_array_set`. For borrowed fixed-shape views, this copies
-only the selected view shape. Parameter-borrow summaries and explicit borrowed
-returns remain future work.
+only the selected view shape. Parameter-borrow summaries now cover returned
+pointer-derived views from `ptr<T>` parameters; explicit borrowed return/view
+syntax remains future work.
 
 The next backend step is replacing descriptor-backed fixed-shape storage with a
 native fixed-shape ABI when the value never needs runtime array behavior.

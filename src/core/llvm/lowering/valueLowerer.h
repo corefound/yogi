@@ -75,13 +75,18 @@ namespace yogi::core::llvm::internal {
 				::llvm::Type *expectedType,
 				const Yogi::Sir::TypeRef *expectedSemanticType
 			);
-			::llvm::Value *lowerAddressOf(
-				const Yogi::Sir::AddressOfExpression *addressOf,
-				::llvm::Type *expectedType,
-				const Yogi::Sir::TypeRef *expectedSemanticType
-			);
-			::llvm::Value *lowerArray(
-				const Yogi::Sir::ArrayExpression *array,
+				::llvm::Value *lowerAddressOf(
+					const Yogi::Sir::AddressOfExpression *addressOf,
+					::llvm::Type *expectedType,
+					const Yogi::Sir::TypeRef *expectedSemanticType
+				);
+				::llvm::Value *lowerDereference(
+					const Yogi::Sir::DereferenceExpression *dereference,
+					::llvm::Type *expectedType,
+					const Yogi::Sir::TypeRef *expectedSemanticType
+				);
+				::llvm::Value *lowerArray(
+					const Yogi::Sir::ArrayExpression *array,
 				::llvm::Type *expectedType,
 				const Yogi::Sir::TypeRef *expectedSemanticType
 			);

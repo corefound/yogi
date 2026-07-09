@@ -1633,6 +1633,9 @@ export class BaseSemantic {
             case Kinds.Expressions.AddressOfExpression:
                 return this.visitAddressOfExpression(node);
 
+            case Kinds.Expressions.DereferenceExpression:
+                return this.visitDereferenceExpression(node);
+
             case Kinds.Expressions.SpreadElement:
                 return this.visitSpreadElement(node);
 
@@ -1815,6 +1818,7 @@ export class BaseSemantic {
     visitArrayExpression(_: any): any { }
     visitSpreadElement(_: any): any { }
     visitAddressOfExpression(_: any): any { }
+    visitDereferenceExpression(_: any): any { }
     visitDictionaryExpression(_: any): any { }
     visitReturnStatement(_: any): any { }
     visitExterns(_: any): any { }

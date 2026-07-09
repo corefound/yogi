@@ -264,6 +264,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 kind: Kinds.Types.UnknownType,
                 raw: "unknown",
             });
+            const returnIsPointer = this.isPointerType(returnType);
             const effectSummary = symbol.effectSummary ?? symbol.node?.effectSummary ?? null;
             const external = symbol.ambient === true || symbol.declare === true || !effectSummary;
             if (!external) {
@@ -329,11 +330,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     borrowedReturnParameterIndex < args.length
                     ? args[borrowedReturnParameterIndex]
                     : null;
-            const borrowedReturnInfo = borrowedReturnArgument
+            const borrowedReturnInfo = borrowedReturnArgument && !returnIsPointer
                 ? this.borrowedArrayReadonlyInfo(
                     borrowedReturnArgument,
                     this.resolveType(borrowedReturnArgument.declaredType ?? borrowedReturnArgument.type),
                 )
+                : null;
+            const borrowedReturnPointerInfo = borrowedReturnArgument && returnIsPointer
+                ? this.borrowedPointerReturnInfo(borrowedReturnArgument)
                 : null;
 
             return {
@@ -354,6 +358,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     ? borrowedReturnInfo.borrowedViewReadonly || borrowedReturnInfo.readonly
                     : false,
                 borrowedViewSourceName: borrowedReturnInfo?.sourceName ?? null,
+                pointerRootName: borrowedReturnPointerInfo?.rootName ?? null,
+                pointerRootSymbolId: borrowedReturnPointerInfo?.rootSymbolId,
+                pointerAccessPath: borrowedReturnPointerInfo?.accessPath ?? [],
+                pointerPermission: borrowedReturnPointerInfo?.permission,
             };
         }
 
@@ -2071,7 +2079,80 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
         }
 
-	        /**
+        public visitDereferenceExpression(node: any): any {
+            const target = this.visitNode(node.target);
+            const source = node.fullSource ?? node.source;
+            const pointerType = this.resolveType(target?.declaredType ?? target?.type);
+
+            if (pointerType?.kind !== Kinds.Types.PointerType) {
+                if (target) {
+                    target.arrowLength = target.source?.length ?? node.source?.length ?? 1;
+                } else {
+                    node.arrowLength = node.source?.length ?? 1;
+                }
+                this.throwError(
+                    `cannot dereference non-pointer type ${Helpers.RED}'${target?.type?.raw ?? "unknown"}'${Helpers.RESET}`,
+                    target?.position ?? node.position,
+                    source,
+                    target ?? node,
+                );
+            }
+
+            const pointee = this.toSerializableType(pointerType.elementType ?? pointerType.pointee ?? {
+                kind: Kinds.Types.UnknownType,
+                raw: "unknown",
+            });
+            const targetName = target?.kind === Kinds.Expressions.IdentifierExpression
+                ? target.value ?? target.name ?? target.raw ?? null
+                : null;
+            const rootName =
+                target.pointerRootName ??
+                target.rootName ??
+                targetName;
+            const rootSymbol =
+                typeof target.pointerRootSymbolId === "number"
+                    ? this.getSymbolById(target.pointerRootSymbolId)
+                    : typeof target.rootSymbolId === "number"
+                        ? this.getSymbolById(target.rootSymbolId)
+                        : rootName
+                            ? this.resolveSymbol(rootName)
+                            : null;
+            const permission = target.pointerPermission ?? target.permission ?? "mutable";
+            const borrowedView = this.isAggregateType(pointee);
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.DereferenceExpression,
+                target,
+                type: pointee,
+                rootName,
+                rootSymbolId:
+                    target.pointerRootSymbolId ??
+                    target.rootSymbolId ??
+                    rootSymbol?.id,
+                accessPath: [
+                    ...(target.pointerAccessPath ?? target.accessPath ?? []),
+                    "*",
+                ],
+                permission,
+                pointerRootName: rootName,
+                pointerRootSymbolId:
+                    target.pointerRootSymbolId ??
+                    target.rootSymbolId ??
+                    rootSymbol?.id,
+                pointerAccessPath: [
+                    ...(target.pointerAccessPath ?? target.accessPath ?? []),
+                    "*",
+                ],
+                pointerPermission: permission,
+                borrowedView,
+                borrowedViewReadonly: borrowedView && permission === "readonly",
+                borrowedViewSourceName: borrowedView ? rootName : null,
+                readonly: permission === "readonly",
+            };
+        }
+
+        /**
          * Handles property access expressions including special handling for array.length and tuple.length.
          * array.length returns the array length as a readonly number.
          * tuple.length returns the fixed tuple length as a readonly number.
@@ -2167,6 +2248,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 if (resolvedPointee?.kind === Kinds.Types.ArrayType) {
                     const shape = resolvedPointee.shape ?? [];
                     const isFixedShape = resolvedPointee.fixed === true && shape.length > 0;
+                    const pointerRootName =
+                        object.pointerRootName ??
+                        this.getAggregateRootIdentifier(object) ??
+                        null;
 
                     if (isFixedShape) {
                         if (indices.length > shape.length) {
@@ -2214,7 +2299,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 type: pointerViewType,
                                 pointerAccess: true,
                                 pointerPartialView: true,
-                                pointerRootName: object.pointerRootName ?? null,
+                                pointerRootName,
                                 pointerRootSymbolId: object.pointerRootSymbolId,
                                 pointerAccessPath: [
                                     ...(object.pointerAccessPath ?? []),
@@ -2240,7 +2325,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         indices,
                         type: resolvedPointee.elementType,
                         pointerAccess: true,
-                        pointerRootName: object.pointerRootName ?? null,
+                        pointerRootName,
                         pointerRootSymbolId: object.pointerRootSymbolId,
                         pointerAccessPath: [
                             ...(object.pointerAccessPath ?? []),
@@ -2471,13 +2556,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
 
             const checkParenthesized = (node: any): any => {
-                const expression = checkExpression(node.expression);
-
-                return {
-                    ...node,
-                    expression,
-                    type: expression?.type,
-                };
+                return checkExpression(node.expression);
             };
 
             const checkBinary = (node: any): any => {
@@ -2636,11 +2715,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         );
                     }
 
-                    case "=": {
-                        if (left.kind !== Kinds.Expressions.IdentifierExpression) {
-                            if (
-                                left.access?.kind === Kinds.Expressions.PropertyAccessExpression ||
-                                left.access?.kind === Kinds.Expressions.ElementAccessExpression
+	                    case "=": {
+	                        if (left.kind !== Kinds.Expressions.IdentifierExpression) {
+	                            if (left.kind === Kinds.Expressions.DereferenceExpression) {
+	                                return checkDereferenceAssignment(node, left, right, context);
+	                            }
+
+	                            if (
+	                                left.access?.kind === Kinds.Expressions.PropertyAccessExpression ||
+	                                left.access?.kind === Kinds.Expressions.ElementAccessExpression
                             ) {
                                 return checkAggregateAssignment(
                                     node,
@@ -2849,10 +2932,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
             };
 
-            const checkAggregateAssignment = (node: any, left: any, right: any, context: any): any => {
-                const root = this.getAggregateRootIdentifier(left.object);
-                const symbol = root ? this.resolveSymbol(root) : null;
-                const objectType = this.resolveType(left.object?.declaredType ?? left.object?.type);
+	            const checkAggregateAssignment = (node: any, left: any, right: any, context: any): any => {
+	                const root = this.getAggregateRootIdentifier(left.object);
+	                const symbol = root ? this.resolveSymbol(root) : null;
+	                const objectType = this.resolveType(left.object?.declaredType ?? left.object?.type);
 
                 if (objectType?.kind === Kinds.Types.PointerType) {
                     if (left.pointerPartialView === true) {
@@ -2985,12 +3068,61 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     kind: "AggregateAssignmentExpression",
                     target: left,
                     right,
-                    type: left.type,
-                };
-            };
+	                    type: left.type,
+	                };
+	            };
 
-            return checkExpression(context.value);
-        }
+	            const checkDereferenceAssignment = (node: any, left: any, right: any, context: any): any => {
+	                const targetType = this.resolveType(left.type);
+	                const targetKind = targetType?.kind;
+
+	                if (
+	                    targetKind === Kinds.Types.ArrayType ||
+	                    targetKind === Kinds.Types.TupleType ||
+	                    targetKind === Kinds.Types.StringType ||
+	                    this.isObjectLikeType(targetType)
+	                ) {
+	                    left.arrowLength = left.source?.length ?? 1;
+	                    this.throwError(
+	                        `cannot assign a full resource value through dereference ${Helpers.RED}'${left.source ?? "*pointer"}'${Helpers.RESET}`,
+	                        left.position,
+	                        context.fullSource ?? node.fullSource ?? node.source,
+	                        left,
+	                        "  = mutate array/object elements through indexing or use an explicit owner transfer API when it exists",
+	                    );
+	                }
+
+	                if (left.pointerPermission === "readonly" || left.permission === "readonly") {
+	                    const rootName = left.pointerRootName ?? left.rootName ?? "unknown";
+	                    left.arrowLength = left.source?.length ?? 1;
+	                    this.throwError(
+	                        `cannot mutate storage derived from const value ${Helpers.RED}'${rootName}'${Helpers.RESET}`,
+	                        left.position,
+	                        context.fullSource ?? node.fullSource ?? node.source,
+	                        left,
+	                    );
+	                }
+
+	                if (!this.isTypeAssignable(left.type, right.type)) {
+	                    const message =
+	                        `expected ${Helpers.BLUE}'${left.type?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+	                        `${Helpers.RED}'${right.type?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+	                    right.arrowLength = right.source?.length ?? 1;
+	                    this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
+	                }
+
+	                return {
+	                    ...node,
+	                    kind: "AggregateAssignmentExpression",
+	                    target: left,
+	                    right,
+	                    type: left.type,
+	                };
+	            };
+
+	            return checkExpression(context.value);
+	        }
 
         public createAssignmentFromMutation(node: any, left: any, right: any, source: string): any {
             if (left.kind !== Kinds.Expressions.IdentifierExpression) {
@@ -3287,15 +3419,19 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 return node.value ?? node.name ?? node.raw;
             }
 
-            if (
-                node.kind === Kinds.Expressions.PropertyAccessExpression ||
-                node.kind === Kinds.Expressions.ElementAccessExpression
-            ) {
-                return this.getAggregateRootIdentifier(node.object);
-            }
+	            if (
+	                node.kind === Kinds.Expressions.PropertyAccessExpression ||
+	                node.kind === Kinds.Expressions.ElementAccessExpression
+	            ) {
+	                return this.getAggregateRootIdentifier(node.object);
+	            }
 
-            return null;
-        }
+	            if (node.kind === Kinds.Expressions.DereferenceExpression) {
+	                return node.borrowedViewSourceName ?? node.rootName ?? this.getAggregateRootIdentifier(node.target);
+	            }
+
+	            return null;
+	        }
 
         public borrowedArrayReadonlyInfo(object: any, objectType: any): {
             readonly: boolean;
@@ -3331,6 +3467,41 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 readonly,
                 borrowedViewReadonly: borrowedViewReadonly || (readonly && isBorrowedView),
                 sourceName,
+            };
+        }
+
+        public borrowedPointerReturnInfo(argument: any): {
+            rootName: string | null;
+            rootSymbolId?: number;
+            accessPath: string[];
+            permission?: "mutable" | "readonly";
+        } | null {
+            if (!argument) return null;
+
+            const identifierName = argument.kind === Kinds.Expressions.IdentifierExpression
+                ? argument.value ?? argument.name ?? argument.raw ?? null
+                : null;
+            const rootName =
+                argument.pointerRootName ??
+                argument.rootName ??
+                identifierName;
+            const rootSymbol =
+                typeof argument.pointerRootSymbolId === "number"
+                    ? this.getSymbolById(argument.pointerRootSymbolId)
+                    : typeof argument.rootSymbolId === "number"
+                        ? this.getSymbolById(argument.rootSymbolId)
+                        : rootName
+                            ? this.resolveSymbol(rootName)
+                            : null;
+
+            return {
+                rootName,
+                rootSymbolId:
+                    argument.pointerRootSymbolId ??
+                    argument.rootSymbolId ??
+                    rootSymbol?.id,
+                accessPath: argument.pointerAccessPath ?? argument.accessPath ?? [],
+                permission: argument.pointerPermission ?? argument.permission,
             };
         }
 

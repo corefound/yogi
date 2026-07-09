@@ -495,6 +495,39 @@ function bad(matrix: ptr<number[2, 3]>, row: number[3]): void {
 }
 ```
 
+Pointer-derived return views now carry a small lifetime summary. If a known
+function returns a pointer view derived from a pointer parameter, callers keep
+that provenance:
+
+```ts
+function firstRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {
+    return matrix[0]
+}
+
+function forwardRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {
+    return firstRow(matrix)
+}
+
+const matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+let row: ptr<number[3]> = forwardRow(&matrix)
+
+row[0] = 99 // error: row points to const storage
+```
+
+Returning a pointer or pointer view derived from local stack storage is rejected:
+
+```ts
+function bad(): ptr<number[3]> {
+    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+    let p: ptr<number[2, 3]> = &matrix
+    return p[0] // error
+}
+```
+
+All return paths for a borrowed pointer result must borrow from the same
+parameter. Returning `left[0]` on one path and `right[0]` on another is rejected
+because the compiler cannot summarize the result as one stable parameter borrow.
+
 ### Future: pointers to dynamic shaped arrays
 
 Pointers to `Array<T, Rank>` and runtime-rank `Array<T>` are planned future
@@ -1969,18 +2002,21 @@ Yogi is flexible when the runtime can validate safely.
 ✅ Pointer indexing read/write mutates caller storage
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer call diagnostics for missing &, value/pointer mismatch, shape mismatch, and pointer-to-pointer mismatch
+✅ Borrow summaries for ptr<T> parameter-derived returns
+✅ Rejection for returning pointer views derived from local storage
+✅ Rejection for conflicting pointer-return borrow roots
+✅ General dereference syntax: *p read, scalar (*p) = value write-through
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Adjust borrow summaries to ptr<T> parameter returns
+⬜ String element extraction from string[] through .at() inside struct fields
 ```
 
 ### Future Work
 
 ```txt
-⬜ Adjust borrow summaries to ptr<T> parameter returns
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for borrowed views
 ⬜ Dynamic shaped arrays: Array<T, Rank>
@@ -2002,20 +2038,19 @@ Yogi is flexible when the runtime can validate safely.
 ## Recommended Implementation Order
 
 ```txt
-1. Adjust borrow summaries to ptr<T> parameter returns
-2. String element extraction from string[] through .at() inside struct fields
-3. Dynamic shaped arrays: Array<T, Rank>
-4. Runtime-rank dynamic shaped arrays: Array<T>
-5. Union element dynamic shaped arrays
-6. Pointers to dynamic shaped arrays: ptr<Array<T, Rank>> and ptr<Array<T>>
-7. Dynamic shaped views/slices
-8. Escape analysis complete for borrowed views
-9. Cleanup/destructor rules for borrowed views
-10. Native fixed-shape ABI without runtime descriptor
-11. C ABI interop rules for arrays
-12. Lazy iterator objects
-13. Object stringification inside arrays
-14. Final array method policy
-15. Final diagnostics polish
-16. Documentation final pass
+1. String element extraction from string[] through .at() inside struct fields
+2. Dynamic shaped arrays: Array<T, Rank>
+3. Runtime-rank dynamic shaped arrays: Array<T>
+4. Union element dynamic shaped arrays
+5. Pointers to dynamic shaped arrays: ptr<Array<T, Rank>> and ptr<Array<T>>
+6. Dynamic shaped views/slices
+7. Escape analysis complete for borrowed views
+8. Cleanup/destructor rules for borrowed views
+9. Native fixed-shape ABI without runtime descriptor
+10. C ABI interop rules for arrays
+11. Lazy iterator objects
+12. Object stringification inside arrays
+13. Final array method policy
+14. Final diagnostics polish
+15. Documentation final pass
 ```

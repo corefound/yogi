@@ -78,13 +78,17 @@ namespace yogi::core::llvm::internal {
 			return lowerElementAccess(access, expectedType, expectedSemanticType);
 		}
 
-		if (const auto *addressOf = value->address_of()) {
-			return lowerAddressOf(addressOf, expectedType, expectedSemanticType);
-		}
+			if (const auto *addressOf = value->address_of()) {
+				return lowerAddressOf(addressOf, expectedType, expectedSemanticType);
+			}
 
-		if (const auto *assignment = value->aggregate_assignment()) {
-			return lowerAggregateAssignment(assignment);
-		}
+			if (const auto *dereference = value->dereference()) {
+				return lowerDereference(dereference, expectedType, expectedSemanticType);
+			}
+
+			if (const auto *assignment = value->aggregate_assignment()) {
+				return lowerAggregateAssignment(assignment);
+			}
 
 		return types.zero(expectedType);
 	}
@@ -1566,11 +1570,11 @@ namespace yogi::core::llvm::internal {
 		return types.zero(expectedType);
 	}
 
-	::llvm::Value *ValueLowerer::lowerAddressOf(
-		const Yogi::Sir::AddressOfExpression *addressOf,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+		::llvm::Value *ValueLowerer::lowerAddressOf(
+			const Yogi::Sir::AddressOfExpression *addressOf,
+			::llvm::Type *expectedType,
+			const Yogi::Sir::TypeRef *expectedSemanticType
+		) {
 		const auto *identifier = addressOf->target() ? addressOf->target()->identifier() : nullptr;
 		const auto name = identifier ? fbString(identifier->name()) : "";
 		::llvm::Value *address = nullptr;
@@ -1629,12 +1633,39 @@ namespace yogi::core::llvm::internal {
 			address,
 			expectedType ? expectedType : opaquePointer(),
 			expectedSemanticType ? expectedSemanticType : addressOf->type(),
-			addressOf->type()
-		);
-	}
+				addressOf->type()
+			);
+		}
 
-	::llvm::Value *ValueLowerer::lowerArray(
-		const Yogi::Sir::ArrayExpression *array,
+		::llvm::Value *ValueLowerer::lowerDereference(
+			const Yogi::Sir::DereferenceExpression *dereference,
+			::llvm::Type *expectedType,
+			const Yogi::Sir::TypeRef *expectedSemanticType
+		) {
+			const auto *pointerSemanticType = valueSemanticType(dereference->target());
+			auto *pointer = lower(dereference->target(), opaquePointer(), pointerSemanticType);
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : dereference->type();
+			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+			const auto targetKind = resolvedTypeKind(targetSemanticType);
+
+			if (
+				targetKind == Yogi::Sir::TypeKind_array_type ||
+				targetKind == Yogi::Sir::TypeKind_tuple_type
+			) {
+				return cast(pointer, targetType, targetSemanticType, dereference->type());
+			}
+
+			auto *loaded = context.builder.CreateLoad(
+				types.lower(dereference->type()),
+				pointer,
+				"ptr.deref.load"
+			);
+
+			return cast(loaded, targetType, targetSemanticType, dereference->type());
+		}
+
+		::llvm::Value *ValueLowerer::lowerArray(
+			const Yogi::Sir::ArrayExpression *array,
 		::llvm::Type *expectedType,
 		const Yogi::Sir::TypeRef *expectedSemanticType
 	) {
@@ -2523,12 +2554,25 @@ namespace yogi::core::llvm::internal {
 		const Yogi::Sir::AggregateAssignmentExpression *assignment
 	) {
 		const auto *target = assignment->target();
-		const auto *rightType = valueSemanticType(assignment->right());
-		auto *rightValue = lower(assignment->right(), types.lower(rightType), rightType);
+			const auto *rightType = valueSemanticType(assignment->right());
+			auto *rightValue = lower(assignment->right(), types.lower(rightType), rightType);
 
-		if (const auto *element = target ? target->element_access() : nullptr) {
-			const auto *objectType = valueSemanticType(element->object());
-			if (resolvedTypeKind(objectType) == Yogi::Sir::TypeKind_pointer_type) {
+			if (const auto *dereference = target ? target->dereference() : nullptr) {
+				auto *pointer = lower(
+					dereference->target(),
+					opaquePointer(),
+					valueSemanticType(dereference->target())
+				);
+				auto *pointeeType = types.lower(dereference->type());
+				auto *storedValue = cast(rightValue, pointeeType, dereference->type(), rightType);
+
+				context.builder.CreateStore(storedValue, pointer);
+				return cast(storedValue, types.lower(assignment->type()), assignment->type(), dereference->type());
+			}
+
+			if (const auto *element = target ? target->element_access() : nullptr) {
+				const auto *objectType = valueSemanticType(element->object());
+				if (resolvedTypeKind(objectType) == Yogi::Sir::TypeKind_pointer_type) {
 				auto *pointer = lower(element->object(), opaquePointer(), objectType);
 				const auto *pointeeSemanticType = objectType && objectType->element_type()
 					? objectType->element_type()
@@ -3489,13 +3533,17 @@ namespace yogi::core::llvm::internal {
 			return access->type();
 		}
 
-		if (const auto *addressOf = value->address_of()) {
-			return addressOf->type();
-		}
+			if (const auto *addressOf = value->address_of()) {
+				return addressOf->type();
+			}
 
-		if (const auto *assignment = value->aggregate_assignment()) {
-			return assignment->type();
-		}
+			if (const auto *dereference = value->dereference()) {
+				return dereference->type();
+			}
+
+			if (const auto *assignment = value->aggregate_assignment()) {
+				return assignment->type();
+			}
 
 		if (const auto *functionExpression = value->function_expression()) {
 			return functionExpression->type();

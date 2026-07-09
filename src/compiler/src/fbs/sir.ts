@@ -29,10 +29,11 @@ import {
     ArrayExpression,
     ObjectExpression,
     ObjectProperty,
-    PropertyAccessExpression,
-    ElementAccessExpression,
-    AddressOfExpression,
-    AggregateAssignmentExpression,
+	    PropertyAccessExpression,
+	    ElementAccessExpression,
+	    AddressOfExpression,
+	    DereferenceExpression,
+	    AggregateAssignmentExpression,
     VariableDeclaration,
     ArrayDeclaration,
     ReturnStatement,
@@ -618,11 +619,14 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const elementAccess = node.kind === "ElementAccessExpression"
                 ? this.createElementAccessExpression(builder, node)
                 : 0;
-            const addressOf = node.kind === "AddressOfExpression"
-                ? this.createAddressOfExpression(builder, node as any)
-                : 0;
-            const aggregateAssignment = node.kind === "AggregateAssignmentExpression"
-                ? this.createAggregateAssignmentExpression(builder, node)
+	            const addressOf = node.kind === "AddressOfExpression"
+	                ? this.createAddressOfExpression(builder, node as any)
+	                : 0;
+	            const dereference = node.kind === "DereferenceExpression"
+	                ? this.createDereferenceExpression(builder, node as any)
+	                : 0;
+	            const aggregateAssignment = node.kind === "AggregateAssignmentExpression"
+	                ? this.createAggregateAssignmentExpression(builder, node)
                 : 0;
             const functionExpression = (node as any).kind === "FunctionExpression"
                 ? this.createFunctionExpression(builder, node)
@@ -638,10 +642,11 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 !spread &&
                 !array &&
                 !object &&
-                !propertyAccess &&
-                !elementAccess &&
-                !addressOf &&
-                !aggregateAssignment &&
+	                !propertyAccess &&
+	                !elementAccess &&
+	                !addressOf &&
+	                !dereference &&
+	                !aggregateAssignment &&
                 !functionExpression
             ) {
                 throw new Error(`Unsupported semantic value kind: ${(node as { kind: string }).kind}`);
@@ -694,12 +699,16 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
                 ValueRef.addElementAccess(builder, elementAccess);
             }
 
-            if (addressOf) {
-                ValueRef.addAddressOf(builder, addressOf);
-            }
+	            if (addressOf) {
+	                ValueRef.addAddressOf(builder, addressOf);
+	            }
 
-            if (aggregateAssignment) {
-                ValueRef.addAggregateAssignment(builder, aggregateAssignment);
+	            if (dereference) {
+	                ValueRef.addDereference(builder, dereference);
+	            }
+
+	            if (aggregateAssignment) {
+	                ValueRef.addAggregateAssignment(builder, aggregateAssignment);
             }
 
             if (functionExpression) {
@@ -1101,7 +1110,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const rootName = builder.createString(expression.rootName ?? expression.pointerRootName ?? "");
             const permission = builder.createString(expression.permission ?? expression.pointerPermission ?? "");
             const accessPathItems = (expression.accessPath ?? expression.pointerAccessPath ?? [])
-                .map((item) => builder.createString(item));
+                .map((item: string) => builder.createString(item));
             const accessPath = AddressOfExpression.createAccessPathVector(builder, accessPathItems);
 
             AddressOfExpression.startAddressOfExpression(builder);
@@ -1115,6 +1124,33 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             AddressOfExpression.addPermission(builder, permission);
 
             return AddressOfExpression.endAddressOfExpression(builder);
+        }
+
+        static createDereferenceExpression(
+            builder: fbs.Builder,
+            expression: Types.Sir.SemanticDereferenceExpression,
+        ): fbs.Offset {
+            const target = this.createValueRef(builder, expression.target);
+            const type = this.createTypeRef(builder, expression.type);
+            const source = builder.createString(expression.source ?? "");
+            const position = this.createSourcePosition(builder, expression.position);
+            const rootName = builder.createString(expression.rootName ?? expression.pointerRootName ?? "");
+            const permission = builder.createString(expression.permission ?? expression.pointerPermission ?? "");
+            const accessPathItems = (expression.accessPath ?? expression.pointerAccessPath ?? [])
+                .map((item) => builder.createString(item));
+            const accessPath = DereferenceExpression.createAccessPathVector(builder, accessPathItems);
+
+            DereferenceExpression.startDereferenceExpression(builder);
+            DereferenceExpression.addTarget(builder, target);
+            DereferenceExpression.addType(builder, type);
+            DereferenceExpression.addSource(builder, source);
+            DereferenceExpression.addPosition(builder, position);
+            DereferenceExpression.addRootSymbolId(builder, expression.rootSymbolId ?? expression.pointerRootSymbolId ?? -1);
+            DereferenceExpression.addRootName(builder, rootName);
+            DereferenceExpression.addAccessPath(builder, accessPath);
+            DereferenceExpression.addPermission(builder, permission);
+
+            return DereferenceExpression.endDereferenceExpression(builder);
         }
 
 	        static createAggregateAssignmentExpression(

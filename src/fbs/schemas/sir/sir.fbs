@@ -31,6 +31,7 @@ table ValueRef {
   property_access:PropertyAccessExpression;
   element_access:ElementAccessExpression;
   address_of:AddressOfExpression;
+  dereference:DereferenceExpression;
   aggregate_assignment:AggregateAssignmentExpression;
   function_expression:FunctionExpression;
 }
@@ -130,6 +131,17 @@ table ElementAccessExpression {
 }
 
 table AddressOfExpression {
+  target:ValueRef;
+  type:TypeRef;
+  source:string;
+  position:SourcePosition;
+  root_symbol_id:int = -1;
+  root_name:string;
+  access_path:[string];
+  permission:string;
+}
+
+table DereferenceExpression {
   target:ValueRef;
   type:TypeRef;
   source:string;

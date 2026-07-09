@@ -187,6 +187,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const expectedReturnType = this.currentFunctionReturnType;
 
             this.rejectEscapingLocalFixedShapeView(value, node);
+            this.rejectReturningLocalPointerDerivedValue(value, node);
+            this.rejectReturningLocalDereferencedAggregate(value, node);
 
             if (expectedReturnType && this.rejectsImplicitObjectContractConversion(expectedReturnType, value)) {
                 this.throwImplicitObjectContractConversionError(
@@ -261,6 +263,102 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             );
         }
 
+        public rejectReturningLocalPointerDerivedValue(value: any, node: any): void {
+            if (!value || !this.isPointerType(value.type)) return;
+
+            const rootSymbol = this.pointerReturnRootSymbol(value);
+
+            if (
+                !rootSymbol ||
+                rootSymbol.kind === Kinds.ScopeSymbols.Parameter ||
+                rootSymbol.storage !== Kinds.Storage.stack
+            ) {
+                return;
+            }
+
+            const rootName = rootSymbol.name ?? this.pointerReturnRootName(value) ?? "local";
+            value.arrowLength = value.source?.length ?? 1;
+            this.throwError(
+                `cannot return pointer or pointer view derived from local storage ${Helpers.RED}'${rootName}'${Helpers.RESET}`,
+                value.position ?? node.position,
+                node.fullSource ?? node.source,
+                value,
+                "  = returned pointers must be derived from a parameter or longer-lived storage",
+            );
+        }
+
+        public rejectReturningLocalDereferencedAggregate(value: any, node: any): void {
+            if (
+                !value ||
+                value.kind !== Kinds.Expressions.DereferenceExpression ||
+                !this.isAggregateType(value.type)
+            ) {
+                return;
+            }
+
+            const rootSymbol = this.pointerReturnRootSymbol(value);
+
+            if (
+                !rootSymbol ||
+                rootSymbol.kind === Kinds.ScopeSymbols.Parameter ||
+                rootSymbol.storage !== Kinds.Storage.stack
+            ) {
+                return;
+            }
+
+            const rootName = rootSymbol.name ?? value.rootName ?? "local";
+            value.arrowLength = value.source?.length ?? 1;
+            this.throwError(
+                `cannot return borrowed dereference derived from local storage ${Helpers.RED}'${rootName}'${Helpers.RESET}`,
+                value.position ?? node.position,
+                node.fullSource ?? node.source,
+                value,
+                "  = return an owned copy or borrow from a parameter with an explicit lifetime summary",
+            );
+        }
+
+        public pointerReturnRootSymbol(value: any): Types.SymbolInfo | null {
+            const rootSymbolId =
+                value?.rootSymbolId ??
+                value?.pointerRootSymbolId;
+
+            if (typeof rootSymbolId === "number" && rootSymbolId >= 0) {
+                return this.getSymbolById(rootSymbolId);
+            }
+
+            const rootName = this.pointerReturnRootName(value);
+            return rootName ? this.resolveSymbol(rootName) : null;
+        }
+
+        public pointerReturnRootName(value: any): string | null {
+            if (!value) return null;
+
+            if (value.pointerRootName || value.rootName) {
+                return value.pointerRootName ?? value.rootName;
+            }
+
+            if (value.kind === Kinds.Expressions.IdentifierExpression) {
+                return value.value ?? value.name ?? value.raw ?? null;
+            }
+
+            if (value.kind === Kinds.Expressions.AddressOfExpression) {
+                return value.rootName ?? value.pointerRootName ?? this.borrowedViewRootName(value.target);
+            }
+
+            if (
+                value.kind === Kinds.Expressions.ElementAccessExpression ||
+                value.kind === Kinds.Expressions.PropertyAccessExpression
+            ) {
+                return this.pointerReturnRootName(value.object) ?? this.borrowedViewRootName(value.object);
+            }
+
+            if (value.kind === Kinds.Expressions.DereferenceExpression) {
+                return value.rootName ?? value.pointerRootName ?? this.pointerReturnRootName(value.target);
+            }
+
+            return null;
+        }
+
         public borrowedViewRootName(node: any): string | null {
             if (!node) return null;
 
@@ -273,6 +371,10 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node.kind === Kinds.Expressions.ElementAccessExpression
             ) {
                 return this.borrowedViewRootName(node.object);
+            }
+
+            if (node.kind === Kinds.Expressions.DereferenceExpression) {
+                return node.borrowedViewSourceName ?? node.rootName ?? this.borrowedViewRootName(node.target);
             }
 
             return null;
@@ -566,6 +668,13 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 }
 
                 if (node.kind === "AggregateAssignmentExpression") {
+                    if (node.target?.kind === Kinds.Expressions.DereferenceExpression) {
+                        addPointerMutatedIdentifier(node.target.target);
+                        visit(node.target);
+                        visit(node.right);
+                        return;
+                    }
+
                     const root = this.getAggregateRootExpression(node.target);
                     const targetObjectType = node.target?.object?.declaredType ?? node.target?.object?.type;
 
@@ -811,8 +920,16 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
         }
 
         public getReturnBorrowFromValue(value: any, functionNode: any): Types.Sir.SemanticReturnBorrowSummary | null {
-            if (!value || !this.isAggregateType(value.type)) {
+            if (!value || (!this.isAggregateType(value.type) && !this.isPointerType(value.type))) {
                 return null;
+            }
+
+            if (this.isPointerType(value.type)) {
+                return this.getReturnBorrowFromPointerValue(value, functionNode);
+            }
+
+            if (value.kind === Kinds.Expressions.DereferenceExpression && value.borrowedView === true) {
+                return this.getReturnBorrowFromDereference(value, functionNode);
             }
 
             if (value.kind === Kinds.Expressions.ElementAccessExpression) {
@@ -824,6 +941,42 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             }
 
             return null;
+        }
+
+        public getReturnBorrowFromDereference(value: any, functionNode: any): Types.Sir.SemanticReturnBorrowSummary | null {
+            const rootName = value.borrowedViewSourceName ?? value.rootName ?? this.pointerReturnRootName(value.target);
+            const parameterIndex = this.functionParameterIndex(functionNode, rootName);
+
+            if (parameterIndex < 0) {
+                return null;
+            }
+
+            return {
+                ownership: "borrowed",
+                parameterIndex,
+                readonlyFollowsParameter: true,
+                viewShape: this.borrowedReturnViewShape(value.type),
+            };
+        }
+
+        public getReturnBorrowFromPointerValue(value: any, functionNode: any): Types.Sir.SemanticReturnBorrowSummary | null {
+            if (value.kind === Kinds.Expressions.CallExpression) {
+                return this.getReturnBorrowFromCall(value, functionNode);
+            }
+
+            const rootName = this.pointerReturnRootName(value);
+            const parameterIndex = this.functionParameterIndex(functionNode, rootName);
+
+            if (parameterIndex < 0) {
+                return null;
+            }
+
+            return {
+                ownership: "borrowed",
+                parameterIndex,
+                readonlyFollowsParameter: true,
+                viewShape: this.borrowedReturnViewShape(value.type),
+            };
         }
 
         public getReturnBorrowFromElementAccess(value: any, functionNode: any): Types.Sir.SemanticReturnBorrowSummary | null {
@@ -879,12 +1032,15 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
         public borrowedReturnViewShape(type: any): number[] {
             const resolvedType = this.resolveType(type);
+            const arrayType = resolvedType?.kind === Kinds.Types.PointerType
+                ? this.resolveType(resolvedType.elementType ?? resolvedType.pointee)
+                : resolvedType;
 
-            if (resolvedType?.kind !== Kinds.Types.ArrayType || resolvedType.fixed !== true) {
+            if (arrayType?.kind !== Kinds.Types.ArrayType || arrayType.fixed !== true) {
                 return [];
             }
 
-            return Array.isArray(resolvedType.shape) ? resolvedType.shape : [];
+            return Array.isArray(arrayType.shape) ? arrayType.shape : [];
         }
 
         public getCallEffectSummary(node: any): Types.Sir.SemanticFunctionEffectSummary | null {
@@ -1007,6 +1163,13 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
             if (node.kind === Kinds.Statements.BlockStatement) {
                 return this.findFunctionReturnStatements(node.statements);
+            }
+
+            if (node.kind === Kinds.Statements.IfStatement || node.kind === Kinds.ControlFlow.IfStatement) {
+                return [
+                    ...this.findFunctionReturnStatements(node.then),
+                    ...this.findFunctionReturnStatements(node.else),
+                ];
             }
 
             if (node.kind === Kinds.Statements.SwitchStatement) {
