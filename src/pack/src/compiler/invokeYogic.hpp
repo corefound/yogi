@@ -8,8 +8,8 @@ namespace yogi::compiler {
 
 struct YogicResult {
   int exitCode = 0;
-  std::string stdout;
-  std::string stderr;
+  std::string standardOutput;
+  std::string standardError;
 };
 
 YogicResult invokeYogic(const yogi::fs::ProjectPaths& paths, const std::vector<std::string>& args);

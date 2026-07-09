@@ -48,7 +48,7 @@ YogiError dependencyConflict(const std::string& packageName, const std::string& 
 YogiError missingLockfile(const std::string& path);
 YogiError missingInstalledPackage(const std::string& name, const std::string& version);
 YogiError missingYogic();
-YogiError compilerFailure(const std::string& stderr);
+YogiError compilerFailure(const std::string& errorOutput);
 YogiError missingBuildOutput(const std::string& path);
 YogiError fileSystemError(const std::string& path, const std::string& detail);
 YogiError registryError(const std::string& packageName, const std::string& detail);

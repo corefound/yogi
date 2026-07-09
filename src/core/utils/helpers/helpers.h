@@ -7,6 +7,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <array>
+#include <cstdio>
 
 
 namespace yogi::core::utils::helpers {
@@ -14,7 +15,12 @@ namespace yogi::core::utils::helpers {
 	class Helpers {
 		public:
 			static std::string runCommand(const std::string &command) {
-				FILE *pipe = popen(command.c_str(), "r");
+				FILE *pipe =
+#if defined(_WIN32)
+					_popen(command.c_str(), "r");
+#else
+					popen(command.c_str(), "r");
+#endif
 				std::array<char, 4096> buffer{};
 				std::string result;
 
@@ -26,7 +32,11 @@ namespace yogi::core::utils::helpers {
 					result.append(buffer.data());
 				}
 
+#if defined(_WIN32)
+				_pclose(pipe);
+#else
 				pclose(pipe);
+#endif
 				return result;
 			}
 

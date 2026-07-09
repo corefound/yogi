@@ -1,5 +1,6 @@
 #include "githubClient.hpp"
 #include "diagnostics/errors.hpp"
+#include "platform/process.hpp"
 #include <nlohmann/json.hpp>
 #include <cstdio>
 #include <cstdlib>
@@ -42,7 +43,7 @@ HttpResponse executeCurl(const std::string& url,
   cmd += " -w " + shellEscape("\n%{http_code}");
   cmd += " " + shellEscape(url);
 
-  FILE* pipe = popen(cmd.c_str(), "r");
+  FILE* pipe = platform::openPipe(cmd.c_str(), "r");
   if (!pipe) {
     throw diagnostics::networkRequestFailed("failed to execute curl");
   }
@@ -53,7 +54,7 @@ HttpResponse executeCurl(const std::string& url,
     result += buffer;
   }
 
-  int status = pclose(pipe);
+  int status = platform::closePipe(pipe);
   if (status != 0) {
     throw diagnostics::networkRequestFailed("curl exited with status " + std::to_string(status));
   }
@@ -201,7 +202,7 @@ std::optional<std::string> GitHubClient::getReadme(const std::string& owner,
 
   std::string encoded = j["content"].get<std::string>();
   std::string decodeCmd = "printf %s " + shellEscape(encoded) + " | base64 -d 2>/dev/null";
-  FILE* pipe = popen(decodeCmd.c_str(), "r");
+  FILE* pipe = platform::openPipe(decodeCmd.c_str(), "r");
   if (!pipe) {
     return std::nullopt;
   }
@@ -211,7 +212,7 @@ std::optional<std::string> GitHubClient::getReadme(const std::string& owner,
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
     decoded += buffer;
   }
-  pclose(pipe);
+  platform::closePipe(pipe);
   return decoded;
 }
 

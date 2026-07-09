@@ -49,7 +49,7 @@ void buildCommand(const std::string& root, diagnostics::Logger& logger) {
     "--cache", paths.cacheDir,
   });
 
-  logger.info(result.stdout);
+  logger.info(result.standardOutput);
 
   const auto cacheExecutable = stdfs::path(paths.cacheDir) / "bin" / stdfs::path(entry).stem();
   if (!stdfs::exists(cacheExecutable))

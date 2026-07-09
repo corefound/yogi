@@ -8,6 +8,7 @@
 #include "registry/registryClient.hpp"
 #include "publish/packageMetadata.hpp"
 #include "diagnostics/errors.hpp"
+#include "platform/process.hpp"
 #include <filesystem>
 #include <sstream>
 #include <chrono>
@@ -35,14 +36,14 @@ namespace {
 	std::string captureInDir(const std::string &root, const std::string &cmd) {
 		std::ostringstream full;
 		full << "cd " << shellEscape(root) << " && " << cmd << " 2>/dev/null";
-		FILE *pipe = popen(full.str().c_str(), "r");
+			FILE *pipe = yogi::platform::openPipe(full.str().c_str(), "r");
 		if (!pipe) return "";
 		std::string result;
 		char buffer[256];
 		while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
 			result += buffer;
 		}
-		pclose(pipe);
+			yogi::platform::closePipe(pipe);
 		while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
 			result.pop_back();
 		}

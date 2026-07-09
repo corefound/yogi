@@ -35,7 +35,7 @@ YogicResult invokeYogic(const yogi::fs::ProjectPaths& paths, const std::vector<s
   fs::current_path(previousPath);
 
   YogicResult result;
-  result.stdout = "Compiled " + entryPath.string();
+  result.standardOutput = "Compiled " + entryPath.string();
   result.exitCode = exitCode;
 
   if (exitCode != 0)

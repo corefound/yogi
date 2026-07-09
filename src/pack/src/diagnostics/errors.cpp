@@ -78,10 +78,10 @@ YogiError missingYogic() {
     {"Ensure yogic is installed and available at packages/bin/yogic or on the system PATH"});
 }
 
-YogiError compilerFailure(const std::string& stderr) {
+YogiError compilerFailure(const std::string& errorOutput) {
   return YogiError(ErrorCode::CompilerFailure,
     "Compiler process failed",
-    {stderr});
+    {errorOutput});
 }
 
 YogiError missingBuildOutput(const std::string& path) {

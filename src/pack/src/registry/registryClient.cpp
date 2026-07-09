@@ -1,5 +1,6 @@
 #include "registryClient.hpp"
 #include "diagnostics/errors.hpp"
+#include "platform/process.hpp"
 #include <nlohmann/json.hpp>
 #include <cstdio>
 #include <sstream>
@@ -71,7 +72,7 @@ namespace yogi::registry {
 		<< " -w " << shellEscape("\n%{http_code}")
 		<< " 2>/dev/null";
 
-		FILE *pipe = popen(cmd.str().c_str(), "r");
+			FILE *pipe = platform::openPipe(cmd.str().c_str(), "r");
 		if (!pipe) {
 			throw diagnostics::networkRequestFailed(
 				"failed to notify registry server (could not execute curl)");
@@ -82,7 +83,7 @@ namespace yogi::registry {
 		while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
 			resultStr += buffer;
 		}
-		int exitCode = pclose(pipe);
+			int exitCode = platform::closePipe(pipe);
 
 		// Extract HTTP status code from last line
 		size_t newlinePos = resultStr.rfind('\n');

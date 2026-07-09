@@ -1,5 +1,6 @@
 #include "createTarball.hpp"
 #include "diagnostics/errors.hpp"
+#include "platform/process.hpp"
 #include <filesystem>
 #include <fstream>
 #include <cstdio>
@@ -59,7 +60,7 @@ std::string computeSha256(const std::string& filePath) {
   std::ostringstream cmd;
   cmd << "shasum -a 256 " << shellEscape(filePath) << " 2>/dev/null";
 
-  FILE* pipe = popen(cmd.str().c_str(), "r");
+  FILE* pipe = platform::openPipe(cmd.str().c_str(), "r");
   if (!pipe) {
     return "";
   }
@@ -69,7 +70,7 @@ std::string computeSha256(const std::string& filePath) {
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
     result += buffer;
   }
-  pclose(pipe);
+  platform::closePipe(pipe);
 
   size_t space = result.find(' ');
   if (space != std::string::npos) {

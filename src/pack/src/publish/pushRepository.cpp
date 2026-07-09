@@ -1,5 +1,6 @@
 #include "pushRepository.hpp"
 #include "diagnostics/errors.hpp"
+#include "platform/process.hpp"
 #include <cstdio>
 #include <sstream>
 #include <string>
@@ -31,7 +32,7 @@ std::string captureInDir(const std::string& root, const std::string& cmd) {
   std::ostringstream full;
   full << "cd " << shellEscape(root) << " && " << cmd << " 2>/dev/null";
 
-  FILE* pipe = popen(full.str().c_str(), "r");
+  FILE* pipe = platform::openPipe(full.str().c_str(), "r");
   if (!pipe) {
     return "";
   }
@@ -41,7 +42,7 @@ std::string captureInDir(const std::string& root, const std::string& cmd) {
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
     result += buffer;
   }
-  pclose(pipe);
+  platform::closePipe(pipe);
 
   while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
     result.pop_back();
