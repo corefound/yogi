@@ -148,7 +148,7 @@ Negative coverage:
 
 - Explicit borrowed return/view type syntax.
 - Dynamic shaped pointer views such as `ptr<Array<T, Rank>>`.
-- General dereference operator syntax was completed in Lot 33.
+- Public pointer read/write-through replaced dereference syntax in Lot 34.
 - Full escape analysis for non-pointer borrowed views.
 - Cleanup/destructor policy for borrowed view descriptors that need metadata
   cleanup without owning the source storage.

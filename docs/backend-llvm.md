@@ -82,8 +82,8 @@ Yogi pointer syntax is explicit:
 ```ts
 let age: number = 10
 let p: ptr<number> = &age
-let value: number = *p
-(*p) = 20
+let value: number = p
+p = 20
 ```
 
 The frontend serializes `ptr<T>` as a SIR `TypeRef` with:
@@ -94,24 +94,27 @@ element_type = T
 ```
 
 The address-of expression `&value` is serialized as `AddressOfExpression`.
-The explicit dereference expression `*p` is serialized as
-`DereferenceExpression`. Address-of is supported for variables and lowers to
-the storage address for that local/global binding.
+Compiler-created scalar pointer read-through is serialized internally as
+`DereferenceExpression`. Public `*p` / `(*p) = value` syntax is rejected.
+Address-of is supported for variables and direct real struct fields.
 
 LLVM lowering uses pointer values directly:
 
 ```text
 ptr<T> -> LLVM pointer to T storage
 &local -> alloca/global address
+&struct.field -> LLVM struct GEP to the field slot
 pointer assignment -> pointer value copy
-*p read -> LLVM load for scalar pointees
-(*p) = value -> LLVM store for scalar pointees
+scalar read-through -> LLVM load for scalar pointees
+p = value -> LLVM store for scalar pointees
 ```
 
-For aggregate pointees, dereference produces a borrowed view/descriptor rather
-than a deep copy. Full aggregate assignment through dereference is rejected for
-now; element mutation should use pointer indexing such as `matrix[row, col] =
-value` or `(*matrix)[row, col] = value`.
+For aggregate pointees, Yogi avoids implicit whole-value read-through because
+ownership/copy semantics must be explicit. Full aggregate assignment through a
+pointer is rejected for now; element mutation should use pointer indexing such
+as `matrix[row, col] = value`. Address-of for runtime object properties and
+array elements such as `&object.field` or `&matrix[i, j]` is rejected until
+those storage representations expose stable addressable cells.
 
 ## Fixed-Shape Arrays
 

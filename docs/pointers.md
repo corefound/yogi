@@ -13,7 +13,6 @@ Yogi pointer syntax is:
 ```ts
 ptr<T>
 &value
-*pointer
 ```
 
 Meaning:
@@ -22,10 +21,12 @@ Meaning:
 T        = normal value/local semantics
 ptr<T>   = pointer to addressable storage shaped as T
 &value   = address-of expression producing ptr<T>
-*pointer = explicit dereference of ptr<T>
 ```
 
-Pointers are explicit. Values do not become pointers automatically, and pointers do not become values automatically.
+Pointers are explicit. Values do not become pointers automatically. Scalar
+`ptr<T>` values can be read through in scalar value contexts, and scalar pointer
+bindings can be written through with `p = value`. Aggregate pointers do not
+silently become owned aggregate values.
 
 Yogi does **not** use:
 
@@ -38,6 +39,8 @@ mut T
 ptr(value)
 value.ptr
 value.ref
+*p
+(*p) = value
 ```
 
 Pointer mutability is provenance-based:
@@ -63,9 +66,10 @@ This means `&constValue` is valid. The only invalid operation is mutating throug
 - [x] No `ptr<const T>` syntax.
 - [x] No `readonly` pointer syntax.
 - [x] No implicit value-to-pointer conversion.
-- [x] No implicit pointer-to-value conversion.
-- [x] No implicit dereference.
-- [x] Explicit `*p` dereference.
+- [x] No implicit aggregate pointer-to-owned-value conversion.
+- [x] Scalar pointer read-through in scalar value contexts.
+- [x] Public `*p` dereference syntax is rejected.
+- [x] Public `(*p) = value` syntax is rejected.
 - [x] No pointer arithmetic in safe/default Yogi.
 - [x] Pointer mutability is tracked internally through provenance/permission.
 - [x] `const p: ptr<T>` means the pointer binding cannot be reassigned.
@@ -178,12 +182,13 @@ Checklist:
 - [x] Global variables are addressable.
 - [x] Function parameters are addressable if they have real storage.
 - [x] Parenthesized l-values preserve addressability.
-- [ ] Field access is addressable if the base is addressable.
+- [x] Direct real struct field access is addressable if the root is addressable.
 - [ ] Nested field access is addressable if the root is addressable.
 - [ ] Fixed array element access is addressable if the root is addressable.
 - [ ] Fixed matrix element access is addressable if the root is addressable.
 - [ ] Fixed partial array/matrix views are addressable if the root is addressable.
-- [ ] Dynamic array element addressability is rejected initially.
+- [x] Runtime object/dictionary property addressability is rejected initially.
+- [x] Array element addressability is rejected while arrays use runtime descriptors.
 - [x] Temporaries are not addressable.
 - [x] Literals are not addressable.
 - [x] Function call results are not addressable by default.
@@ -249,9 +254,11 @@ const p: ptr<number> = &age
 ## 6. Strict Assignability
 
 - [x] Assigning `T` to `ptr<T>` without `&` is rejected.
-- [x] Assigning `ptr<T>` to `T` is rejected.
+- [x] Assigning scalar `ptr<T>` to scalar `T` reads through the pointer.
+- [x] Assigning aggregate `ptr<T>` to aggregate `T` is rejected unless an explicit API exists.
 - [x] Passing `T` to a parameter expecting `ptr<T>` without `&` is rejected.
-- [x] Passing `ptr<T>` to a parameter expecting `T` is rejected.
+- [x] Passing scalar `ptr<T>` to scalar parameter `T` reads through the pointer.
+- [x] Passing aggregate `ptr<T>` to aggregate parameter `T` is rejected.
 - [x] `ptr<number>` is not assignable to `ptr<string>`.
 - [x] `ptr<number[2,3]>` is not assignable to `ptr<number[]>`.
 - [x] `ptr<ptr<number>>` is not assignable to `ptr<number>`.
@@ -278,10 +285,21 @@ let p: ptr<number> = &age
 let value: number = p
 ```
 
+This is valid for scalar pointees and copies the pointed value. Aggregate
+pointees such as `ptr<number[]>` do not perform an implicit owned copy.
+
+Invalid:
+
+```ts
+let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+let p: ptr<number[2, 3]> = &matrix
+let value: number[2, 3] = p
+```
+
 Expected diagnostic:
 
 ```txt
-error: expected number, got ptr<number>
+error: expected number[2, 3], got ptr<number[2, 3]>
 ```
 
 ---
@@ -461,10 +479,10 @@ error: cannot pass pointer derived from const storage to external function 'proc
 
 ## 11. Pointer Reads
 
-Pointer reads support both explicit dereference and index-style pointer access.
+Pointer reads use direct scalar read-through or index-style pointer access.
 
 ```ts
-*p            // scalar pointer dereference
+p             // scalar pointer read-through in scalar value context
 p[0]          // scalar pointer access
 arrayPtr[i]   // fixed array pointer access
 matrixPtr[i,j] // fixed matrix pointer access
@@ -477,10 +495,9 @@ Checklist:
 - [x] Define read from `ptr<number[N]>` using `p[i]`.
 - [x] Define read from `ptr<number[R,C]>` using `p[i,j]`.
 - [x] Define read from `ptr<number[]>` using `p[i]`.
-- [x] No implicit pointer-to-value conversion.
-- [x] Explicit `*p` dereference for scalar pointees.
-- [x] `*p` over aggregate pointees behaves as a borrowed aggregate view.
-- [x] `*value` where `value` is not a pointer is rejected.
+- [x] Scalar pointer read-through for variable init, assignment RHS, call args, returns, and `print`.
+- [x] Aggregate pointer read-through is rejected to avoid implicit ownership/copy semantics.
+- [x] Public `*p` syntax is rejected.
 
 Example:
 
@@ -488,7 +505,8 @@ Example:
 let age: number = 10
 let p: ptr<number> = &age
 let value: number = p[0]
-let same: number = *p
+let same: number = p
+print(p)
 ```
 
 ---
@@ -498,6 +516,7 @@ let same: number = *p
 Checklist:
 
 - [x] Assignment through pointer is supported for scalar pointer access.
+- [x] Assignment through scalar pointer binding is supported with `p = value`.
 - [x] Assignment through fixed array pointer access is supported.
 - [x] Assignment through fixed matrix pointer access is supported.
 - [x] Write-through checks pointer permission.
@@ -511,19 +530,20 @@ Example:
 let age: number = 10
 let p: ptr<number> = &age
 p[0] = 20
-(*p) = 30
+p = 30
 ```
 
-`(*p) = value` currently supports scalar pointees. Full aggregate replacement
-through dereference is rejected so ownership cannot be accidentally moved
-through an arbitrary pointer:
+`p = value` writes through when `p` has type `ptr<T>` and `value` has scalar
+type `T`. `p = &other` rebinds the pointer when `p` is a mutable pointer
+binding. Full aggregate replacement through a pointer is rejected so ownership
+cannot be accidentally moved through an arbitrary pointer:
 
 ```ts
 let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
 let p: ptr<number[2, 3]> = &matrix
 
-(*p) = [[7, 8, 9], [10, 11, 12]] // error
-(*p)[1, 2] = 99                  // ok
+p = [[7, 8, 9], [10, 11, 12]] // error
+p[1, 2] = 99                  // ok
 ```
 
 Invalid:
@@ -1114,14 +1134,15 @@ Checklist:
 - [x] Lower pointer function argument as address, not pointee copy.
 - [x] Lower scalar `p[0]` read as pointee load.
 - [x] Lower scalar `p[0] = value` as pointee store.
-- [x] Lower scalar `*p` read as pointee load.
-- [x] Lower scalar `(*p) = value` as pointee store.
-- [ ] Lower `&object.field` using GEP field index.
-- [ ] Lower `&struct.field` using GEP field index.
+- [x] Lower scalar read-through as pointee load.
+- [x] Lower scalar `p = value` as pointee store.
+- [x] Reject public `*p` / `(*p) = value` syntax.
+- [x] Reject `&object.field` while object properties are runtime storage.
+- [x] Lower `&struct.field` using LLVM struct GEP field index.
 - [ ] Lower `&fixedArray[index]` using GEP element offset.
-- [ ] Lower `&matrix[i,j]` using row-major offset / GEP.
-- [x] Lower pointer read as LLVM load for scalar dereference.
-- [x] Lower pointer write as LLVM store after permission check for scalar dereference.
+- [x] Reject `&matrix[i,j]` while arrays use runtime descriptors.
+- [x] Lower pointer read as LLVM load for scalar read-through.
+- [x] Lower pointer write as LLVM store after permission check for scalar write-through.
 - [ ] Do not emit copy of large matrix when passing `&matrix`.
 - [ ] Optionally attach readonly/noalias metadata in future when safe.
 
@@ -1630,10 +1651,10 @@ function 'change' may mutate pointer parameter 'matrix', but argument '&matrix' 
 
 - [x] SIR `PointerType`.
 - [x] SIR `AddressOfExpression`.
-- [x] SIR `DereferenceExpression`.
+- [x] Internal SIR `DereferenceExpression` for compiler-created scalar read-through.
 - [x] FBS `pointer_type`.
 - [x] FBS `address_of_expression`.
-- [x] FBS `dereference_expression`.
+- [x] FBS `dereference_expression` as internal lowering node.
 - [x] LLVM pointer lowering.
 - [x] Function arg pointer passing.
 
@@ -1641,8 +1662,8 @@ function 'change' may mutate pointer parameter 'matrix', but argument '&matrix' 
 
 - [x] `p[0]` read for scalar pointer.
 - [x] `p[0]` write for scalar pointer.
-- [x] `*p` read for scalar pointer.
-- [x] `(*p) = value` write-through for scalar pointer.
+- [x] `p` read-through for scalar pointer value contexts.
+- [x] `p = value` write-through for scalar pointer binding.
 - [x] Permission check for write-through.
 - [x] Const provenance diagnostic.
 
@@ -1717,7 +1738,7 @@ Update this section as implementation progresses.
 - [x] function read/write summaries
 - [x] pointer indexing for arrays
 - [x] partial views
-- [x] dereference expression
+- [x] internal dereference expression for compiler-created read-through
 
 ### Not Started
 

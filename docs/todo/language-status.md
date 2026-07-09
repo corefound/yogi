@@ -51,6 +51,9 @@ without re-auditing the whole compiler.
 
 - [x] Core pointer type syntax `ptr<T>`
 - [x] Address-of expression `&value` for addressable variables
+- [x] Address-of expression `&struct.field` for direct real struct fields
+- [x] Semantic rejection for `&object.field` while objects use runtime property storage
+- [x] Semantic rejection for `&matrix[i, j]` while arrays use runtime descriptors
 - [x] Address-of `const` storage with readonly pointer provenance
 - [x] Strict pointer assignability and pointer parameter passing
 - [x] Pointer copy preserving mutable/readonly provenance
@@ -58,6 +61,9 @@ without re-auditing the whole compiler.
 - [x] Pointer arithmetic rejection in safe Yogi
 - [x] Scalar pointer access/read with `p[0]` for `ptr<number>`, `ptr<string>`, and `ptr<boolean>`
 - [x] Scalar pointer write-through with `p[0] = value`
+- [x] Scalar pointer read-through in scalar contexts such as `print(p)`, `let value: number = p`, call args, and returns
+- [x] Scalar pointer write-through through pointer binding assignment such as `p = 42`
+- [x] Public `*p` and `(*p) = value` syntax rejection
 - [x] Pointer parameters for scalar values, dynamic 1D arrays, and fixed-shape arrays
 - [x] Full fixed-shape array pointer indexing read/write through caller storage
 - [x] Dynamic 1D array pointer indexing through `ptr<number[]>`
@@ -95,7 +101,8 @@ without re-auditing the whole compiler.
 - [x] Borrow summaries adjusted for `ptr<T>` parameter-derived returns
 - [x] Semantic rejection for returning pointer views derived from local storage
 - [x] Semantic rejection for pointer-return paths borrowing from different parameters
-- [x] General dereference operator syntax: `*p` read and scalar `(*p) = value` write-through
+- [x] Internal dereference SIR for scalar pointer read-through lowering
+- [x] Aggregate pointer read-through rejection to avoid implicit owned copies
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions

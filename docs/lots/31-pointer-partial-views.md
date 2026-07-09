@@ -97,4 +97,4 @@ from local stack storage.
 ## Remaining Work
 
 - Dynamic shaped array pointers such as `ptr<Array<T, Rank>>`.
-- General dereference syntax was completed in Lot 33.
+- Public pointer read/write-through replaced dereference syntax in Lot 34.
