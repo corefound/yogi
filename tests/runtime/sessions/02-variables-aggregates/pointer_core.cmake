@@ -151,6 +151,12 @@ expect_run(
 )
 
 expect_run(
+	"pointer_scalar_read_through_print"
+	"let age: number = 31\nlet pAge: ptr<number> = &age\nprint(pAge)\n"
+	"31\n"
+)
+
+expect_run(
 	"pointer_scalar_read_from_const"
 	"const age: number = 31\nlet pAge: ptr<number> = &age\nprint(pAge[0])\n"
 	"31\n"
@@ -163,6 +169,12 @@ expect_run(
 )
 
 expect_run(
+	"pointer_scalar_write_through_assignment"
+	"let age: number = 31\nlet pAge: ptr<number> = &age\npAge = 32\nprint(age)\n"
+	"32\n"
+)
+
+expect_run(
 	"pointer_scalar_string_boolean_read_write"
 	"let name: string = \"Yogi\"\nlet ok: boolean = false\nlet pName: ptr<string> = &name\nlet pOk: ptr<boolean> = &ok\npName[0] = \"Joki\"\npOk[0] = true\nprint(name)\nprint(ok)\n"
 	"Joki\ntrue\n"
@@ -170,7 +182,7 @@ expect_run(
 
 expect_run(
 	"pointer_scalar_write_via_const_pointer_binding_to_let_root"
-	"let age: number = 31\nconst pAge: ptr<number> = &age\npAge[0] = 32\nprint(age)\n"
+	"let age: number = 31\nconst pAge: ptr<number> = &age\npAge = 32\nprint(age)\n"
 	"32\n"
 )
 
@@ -181,8 +193,14 @@ expect_run(
 )
 
 expect_run(
+	"pointer_value_copy_from_pointer"
+	"let age: number = 31\nlet pAge: ptr<number> = &age\nlet value: number = pAge\npAge = 32\nprint(value)\nprint(age)\n"
+	"31\n32\n"
+)
+
+expect_run(
 	"pointer_reassignment_updates_permission_to_mutable"
-	"const fixed: number = 31\nlet mutable: number = 10\nlet p: ptr<number> = &fixed\np = &mutable\np[0] = 20\nprint(mutable)\n"
+	"const fixed: number = 31\nlet mutable: number = 10\nlet p: ptr<number> = &fixed\np = &mutable\np = 20\nprint(mutable)\n"
 	"20\n"
 )
 
@@ -194,8 +212,32 @@ expect_run(
 
 expect_run(
 	"function_pointer_write_from_let"
-	"function setAge(age: ptr<number>): void {\n    age[0] = 32\n}\nlet age: number = 31\nsetAge(&age)\nprint(age)\n"
+	"function setAge(age: ptr<number>): void {\n    age = 32\n}\nlet age: number = 31\nsetAge(&age)\nprint(age)\n"
 	"32\n"
+)
+
+expect_run(
+	"function_value_parameter_reads_pointer"
+	"function acceptsValue(value: number): void {\n    print(value)\n}\nlet age: number = 10\nacceptsValue(&age)\n"
+	"10\n"
+)
+
+expect_run(
+	"function_value_return_reads_pointer"
+	"function read(value: ptr<number>): number {\n    return value\n}\nlet age: number = 12\nprint(read(&age))\n"
+	"12\n"
+)
+
+expect_run(
+	"function_pointer_return_copies_pointer"
+	"function identity(value: ptr<number>): ptr<number> {\n    return value\n}\nlet age: number = 12\nlet same: ptr<number> = identity(&age)\nsame = 13\nprint(age)\n"
+	"13\n"
+)
+
+expect_run(
+	"struct_field_address_write"
+	"struct Point {\n    x: number\n    y: number\n}\nlet point: Point = { x: 1, y: 2 }\nlet px: ptr<number> = &point.x\nprint(px)\npx = 10\nprint(point.x)\n"
+	"1\n10\n"
 )
 
 expect_invalid(
@@ -205,15 +247,9 @@ expect_invalid(
 )
 
 expect_invalid(
-	"pointer_to_value"
-	"let age: number = 10\nlet p: ptr<number> = &age\nlet value: number = p\n"
-	"expected .*number.*got .*ptr<number>"
-)
-
-expect_invalid(
 	"pointer_scalar_write_from_const_error"
-	"const age: number = 31\nlet pAge: ptr<number> = &age\npAge[0] = 32\n"
-	"cannot mutate storage derived from const value .*age"
+	"const age: number = 31\nlet pAge: ptr<number> = &age\npAge = 32\n"
+	"cannot write through pointer .*pAge.* readonly value .*age"
 )
 
 expect_invalid(
@@ -231,7 +267,7 @@ expect_invalid(
 expect_invalid(
 	"const_pointer_binding_reassignment_error"
 	"let age: number = 31\nlet score: number = 10\nconst p: ptr<number> = &age\np = &score\n"
-	"cannot assign to .*p.*const"
+	"cannot reassign const pointer binding .*p"
 )
 
 expect_invalid(
@@ -254,7 +290,7 @@ expect_invalid(
 
 expect_invalid(
 	"function_pointer_write_from_const_error"
-	"function setAge(age: ptr<number>): void {\n    age[0] = 32\n}\nconst age: number = 31\nsetAge(&age)\n"
+	"function setAge(age: ptr<number>): void {\n    age = 32\n}\nconst age: number = 31\nsetAge(&age)\n"
 	"function .*setAge.* may mutate pointer parameter .*age.* points to const storage"
 )
 
@@ -277,15 +313,39 @@ expect_invalid(
 )
 
 expect_invalid(
-	"pointer_passed_to_value_parameter"
-	"function acceptsValue(value: number): void {\n    print(value)\n}\nlet age: number = 10\nacceptsValue(&age)\n"
-	"expected .*number.*got .*ptr<number>"
-)
-
-expect_invalid(
 	"address_of_temporary_expression"
 	"let p: ptr<number> = &(10 + 20)\n"
 	"cannot take address of temporary expression"
+)
+
+expect_invalid(
+	"public_dereference_read"
+	"let age: number = 10\nlet p: ptr<number> = &age\nprint(*p)\n"
+	"Yogi does not use .*\\*p.* pointer dereference syntax"
+)
+
+expect_invalid(
+	"public_dereference_write"
+	"let age: number = 10\nlet p: ptr<number> = &age;\n(*p) = 11\n"
+	"Yogi does not use .*\\(\\*p\\) = value"
+)
+
+expect_invalid(
+	"address_of_object_property"
+	"type Box = { value: number }\nlet box: Box = { value: 1 }\nlet p: ptr<number> = &box.value\n"
+	"address-of runtime object properties is not lowerable yet"
+)
+
+expect_invalid(
+	"address_of_array_element"
+	"let values: number[2, 2] = [[1, 2], [3, 4]]\nlet p: ptr<number> = &values[0, 1]\n"
+	"address-of array elements is not lowerable"
+)
+
+expect_invalid(
+	"readonly_struct_field_write"
+	"struct Point {\n    x: number\n    y: number\n}\nconst point: Point = { x: 1, y: 2 }\nlet px: ptr<number> = &point.x\npx = 10\n"
+	"cannot write through pointer .*px.* readonly value .*point"
 )
 
 expect_invalid(

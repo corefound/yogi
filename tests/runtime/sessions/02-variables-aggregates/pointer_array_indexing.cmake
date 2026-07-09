@@ -40,7 +40,7 @@ function(expect_run case_name source expected_stdout)
 	endforeach()
 
 	file(READ "${ir}" ir_text)
-	foreach(symbol IN ITEMS yogi_array_get yogi_array_set yogi_array_clone yogi_array_view array.shape)
+	foreach(symbol IN ITEMS yogi_array_get yogi_array_set yogi_array_clone array.shape)
 		if(NOT ir_text MATCHES "${symbol}")
 			message(FATAL_ERROR "${case_name} IR did not contain ${symbol}:\n${ir_text}")
 		endif()
@@ -132,7 +132,7 @@ expect_run(
 
 expect_run(
 	"pointer_return_borrow_summaries"
-	"function firstRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {\n    return matrix[0]\n}\n\nfunction forwardRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {\n    return firstRow(matrix)\n}\n\nfunction aliasRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {\n    let row: ptr<number[3]> = matrix[0]\n    return row\n}\n\nfunction setThird(row: ptr<number[3]>, value: number): void {\n    row[2] = value\n}\n\nfunction touchValue(matrix: number[2, 3]): void {\n    matrix[0, 0] = 5\n}\n\nfunction readScalar(value: ptr<number>): number {\n    return *value\n}\n\nfunction writeScalar(value: ptr<number>, next: number): void {\n    (*value) = next\n}\n\nfunction readDerefMatrix(matrix: ptr<number[2, 3]>): number {\n    return (*matrix)[1, 2]\n}\n\nlet matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nsetThird(forwardRow(&matrix), 90)\nprint(matrix[0, 2])\nlet alias: ptr<number[3]> = aliasRow(&matrix)\nalias[0] = 31\nprint(matrix[0, 0])\ntouchValue(matrix)\nprint(matrix[0, 0])\nlet scalar: number = 7\nprint(readScalar(&scalar))\nwriteScalar(&scalar, 42)\nprint(scalar)\nprint(readDerefMatrix(&matrix))\n"
+	"function firstRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {\n    return matrix[0]\n}\n\nfunction forwardRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {\n    return firstRow(matrix)\n}\n\nfunction aliasRow(matrix: ptr<number[2, 3]>): ptr<number[3]> {\n    let row: ptr<number[3]> = matrix[0]\n    return row\n}\n\nfunction setThird(row: ptr<number[3]>, value: number): void {\n    row[2] = value\n}\n\nfunction touchValue(matrix: number[2, 3]): void {\n    matrix[0, 0] = 5\n}\n\nfunction readScalar(value: ptr<number>): number {\n    return value\n}\n\nfunction writeScalar(value: ptr<number>, next: number): void {\n    value = next\n}\n\nfunction readMatrix(matrix: ptr<number[2, 3]>): number {\n    return matrix[1, 2]\n}\n\nlet matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nsetThird(forwardRow(&matrix), 90)\nprint(matrix[0, 2])\nlet alias: ptr<number[3]> = aliasRow(&matrix)\nalias[0] = 31\nprint(matrix[0, 0])\ntouchValue(matrix)\nprint(matrix[0, 0])\nlet scalar: number = 7\nprint(readScalar(&scalar))\nwriteScalar(&scalar, 42)\nprint(scalar)\nprint(readMatrix(&matrix))\n"
 	"90\n31\n31\n7\n42\n6\n"
 )
 
@@ -205,25 +205,37 @@ expect_invalid(
 expect_invalid(
 	"dereference_non_pointer"
 	"let value: number = 1\nprint(*value)\n"
-	"cannot dereference non-pointer type"
+	"Yogi does not use .*\\*p.* pointer dereference syntax"
 )
 
 expect_invalid(
-	"readonly_dereference_write"
+	"public_dereference_write"
 	"const value: number = 1\nlet p: ptr<number> = &value;\n(*p) = 2\n"
-	"cannot mutate storage derived from const value"
+	"Yogi does not use .*\\(\\*p\\) = value"
 )
 
 expect_invalid(
-	"full_array_dereference_assignment"
+	"public_full_array_dereference_assignment"
 	"let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet p: ptr<number[2, 3]> = &matrix;\n(*p) = [[7, 8, 9], [10, 11, 12]]\n"
-	"cannot assign a full resource value through dereference"
+	"Yogi does not use .*\\(\\*p\\) = value"
 )
 
 expect_invalid(
-	"return_local_dereferenced_array"
+	"full_array_pointer_replacement"
+	"let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet p: ptr<number[2, 3]> = &matrix\np = [[7, 8, 9], [10, 11, 12]]\n"
+	"full aggregate replacement through pointer is not supported"
+)
+
+expect_invalid(
+	"public_return_local_dereferenced_array"
 	"function bad(): number[3] {\n    let row: number[3] = [1, 2, 3]\n    let p: ptr<number[3]> = &row\n    return *p\n}\n"
-	"cannot return borrowed dereference derived from local storage"
+	"Yogi does not use .*\\*p.* pointer dereference syntax"
+)
+
+expect_invalid(
+	"return_local_read_through_array"
+	"function bad(): number[3] {\n    let row: number[3] = [1, 2, 3]\n    let p: ptr<number[3]> = &row\n    return p\n}\n"
+	"cannot return pointer or pointer view derived from local storage"
 )
 
 expect_invalid(
