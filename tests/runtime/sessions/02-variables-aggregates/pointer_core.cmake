@@ -330,16 +330,16 @@ expect_invalid(
 	"Yogi does not use .*\\(\\*p\\) = value"
 )
 
-expect_invalid(
+expect_run(
 	"address_of_object_property"
-	"type Box = { value: number }\nlet box: Box = { value: 1 }\nlet p: ptr<number> = &box.value\n"
-	"address-of runtime object properties is not lowerable yet"
+	"type Box = { value: number }\nlet box: Box = { value: 1 }\nlet p: ptr<number> = &box.value\np = 5\nprint(box.value)\n"
+	"5\n"
 )
 
-expect_invalid(
+expect_run(
 	"address_of_array_element"
-	"let values: number[2, 2] = [[1, 2], [3, 4]]\nlet p: ptr<number> = &values[0, 1]\n"
-	"address-of array elements is not lowerable"
+	"let values: number[2, 2] = [[1, 2], [3, 4]]\nlet p: ptr<number> = &values[0, 1]\np = 9\nprint(values[0, 1])\n"
+	"9\n"
 )
 
 expect_invalid(

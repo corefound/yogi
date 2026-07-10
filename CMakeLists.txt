@@ -471,6 +471,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_pointer_addressable_projections
+                        pipeline-pointer-addressable-projections
+                        tests/runtime/sessions/02-variables-aggregates/pointer_addressable_projections.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_spread
                         pipeline-array-spread
                         tests/runtime/sessions/02-variables-aggregates/array_spread.cmake

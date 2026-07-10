@@ -125,6 +125,9 @@ let pp: ptr<ptr<number>> = &p
 - [x] Preserve source spans for diagnostics.
 - [x] Support `&identifier`.
 - [x] Support parenthesized addressable expressions: `&(age)`.
+- [x] Support direct and nested struct fields: `&point.x`, `&box.point.x`.
+- [x] Support runtime object fields through addressable cells: `&user.age`.
+- [x] Support full array element cells: `&values[0]`, `&matrix[1, 2]`.
 - [x] Reject temporary expressions: `&(10 + 20)`.
 - [ ] Reject literal expressions: `&10`, `&"hello"`, `&true`.
 - [x] Reject array literals: `&[1, 2, 3]`.
@@ -183,16 +186,70 @@ Checklist:
 - [x] Function parameters are addressable if they have real storage.
 - [x] Parenthesized l-values preserve addressability.
 - [x] Direct real struct field access is addressable if the root is addressable.
-- [ ] Nested field access is addressable if the root is addressable.
-- [ ] Fixed array element access is addressable if the root is addressable.
-- [ ] Fixed matrix element access is addressable if the root is addressable.
+- [x] Nested struct field access is addressable if the root is addressable.
+- [x] Runtime object field access is addressable through runtime cells.
+- [x] Dynamic array element access is addressable through runtime cells.
+- [x] Fixed array element access is addressable through row-major runtime cells.
+- [x] Fixed matrix element access is addressable through row-major runtime cells.
 - [ ] Fixed partial array/matrix views are addressable if the root is addressable.
-- [x] Runtime object/dictionary property addressability is rejected initially.
-- [x] Array element addressability is rejected while arrays use runtime descriptors.
+- [x] Runtime object/dictionary property addressability keeps a real cell pointer instead of a fake raw address.
+- [x] Array element addressability keeps a real element cell pointer instead of a fake raw address.
 - [x] Temporaries are not addressable.
 - [x] Literals are not addressable.
 - [x] Function call results are not addressable by default.
 - [x] Binary/unary computed expressions are not addressable.
+
+---
+
+## Pointer / Addressability / Aggregate Assignment TODO
+
+### Completed
+
+- ✅ `ptr<T>` core type
+- ✅ `&value`
+- ✅ scalar pointer read-through: `let x: number = p`
+- ✅ scalar pointer write-through: `p = 42`
+- ✅ pointer rebind: `p = &other`
+- ✅ `&struct.field`
+- ✅ nested struct address-of: `&box.point.x`
+- ✅ array/object runtime scalar cells: `&values[i]`, `&matrix[i, j]`, `&object.field`
+- ✅ direct nested struct field assignment: `box.point.x = value`
+- ✅ deeper nested struct field assignment: `box.point.x.value = value`
+- ✅ readonly root rejection for nested field mutation
+- ✅ RHS type checking for nested field mutation
+
+### Pending
+
+- ⬜ projection from aggregate pointers such as `pBox.point.x`
+- ⬜ natural aggregate pointer replacement: `ptr<T> = T` for fixed arrays and structs
+- ⬜ correct full mutability matrix for `let/const owner` and `let/const ptr`
+- ⬜ nested runtime object cell chains: `&user.address.zip`
+- ⬜ mixed array/object/struct chains: `&users[0].age`
+- ⬜ pointer invalidation diagnostics for array/object realloc
+- ⬜ partial pointer views: `&matrix[0]` / `matrix[0] -> ptr<number[3]>`
+- ⬜ dynamic shaped arrays: `Array<T, Rank>`
+- ⬜ dynamic runtime-rank arrays: `Array<T>`
+- ⬜ `ptr<Array<T, Rank>>` and `ptr<Array<T>>`
+- ⬜ union support for dynamic shaped arrays
+- ⬜ final diagnostics polish
+
+### Known Limitations
+
+- ⚠️ `&matrix[0]` remains rejected because it is a partial view, not a scalar cell.
+- ⚠️ `&users[0].age` remains pending until mixed cell/projection chains are implemented.
+- ⚠️ `pBox.point.x` remains pending until property projection from `ptr<Struct>` is modeled explicitly.
+- ⚠️ pointer invalidation on dynamic array/object structural mutation is not fully enforced yet.
+
+### Philosophy
+
+Yogi should avoid unnecessary helper functions for core language behavior.
+
+If an operation is visually clear, type-safe, and has a natural interpretation
+in the language, Yogi should allow it directly.
+
+Helper functions are for algorithms, conversions, bulk operations, unsafe
+operations, or special runtime behavior. They should not be required for
+ordinary assignment, pointer write-through, or basic aggregate replacement.
 
 ---
 
@@ -700,27 +757,28 @@ error: cannot return pointer to local storage 'matrix'
 
 ## 17. Object / Dictionary Field Pointers
 
-Yogi objects/dictionaries are fixed-layout records. They are not dynamic JavaScript objects.
+Yogi typed objects/dictionaries are fixed-shape records semantically, but their
+current runtime representation stores fields in an object property table.
 
 Rules:
 
 ```txt
 All object/dictionary fields are known at compile time.
-Each field has a real memory location and stable offset.
+The current backend exposes a real runtime property cell for each field.
 &object.field is valid when object is addressable.
 ```
 
 Checklist:
 
-- [ ] Objects/dictionaries have real memory representation.
-- [ ] Object/dictionary fields have stable offsets.
-- [ ] `&object.field` is supported.
+- [x] Objects/dictionaries have runtime object storage.
+- [x] Object/dictionary fields have addressable runtime cells.
+- [x] `&object.field` is supported.
 - [ ] `&object.nested.field` is supported.
-- [ ] Result type is `ptr<FieldType>`.
-- [ ] Unknown field is rejected.
-- [ ] Field type mismatch is rejected.
-- [ ] Field from temporary object is rejected.
-- [ ] Root mutability controls pointer permission.
+- [x] Result type is `ptr<FieldType>`.
+- [x] Unknown field is rejected.
+- [x] Field type mismatch is rejected.
+- [x] Field from temporary object is rejected.
+- [x] Root mutability controls pointer permission.
 
 Example:
 
@@ -768,12 +826,12 @@ error: cannot take address of field 'age' from temporary value
 
 Checklist:
 
-- [ ] Struct fields have fixed layout.
-- [ ] `&struct.field` is supported.
-- [ ] Result type is `ptr<FieldType>`.
-- [ ] Nested struct fields work.
-- [ ] Root mutability controls pointer permission.
-- [ ] LLVM lowering uses field offset / GEP.
+- [x] Struct fields have fixed layout.
+- [x] `&struct.field` is supported.
+- [x] Result type is `ptr<FieldType>`.
+- [x] Nested struct fields work.
+- [x] Root mutability controls pointer permission.
+- [x] LLVM lowering uses field offset / GEP.
 
 Example:
 
@@ -1137,12 +1195,11 @@ Checklist:
 - [x] Lower scalar read-through as pointee load.
 - [x] Lower scalar `p = value` as pointee store.
 - [x] Reject public `*p` / `(*p) = value` syntax.
-- [x] Reject `&object.field` while object properties are runtime storage.
-- [x] Lower `&struct.field` using LLVM struct GEP field index.
-- [ ] Lower `&fixedArray[index]` using GEP element offset.
-- [x] Reject `&matrix[i,j]` while arrays use runtime descriptors.
-- [x] Lower pointer read as LLVM load for scalar read-through.
-- [x] Lower pointer write as LLVM store after permission check for scalar write-through.
+- [x] Lower `&object.field` as a tagged runtime property cell pointer.
+- [x] Lower direct and nested `&struct.field` using LLVM struct GEP field index.
+- [x] Lower `&fixedArray[index]` / `&matrix[i,j]` as tagged row-major runtime array cells.
+- [x] Lower pointer read as LLVM load for raw pointers or `yogi_cell_get` for cell pointers.
+- [x] Lower pointer write as LLVM store for raw pointers or `yogi_cell_set` for cell pointers.
 - [ ] Do not emit copy of large matrix when passing `&matrix`.
 - [ ] Optionally attach readonly/noalias metadata in future when safe.
 

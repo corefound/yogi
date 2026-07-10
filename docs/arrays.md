@@ -1999,6 +1999,8 @@ Yogi is flexible when the runtime can validate safely.
 ✅ Full fixed-shape array pointer indexing
 ✅ Dynamic 1D array pointer indexing through ptr<number[]>
 ✅ Pointer partial views for fixed-shape arrays
+✅ Address-of fixed-shape cells with row-major indexing: &matrix[i, j]
+✅ Address-of dynamic array cells: &values[i]
 ✅ Pointer indexing read/write mutates caller storage
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer call diagnostics for missing &, value/pointer mismatch, shape mismatch, and pointer-to-pointer mismatch

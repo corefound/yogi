@@ -72,6 +72,7 @@ unsigned long long yogi_object_sizeof(void);
 void yogi_object_init(void *object);
 void yogi_object_set(void *object, const char *name, void *value);
 void *yogi_object_get(void *object, const char *name);
+void *yogi_object_cell(void *object, const char *name);
 void yogi_object_drop(void *object);
 void yogi_object_destroy(void *object);
 
@@ -81,6 +82,7 @@ unsigned long long yogi_array_sizeof(void);
 void yogi_array_init(void *array, unsigned long long length);
 void yogi_array_set(void *array, unsigned long long index, void *value);
 void *yogi_array_get(void *array, unsigned long long index);
+void *yogi_array_cell(void *array, unsigned long long index);
 unsigned long long yogi_array_push(void *array, void *value);
 void *yogi_array_pop(void *array);
 void *yogi_array_at(void *array, unsigned long long index);
@@ -112,6 +114,9 @@ void yogi_array_sort(void *array);
 void *yogi_array_to_sorted(void *array);
 void yogi_array_drop(void *array);
 void yogi_array_destroy(void *array);
+
+void *yogi_cell_get(void *cell);
+void yogi_cell_set(void *cell, void *value);
 
 void *yogi_alloc(unsigned long long size);
 void *yogi_realloc(void *address, unsigned long long newSize);

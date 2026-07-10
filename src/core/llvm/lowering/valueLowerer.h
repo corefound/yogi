@@ -5,6 +5,8 @@
 
 #include "llvm/lowering/typeLowerer.h"
 
+#include <optional>
+
 #if YOGI_HAS_LLVM
 namespace yogi::core::llvm::internal {
 
@@ -65,6 +67,11 @@ namespace yogi::core::llvm::internal {
 			::llvm::Value *toBoolean(::llvm::Value *value);
 
 		private:
+			struct AddressableSlot {
+				::llvm::Value *address;
+				const Yogi::Sir::TypeRef *type;
+			};
+
 			::llvm::Value *lowerConstant(
 				const Yogi::Sir::Constant *constant,
 				::llvm::Type *expectedType,
@@ -170,6 +177,27 @@ namespace yogi::core::llvm::internal {
 			bool isOwnedStringExpression(const Yogi::Sir::ValueRef *value) const;
 			void destroyStringTemporary(::llvm::Value *value);
 			void destroyStringTemporaryIfOwned(::llvm::Value *value, const Yogi::Sir::ValueRef *source);
+			::llvm::Value *tagRuntimeCellPointer(::llvm::Value *cell);
+			::llvm::Value *untagRuntimeCellPointer(::llvm::Value *pointer);
+			::llvm::Value *isRuntimeCellPointer(::llvm::Value *pointer);
+			::llvm::Value *lowerPointerRead(
+				::llvm::Value *pointer,
+				const Yogi::Sir::TypeRef *pointeeSemanticType,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
+			void lowerPointerWrite(
+				::llvm::Value *pointer,
+				::llvm::Value *value,
+				const Yogi::Sir::TypeRef *pointeeSemanticType,
+				const Yogi::Sir::TypeRef *sourceSemanticType
+			);
+			::llvm::Value *lowerPointerArrayDescriptor(
+				::llvm::Value *pointer,
+				const Yogi::Sir::TypeRef *pointeeSemanticType
+			);
+			std::optional<AddressableSlot> lowerStructAddressableSlot(const Yogi::Sir::ValueRef *value);
+			::llvm::Value *lowerAddressableArrayCell(const Yogi::Sir::ElementAccessExpression *access);
 			::llvm::Value *boxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType);
 			::llvm::Value *unboxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *targetSemanticType);
 			::llvm::Value *unboxArrayElement(

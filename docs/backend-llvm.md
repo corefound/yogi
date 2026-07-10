@@ -104,17 +104,19 @@ LLVM lowering uses pointer values directly:
 ptr<T> -> LLVM pointer to T storage
 &local -> alloca/global address
 &struct.field -> LLVM struct GEP to the field slot
+&object.field -> tagged runtime object property cell
+&matrix[i, j] -> tagged runtime array element cell
 pointer assignment -> pointer value copy
-scalar read-through -> LLVM load for scalar pointees
-p = value -> LLVM store for scalar pointees
+scalar read-through -> LLVM load for raw pointers or yogi_cell_get for cell pointers
+p = value -> LLVM store for raw pointers or yogi_cell_set for cell pointers
 ```
 
 For aggregate pointees, Yogi avoids implicit whole-value read-through because
 ownership/copy semantics must be explicit. Full aggregate assignment through a
 pointer is rejected for now; element mutation should use pointer indexing such
 as `matrix[row, col] = value`. Address-of for runtime object properties and
-array elements such as `&object.field` or `&matrix[i, j]` is rejected until
-those storage representations expose stable addressable cells.
+array elements now uses tagged runtime cells so the backend can distinguish raw
+LLVM storage from runtime `AnyValue*` slots.
 
 ## Fixed-Shape Arrays
 

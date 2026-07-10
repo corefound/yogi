@@ -52,8 +52,12 @@ without re-auditing the whole compiler.
 - [x] Core pointer type syntax `ptr<T>`
 - [x] Address-of expression `&value` for addressable variables
 - [x] Address-of expression `&struct.field` for direct real struct fields
-- [x] Semantic rejection for `&object.field` while objects use runtime property storage
-- [x] Semantic rejection for `&matrix[i, j]` while arrays use runtime descriptors
+- [x] Address-of expression `&box.point.x` for nested real struct fields
+- [x] Address-of expression `&object.field` through runtime property cells
+- [x] Address-of expression `&matrix[i, j]` through row-major runtime array cells
+- [x] Direct nested struct field assignment through real storage, such as `box.point.x = 100`
+- [x] Direct nested struct assignment agrees with `&box.point.x` pointer write-through
+- [x] Tagged pointer-cell lowering for runtime object/array slots
 - [x] Address-of `const` storage with readonly pointer provenance
 - [x] Strict pointer assignability and pointer parameter passing
 - [x] Pointer copy preserving mutable/readonly provenance
@@ -103,6 +107,10 @@ without re-auditing the whole compiler.
 - [x] Semantic rejection for pointer-return paths borrowing from different parameters
 - [x] Internal dereference SIR for scalar pointer read-through lowering
 - [x] Aggregate pointer read-through rejection to avoid implicit owned copies
+- [ ] Projection from aggregate pointers such as `pBox.point.x`
+- [ ] Nested runtime object cell chains such as `&user.address.zip`
+- [ ] Mixed array/object/struct addressability such as `&users[0].age`
+- [ ] Pointer invalidation diagnostics for dynamic array/object structural mutation
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions

@@ -13,6 +13,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <optional>
 #include <tuple>
 #include <vector>
 
@@ -1570,93 +1571,358 @@ namespace yogi::core::llvm::internal {
 		return types.zero(expectedType);
 	}
 
+	::llvm::Value *ValueLowerer::tagRuntimeCellPointer(::llvm::Value *cell) {
+		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
+		auto *address = context.builder.CreatePtrToInt(cell, integerType, "ptr.cell.addr");
+		auto *tagged = context.builder.CreateOr(
+			address,
+			::llvm::ConstantInt::get(integerType, 1),
+			"ptr.cell.tag"
+		);
+
+		return context.builder.CreateIntToPtr(tagged, opaquePointer(), "ptr.cell.tagged");
+	}
+
+	::llvm::Value *ValueLowerer::untagRuntimeCellPointer(::llvm::Value *pointer) {
+		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
+		auto *address = context.builder.CreatePtrToInt(pointer, integerType, "ptr.cell.tagged.addr");
+		auto *untagged = context.builder.CreateAnd(
+			address,
+			::llvm::ConstantInt::get(integerType, ~static_cast<uint64_t>(1)),
+			"ptr.cell.untag"
+		);
+
+		return context.builder.CreateIntToPtr(untagged, opaquePointer(), "ptr.cell.slot");
+	}
+
+	::llvm::Value *ValueLowerer::isRuntimeCellPointer(::llvm::Value *pointer) {
+		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
+		auto *address = context.builder.CreatePtrToInt(pointer, integerType, "ptr.kind.addr");
+		auto *tag = context.builder.CreateAnd(
+			address,
+			::llvm::ConstantInt::get(integerType, 1),
+			"ptr.kind.tag"
+		);
+
+		return context.builder.CreateICmpNE(
+			tag,
+			::llvm::ConstantInt::get(integerType, 0),
+			"ptr.kind.is_cell"
+		);
+	}
+
+	::llvm::Value *ValueLowerer::lowerPointerArrayDescriptor(
+		::llvm::Value *pointer,
+		const Yogi::Sir::TypeRef *pointeeSemanticType
+	) {
+		auto *isCell = isRuntimeCellPointer(pointer);
+		auto *function = context.builder.GetInsertBlock()->getParent();
+		auto *cellBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.array.cell", function);
+		auto *rawBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.array.raw", function);
+		auto *mergeBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.array.merge", function);
+
+		context.builder.CreateCondBr(isCell, cellBlock, rawBlock);
+
+		context.builder.SetInsertPoint(cellBlock);
+		auto *cell = untagRuntimeCellPointer(pointer);
+		auto *boxed = callRuntime("yogi_cell_get", opaquePointer(), {cell});
+		auto *cellArray = unboxAny(boxed, pointeeSemanticType);
+		context.builder.CreateBr(mergeBlock);
+		auto *cellEnd = context.builder.GetInsertBlock();
+
+		context.builder.SetInsertPoint(rawBlock);
+		context.builder.CreateBr(mergeBlock);
+		auto *rawEnd = context.builder.GetInsertBlock();
+
+		context.builder.SetInsertPoint(mergeBlock);
+		auto *phi = context.builder.CreatePHI(opaquePointer(), 2, "ptr.array.descriptor");
+		phi->addIncoming(cellArray, cellEnd);
+		phi->addIncoming(pointer, rawEnd);
+
+		return phi;
+	}
+
+	::llvm::Value *ValueLowerer::lowerPointerRead(
+		::llvm::Value *pointer,
+		const Yogi::Sir::TypeRef *pointeeSemanticType,
+		::llvm::Type *expectedType,
+		const Yogi::Sir::TypeRef *expectedSemanticType
+	) {
+		const auto pointeeKind = resolvedTypeKind(pointeeSemanticType);
+		const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : pointeeSemanticType;
+		auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+
+		if (
+			pointeeKind == Yogi::Sir::TypeKind_array_type ||
+			pointeeKind == Yogi::Sir::TypeKind_tuple_type
+		) {
+			auto *descriptor = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
+			return cast(descriptor, targetType, targetSemanticType, pointeeSemanticType);
+		}
+
+		auto *isCell = isRuntimeCellPointer(pointer);
+		auto *function = context.builder.GetInsertBlock()->getParent();
+		auto *cellBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.read.cell", function);
+		auto *rawBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.read.raw", function);
+		auto *mergeBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.read.merge", function);
+
+		context.builder.CreateCondBr(isCell, cellBlock, rawBlock);
+
+		context.builder.SetInsertPoint(cellBlock);
+		auto *cell = untagRuntimeCellPointer(pointer);
+		auto *boxed = callRuntime("yogi_cell_get", opaquePointer(), {cell});
+		auto *cellValue = cast(
+			unboxAny(boxed, targetSemanticType),
+			targetType,
+			targetSemanticType,
+			targetSemanticType
+		);
+		context.builder.CreateBr(mergeBlock);
+		auto *cellEnd = context.builder.GetInsertBlock();
+
+		context.builder.SetInsertPoint(rawBlock);
+		auto *loaded = context.builder.CreateLoad(
+			types.lower(pointeeSemanticType),
+			pointer,
+			"ptr.raw.load"
+		);
+		auto *rawValue = cast(loaded, targetType, targetSemanticType, pointeeSemanticType);
+		context.builder.CreateBr(mergeBlock);
+		auto *rawEnd = context.builder.GetInsertBlock();
+
+		context.builder.SetInsertPoint(mergeBlock);
+		auto *phi = context.builder.CreatePHI(targetType, 2, "ptr.read.value");
+		phi->addIncoming(cellValue, cellEnd);
+		phi->addIncoming(rawValue, rawEnd);
+
+		return phi;
+	}
+
+	void ValueLowerer::lowerPointerWrite(
+		::llvm::Value *pointer,
+		::llvm::Value *value,
+		const Yogi::Sir::TypeRef *pointeeSemanticType,
+		const Yogi::Sir::TypeRef *sourceSemanticType
+	) {
+		auto *isCell = isRuntimeCellPointer(pointer);
+		auto *function = context.builder.GetInsertBlock()->getParent();
+		auto *cellBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.write.cell", function);
+		auto *rawBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.write.raw", function);
+		auto *mergeBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.write.merge", function);
+
+		context.builder.CreateCondBr(isCell, cellBlock, rawBlock);
+
+		context.builder.SetInsertPoint(cellBlock);
+		auto *cell = untagRuntimeCellPointer(pointer);
+		auto *boxed = boxAny(value, sourceSemanticType ? sourceSemanticType : pointeeSemanticType);
+		callRuntime("yogi_cell_set", ::llvm::Type::getVoidTy(context.llvmContext), {cell, boxed});
+		context.builder.CreateBr(mergeBlock);
+
+		context.builder.SetInsertPoint(rawBlock);
+		auto *storedValue = cast(
+			value,
+			types.lower(pointeeSemanticType),
+			pointeeSemanticType,
+			sourceSemanticType
+		);
+		context.builder.CreateStore(storedValue, pointer);
+		context.builder.CreateBr(mergeBlock);
+
+		context.builder.SetInsertPoint(mergeBlock);
+	}
+
+	std::optional<ValueLowerer::AddressableSlot> ValueLowerer::lowerStructAddressableSlot(
+		const Yogi::Sir::ValueRef *value
+	) {
+		if (!value) {
+			return std::nullopt;
+		}
+
+		if (const auto *identifier = value->identifier()) {
+			const auto name = fbString(identifier->name());
+			::llvm::Value *address = nullptr;
+			const Yogi::Sir::TypeRef *type = identifier->type();
+
+			if (!name.empty() && context.locals.contains(name)) {
+				address = context.locals[name];
+				if (context.localTypes.contains(name)) {
+					type = context.localTypes[name];
+				}
+			} else if (!name.empty() && context.globals.contains(name)) {
+				address = context.globals[name];
+				if (context.globalTypes.contains(name)) {
+					type = context.globalTypes[name];
+				}
+			} else if (identifier->qualified_name()) {
+				const auto qualifiedName = fbString(identifier->qualified_name());
+				const auto symbolName = "_yogi_" + sanitizeSymbol(qualifiedName);
+				address = context.module->getGlobalVariable(symbolName);
+
+				if (!address) {
+					auto *llvmType = types.lower(type);
+					address = new ::llvm::GlobalVariable(
+						*context.module,
+						llvmType,
+						false,
+						::llvm::GlobalValue::ExternalLinkage,
+						nullptr,
+						symbolName
+					);
+				}
+			}
+
+			if (!address) {
+				return std::nullopt;
+			}
+
+			return AddressableSlot{address, type};
+		}
+
+		if (const auto *property = value->property_access()) {
+			auto objectSlot = lowerStructAddressableSlot(property->object());
+			if (!objectSlot) {
+				return std::nullopt;
+			}
+
+			const auto structName = structTypeName(objectSlot->type);
+			if (structName.empty() || !context.structTypes.contains(structName)) {
+				return std::nullopt;
+			}
+
+			const auto propertyName = fbString(property->property());
+			auto *structType = context.structTypes[structName];
+
+			for (const auto &field: context.structFields[structName]) {
+				if (field.name != propertyName) {
+					continue;
+				}
+
+				auto *fieldAddress = context.builder.CreateStructGEP(
+					structType,
+					objectSlot->address,
+					static_cast<unsigned>(field.index),
+					"addr." + sanitizeSymbol(structName) + "." + sanitizeSymbol(field.name)
+				);
+
+				return AddressableSlot{fieldAddress, field.type};
+			}
+		}
+
+		return std::nullopt;
+	}
+
+	::llvm::Value *ValueLowerer::lowerAddressableArrayCell(
+		const Yogi::Sir::ElementAccessExpression *access
+	) {
+		const auto *objectSemanticType = valueSemanticType(access->object());
+		auto objectKind = resolvedTypeKind(objectSemanticType);
+		const auto *arraySemanticType = objectSemanticType;
+		auto *array = lower(access->object(), opaquePointer(), objectSemanticType);
+
+		if (objectKind == Yogi::Sir::TypeKind_pointer_type) {
+			arraySemanticType = objectSemanticType && objectSemanticType->element_type()
+				? objectSemanticType->element_type()
+				: access->type();
+			array = lowerPointerArrayDescriptor(array, arraySemanticType);
+			objectKind = resolvedTypeKind(arraySemanticType);
+		}
+
+		const auto *indices = access->indices();
+		const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
+		context.pushMemorySourceLocation(access->position());
+
+		if (isFixedShapeArray(arraySemanticType)) {
+			const auto shape = fixedShape(arraySemanticType);
+			if (static_cast<size_t>(indexCount) < shape.size()) {
+				context.popMemorySourceLocation();
+				return ::llvm::ConstantPointerNull::get(opaquePointer());
+			}
+
+			auto *offset = fixedShapeLinearOffset(access, shape, static_cast<size_t>(indexCount), false);
+			auto *cell = callRuntime("yogi_array_cell", opaquePointer(), {array, offset});
+			context.popMemorySourceLocation();
+			return cell;
+		}
+
+		for (flatbuffers::uoffset_t dimension = 0; dimension + 1 < indexCount; ++dimension) {
+			const auto *indexRef = indices && indices->size() > 0
+				? indices->Get(dimension)
+				: access->index();
+			auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
+			auto *rowValue = callRuntime("yogi_array_get", opaquePointer(), {array, toIndex(indexValue)});
+			array = callRuntime("yogi_any_to_array", opaquePointer(), {rowValue});
+		}
+
+		const auto *lastIndexRef = indices && indices->size() > 0
+			? indices->Get(indexCount - 1)
+			: access->index();
+		auto *indexValue = lower(lastIndexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(lastIndexRef));
+		auto *cell = callRuntime("yogi_array_cell", opaquePointer(), {array, toIndex(indexValue)});
+		context.popMemorySourceLocation();
+
+		return cell;
+	}
+
 		::llvm::Value *ValueLowerer::lowerAddressOf(
 			const Yogi::Sir::AddressOfExpression *addressOf,
 			::llvm::Type *expectedType,
 			const Yogi::Sir::TypeRef *expectedSemanticType
-		) {
+	) {
 		const auto *target = addressOf->target();
+		const auto *element = target ? target->element_access() : nullptr;
 		const auto *property = target ? target->property_access() : nullptr;
 
+		if (element) {
+			auto *cell = lowerAddressableArrayCell(element);
+			auto *taggedPointer = tagRuntimeCellPointer(cell);
+			return cast(
+				taggedPointer,
+				expectedType ? expectedType : opaquePointer(),
+				expectedSemanticType ? expectedSemanticType : addressOf->type(),
+				addressOf->type()
+			);
+		}
+
 		if (property) {
-			const auto *objectSemanticType = valueSemanticType(property->object());
-			const auto structName = structTypeName(objectSemanticType);
+			if (auto slot = lowerStructAddressableSlot(target)) {
+				const auto slotKind = resolvedTypeKind(slot->type);
 
-			if (!structName.empty() && context.structTypes.contains(structName)) {
-				const auto *objectIdentifier = property->object() ? property->object()->identifier() : nullptr;
-				const auto objectName = objectIdentifier ? fbString(objectIdentifier->name()) : "";
-				::llvm::Value *storage = nullptr;
-
-				if (!objectName.empty() && context.locals.contains(objectName)) {
-					storage = context.locals[objectName];
-				} else if (!objectName.empty() && context.globals.contains(objectName)) {
-					storage = context.globals[objectName];
-				} else if (objectIdentifier && objectIdentifier->qualified_name()) {
-					const auto qualifiedName = fbString(objectIdentifier->qualified_name());
-					const auto symbolName = "_yogi_" + sanitizeSymbol(qualifiedName);
-					storage = context.module->getGlobalVariable(symbolName);
-
-					if (!storage) {
-						auto *type = types.lower(objectSemanticType);
-						storage = new ::llvm::GlobalVariable(
-							*context.module,
-							type,
-							false,
-							::llvm::GlobalValue::ExternalLinkage,
-							nullptr,
-							symbolName
-						);
-					}
-				}
-
-				if (!storage) {
-					return types.zero(expectedType ? expectedType : opaquePointer());
-				}
-
-				auto *structType = context.structTypes[structName];
-				const auto propertyName = fbString(property->property());
-
-				for (const auto &field: context.structFields[structName]) {
-					if (field.name != propertyName) {
-						continue;
-					}
-
-					auto *fieldAddress = context.builder.CreateStructGEP(
-						structType,
-						storage,
-						static_cast<unsigned>(field.index),
-						"addr." + sanitizeSymbol(objectName.empty() ? structName : objectName) + "." + sanitizeSymbol(field.name)
+				if (
+					slotKind == Yogi::Sir::TypeKind_array_type ||
+					slotKind == Yogi::Sir::TypeKind_tuple_type
+				) {
+					auto *loaded = context.builder.CreateLoad(
+						opaquePointer(),
+						slot->address,
+						"addr.aggregate.ptr.load"
 					);
-					const auto fieldKind = resolvedTypeKind(field.type);
-
-					if (
-						fieldKind == Yogi::Sir::TypeKind_array_type ||
-						fieldKind == Yogi::Sir::TypeKind_tuple_type
-					) {
-						auto *loaded = context.builder.CreateLoad(
-							opaquePointer(),
-							fieldAddress,
-							"addr." + sanitizeSymbol(field.name) + ".ptr.load"
-						);
-
-						return cast(
-							loaded,
-							expectedType ? expectedType : opaquePointer(),
-							expectedSemanticType ? expectedSemanticType : addressOf->type(),
-							addressOf->type()
-						);
-					}
 
 					return cast(
-						fieldAddress,
+						loaded,
 						expectedType ? expectedType : opaquePointer(),
 						expectedSemanticType ? expectedSemanticType : addressOf->type(),
 						addressOf->type()
 					);
 				}
+
+				return cast(
+					slot->address,
+					expectedType ? expectedType : opaquePointer(),
+					expectedSemanticType ? expectedSemanticType : addressOf->type(),
+					addressOf->type()
+				);
 			}
 
-			return types.zero(expectedType ? expectedType : opaquePointer());
+			auto *object = lower(property->object(), opaquePointer(), valueSemanticType(property->object()));
+			auto *key = context.builder.CreateGlobalString(fbString(property->property()));
+			auto *cell = callRuntime("yogi_object_cell", opaquePointer(), {object, key});
+			auto *taggedPointer = tagRuntimeCellPointer(cell);
+			return cast(
+				taggedPointer,
+				expectedType ? expectedType : opaquePointer(),
+				expectedSemanticType ? expectedSemanticType : addressOf->type(),
+				addressOf->type()
+			);
 		}
 
 		const auto *identifier = target ? target->identifier() : nullptr;
@@ -1736,16 +2002,10 @@ namespace yogi::core::llvm::internal {
 				targetKind == Yogi::Sir::TypeKind_array_type ||
 				targetKind == Yogi::Sir::TypeKind_tuple_type
 			) {
-				return cast(pointer, targetType, targetSemanticType, dereference->type());
+				return lowerPointerRead(pointer, dereference->type(), targetType, targetSemanticType);
 			}
 
-			auto *loaded = context.builder.CreateLoad(
-				types.lower(dereference->type()),
-				pointer,
-				"ptr.deref.load"
-			);
-
-			return cast(loaded, targetType, targetSemanticType, dereference->type());
+			return lowerPointerRead(pointer, dereference->type(), targetType, targetSemanticType);
 		}
 
 		::llvm::Value *ValueLowerer::lowerArray(
@@ -2514,7 +2774,7 @@ namespace yogi::core::llvm::internal {
 				: access->type();
 
 			if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
-				auto *array = pointer;
+				auto *array = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
 				const auto *indices = access->indices();
 				const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
 				::llvm::Value *boxedValue = nullptr;
@@ -2560,13 +2820,7 @@ namespace yogi::core::llvm::internal {
 				return cast(unboxAny(boxedValue, targetSemanticType), targetType, targetSemanticType, targetSemanticType);
 			}
 
-			auto *loaded = context.builder.CreateLoad(
-				types.lower(access->type()),
-				pointer,
-				"ptr.scalar.load"
-			);
-
-			return cast(loaded, targetType, targetSemanticType, access->type());
+			return lowerPointerRead(pointer, pointeeSemanticType, targetType, targetSemanticType);
 		}
 
 		if (objectKind == Yogi::Sir::TypeKind_string_type) {
@@ -2647,11 +2901,8 @@ namespace yogi::core::llvm::internal {
 					opaquePointer(),
 					valueSemanticType(dereference->target())
 				);
-				auto *pointeeType = types.lower(dereference->type());
-				auto *storedValue = cast(rightValue, pointeeType, dereference->type(), rightType);
-
-				context.builder.CreateStore(storedValue, pointer);
-				return cast(storedValue, types.lower(assignment->type()), assignment->type(), dereference->type());
+				lowerPointerWrite(pointer, rightValue, dereference->type(), rightType);
+				return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
 			}
 
 			if (const auto *element = target ? target->element_access() : nullptr) {
@@ -2663,7 +2914,7 @@ namespace yogi::core::llvm::internal {
 					: element->type();
 
 				if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
-					auto *array = pointer;
+					auto *array = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
 					auto *boxedValue = boxAny(rightValue, rightType);
 					const auto *indices = element->indices();
 					const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
@@ -2691,83 +2942,44 @@ namespace yogi::core::llvm::internal {
 					return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
 				}
 
-				auto *pointeeType = types.lower(element->type());
-				auto *storedValue = cast(rightValue, pointeeType, element->type(), rightType);
-				context.builder.CreateStore(storedValue, pointer);
-				return cast(storedValue, types.lower(assignment->type()), assignment->type(), element->type());
+				lowerPointerWrite(pointer, rightValue, element->type(), rightType);
+				return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
 			}
 		}
 
 		if (const auto *property = target ? target->property_access() : nullptr) {
-			const auto *objectType = valueSemanticType(property->object());
-			const auto structName = structTypeName(objectType);
+			if (auto slot = lowerStructAddressableSlot(target)) {
+				const auto slotStructName = structTypeName(slot->type);
+				const auto slotKind = resolvedTypeKind(slot->type);
+				const auto slotOwnsResource =
+					!slotStructName.empty() ||
+					slotKind == Yogi::Sir::TypeKind_string_type ||
+					slotKind == Yogi::Sir::TypeKind_array_type ||
+					slotKind == Yogi::Sir::TypeKind_tuple_type ||
+					slotKind == Yogi::Sir::TypeKind_type_literal;
 
-			if (!structName.empty() && context.structTypes.contains(structName)) {
-				const auto *objectIdentifier = property->object() ? property->object()->identifier() : nullptr;
-				const auto objectName = objectIdentifier ? fbString(objectIdentifier->name()) : "";
-				::llvm::Value *storage = nullptr;
-
-				if (context.locals.contains(objectName)) {
-					storage = context.locals[objectName];
-				} else if (context.globals.contains(objectName)) {
-					storage = context.globals[objectName];
+				if (slotOwnsResource) {
+					auto *previousValue = context.builder.CreateLoad(
+						types.lower(slot->type),
+						slot->address,
+						"struct.assign.previous." + sanitizeSymbol(fbString(property->property()))
+					);
+					destroyEscapedAggregate(slot->type, previousValue);
 				}
 
-				if (!storage) {
-					return types.zero(types.lower(property->type()));
-				}
-
-				auto *structType = context.structTypes[structName];
-				auto *currentValue = context.builder.CreateLoad(
-					structType,
-					storage,
-					sanitizeSymbol(objectName) + ".struct.load"
+				auto *fieldValue = cast(
+					rightValue,
+					types.lower(slot->type),
+					slot->type,
+					rightType
 				);
 
-				for (const auto &field: context.structFields[structName]) {
-					if (field.name != fbString(property->property())) {
-						continue;
-					}
-
-					const auto fieldStructName = structTypeName(field.type);
-					const auto fieldKind = resolvedTypeKind(field.type);
-					const auto fieldOwnsResource =
-						!fieldStructName.empty() ||
-						fieldKind == Yogi::Sir::TypeKind_string_type ||
-						fieldKind == Yogi::Sir::TypeKind_array_type ||
-						fieldKind == Yogi::Sir::TypeKind_tuple_type ||
-						fieldKind == Yogi::Sir::TypeKind_type_literal;
-					if (fieldOwnsResource) {
-						auto *previousValue = context.builder.CreateExtractValue(
-							currentValue,
-							{static_cast<unsigned>(field.index)},
-							"struct.assign.previous." + sanitizeSymbol(field.name)
-						);
-						destroyEscapedAggregate(field.type, previousValue);
-					}
-
-					auto *fieldValue = cast(
-						rightValue,
-						types.lower(field.type),
-						field.type,
-						rightType
-					);
-					auto *updatedValue = context.builder.CreateInsertValue(
-						currentValue,
-						fieldValue,
-						{static_cast<unsigned>(field.index)},
-						"struct.assign." + sanitizeSymbol(field.name)
-					);
-
-					context.builder.CreateStore(updatedValue, storage);
-					const auto rightName = identifierName(assignment->right());
-					if (!rightName.empty()) {
-						context.deactivateAggregateOwner(rightName);
-					}
-					return cast(fieldValue, types.lower(property->type()), property->type(), field.type);
+				context.builder.CreateStore(fieldValue, slot->address);
+				const auto rightName = identifierName(assignment->right());
+				if (!rightName.empty()) {
+					context.deactivateAggregateOwner(rightName);
 				}
-
-				return types.zero(types.lower(property->type()));
+				return cast(fieldValue, types.lower(property->type()), property->type(), slot->type);
 			}
 
 			auto *boxedValue = boxAny(rightValue, rightType);

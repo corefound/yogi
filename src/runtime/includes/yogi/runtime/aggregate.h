@@ -17,6 +17,7 @@ namespace yogi::runtime {
 
 			void set(const char *name, void *value);
 			void *get(const char *name) const;
+			void **cell(const char *name);
 			std::size_t length() const;
 			const char *keyAt(std::size_t index) const;
 			void *valueAt(std::size_t index) const;
@@ -46,6 +47,7 @@ namespace yogi::runtime {
 
 			void set(std::size_t index, void *value);
 			void *get(std::size_t index) const;
+			void **cell(std::size_t index);
 			std::size_t push(void *value);
 			void *pop();
 			void *at(std::size_t index) const;

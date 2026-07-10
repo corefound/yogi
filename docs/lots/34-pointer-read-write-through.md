@@ -88,7 +88,7 @@ descriptors:
 
 ```ts
 let matrix: number[2, 2] = [[1, 2], [3, 4]]
-let p: ptr<number> = &matrix[0, 1] // rejected for now
+let p: ptr<number> = &matrix[0, 1] // supported in Lot 35
 ```
 
 Pointer indexing remains the supported mutation path:
@@ -105,6 +105,7 @@ Covered by:
 ```txt
 tests/runtime/sessions/02-variables-aggregates/pointer_core.cmake
 tests/runtime/sessions/02-variables-aggregates/pointer_array_indexing.cmake
+tests/runtime/sessions/02-variables-aggregates/pointer_addressable_projections.cmake
 ```
 
 Positive coverage includes scalar read-through, scalar write-through, pointer
@@ -112,12 +113,13 @@ copy, pointer rebind, scalar pointer call/return read-through, `const ptr<T>`
 write-through to mutable roots, and `&struct.field` lowering.
 
 Negative coverage includes public `*p`, public `(*p) = value`, write-through to
-readonly provenance, aggregate replacement through pointers, `&object.field`,
-and `&matrix[i, j]`.
+readonly provenance, aggregate replacement through pointers, and partial
+fixed-shape view address-of.
 
 ## Remaining Work
 
-- Nested struct field addressability such as `&box.point.x`.
-- Native addressable array element cells for `&matrix[i, j]`.
-- Runtime object property reference cells for safe `&object.field`.
+- Nested runtime object field cells such as `&user.address.zip`.
+- Object cells inside array elements such as `&users[0].age`.
+- Cell invalidation diagnostics when a dynamic array/object reallocates after a
+  cell pointer was created.
 - Optional LLVM alias/readonly metadata once provenance summaries are mature.

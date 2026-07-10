@@ -2055,33 +2055,97 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 );
             }
 
-            if (targetNode?.kind === Kinds.Expressions.ElementAccessExpression) {
-                targetNode.arrowLength = targetNode?.source?.length ?? node.source?.length ?? 1;
-                this.throwError(
-                    `address-of array elements is not lowerable while arrays use runtime descriptors`,
-                    targetNode?.position ?? node.position,
-                    source,
-                    targetNode,
-                    "  = use pointer indexing like p[i] or p[i, j] instead of taking a raw element address",
-                );
-            }
-
             const target = this.visitNode(targetNode);
+            const accessPathFor = (value: any): string[] => {
+                if (!value) {
+                    return [];
+                }
 
-            if (targetNode?.kind === Kinds.Expressions.PropertyAccessExpression) {
+                if (value.kind === Kinds.Expressions.PropertyAccessExpression) {
+                    return [
+                        ...accessPathFor(value.object),
+                        `.${value.property}`,
+                    ];
+                }
+
+                if (value.kind === Kinds.Expressions.ElementAccessExpression) {
+                    const indices = value.indices ?? (value.index ? [value.index] : []);
+                    return [
+                        ...accessPathFor(value.object),
+                        `[${indices.map((item: any) => item.source ?? item.raw ?? "?").join(", ")}]`,
+                    ];
+                }
+
+                return value.pointerAccessPath ?? value.accessPath ?? [];
+            };
+
+            if (targetNode?.kind === Kinds.Expressions.ElementAccessExpression) {
                 const objectType = this.resolveType(target.object?.declaredType ?? target.object?.type);
 
-                if (!this.isStructResolvedType(objectType)) {
+                if (objectType?.kind === Kinds.Types.PointerType) {
                     target.arrowLength = target.source?.length ?? node.source?.length ?? 1;
                     this.throwError(
-                        `address-of runtime object properties is not lowerable yet`,
+                        `cannot take address of pointer-derived element access`,
                         target.position ?? node.position,
                         source,
                         target,
-                        "  = use a real struct field for &value.field or pass the object itself",
+                        "  = use the existing pointer expression instead of nesting address-of through it",
                     );
                 }
 
+                if (target.borrowedView === true || target.pointerPartialView === true) {
+                    target.arrowLength = target.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(
+                        `cannot take address of a borrowed array view`,
+                        target.position ?? node.position,
+                        source,
+                        target,
+                        "  = take the address of the full array and then index the pointer view",
+                    );
+                }
+
+                const rootName = this.getAggregateRootIdentifier(target.object);
+                const rootSymbol = rootName ? this.resolveSymbol(rootName) : null;
+
+                if (!rootSymbol) {
+                    target.arrowLength = target.source?.length ?? node.source?.length ?? 1;
+                    this.throwError(
+                        `cannot take address of non-addressable array element`,
+                        target.position ?? node.position,
+                        source,
+                        target,
+                    );
+                }
+
+                const pointee = this.toSerializableType(target.type);
+                const permission =
+                    rootSymbol.mutable === true && target.readonly !== true
+                        ? "mutable"
+                        : "readonly";
+                const accessPath = accessPathFor(target);
+
+                return {
+                    ...node,
+                    target,
+                    kind: Kinds.Expressions.AddressOfExpression,
+                    type: {
+                        kind: Kinds.Types.PointerType,
+                        raw: `ptr<${pointee?.raw ?? "unknown"}>`,
+                        elementType: pointee,
+                        pointee,
+                    },
+                    pointerRootName: rootName,
+                    pointerRootSymbolId: rootSymbol.id,
+                    pointerAccessPath: accessPath,
+                    pointerPermission: permission,
+                    rootName,
+                    rootSymbolId: rootSymbol.id,
+                    accessPath,
+                    permission,
+                };
+            }
+
+            if (targetNode?.kind === Kinds.Expressions.PropertyAccessExpression) {
                 const rootName = this.getAggregateRootIdentifier(target.object);
                 const rootSymbol = rootName ? this.resolveSymbol(rootName) : null;
 
@@ -2100,6 +2164,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     rootSymbol.mutable === true && target.readonly !== true
                         ? "mutable"
                         : "readonly";
+                const accessPath = accessPathFor(target);
 
                 return {
                     ...node,
@@ -2113,17 +2178,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     },
                     pointerRootName: rootName,
                     pointerRootSymbolId: rootSymbol.id,
-                    pointerAccessPath: [
-                        ...(target.object?.pointerAccessPath ?? target.object?.accessPath ?? []),
-                        `.${target.property}`,
-                    ],
+                    pointerAccessPath: accessPath,
                     pointerPermission: permission,
                     rootName,
                     rootSymbolId: rootSymbol.id,
-                    accessPath: [
-                        ...(target.object?.pointerAccessPath ?? target.object?.accessPath ?? []),
-                        `.${target.property}`,
-                    ],
+                    accessPath,
                     permission,
                 };
             }

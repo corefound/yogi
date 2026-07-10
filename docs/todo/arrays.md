@@ -1508,6 +1508,8 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ✅ Pointer parameters
 ✅ Full fixed-shape array pointer indexing
 ✅ Dynamic 1D array pointer indexing through ptr<number[]>
+✅ Address-of fixed-shape array cells: &matrix[i, j]
+✅ Address-of dynamic array cells: &values[i]
 ✅ Pointer indexing read/write mutates caller storage
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer partial views: ptr<number[2, 3]>[0] -> ptr<number[3]>

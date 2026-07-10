@@ -358,6 +358,30 @@ namespace yogi::runtime {
 		return properties[index].value ? properties[index].value : AnyValue::undefined();
 	}
 
+	void **ObjectValue::cell(const char *name) {
+		OwnershipTracker::assertLiveAggregate(this, "object cell after destroy/drop", "object value");
+
+		if (!name) {
+			return nullptr;
+		}
+
+		const auto index = find(name);
+		if (index < propertyCount) {
+			if (!properties[index].value) {
+				properties[index].value = AnyValue::undefined();
+			}
+
+			return &properties[index].value;
+		}
+
+		ensureCapacity();
+		properties[propertyCount].key = copyKey(name);
+		properties[propertyCount].value = AnyValue::undefined();
+		++propertyCount;
+
+		return &properties[propertyCount - 1].value;
+	}
+
 	std::size_t ObjectValue::length() const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ObjectValue *>(this), "object length after destroy/drop", "object value");
 		return propertyCount;
@@ -518,6 +542,25 @@ namespace yogi::runtime {
 		}
 
 		return elements[index] ? elements[index] : AnyValue::undefined();
+	}
+
+	void **ArrayValue::cell(std::size_t index) {
+		OwnershipTracker::assertLiveAggregate(this, "array cell after destroy/drop", "array value");
+
+		if (index >= elementCount) {
+			RuntimeError::abortRange("array address-of", static_cast<long long>(index), elementCount);
+		}
+
+		if (isView()) {
+			OwnershipTracker::assertLiveAggregate(viewSource, "array view source cell after destroy/drop", "array value");
+			return viewSource->cell(viewOffset + index);
+		}
+
+		if (!elements[index]) {
+			elements[index] = AnyValue::undefined();
+		}
+
+		return &elements[index];
 	}
 
 	std::size_t ArrayValue::push(void *value) {
@@ -1011,6 +1054,14 @@ void *yogi_object_get(void *object, const char *name) {
 	return static_cast<const yogi::runtime::ObjectValue *>(object)->get(name);
 }
 
+void *yogi_object_cell(void *object, const char *name) {
+	if (!object) {
+		return nullptr;
+	}
+
+	return static_cast<void *>(static_cast<yogi::runtime::ObjectValue *>(object)->cell(name));
+}
+
 void yogi_object_drop(void *object) {
 	if (!object) {
 		return;
@@ -1069,6 +1120,14 @@ void *yogi_array_get(void *array, unsigned long long index) {
 	}
 
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->get(static_cast<std::size_t>(index));
+}
+
+void *yogi_array_cell(void *array, unsigned long long index) {
+	if (!array) {
+		return nullptr;
+	}
+
+	return static_cast<void *>(static_cast<yogi::runtime::ArrayValue *>(array)->cell(static_cast<std::size_t>(index)));
 }
 
 unsigned long long yogi_array_push(void *array, void *value) {
@@ -1337,6 +1396,24 @@ void yogi_array_destroy(void *array) {
 	value->destroy();
 	yogi::runtime::OwnershipTracker::destroyHeapAggregate(array, "array value");
 	yogi_free(array);
+}
+
+void *yogi_cell_get(void *cell) {
+	if (!cell) {
+		return yogi_any_undefined();
+	}
+
+	auto **slot = static_cast<void **>(cell);
+	return *slot ? *slot : yogi_any_undefined();
+}
+
+void yogi_cell_set(void *cell, void *value) {
+	if (!cell) {
+		return;
+	}
+
+	auto **slot = static_cast<void **>(cell);
+	*slot = value ? value : yogi_any_undefined();
 }
 
 }
