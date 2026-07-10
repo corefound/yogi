@@ -2210,10 +2210,14 @@ namespace yogi::core::llvm::internal {
 				? 0
 				: static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
 		context.pushMemorySourceLocation(array->position());
+		auto *storageMode = context.builder.CreateGlobalString(arrayStorageModeName(array, expectedSemanticType));
 		auto *aggregate = callRuntime(
-			"yogi_array_create",
+			"yogi_array_create_with_storage",
 			opaquePointer(),
-			{::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), length)}
+			{
+				::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), length),
+				storageMode,
+			}
 		);
 
 		if (isFixedShapeArray(expectedSemanticType)) {
@@ -2478,13 +2482,15 @@ namespace yogi::core::llvm::internal {
 				size,
 				safeName + ".array.storage"
 			);
+			auto *storageMode = context.builder.CreateGlobalString(arrayStorageModeName(array, arrayType));
 
 			callRuntime(
-				"yogi_array_init",
+				"yogi_array_init_with_storage",
 				::llvm::Type::getVoidTy(context.llvmContext),
 				{
 					storage,
 					::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), length),
+					storageMode,
 				}
 			);
 			if (isFixedShapeArray(arrayType)) {
@@ -2771,6 +2777,22 @@ namespace yogi::core::llvm::internal {
 		}
 
 		return false;
+	}
+
+	std::string ValueLowerer::arrayStorageModeName(
+		const Yogi::Sir::ArrayExpression *array,
+		const Yogi::Sir::TypeRef *arrayType
+	) const {
+		if (isFixedLengthArray(arrayType)) {
+			return "contiguous_fast_path";
+		}
+
+		const auto *mode = array ? array->storage_mode() : nullptr;
+		const auto value = mode ? mode->str() : "";
+
+		return value == "pointer_safe_chunked_mode"
+			? "pointer_safe_chunked_mode"
+			: "contiguous_fast_path";
 	}
 
 	std::vector<int64_t> ValueLowerer::fixedShape(const Yogi::Sir::TypeRef *type) const {

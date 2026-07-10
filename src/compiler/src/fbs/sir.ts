@@ -982,12 +982,14 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const type = this.createTypeRef(builder, expression.type);
             const source = builder.createString(expression.source ?? "");
             const position = this.createSourcePosition(builder, expression.position);
+            const storageMode = builder.createString(expression.storageMode ?? "contiguous_fast_path");
 
             ArrayExpression.startArrayExpression(builder);
             ArrayExpression.addElements(builder, elements);
             ArrayExpression.addType(builder, type);
             ArrayExpression.addSource(builder, source);
             ArrayExpression.addPosition(builder, position);
+            ArrayExpression.addStorageMode(builder, storageMode);
 
             return ArrayExpression.endArrayExpression(builder);
         }

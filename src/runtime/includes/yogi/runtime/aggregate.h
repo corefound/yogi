@@ -40,9 +40,15 @@ namespace yogi::runtime {
 
 	class ArrayValue final {
 		public:
-			static ArrayValue *create(std::size_t length);
+			enum class StorageMode {
+				ContiguousFastPath,
+				PointerSafeChunkedMode,
+			};
+
+			static ArrayValue *create(std::size_t length, StorageMode storageMode = StorageMode::ContiguousFastPath);
 			static ArrayValue *createView(ArrayValue *source, std::size_t offset, std::size_t length);
-			static void init(void *address, std::size_t length);
+			static void init(void *address, std::size_t length, StorageMode storageMode = StorageMode::ContiguousFastPath);
+			static StorageMode storageModeFromName(const char *name);
 			static std::size_t size();
 
 			void set(std::size_t index, void *value);
@@ -75,17 +81,22 @@ namespace yogi::runtime {
 			ArrayValue *entries() const;
 			const char *join(const char *separator) const;
 			const char *toString() const;
+			const char *storageModeName() const;
 			void sort();
 			ArrayValue *toSorted() const;
 			void destroy();
 
 		private:
+			StorageMode storageMode = StorageMode::ContiguousFastPath;
+			void **contiguousValues = nullptr;
 			void ***elements = nullptr;
 			std::size_t elementCount = 0;
 			std::size_t elementCapacity = 0;
 			ArrayValue *viewSource = nullptr;
 			std::size_t viewOffset = 0;
 
+			bool usesPointerSafeStorage() const;
+			void resetContiguousSlots(std::size_t start = 0);
 			static void **createSlot(void *value);
 			void *slotValue(std::size_t index) const;
 			void setSlotValue(std::size_t index, void *value);

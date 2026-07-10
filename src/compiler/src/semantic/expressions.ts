@@ -566,6 +566,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
+            this.markDynamicArrayStorageForGrowth(root, symbol, methodName);
+
             // Validate argument count
             if (args.length !== 1) {
                 const message =

@@ -453,9 +453,9 @@ namespace yogi::runtime {
 		propertyCapacity = 0;
 	}
 
-	ArrayValue *ArrayValue::create(std::size_t length) {
+	ArrayValue *ArrayValue::create(std::size_t length, StorageMode storageMode) {
 		void *address = MemoryManager::allocate(sizeof(ArrayValue), "array value");
-		init(address, length);
+		init(address, length, storageMode);
 		OwnershipTracker::markHeapAggregate(address, "array value");
 		return static_cast<ArrayValue *>(address);
 	}
@@ -486,9 +486,10 @@ namespace yogi::runtime {
 		return view;
 	}
 
-	void ArrayValue::init(void *address, std::size_t length) {
+	void ArrayValue::init(void *address, std::size_t length, StorageMode storageMode) {
 		auto *array = new (address) ArrayValue();
 		OwnershipTracker::registerStackAggregate(array, "array value");
+		array->storageMode = storageMode;
 		array->elementCount = length;
 		array->elementCapacity = length;
 
@@ -500,9 +501,30 @@ namespace yogi::runtime {
 			MemoryManager::allocate(sizeof(void **) * length, "array elements")
 		);
 
-		for (std::size_t index = 0; index < length; ++index) {
-			array->elements[index] = createSlot(AnyValue::undefined());
+		if (array->usesPointerSafeStorage()) {
+			for (std::size_t index = 0; index < length; ++index) {
+				array->elements[index] = createSlot(AnyValue::undefined());
+			}
+			return;
 		}
+
+		array->contiguousValues = static_cast<void **>(
+			MemoryManager::allocate(sizeof(void *) * length, "array contiguous elements")
+		);
+
+		for (std::size_t index = 0; index < length; ++index) {
+			array->contiguousValues[index] = AnyValue::undefined();
+		}
+
+		array->resetContiguousSlots();
+	}
+
+	ArrayValue::StorageMode ArrayValue::storageModeFromName(const char *name) {
+		if (name && std::strcmp(name, "pointer_safe_chunked_mode") == 0) {
+			return StorageMode::PointerSafeChunkedMode;
+		}
+
+		return StorageMode::ContiguousFastPath;
 	}
 
 	std::size_t ArrayValue::size() {
@@ -511,6 +533,20 @@ namespace yogi::runtime {
 
 	bool ArrayValue::isView() const {
 		return viewSource != nullptr;
+	}
+
+	bool ArrayValue::usesPointerSafeStorage() const {
+		return storageMode == StorageMode::PointerSafeChunkedMode;
+	}
+
+	void ArrayValue::resetContiguousSlots(std::size_t start) {
+		if (usesPointerSafeStorage() || !elements || !contiguousValues) {
+			return;
+		}
+
+		for (std::size_t index = start; index < elementCapacity; ++index) {
+			elements[index] = &contiguousValues[index];
+		}
 	}
 
 	void **ArrayValue::createSlot(void *value) {
@@ -526,7 +562,19 @@ namespace yogi::runtime {
 
 	void ArrayValue::setSlotValue(std::size_t index, void *value) {
 		if (!elements[index]) {
-			elements[index] = createSlot(value);
+			elements[index] = usesPointerSafeStorage()
+				? createSlot(value)
+				: &contiguousValues[index];
+			if (!usesPointerSafeStorage()) {
+				contiguousValues[index] = value ? value : AnyValue::undefined();
+				return;
+			}
+			return;
+		}
+
+		if (!usesPointerSafeStorage() && contiguousValues) {
+			contiguousValues[index] = value ? value : AnyValue::undefined();
+			elements[index] = &contiguousValues[index];
 			return;
 		}
 
@@ -536,6 +584,12 @@ namespace yogi::runtime {
 	void ArrayValue::releaseSlot(std::size_t index) {
 		auto **slot = elements[index];
 		if (!slot) {
+			return;
+		}
+
+		if (!usesPointerSafeStorage()) {
+			*slot = AnyValue::undefined();
+			elements[index] = contiguousValues ? &contiguousValues[index] : nullptr;
 			return;
 		}
 
@@ -588,7 +642,9 @@ namespace yogi::runtime {
 		}
 
 		if (!elements[index]) {
-			elements[index] = createSlot(AnyValue::undefined());
+			elements[index] = usesPointerSafeStorage()
+				? createSlot(AnyValue::undefined())
+				: &contiguousValues[index];
 		}
 
 		return elements[index];
@@ -598,7 +654,12 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(this, "array push after destroy/drop", "array value");
 
 		ensureCapacity(elementCount + 1);
-		elements[elementCount] = createSlot(value);
+		if (usesPointerSafeStorage()) {
+			elements[elementCount] = createSlot(value);
+		} else {
+			contiguousValues[elementCount] = value ? value : AnyValue::undefined();
+			elements[elementCount] = &contiguousValues[elementCount];
+		}
 		++elementCount;
 
 		return elementCount;
@@ -613,7 +674,11 @@ namespace yogi::runtime {
 
 		--elementCount;
 		auto *result = slotValue(elementCount);
-		releaseSlot(elementCount);
+		if (usesPointerSafeStorage()) {
+			releaseSlot(elementCount);
+		} else {
+			contiguousValues[elementCount] = AnyValue::undefined();
+		}
 
 		return result ? result : AnyValue::undefined();
 	}
@@ -673,13 +738,24 @@ namespace yogi::runtime {
 		auto *result = slotValue(0);
 		auto **removedSlot = elements[0];
 
-		for (std::size_t index = 1; index < elementCount; ++index) {
-			elements[index - 1] = elements[index];
+		if (usesPointerSafeStorage()) {
+			for (std::size_t index = 1; index < elementCount; ++index) {
+				elements[index - 1] = elements[index];
+			}
+		} else {
+			for (std::size_t index = 1; index < elementCount; ++index) {
+				contiguousValues[index - 1] = contiguousValues[index];
+			}
 		}
 
 		--elementCount;
-		elements[elementCount] = nullptr;
-		if (removedSlot) {
+		if (usesPointerSafeStorage()) {
+			elements[elementCount] = nullptr;
+		} else {
+			contiguousValues[elementCount] = AnyValue::undefined();
+			resetContiguousSlots();
+		}
+		if (usesPointerSafeStorage() && removedSlot) {
 			*removedSlot = nullptr;
 			MemoryManager::deallocate(removedSlot);
 		}
@@ -692,11 +768,20 @@ namespace yogi::runtime {
 
 		ensureCapacity(elementCount + 1);
 
-		for (std::size_t index = elementCount; index > 0; --index) {
-			elements[index] = elements[index - 1];
-		}
+		if (usesPointerSafeStorage()) {
+			for (std::size_t index = elementCount; index > 0; --index) {
+				elements[index] = elements[index - 1];
+			}
 
-		elements[0] = createSlot(value);
+			elements[0] = createSlot(value);
+		} else {
+			for (std::size_t index = elementCount; index > 0; --index) {
+				contiguousValues[index] = contiguousValues[index - 1];
+			}
+
+			contiguousValues[0] = value ? value : AnyValue::undefined();
+			resetContiguousSlots();
+		}
 		++elementCount;
 
 		return elementCount;
@@ -742,7 +827,11 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(this, "array reverse after destroy/drop", "array value");
 
 		for (std::size_t left = 0, right = elementCount; left < right && left < --right; ++left) {
-			std::swap(elements[left], elements[right]);
+			if (usesPointerSafeStorage()) {
+				std::swap(elements[left], elements[right]);
+			} else {
+				std::swap(contiguousValues[left], contiguousValues[right]);
+			}
 		}
 	}
 
@@ -781,11 +870,20 @@ namespace yogi::runtime {
 		const auto target = std::min<std::size_t>(index, elementCount);
 		ensureCapacity(elementCount + 1);
 
-		for (std::size_t position = elementCount; position > target; --position) {
-			elements[position] = elements[position - 1];
-		}
+		if (usesPointerSafeStorage()) {
+			for (std::size_t position = elementCount; position > target; --position) {
+				elements[position] = elements[position - 1];
+			}
 
-		elements[target] = createSlot(value);
+			elements[target] = createSlot(value);
+		} else {
+			for (std::size_t position = elementCount; position > target; --position) {
+				contiguousValues[position] = contiguousValues[position - 1];
+			}
+
+			contiguousValues[target] = value ? value : AnyValue::undefined();
+			resetContiguousSlots();
+		}
 		++elementCount;
 	}
 
@@ -842,7 +940,9 @@ namespace yogi::runtime {
 
 		for (std::size_t index = 0; index < removedCount; ++index) {
 			removed->setSlotValue(index, slotValue(startIndex + index));
-			releaseSlot(startIndex + index);
+			if (usesPointerSafeStorage()) {
+				releaseSlot(startIndex + index);
+			}
 		}
 
 		const auto tailStart = startIndex + removedCount;
@@ -850,22 +950,44 @@ namespace yogi::runtime {
 		const auto newCount = elementCount - removedCount + insertedCount;
 		ensureCapacity(newCount);
 
-		if (insertedCount > removedCount) {
-			for (std::size_t offset = tailCount; offset > 0; --offset) {
-				elements[startIndex + insertedCount + offset - 1] = elements[tailStart + offset - 1];
+		if (usesPointerSafeStorage()) {
+			if (insertedCount > removedCount) {
+				for (std::size_t offset = tailCount; offset > 0; --offset) {
+					elements[startIndex + insertedCount + offset - 1] = elements[tailStart + offset - 1];
+				}
+			} else if (insertedCount < removedCount) {
+				for (std::size_t offset = 0; offset < tailCount; ++offset) {
+					elements[startIndex + insertedCount + offset] = elements[tailStart + offset];
+				}
 			}
-		} else if (insertedCount < removedCount) {
-			for (std::size_t offset = 0; offset < tailCount; ++offset) {
-				elements[startIndex + insertedCount + offset] = elements[tailStart + offset];
+
+			for (std::size_t index = 0; index < insertedCount; ++index) {
+				elements[startIndex + index] = createSlot(inserted->get(index));
 			}
-		}
 
-		for (std::size_t index = 0; index < insertedCount; ++index) {
-			elements[startIndex + index] = createSlot(inserted->get(index));
-		}
+			for (std::size_t index = newCount; index < elementCount; ++index) {
+				elements[index] = nullptr;
+			}
+		} else {
+			if (insertedCount > removedCount) {
+				for (std::size_t offset = tailCount; offset > 0; --offset) {
+					contiguousValues[startIndex + insertedCount + offset - 1] = contiguousValues[tailStart + offset - 1];
+				}
+			} else if (insertedCount < removedCount) {
+				for (std::size_t offset = 0; offset < tailCount; ++offset) {
+					contiguousValues[startIndex + insertedCount + offset] = contiguousValues[tailStart + offset];
+				}
+			}
 
-		for (std::size_t index = newCount; index < elementCount; ++index) {
-			elements[index] = nullptr;
+			for (std::size_t index = 0; index < insertedCount; ++index) {
+				contiguousValues[startIndex + index] = inserted->get(index);
+			}
+
+			for (std::size_t index = newCount; index < elementCount; ++index) {
+				contiguousValues[index] = AnyValue::undefined();
+			}
+
+			resetContiguousSlots();
 		}
 
 		elementCount = newCount;
@@ -1001,14 +1123,28 @@ namespace yogi::runtime {
 		return join(",");
 	}
 
+	const char *ArrayValue::storageModeName() const {
+		return usesPointerSafeStorage()
+			? "pointer_safe_chunked_mode"
+			: "contiguous_fast_path";
+	}
+
 	void ArrayValue::sort() {
 		OwnershipTracker::assertLiveAggregate(this, "array sort after destroy/drop", "array value");
 
-		std::sort(elements, elements + elementCount, [](void **left, void **right) {
-			auto *leftValue = left && *left ? *left : AnyValue::undefined();
-			auto *rightValue = right && *right ? *right : AnyValue::undefined();
-			return compareAnyAsString(leftValue, rightValue) < 0;
+		if (usesPointerSafeStorage()) {
+			std::sort(elements, elements + elementCount, [](void **left, void **right) {
+				auto *leftValue = left && *left ? *left : AnyValue::undefined();
+				auto *rightValue = right && *right ? *right : AnyValue::undefined();
+				return compareAnyAsString(leftValue, rightValue) < 0;
+			});
+			return;
+		}
+
+		std::sort(contiguousValues, contiguousValues + elementCount, [](void *left, void *right) {
+			return compareAnyAsString(left, right) < 0;
 		});
+		resetContiguousSlots();
 	}
 
 	ArrayValue *ArrayValue::toSorted() const {
@@ -1037,24 +1173,43 @@ namespace yogi::runtime {
 			MemoryManager::reallocate(elements, sizeof(void **) * nextCapacity, "array elements")
 		);
 
+		if (!usesPointerSafeStorage()) {
+			contiguousValues = static_cast<void **>(
+				MemoryManager::reallocate(contiguousValues, sizeof(void *) * nextCapacity, "array contiguous elements")
+			);
+		}
+
 		for (std::size_t index = elementCapacity; index < nextCapacity; ++index) {
-			elements[index] = nullptr;
+			if (usesPointerSafeStorage()) {
+				elements[index] = nullptr;
+			} else {
+				contiguousValues[index] = AnyValue::undefined();
+			}
 		}
 
 		elementCapacity = nextCapacity;
+
+		if (!usesPointerSafeStorage()) {
+			resetContiguousSlots();
+		}
 	}
 
 	void ArrayValue::destroy() {
 		OwnershipTracker::assertLiveAggregate(this, "array destroy/drop after destroy/drop", "array value");
 
 		if (!isView()) {
-			for (std::size_t index = 0; index < elementCapacity; ++index) {
-				releaseSlot(index);
+			if (usesPointerSafeStorage()) {
+				for (std::size_t index = 0; index < elementCapacity; ++index) {
+					releaseSlot(index);
+				}
+			} else {
+				MemoryManager::deallocate(contiguousValues);
 			}
 
 			MemoryManager::deallocate(elements);
 		}
 
+		contiguousValues = nullptr;
 		elements = nullptr;
 		elementCount = 0;
 		elementCapacity = 0;
@@ -1130,6 +1285,13 @@ void *yogi_array_create(unsigned long long length) {
 	return yogi::runtime::ArrayValue::create(static_cast<std::size_t>(length));
 }
 
+void *yogi_array_create_with_storage(unsigned long long length, const char *storageMode) {
+	return yogi::runtime::ArrayValue::create(
+		static_cast<std::size_t>(length),
+		yogi::runtime::ArrayValue::storageModeFromName(storageMode)
+	);
+}
+
 void *yogi_array_view(void *source, unsigned long long offset, unsigned long long length) {
 	return yogi::runtime::ArrayValue::createView(
 		static_cast<yogi::runtime::ArrayValue *>(source),
@@ -1148,6 +1310,18 @@ void yogi_array_init(void *array, unsigned long long length) {
 	}
 
 	yogi::runtime::ArrayValue::init(array, static_cast<std::size_t>(length));
+}
+
+void yogi_array_init_with_storage(void *array, unsigned long long length, const char *storageMode) {
+	if (!array) {
+		return;
+	}
+
+	yogi::runtime::ArrayValue::init(
+		array,
+		static_cast<std::size_t>(length),
+		yogi::runtime::ArrayValue::storageModeFromName(storageMode)
+	);
 }
 
 void yogi_array_set(void *array, unsigned long long index, void *value) {
@@ -1420,6 +1594,14 @@ void *yogi_array_to_sorted(void *array) {
 	}
 
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->toSorted();
+}
+
+const char *yogi_array_storage_mode(void *array) {
+	if (!array) {
+		return "contiguous_fast_path";
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->storageModeName();
 }
 
 void yogi_array_drop(void *array) {

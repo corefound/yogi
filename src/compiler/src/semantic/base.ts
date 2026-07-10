@@ -1568,6 +1568,68 @@ export class BaseSemantic {
         this.throwError(message, context.position, source, context);
     }
 
+    public markDynamicArrayStorageForGrowth(
+        rootName: string | null | undefined,
+        rootSymbol: Types.SymbolInfo | null | undefined,
+        operation: string,
+    ): void {
+        if (!rootName || !rootSymbol || !this.isDynamicArrayType(rootSymbol.declaredType ?? rootSymbol.type)) {
+            return;
+        }
+
+        const provenance = this.findLivePointerIntoContainer(rootName, rootSymbol);
+        if (!provenance) {
+            return;
+        }
+
+        const path = `${provenance.rootName}${provenance.accessPath.join("")}`;
+        rootSymbol.dynamicArrayStorageMode = "pointer_safe_chunked_mode";
+        rootSymbol.dynamicArrayStorageReasons = [
+            ...(rootSymbol.dynamicArrayStorageReasons ?? []),
+            `live pointer '${provenance.pointerName}' points into '${path}' during '${operation}'`,
+        ];
+    }
+
+    public applyDynamicArrayStorageDecisions(nodes: any[]): any[] {
+        const visit = (node: any): any => {
+            if (!node || typeof node !== "object") {
+                return node;
+            }
+
+            if (Array.isArray(node)) {
+                return node.map(visit);
+            }
+
+            const result = { ...node };
+
+            if (
+                result.kind === Kinds.Statements.VariableDeclaration &&
+                result.value?.kind === Kinds.Collections.ArrayExpression
+            ) {
+                const symbol = this.getSymbolById(result.symbolId);
+                const isDynamicArray = this.isDynamicArrayType(symbol?.declaredType ?? symbol?.type ?? result.type);
+                if (isDynamicArray) {
+                    result.value = {
+                        ...result.value,
+                        storageMode: symbol?.dynamicArrayStorageMode ?? "contiguous_fast_path",
+                    };
+                }
+            }
+
+            for (const key of Object.keys(result)) {
+                if (key === "type" || key === "declaredType") {
+                    continue;
+                }
+
+                result[key] = visit(result[key]);
+            }
+
+            return result;
+        };
+
+        return nodes.map(visit);
+    }
+
     public getSymbolById(symbolId: number | undefined | null): Types.SymbolInfo | null {
         if (typeof symbolId !== "number" || symbolId < 0) {
             return null;

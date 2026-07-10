@@ -77,9 +77,11 @@ void yogi_object_drop(void *object);
 void yogi_object_destroy(void *object);
 
 void *yogi_array_create(unsigned long long length);
+void *yogi_array_create_with_storage(unsigned long long length, const char *storageMode);
 void *yogi_array_view(void *source, unsigned long long offset, unsigned long long length);
 unsigned long long yogi_array_sizeof(void);
 void yogi_array_init(void *array, unsigned long long length);
+void yogi_array_init_with_storage(void *array, unsigned long long length, const char *storageMode);
 void yogi_array_set(void *array, unsigned long long index, void *value);
 void *yogi_array_get(void *array, unsigned long long index);
 void *yogi_array_cell(void *array, unsigned long long index);
@@ -112,6 +114,7 @@ const char *yogi_array_join(void *array, const char *separator);
 const char *yogi_array_to_string(void *array);
 void yogi_array_sort(void *array);
 void *yogi_array_to_sorted(void *array);
+const char *yogi_array_storage_mode(void *array);
 void yogi_array_drop(void *array);
 void yogi_array_destroy(void *array);
 

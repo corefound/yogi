@@ -139,6 +139,10 @@ namespace yogi::core::llvm::internal {
 			bool isFixedShapeArray(const Yogi::Sir::TypeRef *type) const;
 			bool isFixedLengthArray(const Yogi::Sir::TypeRef *type) const;
 			bool arrayContainsSpread(const Yogi::Sir::ArrayExpression *array) const;
+			std::string arrayStorageModeName(
+				const Yogi::Sir::ArrayExpression *array,
+				const Yogi::Sir::TypeRef *arrayType
+			) const;
 			std::vector<int64_t> fixedShape(const Yogi::Sir::TypeRef *type) const;
 			uint64_t fixedShapeElementCount(const std::vector<int64_t> &shape, size_t start = 0) const;
 			::llvm::Value *fixedShapeLinearOffset(

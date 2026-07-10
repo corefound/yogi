@@ -165,6 +165,7 @@ export type SemanticArrayExpression = {
     kind: "ArrayExpression";
     elements: SemanticValueInput[];
     type: SemanticType;
+    storageMode?: "contiguous_fast_path" | "pointer_safe_chunked_mode";
     source?: string;
     position?: SourcePosition;
 };

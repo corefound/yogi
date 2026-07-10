@@ -52,9 +52,11 @@ export class Semantic extends applySemanticMixins(
                 );
             });
 
+        const analyzedSir = this.applyDynamicArrayStorageDecisions(sir);
+
         return {
-            sir,
-            sirHash: Helpers.hash(JSON.stringify(sir)),
+            sir: analyzedSir,
+            sirHash: Helpers.hash(JSON.stringify(analyzedSir)),
             exports: this.exportedSymbols,
             links: [...this.externalLinks.values()],
         }

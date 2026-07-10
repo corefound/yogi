@@ -54,8 +54,15 @@ position(obj?:SourcePosition):SourcePosition|null {
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+storageMode():string|null
+storageMode(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+storageMode(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
 static startArrayExpression(builder:flatbuffers.Builder) {
-  builder.startObject(4);
+  builder.startObject(5);
 }
 
 static addElements(builder:flatbuffers.Builder, elementsOffset:flatbuffers.Offset) {
@@ -84,6 +91,10 @@ static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
   builder.addFieldOffset(3, positionOffset, 0);
+}
+
+static addStorageMode(builder:flatbuffers.Builder, storageModeOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(4, storageModeOffset, 0);
 }
 
 static endArrayExpression(builder:flatbuffers.Builder):flatbuffers.Offset {

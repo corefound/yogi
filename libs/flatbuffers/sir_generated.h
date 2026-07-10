@@ -1442,7 +1442,8 @@ struct ArrayExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_ELEMENTS = 4,
     VT_TYPE = 6,
     VT_SOURCE = 8,
-    VT_POSITION = 10
+    VT_POSITION = 10,
+    VT_STORAGE_MODE = 12
   };
   const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *elements() const {
     return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *>(VT_ELEMENTS);
@@ -1456,6 +1457,9 @@ struct ArrayExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::SourcePosition *position() const {
     return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
   }
+  const ::flatbuffers::String *storage_mode() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_STORAGE_MODE);
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -1468,6 +1472,8 @@ struct ArrayExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyString(source()) &&
            VerifyOffset(verifier, VT_POSITION) &&
            verifier.VerifyTable(position()) &&
+           VerifyOffset(verifier, VT_STORAGE_MODE) &&
+           verifier.VerifyString(storage_mode()) &&
            verifier.EndTable();
   }
 };
@@ -1488,6 +1494,9 @@ struct ArrayExpressionBuilder {
   void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
     fbb_.AddOffset(ArrayExpression::VT_POSITION, position);
   }
+  void add_storage_mode(::flatbuffers::Offset<::flatbuffers::String> storage_mode) {
+    fbb_.AddOffset(ArrayExpression::VT_STORAGE_MODE, storage_mode);
+  }
   explicit ArrayExpressionBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -1504,8 +1513,10 @@ inline ::flatbuffers::Offset<ArrayExpression> CreateArrayExpression(
     ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> elements = 0,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source = 0,
-    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> storage_mode = 0) {
   ArrayExpressionBuilder builder_(_fbb);
+  builder_.add_storage_mode(storage_mode);
   builder_.add_position(position);
   builder_.add_source(source);
   builder_.add_type(type);
@@ -1518,15 +1529,18 @@ inline ::flatbuffers::Offset<ArrayExpression> CreateArrayExpressionDirect(
     const std::vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *elements = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     const char *source = nullptr,
-    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    const char *storage_mode = nullptr) {
   auto elements__ = elements ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>(*elements) : 0;
   auto source__ = source ? _fbb.CreateString(source) : 0;
+  auto storage_mode__ = storage_mode ? _fbb.CreateString(storage_mode) : 0;
   return Yogi::Sir::CreateArrayExpression(
       _fbb,
       elements__,
       type,
       source__,
-      position);
+      position,
+      storage_mode__);
 }
 
 struct ObjectProperty FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {

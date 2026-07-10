@@ -96,6 +96,7 @@ table ArrayExpression {
   type:TypeRef;
   source:string;
   position:SourcePosition;
+  storage_mode:string;
 }
 
 table ObjectProperty {

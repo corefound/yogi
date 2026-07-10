@@ -123,6 +123,8 @@ export type SymbolInfo = {
     pointerRootSymbolId?: number;
     pointerAccessPath?: string[];
     pointerPermission?: "mutable" | "readonly";
+    dynamicArrayStorageMode?: "contiguous_fast_path" | "pointer_safe_chunked_mode";
+    dynamicArrayStorageReasons?: string[];
     moved?: boolean;
     moveReason?: string;
     movePosition?: any;
