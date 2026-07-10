@@ -99,6 +99,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 symbol,
                 this.getAggregateSymbolFromExpression(value),
             );
+            this.registerPointerProvenance(symbol, value);
 
             if (node.export) {
                 this.exportSymbol(symbol);

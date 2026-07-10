@@ -7,6 +7,15 @@ export type Constructor<T = {}> = new (...args: any[]) => T;
 export type Mixin<T extends Constructor> = <TBase extends Constructor>(Base: TBase) => T & TBase;
 export type MixinFunction = (base: any) => any;
 
+type LivePointerProvenance = {
+    pointerName: string;
+    pointerSymbolId: number;
+    pointerScopeId: number;
+    rootName: string;
+    rootSymbolId?: number;
+    accessPath: string[];
+};
+
 export function applySemanticMixins<TBase extends Constructor>(Base: TBase, ...mixins: MixinFunction[]): TBase | any {
     return mixins.reduce((current, mixin) => mixin(current), Base);
 }
@@ -34,6 +43,7 @@ export class BaseSemantic {
     public externalLinks: Map<string, Types.Sir.GlobalMetaLinkInput> = new Map();
     public functionEffectSummaries: Map<number, Types.Sir.SemanticFunctionEffectSummary> = new Map();
     public symbolsById: Map<number, Types.SymbolInfo> = new Map();
+    public livePointerProvenance: Map<number, LivePointerProvenance> = new Map();
 
     constructor(ast: Types.Ast[]) {
         this.ast = ast;
@@ -133,6 +143,14 @@ export class BaseSemantic {
     }
 
     public exitScope() {
+        const exitingScopeId = this.currentScope.id;
+
+        for (const [pointerSymbolId, provenance] of this.livePointerProvenance.entries()) {
+            if (provenance.pointerScopeId === exitingScopeId) {
+                this.livePointerProvenance.delete(pointerSymbolId);
+            }
+        }
+
         if (this.currentScope.parent) {
             this.currentScope = this.currentScope.parent;
         }
@@ -1445,6 +1463,109 @@ export class BaseSemantic {
             resolved?.kind === Kinds.Types.TupleType ||
             this.isObjectLikeType(resolved)
         );
+    }
+
+    public isDynamicArrayType(type: any): boolean {
+        const resolved = this.resolveType(type);
+        const target = resolved?.kind === Kinds.Types.PointerType
+            ? this.resolveType(resolved.elementType ?? resolved.pointee ?? resolved.pointeeType)
+            : resolved;
+
+        return target?.kind === Kinds.Types.ArrayType && target.fixed !== true;
+    }
+
+    public registerPointerProvenance(symbol: Types.SymbolInfo, value?: any): void {
+        if (!symbol || !this.isPointerType(symbol.declaredType ?? symbol.type)) {
+            return;
+        }
+
+        const rootName =
+            symbol.pointerRootName ??
+            value?.pointerRootName ??
+            value?.rootName ??
+            null;
+        const rootSymbolId =
+            symbol.pointerRootSymbolId ??
+            value?.pointerRootSymbolId ??
+            value?.rootSymbolId;
+        const rootSymbol =
+            this.getSymbolById(rootSymbolId) ??
+            (rootName ? this.resolveSymbol(rootName) : null);
+        const accessPath = symbol.pointerAccessPath ?? value?.pointerAccessPath ?? value?.accessPath ?? [];
+        const rootType = rootSymbol?.declaredType ?? rootSymbol?.type;
+
+        if (
+            !rootName ||
+            !rootSymbol ||
+            accessPath.length === 0 ||
+            !this.isDynamicArrayType(rootType)
+        ) {
+            this.livePointerProvenance.delete(symbol.id);
+            return;
+        }
+
+        this.livePointerProvenance.set(symbol.id, {
+            pointerName: symbol.name,
+            pointerSymbolId: symbol.id,
+            pointerScopeId: symbol.scopeId,
+            rootName,
+            rootSymbolId: rootSymbol.id,
+            accessPath,
+        });
+    }
+
+    public forgetPointerProvenance(symbol: Types.SymbolInfo | null | undefined): void {
+        if (!symbol) {
+            return;
+        }
+
+        this.livePointerProvenance.delete(symbol.id);
+    }
+
+    public findLivePointerIntoContainer(rootName: string | null | undefined, rootSymbol?: Types.SymbolInfo | null): LivePointerProvenance | null {
+        if (!rootName && !rootSymbol) {
+            return null;
+        }
+
+        for (const provenance of this.livePointerProvenance.values()) {
+            if (
+                (rootSymbol && provenance.rootSymbolId === rootSymbol.id) ||
+                (rootName && provenance.rootName === rootName)
+            ) {
+                return provenance;
+            }
+        }
+
+        return null;
+    }
+
+    public assertNoLivePointerIntoDynamicContainer(
+        rootName: string | null | undefined,
+        rootSymbol: Types.SymbolInfo | null | undefined,
+        operation: string,
+        source: string,
+        context: any,
+    ): void {
+        if (!rootName || !rootSymbol || !this.isDynamicArrayType(rootSymbol.declaredType ?? rootSymbol.type)) {
+            return;
+        }
+
+        const provenance = this.findLivePointerIntoContainer(rootName, rootSymbol);
+
+        if (!provenance) {
+            return;
+        }
+
+        const path = `${provenance.rootName}${provenance.accessPath.join("")}`;
+        const operationLabel = operation === "replace"
+            ? `replace ${Helpers.RED}'${rootName}'${Helpers.RESET}`
+            : `call ${Helpers.RED}'${operation}'${Helpers.RESET} on ${Helpers.RED}'${rootName}'${Helpers.RESET}`;
+        const message =
+            `cannot ${operationLabel} while pointer ${Helpers.RED}'${provenance.pointerName}'${Helpers.RESET} ` +
+            `points into ${Helpers.RED}'${path}'${Helpers.RESET}`;
+
+        context.arrowLength = context.source?.length ?? context.raw?.length ?? rootName.length;
+        this.throwError(message, context.position, source, context);
     }
 
     public getSymbolById(symbolId: number | undefined | null): Types.SymbolInfo | null {

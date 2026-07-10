@@ -566,6 +566,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
+            this.assertNoLivePointerIntoDynamicContainer(root, symbol, methodName, source, rawCallee);
+
             // Validate argument count
             if (args.length !== 1) {
                 const message =
@@ -666,6 +668,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
+
+            this.assertNoLivePointerIntoDynamicContainer(root, symbol, methodName, source, rawCallee);
 
             // pop() takes no arguments
             if (args.length !== 0) {
@@ -913,6 +917,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            const structuralArrayMethods = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "resize", "clear"]);
+            if (structuralArrayMethods.has(methodName)) {
+                this.assertNoLivePointerIntoDynamicContainer(root, symbol, methodName, source, rawCallee);
             }
         }
 
@@ -3084,6 +3093,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 symbol.pointerRootSymbolId = right.pointerRootSymbolId;
                                 symbol.pointerAccessPath = right.pointerAccessPath ?? [];
                                 symbol.pointerPermission = right.pointerPermission;
+                                this.registerPointerProvenance(symbol, right);
 
                                 return {
                                     ...node,
@@ -3154,6 +3164,16 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             rightType = right.type;
                         }
 
+                        if (this.isDynamicArrayType(assignmentType)) {
+                            this.assertNoLivePointerIntoDynamicContainer(
+                                identifierName,
+                                symbol,
+                                "replace",
+                                context.fullSource ?? node.fullSource ?? left.fullSource ?? left.source,
+                                left,
+                            );
+                        }
+
                         if (!this.isTypeAssignable(assignmentType, rightType)) {
                             const message = this.isPointerType(rightType)
                                 ? this.pointerReadThroughMismatchMessage(assignmentType, rightType)
@@ -3198,6 +3218,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             symbol.pointerRootSymbolId = right.pointerRootSymbolId;
                             symbol.pointerAccessPath = right.pointerAccessPath ?? [];
                             symbol.pointerPermission = right.pointerPermission;
+                            this.registerPointerProvenance(symbol, right);
                         }
 
                         return {
@@ -3614,6 +3635,16 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             }
 
             const assignmentType = symbol.declaredType ?? symbol.type;
+
+            if (this.isDynamicArrayType(assignmentType)) {
+                this.assertNoLivePointerIntoDynamicContainer(
+                    identifierName,
+                    symbol,
+                    "replace",
+                    source,
+                    left,
+                );
+            }
 
             if (!this.isTypeAssignable(assignmentType, right.type)) {
                 const message =
