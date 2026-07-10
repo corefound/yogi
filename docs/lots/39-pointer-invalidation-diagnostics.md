@@ -1,0 +1,151 @@
+# Lot 39: Pointer Invalidation Diagnostics
+
+This lot adds conservative semantic diagnostics for dynamic arrays. Yogi now
+rejects structural mutations while a live pointer points into that array's
+internal cells.
+
+## Rule
+
+```txt
+If a live ptr<T> is rooted in a dynamic array and has an internal access path,
+then structural mutation of that root array is rejected.
+```
+
+Example:
+
+```ts
+struct User {
+    age: number
+}
+
+let users: User[] = [{ age: 20 }]
+let age: ptr<number> = &users[0].age
+
+users.push({ age: 30 }) // error
+```
+
+Diagnostic:
+
+```txt
+cannot call 'push' on 'users' while pointer 'age' points into 'users[0].age'
+```
+
+The check is conservative by design. Yogi does not try to prove that a
+particular index would survive a mutation.
+
+## Structural Mutations
+
+The semantic checker rejects these operations while a live internal pointer
+protects the same dynamic array root:
+
+```txt
+push
+pop
+shift
+unshift
+splice
+sort
+reverse
+```
+
+It also rejects whole-container replacement:
+
+```ts
+users = [{ age: 30 }]
+```
+
+## Allowed Operations
+
+Non-structural cell/field mutation remains valid:
+
+```ts
+let users: User[] = [{ age: 20 }]
+let age: ptr<number> = &users[0].age
+
+users[0].age = 25
+print(age) // 25
+
+age = 30
+print(users[0].age) // 30
+```
+
+Structural mutation is allowed once the pointer scope ends:
+
+```ts
+let users: User[] = [{ age: 20 }]
+
+{
+    let age: ptr<number> = &users[0].age
+    age = 21
+}
+
+users.push({ age: 30 }) // allowed
+```
+
+Mutating a different dynamic array is also allowed:
+
+```ts
+let age: ptr<number> = &usersA[0].age
+usersB.push({ age: 40 }) // allowed
+```
+
+## Rebind And Copy
+
+Pointer copies preserve the protected root:
+
+```ts
+let age1: ptr<number> = &users[0].age
+let age2: ptr<number> = age1
+
+users.push({ age: 30 }) // error
+```
+
+Pointer rebind updates which root is protected:
+
+```ts
+let age: ptr<number> = &usersA[0].age
+age = &usersB[0].age
+
+usersA.push({ age: 21 }) // allowed
+usersB.push({ age: 31 }) // error
+```
+
+## Implementation Notes
+
+- `BaseSemantic` keeps a live pointer provenance table keyed by pointer symbol.
+- A pointer is tracked only when it points inside a dynamic array root, meaning
+  its access path is not empty.
+- `exitScope()` removes pointer provenance for the closing lexical scope.
+- Pointer declarations, pointer copies, and pointer rebinds update the table.
+- Dynamic array structural methods and whole-array assignment query the table
+  before allowing mutation.
+
+## Tests
+
+Covered by:
+
+```txt
+tests/runtime/sessions/02-variables-aggregates/pointer_invalidation_diagnostics.cmake
+```
+
+Positive coverage:
+
+- non-structural field assignment while pointer is live
+- pointer write-through while pointer is live
+- structural mutation after pointer scope ends
+- structural mutation of a different array
+
+Negative coverage:
+
+- `push`, `pop`, `shift`, `unshift`, `splice`, `reverse`, and `sort`
+- whole-array replacement
+- pointer copy preserving protection
+- pointer rebind releasing the old root and protecting the new root
+
+## Remaining Work
+
+- Dynamic object structural invalidation, if Yogi adds mutable object shapes.
+- Function returns from `ptr<Array>` parameters into dynamic array cells. This is
+  pending because address-of through pointer-derived array access is currently
+  rejected.
+- Partial fixed-shape view addressability such as `&matrix[0]`.

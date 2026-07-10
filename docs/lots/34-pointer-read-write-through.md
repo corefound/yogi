@@ -120,6 +120,7 @@ fixed-shape view address-of.
 
 - Nested runtime object field cells such as `&user.address.zip` were completed in Lot 38.
 - Object cells inside array elements such as `&users[0].age` were completed in Lot 38.
-- Cell invalidation diagnostics when a dynamic array/object reallocates after a
-  cell pointer was created.
+- Dynamic array cell invalidation diagnostics were completed in Lot 39; dynamic
+  object structural invalidation remains pending if object storage becomes
+  structurally mutable.
 - Optional LLVM alias/readonly metadata once provenance summaries are mature.

@@ -120,7 +120,8 @@ Negative coverage:
 
 ## Remaining Work
 
-- Pointer invalidation diagnostics when a dynamic array/object structurally
-  mutates after a cell pointer was created.
+- Pointer invalidation diagnostics for dynamic arrays were completed in Lot 39.
+- Pointer invalidation diagnostics for dynamic object storage remain pending if
+  object storage becomes structurally mutable.
 - Addressable partial fixed-shape views such as `&matrix[0]`.
 - Optional LLVM alias/readonly metadata for raw struct projections.

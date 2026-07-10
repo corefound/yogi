@@ -220,6 +220,11 @@ Checklist:
 - ✅ returning field pointers from `ptr<Struct>` parameters: `return &box.point.x`
 - ✅ nested runtime object cell chains: `&user.address.zip`
 - ✅ mixed array/object/struct chains: `&users[0].age`
+- ✅ pointer invalidation diagnostics for dynamic arrays
+- ✅ structural mutation blocked while a live pointer points into a dynamic array
+- ✅ pointer rebind updates which dynamic array root is protected
+- ✅ pointer scope end releases the protected dynamic array root
+- ✅ whole dynamic array replacement is blocked while an internal pointer is live
 - ✅ readonly root rejection for nested field mutation
 - ✅ RHS type checking for nested field mutation
 
@@ -227,7 +232,8 @@ Checklist:
 
 - ⬜ natural aggregate pointer replacement: `ptr<T> = T` for fixed arrays and structs
 - ⬜ correct full mutability matrix for `let/const owner` and `let/const ptr`
-- ⬜ pointer invalidation diagnostics for array/object realloc
+- ⬜ pointer invalidation diagnostics for dynamic object storage, if object storage becomes structurally mutable
+- ⬜ pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - ⬜ partial pointer views: `&matrix[0]` / `matrix[0] -> ptr<number[3]>`
 - ⬜ dynamic shaped arrays: `Array<T, Rank>`
 - ⬜ dynamic runtime-rank arrays: `Array<T>`
@@ -238,8 +244,8 @@ Checklist:
 ### Known Limitations
 
 - ⚠️ `&matrix[0]` remains rejected because it is a partial view, not a scalar cell.
-- ⚠️ `&users[0].age` remains pending until mixed cell/projection chains are implemented.
-- ⚠️ pointer invalidation on dynamic array/object structural mutation is not fully enforced yet.
+- ⚠️ Dynamic array structural mutation is rejected while a live pointer points into the array; dynamic object structural invalidation remains pending because typed objects are fixed-shape today.
+- ⚠️ Function returns from `ptr<Array>` parameters into dynamic array cells are still pending because address-of through pointer-derived array access is currently rejected.
 
 ### Philosophy
 

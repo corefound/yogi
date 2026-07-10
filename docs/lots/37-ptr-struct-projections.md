@@ -99,5 +99,7 @@ Coverage includes:
 - Natural aggregate pointer replacement: `ptr<T> = T`.
 - Nested runtime object cell chains: `&user.address.zip`.
 - Mixed array/object/struct chains: `&users[0].age`.
-- Pointer invalidation diagnostics for array/object realloc.
+- Dynamic array pointer invalidation diagnostics were completed in Lot 39;
+  dynamic object structural invalidation remains pending if object storage
+  becomes structurally mutable.
 - Partial address-of views such as `&matrix[0]`.

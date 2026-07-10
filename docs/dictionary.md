@@ -760,12 +760,15 @@ This is also supported through a tagged runtime cell pointer. The pointer keeps
 the root provenance and readonly permission from `users`; writes through the
 pointer are rejected if the root is `const`.
 
-Current limitation:
+Current dynamic-array policy:
 
 ```txt
-Yogi does not yet diagnose pointer invalidation if a dynamic array/object
-structurally mutates after a cell pointer has been created.
+Yogi rejects dynamic array structural mutation while a live pointer points into
+that array.
 ```
+
+Dynamic object structural invalidation remains pending if Yogi later adds
+operations that can insert/remove object fields or replace object storage.
 
 ---
 

@@ -2002,6 +2002,8 @@ Yogi is flexible when the runtime can validate safely.
 ✅ Address-of fixed-shape cells with row-major indexing: &matrix[i, j]
 ✅ Address-of dynamic array cells: &values[i]
 ✅ Pointer indexing read/write mutates caller storage
+✅ Dynamic array structural mutation diagnostics while a live pointer points into the array
+✅ Pointer rebind/scope-exit updates for dynamic array invalidation diagnostics
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer call diagnostics for missing &, value/pointer mismatch, shape mismatch, and pointer-to-pointer mismatch
 ✅ Borrow summaries for ptr<T> parameter-derived returns
