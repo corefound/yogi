@@ -224,7 +224,7 @@ file(READ "${IR}" ir)
 
 foreach(symbol
 		yogi_array_get
-		yogi_array_create
+		yogi_array_create_with_storage
 		yogi_array_view
 		yogi_runtime_abort_range)
 	if(NOT ir MATCHES "${symbol}")
@@ -232,8 +232,16 @@ foreach(symbol
 	endif()
 endforeach()
 
-if(NOT ir MATCHES "yogi_array_create\\(i64 6\\)")
-	message(FATAL_ERROR "expected fixed 2D array to lower as a flat six-element descriptor:\n${ir}")
+if(NOT ir MATCHES "yogi_array_create_with_storage\\(i64 6, ptr")
+	message(FATAL_ERROR "expected fixed 2D array to lower as a flat six-element descriptor with explicit storage mode:\n${ir}")
+endif()
+
+if(NOT ir MATCHES "contiguous_fast_path")
+	message(FATAL_ERROR "expected fixed/dynamic array indexing IR to keep contiguous storage mode metadata:\n${ir}")
+endif()
+
+if(ir MATCHES "pointer_safe_chunked_mode")
+	message(FATAL_ERROR "array indexing semantics should not require pointer-safe dynamic array storage:\n${ir}")
 endif()
 
 if(NOT ir MATCHES "array\\.shape\\.")

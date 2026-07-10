@@ -483,6 +483,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_dynamic_array_storage_analysis
+                        pipeline-dynamic-array-storage-analysis
+                        tests/runtime/sessions/02-variables-aggregates/dynamic_array_storage_analysis.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_spread
                         pipeline-array-spread
                         tests/runtime/sessions/02-variables-aggregates/array_spread.cmake
