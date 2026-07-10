@@ -477,6 +477,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_pointer_invalidation_diagnostics
+                        pipeline-pointer-invalidation-diagnostics
+                        tests/runtime/sessions/02-variables-aggregates/pointer_invalidation_diagnostics.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_spread
                         pipeline-array-spread
                         tests/runtime/sessions/02-variables-aggregates/array_spread.cmake
