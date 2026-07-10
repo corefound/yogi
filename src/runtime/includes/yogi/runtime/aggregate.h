@@ -80,12 +80,16 @@ namespace yogi::runtime {
 			void destroy();
 
 		private:
-			void **elements = nullptr;
+			void ***elements = nullptr;
 			std::size_t elementCount = 0;
 			std::size_t elementCapacity = 0;
 			ArrayValue *viewSource = nullptr;
 			std::size_t viewOffset = 0;
 
+			static void **createSlot(void *value);
+			void *slotValue(std::size_t index) const;
+			void setSlotValue(std::size_t index, void *value);
+			void releaseSlot(std::size_t index);
 			void ensureCapacity(std::size_t requiredCapacity);
 			bool isView() const;
 	};

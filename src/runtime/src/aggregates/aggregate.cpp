@@ -496,12 +496,12 @@ namespace yogi::runtime {
 			return;
 		}
 
-		array->elements = static_cast<void **>(
-			MemoryManager::allocate(sizeof(void *) * length, "array elements")
+		array->elements = static_cast<void ***>(
+			MemoryManager::allocate(sizeof(void **) * length, "array elements")
 		);
 
 		for (std::size_t index = 0; index < length; ++index) {
-			array->elements[index] = AnyValue::undefined();
+			array->elements[index] = createSlot(AnyValue::undefined());
 		}
 	}
 
@@ -511,6 +511,37 @@ namespace yogi::runtime {
 
 	bool ArrayValue::isView() const {
 		return viewSource != nullptr;
+	}
+
+	void **ArrayValue::createSlot(void *value) {
+		auto **slot = static_cast<void **>(MemoryManager::allocate(sizeof(void *), "array element slot"));
+		*slot = value ? value : AnyValue::undefined();
+		return slot;
+	}
+
+	void *ArrayValue::slotValue(std::size_t index) const {
+		auto **slot = elements[index];
+		return slot && *slot ? *slot : AnyValue::undefined();
+	}
+
+	void ArrayValue::setSlotValue(std::size_t index, void *value) {
+		if (!elements[index]) {
+			elements[index] = createSlot(value);
+			return;
+		}
+
+		*elements[index] = value ? value : AnyValue::undefined();
+	}
+
+	void ArrayValue::releaseSlot(std::size_t index) {
+		auto **slot = elements[index];
+		if (!slot) {
+			return;
+		}
+
+		*slot = nullptr;
+		MemoryManager::deallocate(slot);
+		elements[index] = nullptr;
 	}
 
 	void ArrayValue::set(std::size_t index, void *value) {
@@ -526,7 +557,7 @@ namespace yogi::runtime {
 			return;
 		}
 
-		elements[index] = value ? value : AnyValue::undefined();
+		setSlotValue(index, value);
 	}
 
 	void *ArrayValue::get(std::size_t index) const {
@@ -541,7 +572,7 @@ namespace yogi::runtime {
 			return viewSource->get(viewOffset + index);
 		}
 
-		return elements[index] ? elements[index] : AnyValue::undefined();
+		return slotValue(index);
 	}
 
 	void **ArrayValue::cell(std::size_t index) {
@@ -557,17 +588,17 @@ namespace yogi::runtime {
 		}
 
 		if (!elements[index]) {
-			elements[index] = AnyValue::undefined();
+			elements[index] = createSlot(AnyValue::undefined());
 		}
 
-		return &elements[index];
+		return elements[index];
 	}
 
 	std::size_t ArrayValue::push(void *value) {
 		OwnershipTracker::assertLiveAggregate(this, "array push after destroy/drop", "array value");
 
 		ensureCapacity(elementCount + 1);
-		elements[elementCount] = value ? value : AnyValue::undefined();
+		elements[elementCount] = createSlot(value);
 		++elementCount;
 
 		return elementCount;
@@ -581,8 +612,8 @@ namespace yogi::runtime {
 		}
 
 		--elementCount;
-		auto *result = elements[elementCount];
-		elements[elementCount] = AnyValue::undefined();
+		auto *result = slotValue(elementCount);
+		releaseSlot(elementCount);
 
 		return result ? result : AnyValue::undefined();
 	}
@@ -599,7 +630,7 @@ namespace yogi::runtime {
 			return viewSource->at(viewOffset + index);
 		}
 
-		return elements[index] ? elements[index] : AnyValue::undefined();
+		return slotValue(index);
 	}
 
 	void *ArrayValue::at(double index) const {
@@ -639,14 +670,19 @@ namespace yogi::runtime {
 			return AnyValue::undefined();
 		}
 
-		auto *result = elements[0];
+		auto *result = slotValue(0);
+		auto **removedSlot = elements[0];
 
 		for (std::size_t index = 1; index < elementCount; ++index) {
 			elements[index - 1] = elements[index];
 		}
 
 		--elementCount;
-		elements[elementCount] = AnyValue::undefined();
+		elements[elementCount] = nullptr;
+		if (removedSlot) {
+			*removedSlot = nullptr;
+			MemoryManager::deallocate(removedSlot);
+		}
 
 		return result ? result : AnyValue::undefined();
 	}
@@ -660,7 +696,7 @@ namespace yogi::runtime {
 			elements[index] = elements[index - 1];
 		}
 
-		elements[0] = value ? value : AnyValue::undefined();
+		elements[0] = createSlot(value);
 		++elementCount;
 
 		return elementCount;
@@ -670,7 +706,7 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array includes after destroy/drop", "array value");
 
 		for (std::size_t index = normalizeForwardStart(fromIndex, elementCount); index < elementCount; ++index) {
-			if (strictEquals(elements[index], value, true)) {
+			if (strictEquals(slotValue(index), value, true)) {
 				return true;
 			}
 		}
@@ -682,7 +718,7 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array indexOf after destroy/drop", "array value");
 
 		for (std::size_t index = normalizeForwardStart(fromIndex, elementCount); index < elementCount; ++index) {
-			if (strictEquals(elements[index], value, false)) {
+			if (strictEquals(slotValue(index), value, false)) {
 				return static_cast<long long>(index);
 			}
 		}
@@ -694,7 +730,7 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array lastIndexOf after destroy/drop", "array value");
 
 		for (auto index = normalizeLastStart(fromIndex, elementCount); index >= 0; --index) {
-			if (strictEquals(elements[static_cast<std::size_t>(index)], value, false)) {
+			if (strictEquals(slotValue(static_cast<std::size_t>(index)), value, false)) {
 				return index;
 			}
 		}
@@ -718,8 +754,8 @@ namespace yogi::runtime {
 		for (std::size_t index = 0; index < elementCount; ++index) {
 			auto *value = isView()
 				? get(index)
-				: elements[index];
-			result->elements[index] = value ? value : AnyValue::undefined();
+				: slotValue(index);
+			result->setSlotValue(index, value);
 		}
 
 		return result;
@@ -735,7 +771,7 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(source), "array append source after destroy/drop", "array value");
 
 		for (std::size_t index = 0; index < source->elementCount; ++index) {
-			push(source->elements[index] ? source->elements[index] : AnyValue::undefined());
+			push(source->get(index));
 		}
 	}
 
@@ -749,7 +785,7 @@ namespace yogi::runtime {
 			elements[position] = elements[position - 1];
 		}
 
-		elements[target] = value ? value : AnyValue::undefined();
+		elements[target] = createSlot(value);
 		++elementCount;
 	}
 
@@ -760,7 +796,7 @@ namespace yogi::runtime {
 		const auto to = normalizeSliceBound(end, elementCount, true);
 
 		for (std::size_t index = from; index < to; ++index) {
-			elements[index] = value ? value : AnyValue::undefined();
+			setSlotValue(index, value);
 		}
 	}
 
@@ -782,11 +818,11 @@ namespace yogi::runtime {
 
 		auto **buffer = static_cast<void **>(MemoryManager::allocate(sizeof(void *) * count, "array copyWithin buffer"));
 		for (std::size_t index = 0; index < count; ++index) {
-			buffer[index] = elements[from + index] ? elements[from + index] : AnyValue::undefined();
+			buffer[index] = slotValue(from + index);
 		}
 
 		for (std::size_t index = 0; index < count; ++index) {
-			elements[to + index] = buffer[index];
+			setSlotValue(to + index, buffer[index]);
 		}
 
 		MemoryManager::deallocate(buffer);
@@ -805,7 +841,8 @@ namespace yogi::runtime {
 		auto *removed = ArrayValue::create(removedCount);
 
 		for (std::size_t index = 0; index < removedCount; ++index) {
-			removed->elements[index] = elements[startIndex + index] ? elements[startIndex + index] : AnyValue::undefined();
+			removed->setSlotValue(index, slotValue(startIndex + index));
+			releaseSlot(startIndex + index);
 		}
 
 		const auto tailStart = startIndex + removedCount;
@@ -824,11 +861,11 @@ namespace yogi::runtime {
 		}
 
 		for (std::size_t index = 0; index < insertedCount; ++index) {
-			elements[startIndex + index] = inserted->elements[index] ? inserted->elements[index] : AnyValue::undefined();
+			elements[startIndex + index] = createSlot(inserted->get(index));
 		}
 
 		for (std::size_t index = newCount; index < elementCount; ++index) {
-			elements[index] = AnyValue::undefined();
+			elements[index] = nullptr;
 		}
 
 		elementCount = newCount;
@@ -860,7 +897,7 @@ namespace yogi::runtime {
 		}
 
 		auto *result = clone();
-		result->elements[target] = value ? value : AnyValue::undefined();
+		result->setSlotValue(target, value);
 		return result;
 	}
 
@@ -873,7 +910,7 @@ namespace yogi::runtime {
 		auto *result = ArrayValue::create(count);
 
 		for (std::size_t index = 0; index < count; ++index) {
-			result->elements[index] = elements[from + index] ? elements[from + index] : AnyValue::undefined();
+			result->setSlotValue(index, get(from + index));
 		}
 
 		return result;
@@ -885,7 +922,8 @@ namespace yogi::runtime {
 		auto *result = ArrayValue::create(0);
 
 		for (std::size_t index = 0; index < elementCount; ++index) {
-			const auto *any = elements[index] ? AnyValue::require(elements[index], "any") : nullptr;
+			auto *value = get(index);
+			const auto *any = value ? AnyValue::require(value, "any") : nullptr;
 			if (depth > 0 && any && any->tag() == YOGI_ANY_ARRAY) {
 				auto *child = static_cast<const ArrayValue *>(any->asArray());
 				auto *flattened = child ? child->flat(depth - 1) : ArrayValue::create(0);
@@ -896,7 +934,7 @@ namespace yogi::runtime {
 				continue;
 			}
 
-			result->push(elements[index] ? elements[index] : AnyValue::undefined());
+			result->push(value);
 		}
 
 		return result;
@@ -907,7 +945,7 @@ namespace yogi::runtime {
 
 		auto *result = ArrayValue::create(elementCount);
 		for (std::size_t index = 0; index < elementCount; ++index) {
-			result->elements[index] = AnyValue::fromNumber(static_cast<double>(index));
+			result->setSlotValue(index, AnyValue::fromNumber(static_cast<double>(index)));
 		}
 
 		return result;
@@ -924,9 +962,9 @@ namespace yogi::runtime {
 		auto *result = ArrayValue::create(elementCount);
 		for (std::size_t index = 0; index < elementCount; ++index) {
 			auto *entry = ArrayValue::create(2);
-			entry->elements[0] = AnyValue::fromNumber(static_cast<double>(index));
-			entry->elements[1] = elements[index] ? elements[index] : AnyValue::undefined();
-			result->elements[index] = AnyValue::fromArray(entry);
+			entry->setSlotValue(0, AnyValue::fromNumber(static_cast<double>(index)));
+			entry->setSlotValue(1, get(index));
+			result->setSlotValue(index, AnyValue::fromArray(entry));
 		}
 
 		return result;
@@ -940,7 +978,7 @@ namespace yogi::runtime {
 		std::size_t totalLength = elementCount > 0 ? delimiterLength * (elementCount - 1) : 0;
 
 		for (std::size_t index = 0; index < elementCount; ++index) {
-			totalLength += anyStringLength(elements[index], true);
+			totalLength += anyStringLength(get(index), true);
 		}
 
 		auto *result = static_cast<char *>(MemoryManager::allocate(totalLength + 1, "runtime string"));
@@ -952,7 +990,7 @@ namespace yogi::runtime {
 				cursor += delimiterLength;
 			}
 
-			cursor = appendAnyString(cursor, elements[index], true);
+			cursor = appendAnyString(cursor, get(index), true);
 		}
 
 		*cursor = '\0';
@@ -966,8 +1004,10 @@ namespace yogi::runtime {
 	void ArrayValue::sort() {
 		OwnershipTracker::assertLiveAggregate(this, "array sort after destroy/drop", "array value");
 
-		std::sort(elements, elements + elementCount, [](void *left, void *right) {
-			return compareAnyAsString(left, right) < 0;
+		std::sort(elements, elements + elementCount, [](void **left, void **right) {
+			auto *leftValue = left && *left ? *left : AnyValue::undefined();
+			auto *rightValue = right && *right ? *right : AnyValue::undefined();
+			return compareAnyAsString(leftValue, rightValue) < 0;
 		});
 	}
 
@@ -993,12 +1033,12 @@ namespace yogi::runtime {
 			nextCapacity *= 2;
 		}
 
-		elements = static_cast<void **>(
-			MemoryManager::reallocate(elements, sizeof(void *) * nextCapacity, "array elements")
+		elements = static_cast<void ***>(
+			MemoryManager::reallocate(elements, sizeof(void **) * nextCapacity, "array elements")
 		);
 
 		for (std::size_t index = elementCapacity; index < nextCapacity; ++index) {
-			elements[index] = AnyValue::undefined();
+			elements[index] = nullptr;
 		}
 
 		elementCapacity = nextCapacity;
@@ -1008,6 +1048,10 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(this, "array destroy/drop after destroy/drop", "array value");
 
 		if (!isView()) {
+			for (std::size_t index = 0; index < elementCapacity; ++index) {
+				releaseSlot(index);
+			}
+
 			MemoryManager::deallocate(elements);
 		}
 

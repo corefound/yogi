@@ -6,6 +6,8 @@
 #include "llvm/lowering/typeLowerer.h"
 
 #include <optional>
+#include <utility>
+#include <vector>
 
 #if YOGI_HAS_LLVM
 namespace yogi::core::llvm::internal {
@@ -200,6 +202,20 @@ namespace yogi::core::llvm::internal {
 				const Yogi::Sir::PropertyAccessExpression *property
 			);
 			std::optional<AddressableSlot> lowerStructAddressableSlot(const Yogi::Sir::ValueRef *value);
+			bool collectPointerStructPropertyChain(
+				const Yogi::Sir::PropertyAccessExpression *property,
+				const Yogi::Sir::ValueRef *&root,
+				std::vector<const Yogi::Sir::PropertyAccessExpression *> &chain
+			) const;
+			std::optional<std::pair<::llvm::Value *, const Yogi::Sir::TypeRef *>>
+			lowerPointerStructFieldPointer(const Yogi::Sir::PropertyAccessExpression *property);
+			std::optional<std::pair<::llvm::Value *, const Yogi::Sir::TypeRef *>>
+			lowerPointerStructFieldPointer(
+				::llvm::Value *pointer,
+				const Yogi::Sir::TypeRef *structSemanticType,
+				const std::vector<const Yogi::Sir::PropertyAccessExpression *> &chain,
+				std::size_t chainIndex
+			);
 			::llvm::Value *lowerRuntimeObjectCell(const Yogi::Sir::PropertyAccessExpression *property);
 			::llvm::Value *lowerRuntimeObjectValue(const Yogi::Sir::ValueRef *value);
 			::llvm::Value *lowerAddressableArrayCell(const Yogi::Sir::ElementAccessExpression *access);

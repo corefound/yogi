@@ -1838,6 +1838,131 @@ namespace yogi::core::llvm::internal {
 		return std::nullopt;
 	}
 
+	bool ValueLowerer::collectPointerStructPropertyChain(
+		const Yogi::Sir::PropertyAccessExpression *property,
+		const Yogi::Sir::ValueRef *&root,
+		std::vector<const Yogi::Sir::PropertyAccessExpression *> &chain
+	) const {
+		root = nullptr;
+		chain.clear();
+
+		auto *current = property;
+		while (current) {
+			chain.push_back(current);
+
+			const auto *object = current->object();
+			if (const auto *parent = object ? object->property_access() : nullptr) {
+				current = parent;
+				continue;
+			}
+
+			root = object;
+			break;
+		}
+
+		if (!root) {
+			return false;
+		}
+
+		std::reverse(chain.begin(), chain.end());
+
+		const auto *rootType = valueSemanticType(root);
+		return rootType &&
+			rootType->kind() == Yogi::Sir::TypeKind_pointer_type &&
+			rootType->element_type() &&
+			!structTypeName(rootType->element_type()).empty();
+	}
+
+	std::optional<std::pair<::llvm::Value *, const Yogi::Sir::TypeRef *>>
+	ValueLowerer::lowerPointerStructFieldPointer(
+		const Yogi::Sir::PropertyAccessExpression *property
+	) {
+		const Yogi::Sir::ValueRef *root = nullptr;
+		std::vector<const Yogi::Sir::PropertyAccessExpression *> chain;
+
+		if (!collectPointerStructPropertyChain(property, root, chain)) {
+			return std::nullopt;
+		}
+
+		const auto *rootType = valueSemanticType(root);
+		auto *pointer = lower(root, opaquePointer(), rootType);
+		return lowerPointerStructFieldPointer(pointer, rootType->element_type(), chain, 0);
+	}
+
+	std::optional<std::pair<::llvm::Value *, const Yogi::Sir::TypeRef *>>
+	ValueLowerer::lowerPointerStructFieldPointer(
+		::llvm::Value *pointer,
+		const Yogi::Sir::TypeRef *structSemanticType,
+		const std::vector<const Yogi::Sir::PropertyAccessExpression *> &chain,
+		std::size_t chainIndex
+	) {
+		if (!pointer || !structSemanticType || chainIndex >= chain.size()) {
+			return std::nullopt;
+		}
+
+		const auto structName = structTypeName(structSemanticType);
+		if (structName.empty() || !context.structTypes.contains(structName)) {
+			return std::nullopt;
+		}
+
+		const auto propertyName = fbString(chain[chainIndex]->property());
+		const auto *fieldType = static_cast<const Yogi::Sir::TypeRef *>(nullptr);
+		auto fieldIndex = std::size_t{0};
+
+		for (const auto &field: context.structFields[structName]) {
+			if (field.name != propertyName) {
+				continue;
+			}
+
+			fieldType = field.type;
+			fieldIndex = field.index;
+			break;
+		}
+
+		if (!fieldType) {
+			return std::nullopt;
+		}
+
+		auto *isCell = isRuntimeCellPointer(pointer);
+		auto *function = context.builder.GetInsertBlock()->getParent();
+		auto *cellBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.struct.field.cell", function);
+		auto *rawBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.struct.field.raw", function);
+		auto *mergeBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.struct.field.merge", function);
+
+		context.builder.CreateCondBr(isCell, cellBlock, rawBlock);
+
+		context.builder.SetInsertPoint(cellBlock);
+		auto *cell = untagRuntimeCellPointer(pointer);
+		auto *boxed = callRuntime("yogi_cell_get", opaquePointer(), {cell});
+		auto *object = callRuntime("yogi_any_to_object", opaquePointer(), {boxed});
+		auto *key = context.builder.CreateGlobalString(propertyName);
+		auto *fieldCell = callRuntime("yogi_object_cell", opaquePointer(), {object, key});
+		auto *taggedFieldCell = tagRuntimeCellPointer(fieldCell);
+		context.builder.CreateBr(mergeBlock);
+		auto *cellEnd = context.builder.GetInsertBlock();
+
+		context.builder.SetInsertPoint(rawBlock);
+		auto *fieldAddress = context.builder.CreateStructGEP(
+			context.structTypes[structName],
+			pointer,
+			static_cast<unsigned>(fieldIndex),
+			"ptr.struct.field.addr." + sanitizeSymbol(propertyName)
+		);
+		context.builder.CreateBr(mergeBlock);
+		auto *rawEnd = context.builder.GetInsertBlock();
+
+		context.builder.SetInsertPoint(mergeBlock);
+		auto *fieldPointer = context.builder.CreatePHI(opaquePointer(), 2, "ptr.struct.field.pointer");
+		fieldPointer->addIncoming(taggedFieldCell, cellEnd);
+		fieldPointer->addIncoming(fieldAddress, rawEnd);
+
+		if (chainIndex + 1 >= chain.size()) {
+			return std::make_pair(fieldPointer, fieldType);
+		}
+
+		return lowerPointerStructFieldPointer(fieldPointer, fieldType, chain, chainIndex + 1);
+	}
+
 	::llvm::Value *ValueLowerer::lowerRuntimeObjectCell(
 		const Yogi::Sir::PropertyAccessExpression *property
 	) {
@@ -2790,6 +2915,13 @@ namespace yogi::core::llvm::internal {
 			return cast(asNumber, targetType, targetSemanticType, access->type());
 		}
 
+		if (auto fieldPointer = lowerPointerStructFieldPointer(access)) {
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+
+			return lowerPointerRead(fieldPointer->first, fieldPointer->second, targetType, targetSemanticType);
+		}
+
 		if (auto slot = lowerStructAddressableSlot(access)) {
 			auto *value = context.builder.CreateLoad(
 				types.lower(slot->type),
@@ -3023,6 +3155,11 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (const auto *property = target ? target->property_access() : nullptr) {
+			if (auto fieldPointer = lowerPointerStructFieldPointer(property)) {
+				lowerPointerWrite(fieldPointer->first, rightValue, fieldPointer->second, rightType);
+				return cast(rightValue, types.lower(property->type()), property->type(), rightType);
+			}
+
 			if (auto slot = lowerStructAddressableSlot(target)) {
 				const auto slotStructName = structTypeName(slot->type);
 				const auto slotKind = resolvedTypeKind(slot->type);
