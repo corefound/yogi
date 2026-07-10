@@ -120,7 +120,9 @@ Negative coverage:
 
 ## Remaining Work
 
-- Pointer invalidation diagnostics for dynamic arrays were completed in Lot 39.
+- Pointer invalidation diagnostics for dynamic arrays started in Lot 39. Lot 40
+  allows pointer-safe `push` and keeps conservative diagnostics for destructive
+  operations.
 - Pointer invalidation diagnostics for dynamic object storage remain pending if
   object storage becomes structurally mutable.
 - Addressable partial fixed-shape views such as `&matrix[0]`.

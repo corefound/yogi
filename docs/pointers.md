@@ -221,7 +221,8 @@ Checklist:
 - ✅ nested runtime object cell chains: `&user.address.zip`
 - ✅ mixed array/object/struct chains: `&users[0].age`
 - ✅ pointer invalidation diagnostics for dynamic arrays
-- ✅ structural mutation blocked while a live pointer points into a dynamic array
+- ✅ dynamic array `push` remains valid while a live interior pointer points into the array
+- ✅ destructive/reordering mutation blocked while a live pointer points into a dynamic array
 - ✅ pointer rebind updates which dynamic array root is protected
 - ✅ pointer scope end releases the protected dynamic array root
 - ✅ whole dynamic array replacement is blocked while an internal pointer is live
@@ -244,7 +245,7 @@ Checklist:
 ### Known Limitations
 
 - ⚠️ `&matrix[0]` remains rejected because it is a partial view, not a scalar cell.
-- ⚠️ Dynamic array structural mutation is rejected while a live pointer points into the array; dynamic object structural invalidation remains pending because typed objects are fixed-shape today.
+- ⚠️ Dynamic array `push` is pointer-safe today; destructive/reordering operations such as `pop`, `splice`, `sort`, and `reverse` are still rejected conservatively while a live pointer points into the array.
 - ⚠️ Function returns from `ptr<Array>` parameters into dynamic array cells are still pending because address-of through pointer-derived array access is currently rejected.
 
 ### Philosophy
@@ -928,32 +929,34 @@ let row: ptr<number[3]> = &matrix[1]
 
 ## 21. Dynamic Array Element Pointers
 
-Dynamic arrays can reallocate their buffer. Therefore, element pointers are dangerous unless borrow/lifetime restrictions exist.
+Dynamic array element pointers are supported through runtime cells. The array
+descriptor may grow, but existing element slots remain stable, so `push` does
+not invalidate pointers such as `&values[0]` or `&users[0].age`.
 
-Initial rule:
+Current rule:
 
 ```txt
-&dynamicArray[index] is not supported initially.
+&dynamicArray[index] is supported.
+push while an interior pointer is live is supported.
+destructive/reordering operations are rejected conservatively while an interior pointer is live.
 ```
 
 Checklist:
 
-- [ ] Reject `&dynamicArray[index]` initially.
-- [ ] Diagnostic explains that dynamic array buffer may reallocate.
-- [ ] Future support requires restrictions on push/pop/resize/realloc while pointer is alive.
-- [ ] Future support may use pinned slices/views if added.
+- [x] Support `&dynamicArray[index]`.
+- [x] Preserve element slots across `push`.
+- [x] Reject destructive/reordering operations while a live pointer targets the array.
+- [ ] Add adaptive fast contiguous storage when no live interior pointers can be invalidated.
+- [ ] Add index-sensitive checks for destructive operations.
 
-Invalid initially:
+Valid:
 
 ```ts
 let values: number[] = [1, 2, 3]
 let p: ptr<number> = &values[0]
-```
-
-Expected diagnostic:
-
-```txt
-error: cannot take pointer to dynamic array element because the array buffer may reallocate
+values.push(4)
+p = 10
+print(values[0]) // 10
 ```
 
 ---
@@ -1244,7 +1247,7 @@ LLVM concept:
 - [ ] `function 'x' may mutate pointer parameter 'p', but argument '&v' points to const storage`
 - [ ] `cannot return pointer to local storage 'name'`
 - [ ] `cannot return pointer/view derived from value parameter 'name'`
-- [ ] `cannot take pointer to dynamic array element because the array buffer may reallocate`
+- [x] dynamic array element pointers use stable runtime cells instead of rejecting `&array[index]`
 - [ ] `pointer arithmetic is not supported in safe Yogi`
 - [ ] `dynamic index signatures are not supported in Yogi object types`
 

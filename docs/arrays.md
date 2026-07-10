@@ -2002,7 +2002,8 @@ Yogi is flexible when the runtime can validate safely.
 ✅ Address-of fixed-shape cells with row-major indexing: &matrix[i, j]
 ✅ Address-of dynamic array cells: &values[i]
 ✅ Pointer indexing read/write mutates caller storage
-✅ Dynamic array structural mutation diagnostics while a live pointer points into the array
+✅ Pointer-safe dynamic array push while a live pointer points into the array
+✅ Destructive dynamic array mutation diagnostics while a live pointer points into the array
 ✅ Pointer rebind/scope-exit updates for dynamic array invalidation diagnostics
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer call diagnostics for missing &, value/pointer mismatch, shape mismatch, and pointer-to-pointer mismatch
@@ -2015,7 +2016,8 @@ Yogi is flexible when the runtime can validate safely.
 ### Next Lots
 
 ```txt
-⬜ String element extraction from string[] through .at() inside struct fields
+⬜ Adaptive fast contiguous vs pointer-safe/chunked storage selection for dynamic arrays
+⬜ Index-sensitive destructive operation checks for pop/splice/shift while pointers are live
 ```
 
 ### Future Work

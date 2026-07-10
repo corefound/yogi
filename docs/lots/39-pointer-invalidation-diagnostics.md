@@ -1,14 +1,16 @@
 # Lot 39: Pointer Invalidation Diagnostics
 
-This lot adds conservative semantic diagnostics for dynamic arrays. Yogi now
-rejects structural mutations while a live pointer points into that array's
-internal cells.
+This lot originally added conservative semantic diagnostics for dynamic arrays.
+Lot 40 replaces the conservative `push` rule with pointer-safe dynamic array
+growth, while keeping diagnostics for destructive/reordering/replacement
+operations.
 
 ## Rule
 
 ```txt
 If a live ptr<T> is rooted in a dynamic array and has an internal access path,
-then structural mutation of that root array is rejected.
+then operations that destroy, remove, reorder, compact, or replace existing
+storage are rejected.
 ```
 
 Example:
@@ -24,14 +26,23 @@ let age: ptr<number> = &users[0].age
 users.push({ age: 30 }) // error
 ```
 
+This example was rejected by Lot 39. It is now allowed by Lot 40 because
+`push` preserves existing element cells.
+
+Current rejected example:
+
+```ts
+users.sort() // error while age is live
+```
+
 Diagnostic:
 
 ```txt
-cannot call 'push' on 'users' while pointer 'age' points into 'users[0].age'
+cannot call 'sort' on 'users' while pointer 'age' points into 'users[0].age'
 ```
 
-The check is conservative by design. Yogi does not try to prove that a
-particular index would survive a mutation.
+The destructive-operation check is conservative by design. Yogi does not yet
+try to prove that a particular index would survive a removal/reorder.
 
 ## Structural Mutations
 
@@ -39,7 +50,6 @@ The semantic checker rejects these operations while a live internal pointer
 protects the same dynamic array root:
 
 ```txt
-push
 pop
 shift
 unshift
@@ -82,6 +92,19 @@ let users: User[] = [{ age: 20 }]
 users.push({ age: 30 }) // allowed
 ```
 
+Safe growth is also allowed while the pointer is live:
+
+```ts
+let users: User[] = [{ age: 20 }]
+let age: ptr<number> = &users[0].age
+
+users.push({ age: 30 }) // allowed
+age = 99
+
+print(users[0].age) // 99
+print(users[1].age) // 30
+```
+
 Mutating a different dynamic array is also allowed:
 
 ```ts
@@ -97,7 +120,8 @@ Pointer copies preserve the protected root:
 let age1: ptr<number> = &users[0].age
 let age2: ptr<number> = age1
 
-users.push({ age: 30 }) // error
+users.push({ age: 30 }) // allowed
+users.sort() // error
 ```
 
 Pointer rebind updates which root is protected:
@@ -107,7 +131,8 @@ let age: ptr<number> = &usersA[0].age
 age = &usersB[0].age
 
 usersA.push({ age: 21 }) // allowed
-usersB.push({ age: 31 }) // error
+usersB.push({ age: 31 }) // allowed
+usersB.sort() // error
 ```
 
 ## Implementation Notes
@@ -117,8 +142,10 @@ usersB.push({ age: 31 }) // error
   its access path is not empty.
 - `exitScope()` removes pointer provenance for the closing lexical scope.
 - Pointer declarations, pointer copies, and pointer rebinds update the table.
-- Dynamic array structural methods and whole-array assignment query the table
-  before allowing mutation.
+- Dynamic array destructive/reordering methods and whole-array assignment query
+  the table before allowing mutation.
+- `push` no longer queries this table because runtime array cells remain stable
+  across growth.
 
 ## Tests
 
@@ -132,15 +159,21 @@ Positive coverage:
 
 - non-structural field assignment while pointer is live
 - pointer write-through while pointer is live
+- `push` while a pointer to an element field is live
+- multiple `push` calls while a pointer is live
+- pointer to an element itself remaining usable after `push`
+- nested element field pointers remaining usable after `push`
+- pointer copies and rebinds remaining usable across `push`
+- pointer to the array descriptor not blocking `push`
 - structural mutation after pointer scope ends
 - structural mutation of a different array
 
 Negative coverage:
 
-- `push`, `pop`, `shift`, `unshift`, `splice`, `reverse`, and `sort`
+- `pop`, `shift`, `unshift`, `splice`, `reverse`, and `sort`
 - whole-array replacement
-- pointer copy preserving protection
-- pointer rebind releasing the old root and protecting the new root
+- pointer copy preserving protection for destructive operations
+- readonly roots rejecting `push`
 
 ## Remaining Work
 
@@ -149,3 +182,5 @@ Negative coverage:
   pending because address-of through pointer-derived array access is currently
   rejected.
 - Partial fixed-shape view addressability such as `&matrix[0]`.
+- Index-sensitive destructive operation checks. Today Yogi rejects destructive
+  operations conservatively while any live interior pointer targets that array.

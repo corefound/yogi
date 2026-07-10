@@ -111,9 +111,11 @@ without re-auditing the whole compiler.
 - [x] Aggregate pointer read-through rejection to avoid implicit owned copies
 - [x] Nested runtime object cell chains such as `&user.address.zip`
 - [x] Mixed array/object/struct addressability such as `&users[0].age`
-- [x] Pointer invalidation diagnostics for dynamic array structural mutation while a live internal pointer exists
+- [x] Pointer-safe dynamic array `push` while a live internal pointer exists
+- [x] Pointer invalidation diagnostics for destructive dynamic array operations while a live internal pointer exists
 - [x] Pointer rebind and scope-exit updates for dynamic array invalidation diagnostics
 - [x] Whole dynamic array replacement blocked while a live internal pointer exists
+- [ ] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Interprocedural lifetime summaries for borrowed views

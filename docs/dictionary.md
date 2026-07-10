@@ -763,8 +763,9 @@ pointer are rejected if the root is `const`.
 Current dynamic-array policy:
 
 ```txt
-Yogi rejects dynamic array structural mutation while a live pointer points into
-that array.
+Yogi allows pointer-safe dynamic array growth through push while a live pointer
+points into that array. Destructive/reordering/replacement operations are still
+rejected conservatively while that pointer is live.
 ```
 
 Dynamic object structural invalidation remains pending if Yogi later adds
