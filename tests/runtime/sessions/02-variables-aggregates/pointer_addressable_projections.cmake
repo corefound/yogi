@@ -134,6 +134,61 @@ expect_run(
 )
 
 expect_run_with_ir(
+	"ptr_struct_field_assignment"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction update(box: ptr<Box>): void {\n    box.point.x = 999\n}\n\nlet box: Box = { point: { x: 1, y: 2 } }\nupdate(&box)\nprint(box)\n"
+	"{\n  point: {\n    x: 999,\n    y: 2\n  }\n}\n"
+	"getelementptr"
+)
+
+expect_run(
+	"ptr_struct_sibling_field_assignment"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction update(box: ptr<Box>): void {\n    box.point.x = 10\n    box.point.y = 20\n}\n\nlet box: Box = { point: { x: 1, y: 2 } }\nupdate(&box)\nprint(box)\n"
+	"{\n  point: {\n    x: 10,\n    y: 20\n  }\n}\n"
+)
+
+expect_run(
+	"ptr_struct_deeper_nested_field_assignment"
+	"struct Coordinate {\n    value: number\n}\n\nstruct Point {\n    x: Coordinate\n    y: Coordinate\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction update(box: ptr<Box>): void {\n    box.point.x.value = 100\n    box.point.y.value = 200\n}\n\nlet box: Box = {\n    point: {\n        x: { value: 1 },\n        y: { value: 2 }\n    }\n}\nupdate(&box)\nprint(box)\n"
+	"{\n  point: {\n    x: {\n      value: 100\n    },\n    y: {\n      value: 200\n    }\n  }\n}\n"
+)
+
+expect_run(
+	"ptr_struct_field_read"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction readX(box: ptr<Box>): number {\n    return box.point.x\n}\n\nlet box: Box = { point: { x: 1, y: 2 } }\nprint(readX(&box))\n"
+	"1\n"
+)
+
+expect_run(
+	"ptr_struct_return_field_pointer"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction getX(box: ptr<Box>): ptr<number> {\n    return &box.point.x\n}\n\nlet box: Box = { point: { x: 1, y: 2 } }\nlet px: ptr<number> = getX(&box)\npx = 123\nprint(box)\n"
+	"{\n  point: {\n    x: 123,\n    y: 2\n  }\n}\n"
+)
+
+expect_run(
+	"ptr_struct_return_nested_struct_pointer"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction getPoint(box: ptr<Box>): ptr<Point> {\n    return &box.point\n}\n\nlet box: Box = { point: { x: 1, y: 2 } }\nlet point: ptr<Point> = getPoint(&box)\npoint.x = 10\npoint.y = 20\nprint(box)\n"
+	"{\n  point: {\n    x: 10,\n    y: 20\n  }\n}\n"
+)
+
+expect_run(
+	"ptr_struct_rebind_then_project"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nlet a: Box = { point: { x: 1, y: 2 } }\nlet b: Box = { point: { x: 10, y: 20 } }\nlet p: ptr<Box> = &a\np.point.x = 100\nprint(a)\np = &b\np.point.x = 999\nprint(a)\nprint(b)\n"
+	"{\n  point: {\n    x: 100,\n    y: 2\n  }\n}\n{\n  point: {\n    x: 100,\n    y: 2\n  }\n}\n{\n  point: {\n    x: 999,\n    y: 20\n  }\n}\n"
+)
+
+expect_run(
+	"const_ptr_struct_binding_mutates_mutable_pointee"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nlet box: Box = { point: { x: 1, y: 2 } }\nconst p: ptr<Box> = &box\np.point.x = 100\nprint(box)\n"
+	"{\n  point: {\n    x: 100,\n    y: 2\n  }\n}\n"
+)
+
+expect_run(
+	"ptr_struct_rebind_from_readonly_to_mutable"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nconst readonlyBox: Box = { point: { x: 1, y: 2 } }\nlet mutableBox: Box = { point: { x: 10, y: 20 } }\nlet p: ptr<Box> = &readonlyBox\np = &mutableBox\np.point.x = 999\nprint(mutableBox)\n"
+	"{\n  point: {\n    x: 999,\n    y: 20\n  }\n}\n"
+)
+
+expect_run_with_ir(
 	"object_field_cell_address"
 	"type User = {\n    age: number\n    name: string\n}\n\nfunction write(value: ptr<number>, next: number): void {\n    value = next\n}\n\nlet user: User = { age: 31, name: \"Ada\" }\nlet age: ptr<number> = &user.age\nprint(age)\nage = 32\nprint(user.age)\nwrite(&user.age, 33)\nprint(user.age)\n"
 	"31\n32\n33\n"
@@ -188,4 +243,40 @@ expect_invalid(
 	"nested_struct_field_assignment_type_mismatch"
 	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nlet box: Box = { point: { x: 1, y: 2 } }\nbox.point.x = \"bad\"\n"
 	"cannot assign value of type .*string.*box.point.x.*number"
+)
+
+expect_invalid(
+	"const_ptr_struct_binding_cannot_rebind"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nlet box: Box = { point: { x: 1, y: 2 } }\nlet other: Box = { point: { x: 10, y: 20 } }\nconst p: ptr<Box> = &box\np.point.x = 100\np = &other\n"
+	"cannot reassign const pointer binding .*p"
+)
+
+expect_invalid(
+	"ptr_struct_readonly_pointee_field_assignment"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nconst box: Box = { point: { x: 1, y: 2 } }\nlet p: ptr<Box> = &box\np.point.x = 100\n"
+	"cannot mutate through pointer.*readonly"
+)
+
+expect_invalid(
+	"ptr_struct_function_rejects_readonly_pointee_argument"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction update(box: ptr<Box>): void {\n    box.point.x = 999\n}\n\nconst box: Box = { point: { x: 1, y: 2 } }\nupdate(&box)\n"
+	"may mutate pointer parameter .*box.*points to const storage"
+)
+
+expect_invalid(
+	"ptr_struct_missing_field"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction bad(box: ptr<Box>): void {\n    box.point.z = 123\n}\n"
+	"has no field .*z"
+)
+
+expect_invalid(
+	"ptr_struct_rhs_type_mismatch"
+	"struct Point {\n    x: number\n    y: number\n}\n\nstruct Box {\n    point: Point\n}\n\nfunction bad(box: ptr<Box>): void {\n    box.point.x = \"bad\"\n}\n"
+	"cannot assign value of type .*string.*box.point.x.*number"
+)
+
+expect_invalid(
+	"ptr_non_struct_field_projection"
+	"let value: number = 1\nlet p: ptr<number> = &value\nprint(p.x)\n"
+	"cannot access field .*x.*pointee type .*number"
 )

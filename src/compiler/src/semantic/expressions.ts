@@ -2327,6 +2327,68 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const accessType = object?.declaredType ?? object?.type;
             const objectType = this.resolveOptionalAccessObjectType(accessType);
 
+            if (objectType?.kind === Kinds.Types.PointerType) {
+                const pointee = objectType.elementType ?? objectType.pointee;
+                const resolvedPointee = this.resolveType(pointee);
+                const pointeeIsStruct =
+                    resolvedPointee?.kind === Kinds.Types.StructDeclaration ||
+                    resolvedPointee?.kind === "StructDeclaration";
+
+                if (!pointeeIsStruct) {
+                    const message =
+                        `cannot access field ${Helpers.RED}'${node.property}'${Helpers.RESET} on pointee type ` +
+                        `${Helpers.RED}'${resolvedPointee?.raw ?? pointee?.raw ?? "unknown"}'${Helpers.RESET}`;
+
+                    node.arrowLength = node.property?.length ?? node.source?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                const properties = this.objectPropertyMap(resolvedPointee);
+                const property = properties.get(node.property);
+
+                if (!property) {
+                    const message =
+                        `type ${Helpers.RED}'${resolvedPointee.raw ?? "struct"}'${Helpers.RESET} has no field ` +
+                        `${Helpers.RED}'${node.property}'${Helpers.RESET}`;
+
+                    node.arrowLength = node.property?.length ?? 1;
+                    this.throwError(message, node.position, node.fullSource ?? node.source, node);
+                }
+
+                const pointerRootName =
+                    object.pointerRootName ??
+                    this.getAggregateRootIdentifier(object) ??
+                    null;
+                const pointerRootSymbol =
+                    typeof object.pointerRootSymbolId === "number"
+                        ? this.getSymbolById(object.pointerRootSymbolId)
+                        : pointerRootName
+                            ? this.resolveSymbol(pointerRootName)
+                            : null;
+                const pointerPermission = object.pointerPermission ?? object.permission;
+
+                return {
+                    ...node,
+                    object,
+                    type: property.optional === true
+                        ? this.createUnionType([property.type, { kind: Kinds.Types.UndefinedType, raw: "undefined" }])
+                        : property.type,
+                    pointerAccess: true,
+                    pointerRootName,
+                    pointerRootSymbolId:
+                        object.pointerRootSymbolId ??
+                        object.rootSymbolId ??
+                        object.symbolId ??
+                        pointerRootSymbol?.id,
+                    pointerAccessPath: [
+                        ...(object.pointerAccessPath ?? object.accessPath ?? []),
+                        `.${node.property}`,
+                    ],
+                    pointerPermission,
+                    readonly: property.readonly === true || pointerPermission === "readonly",
+                };
+            }
+
             // Handle array.length and tuple.length - special built-in properties
             if (node.property === "length") {
                 if (
@@ -2357,15 +2419,23 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             const properties = this.objectPropertyMap(objectType);
             const property = properties.get(node.property);
+            const inheritedPointerAccess =
+                object.pointerAccess === true ||
+                typeof object.pointerRootName === "string" ||
+                typeof object.pointerRootSymbolId === "number";
 
             if (!property) {
-                const message =
-                    `property ${Helpers.RED}'${node.property}'${Helpers.RESET} does not exist on type ` +
-                    `${Helpers.RED}'${objectType.raw ?? "object"}'${Helpers.RESET}`;
+                const message = inheritedPointerAccess
+                    ? `type ${Helpers.RED}'${objectType.raw ?? "object"}'${Helpers.RESET} has no field ` +
+                        `${Helpers.RED}'${node.property}'${Helpers.RESET}`
+                    : `property ${Helpers.RED}'${node.property}'${Helpers.RESET} does not exist on type ` +
+                        `${Helpers.RED}'${objectType.raw ?? "object"}'${Helpers.RESET}`;
 
                 node.arrowLength = node.property?.length ?? 1;
                 this.throwError(message, node.position, node.fullSource ?? node.source, node);
             }
+
+            const pointerPermission = object.pointerPermission ?? object.permission;
 
             return {
                 ...node,
@@ -2373,7 +2443,19 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 type: property.optional === true
                     ? this.createUnionType([property.type, { kind: Kinds.Types.UndefinedType, raw: "undefined" }])
                     : property.type,
-                readonly: property.readonly === true,
+                pointerAccess: inheritedPointerAccess || undefined,
+                pointerRootName: inheritedPointerAccess ? object.pointerRootName ?? object.rootName ?? null : undefined,
+                pointerRootSymbolId: inheritedPointerAccess
+                    ? object.pointerRootSymbolId ?? object.rootSymbolId
+                    : undefined,
+                pointerAccessPath: inheritedPointerAccess
+                    ? [
+                        ...(object.pointerAccessPath ?? object.accessPath ?? []),
+                        `.${node.property}`,
+                    ]
+                    : undefined,
+                pointerPermission: inheritedPointerAccess ? pointerPermission : undefined,
+                readonly: property.readonly === true || pointerPermission === "readonly",
             };
         }
 
@@ -3221,6 +3303,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 	                const root = this.getAggregateRootIdentifier(left.object);
 	                const symbol = root ? this.resolveSymbol(root) : null;
 	                const objectType = this.resolveType(left.object?.declaredType ?? left.object?.type);
+	                const rootType = this.resolveType(symbol?.declaredType ?? symbol?.type);
+	                const rootIsPointer = rootType?.kind === Kinds.Types.PointerType;
 
                 if (objectType?.kind === Kinds.Types.PointerType) {
                     if (left.pointerPartialView === true) {
@@ -3267,13 +3351,24 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     };
                 }
 
+                if (rootIsPointer && left.pointerPermission === "readonly") {
+                    const rootName = left.pointerRootName ?? root ?? "unknown";
+                    left.arrowLength = left.source?.length ?? 1;
+                    this.throwError(
+                        `cannot mutate through pointer because pointee storage ${Helpers.RED}'${rootName}'${Helpers.RESET} is readonly`,
+                        left.position,
+                        context.fullSource ?? node.fullSource ?? node.source,
+                        left,
+                    );
+                }
+
                 if (!symbol) {
                     const message = `left side of assignment must start from a known variable`;
                     left.arrowLength = left.source?.length ?? 1;
                     this.throwError(message, left.position, context.fullSource ?? node.fullSource ?? node.source, left);
                 }
 
-                if (symbol.mutable !== true) {
+                if (!rootIsPointer && symbol.mutable !== true) {
                     const message =
                         `cannot mutate ${Helpers.RED}'${root}'${Helpers.RESET} because it was declared as a ` +
                         `${Helpers.BLUE}'const'${Helpers.RESET}`;
@@ -3432,8 +3527,27 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 ) {
                     const root = this.getAggregateRootIdentifier(left.object);
                     const symbol = root ? this.resolveSymbol(root) : null;
+                    const rootType = this.resolveType(symbol?.declaredType ?? symbol?.type);
+                    const rootIsPointer = rootType?.kind === Kinds.Types.PointerType;
 
-                    if (!symbol || symbol.mutable !== true) {
+                    if (!symbol) {
+                        const message =
+                            `cannot mutate ${Helpers.RED}'${root ?? left.source}'${Helpers.RESET} because it is unknown`;
+
+                        left.arrowLength = left.source?.length ?? 1;
+                        this.throwError(message, left.position, source, left);
+                    }
+
+                    if (rootIsPointer && left.pointerPermission === "readonly") {
+                        const rootName = left.pointerRootName ?? root ?? "unknown";
+                        const message =
+                            `cannot mutate through pointer because pointee storage ${Helpers.RED}'${rootName}'${Helpers.RESET} is readonly`;
+
+                        left.arrowLength = left.source?.length ?? 1;
+                        this.throwError(message, left.position, source, left);
+                    }
+
+                    if (!rootIsPointer && symbol.mutable !== true) {
                         const message =
                             `cannot mutate ${Helpers.RED}'${root ?? left.source}'${Helpers.RESET} because it is immutable`;
 

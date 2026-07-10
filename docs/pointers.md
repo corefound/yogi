@@ -191,6 +191,7 @@ Checklist:
 - [x] Dynamic array element access is addressable through runtime cells.
 - [x] Fixed array element access is addressable through row-major runtime cells.
 - [x] Fixed matrix element access is addressable through row-major runtime cells.
+- [x] Struct field projections through `ptr<Struct>` are addressable.
 - [ ] Fixed partial array/matrix views are addressable if the root is addressable.
 - [x] Runtime object/dictionary property addressability keeps a real cell pointer instead of a fake raw address.
 - [x] Array element addressability keeps a real element cell pointer instead of a fake raw address.
@@ -215,12 +216,13 @@ Checklist:
 - ✅ array/object runtime scalar cells: `&values[i]`, `&matrix[i, j]`, `&object.field`
 - ✅ direct nested struct field assignment: `box.point.x = value`
 - ✅ deeper nested struct field assignment: `box.point.x.value = value`
+- ✅ projections through `ptr<Struct>`: `pBox.point.x = value`
+- ✅ returning field pointers from `ptr<Struct>` parameters: `return &box.point.x`
 - ✅ readonly root rejection for nested field mutation
 - ✅ RHS type checking for nested field mutation
 
 ### Pending
 
-- ⬜ projection from aggregate pointers such as `pBox.point.x`
 - ⬜ natural aggregate pointer replacement: `ptr<T> = T` for fixed arrays and structs
 - ⬜ correct full mutability matrix for `let/const owner` and `let/const ptr`
 - ⬜ nested runtime object cell chains: `&user.address.zip`
@@ -237,10 +239,14 @@ Checklist:
 
 - ⚠️ `&matrix[0]` remains rejected because it is a partial view, not a scalar cell.
 - ⚠️ `&users[0].age` remains pending until mixed cell/projection chains are implemented.
-- ⚠️ `pBox.point.x` remains pending until property projection from `ptr<Struct>` is modeled explicitly.
 - ⚠️ pointer invalidation on dynamic array/object structural mutation is not fully enforced yet.
 
 ### Philosophy
+
+Yogi pointers are explicit in types, not noisy in expressions.
+
+Do not require helper functions or C/C++-style syntax for natural pointer
+navigation when the operation is type-safe and visually clear.
 
 Yogi should avoid unnecessary helper functions for core language behavior.
 

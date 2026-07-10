@@ -160,11 +160,14 @@ Follow-up lot 36 fixed direct nested struct field assignment so
 `box.point.x = value` now writes to the same storage addressed by
 `&box.point.x`.
 
+Follow-up lot 37 added natural projections through `ptr<Struct>`, so
+`pBox.point.x = value` and `return &box.point.x` from a pointer parameter use
+the same addressable struct field path.
+
 ## Remaining Work
 
 - Nested runtime object cells such as `&user.address.zip`.
 - Object cells inside array elements such as `&users[0].age`.
-- Projection from aggregate pointers such as `pBox.point.x`.
 - Cell invalidation diagnostics when a dynamic array/object reallocates after a
   cell pointer was created.
 - Optional LLVM alias/readonly metadata for raw struct pointers.

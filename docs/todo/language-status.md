@@ -57,6 +57,8 @@ without re-auditing the whole compiler.
 - [x] Address-of expression `&matrix[i, j]` through row-major runtime array cells
 - [x] Direct nested struct field assignment through real storage, such as `box.point.x = 100`
 - [x] Direct nested struct assignment agrees with `&box.point.x` pointer write-through
+- [x] Struct field projections through `ptr<Struct>`, such as `pBox.point.x = 100`
+- [x] Returning field pointers from `ptr<Struct>` parameters, such as `return &box.point.x`
 - [x] Tagged pointer-cell lowering for runtime object/array slots
 - [x] Address-of `const` storage with readonly pointer provenance
 - [x] Strict pointer assignability and pointer parameter passing
@@ -107,7 +109,6 @@ without re-auditing the whole compiler.
 - [x] Semantic rejection for pointer-return paths borrowing from different parameters
 - [x] Internal dereference SIR for scalar pointer read-through lowering
 - [x] Aggregate pointer read-through rejection to avoid implicit owned copies
-- [ ] Projection from aggregate pointers such as `pBox.point.x`
 - [ ] Nested runtime object cell chains such as `&user.address.zip`
 - [ ] Mixed array/object/struct addressability such as `&users[0].age`
 - [ ] Pointer invalidation diagnostics for dynamic array/object structural mutation

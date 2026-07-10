@@ -679,18 +679,23 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     return;
                 }
 
-                if (node.kind === "AggregateAssignmentExpression") {
-                    if (node.target?.kind === Kinds.Expressions.DereferenceExpression) {
-                        addPointerMutatedIdentifier(node.target.target);
-                        visit(node.target);
-                        visit(node.right);
+                    if (node.kind === "AggregateAssignmentExpression") {
+                        if (node.target?.kind === Kinds.Expressions.DereferenceExpression) {
+                            addPointerMutatedIdentifier(node.target.target);
+                            visit(node.target);
+                            visit(node.right);
                         return;
                     }
 
                     const root = this.getAggregateRootExpression(node.target);
                     const targetObjectType = node.target?.object?.declaredType ?? node.target?.object?.type;
+                    const rootType = root?.declaredType ?? root?.type;
 
-                    if (targetObjectType?.kind === Kinds.Types.PointerType) {
+                    if (
+                        targetObjectType?.kind === Kinds.Types.PointerType ||
+                        rootType?.kind === Kinds.Types.PointerType ||
+                        node.target?.pointerAccess === true
+                    ) {
                         addPointerMutatedIdentifier(root);
                         visit(node.target);
                         visit(node.right);

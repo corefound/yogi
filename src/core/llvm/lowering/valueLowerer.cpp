@@ -1732,6 +1732,44 @@ namespace yogi::core::llvm::internal {
 	}
 
 	std::optional<ValueLowerer::AddressableSlot> ValueLowerer::lowerStructAddressableSlot(
+		const Yogi::Sir::PropertyAccessExpression *property
+	) {
+		if (!property) {
+			return std::nullopt;
+		}
+
+		auto objectSlot = lowerStructAddressableSlot(property->object());
+		if (!objectSlot) {
+			return std::nullopt;
+		}
+
+		const auto structName = structTypeName(objectSlot->type);
+		if (structName.empty() || !context.structTypes.contains(structName)) {
+			return std::nullopt;
+		}
+
+		const auto propertyName = fbString(property->property());
+		auto *structType = context.structTypes[structName];
+
+		for (const auto &field: context.structFields[structName]) {
+			if (field.name != propertyName) {
+				continue;
+			}
+
+			auto *fieldAddress = context.builder.CreateStructGEP(
+				structType,
+				objectSlot->address,
+				static_cast<unsigned>(field.index),
+				"addr." + sanitizeSymbol(structName) + "." + sanitizeSymbol(field.name)
+			);
+
+			return AddressableSlot{fieldAddress, field.type};
+		}
+
+		return std::nullopt;
+	}
+
+	std::optional<ValueLowerer::AddressableSlot> ValueLowerer::lowerStructAddressableSlot(
 		const Yogi::Sir::ValueRef *value
 	) {
 		if (!value) {
@@ -1775,37 +1813,26 @@ namespace yogi::core::llvm::internal {
 				return std::nullopt;
 			}
 
+			if (
+				type &&
+				type->kind() == Yogi::Sir::TypeKind_pointer_type &&
+				type->element_type() &&
+				!structTypeName(type->element_type()).empty()
+			) {
+				auto *pointer = context.builder.CreateLoad(
+					opaquePointer(),
+					address,
+					sanitizeSymbol(name.empty() ? "struct.ptr" : name) + ".ptr.load"
+				);
+
+				return AddressableSlot{pointer, type->element_type()};
+			}
+
 			return AddressableSlot{address, type};
 		}
 
 		if (const auto *property = value->property_access()) {
-			auto objectSlot = lowerStructAddressableSlot(property->object());
-			if (!objectSlot) {
-				return std::nullopt;
-			}
-
-			const auto structName = structTypeName(objectSlot->type);
-			if (structName.empty() || !context.structTypes.contains(structName)) {
-				return std::nullopt;
-			}
-
-			const auto propertyName = fbString(property->property());
-			auto *structType = context.structTypes[structName];
-
-			for (const auto &field: context.structFields[structName]) {
-				if (field.name != propertyName) {
-					continue;
-				}
-
-				auto *fieldAddress = context.builder.CreateStructGEP(
-					structType,
-					objectSlot->address,
-					static_cast<unsigned>(field.index),
-					"addr." + sanitizeSymbol(structName) + "." + sanitizeSymbol(field.name)
-				);
-
-				return AddressableSlot{fieldAddress, field.type};
-			}
+			return lowerStructAddressableSlot(property);
 		}
 
 		return std::nullopt;
@@ -2725,6 +2752,18 @@ namespace yogi::core::llvm::internal {
 			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
 
 			return cast(asNumber, targetType, targetSemanticType, access->type());
+		}
+
+		if (auto slot = lowerStructAddressableSlot(access)) {
+			auto *value = context.builder.CreateLoad(
+				types.lower(slot->type),
+				slot->address,
+				"struct.field.load." + sanitizeSymbol(propertyName)
+			);
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+
+			return cast(value, targetType, targetSemanticType, slot->type);
 		}
 
 		const auto structName = structTypeName(objectSemanticType);
