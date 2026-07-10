@@ -76,18 +76,55 @@ function(expect_run case_name source expected_stdout)
 endfunction()
 
 set(USER_STRUCT "struct User {\n    age: number\n}\n\n")
+set(NESTED_USER_STRUCT "struct Address {\n    zip: number\n}\n\nstruct User {\n    age: number\n    address: Address\n}\n\n")
 set(INVALIDATION_ERROR "cannot .* while pointer .* points into .*users")
 
-expect_invalid(
-	"reject_push_while_element_field_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet age: ptr<number> = &users[0].age\nusers.push({ age: 30 })\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_push_while_element_field_pointer_live"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet age: ptr<number> = &users[0].age\nusers.push({ age: 30 })\nage = 99\nprint(users[0].age)\nprint(users[1].age)\n"
+	"99\n30\n"
 )
 
-expect_invalid(
-	"reject_push_while_element_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet user: ptr<User> = &users[0]\nusers.push({ age: 30 })\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_multiple_pushes_while_element_field_pointer_live"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet age: ptr<number> = &users[0].age\nusers.push({ age: 30 })\nusers.push({ age: 40 })\nage = 99\nprint(users[0].age)\nprint(users[1].age)\nprint(users[2].age)\n"
+	"99\n30\n40\n"
+)
+
+expect_run(
+	"allow_push_while_element_pointer_live"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet user: ptr<User> = &users[0]\nusers.push({ age: 30 })\nuser.age = 99\nprint(users[0].age)\nprint(users[1].age)\n"
+	"99\n30\n"
+)
+
+expect_run(
+	"allow_push_while_nested_element_field_pointer_live"
+	"${NESTED_USER_STRUCT}let users: User[] = [{ age: 20, address: { zip: 10001 } }]\nlet zip: ptr<number> = &users[0].address.zip\nusers.push({ age: 30, address: { zip: 10002 } })\nzip = 12345\nprint(users[0].address.zip)\nprint(users[1].address.zip)\n"
+	"12345\n10002\n"
+)
+
+expect_run(
+	"pointer_copy_survives_push"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet age1: ptr<number> = &users[0].age\nlet age2: ptr<number> = age1\nusers.push({ age: 30 })\nage2 = 99\nprint(age1)\nprint(users[0].age)\nprint(users[1].age)\n"
+	"99\n99\n30\n"
+)
+
+expect_run(
+	"pointer_rebind_then_push_both_roots"
+	"${USER_STRUCT}let usersA: User[] = [{ age: 20 }]\nlet usersB: User[] = [{ age: 30 }]\nlet age: ptr<number> = &usersA[0].age\nage = &usersB[0].age\nusersA.push({ age: 21 })\nusersB.push({ age: 31 })\nage = 99\nprint(usersA[0].age)\nprint(usersA[1].age)\nprint(usersB[0].age)\nprint(usersB[1].age)\n"
+	"20\n21\n99\n31\n"
+)
+
+expect_run(
+	"descriptor_pointer_does_not_block_push"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet descriptor: ptr<User[]> = &users\nusers.push({ age: 30 })\nprint(users[0].age)\nprint(users[1].age)\n"
+	"20\n30\n"
+)
+
+expect_run(
+	"push_without_interior_pointer_still_works"
+	"${USER_STRUCT}let users: User[] = []\nusers.push({ age: 20 })\nusers.push({ age: 30 })\nprint(users[0].age)\nprint(users[1].age)\n"
+	"20\n30\n"
 )
 
 expect_invalid(
@@ -133,15 +170,15 @@ expect_invalid(
 )
 
 expect_invalid(
-	"pointer_rebind_releases_old_root_and_protects_new_root"
-	"${USER_STRUCT}let usersA: User[] = [{ age: 20 }]\nlet usersB: User[] = [{ age: 30 }]\nlet age: ptr<number> = &usersA[0].age\nage = &usersB[0].age\nusersA.push({ age: 21 })\nusersB.push({ age: 31 })\n"
-	"cannot .*usersB.* while pointer .*age.* points into .*usersB"
+	"reject_sort_while_copied_pointer_live"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age1: ptr<number> = &users[0].age\nlet age2: ptr<number> = age1\nusers.sort()\n"
+	"${INVALIDATION_ERROR}"
 )
 
 expect_invalid(
-	"pointer_copy_protects_root"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet age1: ptr<number> = &users[0].age\nlet age2: ptr<number> = age1\nusers.push({ age: 30 })\n"
-	"${INVALIDATION_ERROR}"
+	"reject_readonly_root_push"
+	"${USER_STRUCT}const users: User[] = [{ age: 20 }]\nusers.push({ age: 30 })\n"
+	"cannot mutate .*users.*immutable"
 )
 
 expect_run(
