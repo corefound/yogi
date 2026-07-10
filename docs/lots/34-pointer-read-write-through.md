@@ -118,8 +118,8 @@ fixed-shape view address-of.
 
 ## Remaining Work
 
-- Nested runtime object field cells such as `&user.address.zip`.
-- Object cells inside array elements such as `&users[0].age`.
+- Nested runtime object field cells such as `&user.address.zip` were completed in Lot 38.
+- Object cells inside array elements such as `&users[0].age` were completed in Lot 38.
 - Cell invalidation diagnostics when a dynamic array/object reallocates after a
   cell pointer was created.
 - Optional LLVM alias/readonly metadata once provenance summaries are mature.

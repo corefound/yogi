@@ -1838,6 +1838,44 @@ namespace yogi::core::llvm::internal {
 		return std::nullopt;
 	}
 
+	::llvm::Value *ValueLowerer::lowerRuntimeObjectCell(
+		const Yogi::Sir::PropertyAccessExpression *property
+	) {
+		auto *object = lowerRuntimeObjectValue(property->object());
+		auto *key = context.builder.CreateGlobalString(fbString(property->property()));
+		return callRuntime("yogi_object_cell", opaquePointer(), {object, key});
+	}
+
+	::llvm::Value *ValueLowerer::lowerRuntimeObjectValue(const Yogi::Sir::ValueRef *value) {
+		if (!value) {
+			return ::llvm::ConstantPointerNull::get(opaquePointer());
+		}
+
+		if (const auto *element = value->element_access()) {
+			auto *cell = lowerAddressableArrayCell(element);
+			auto *boxed = callRuntime("yogi_cell_get", opaquePointer(), {cell});
+			return callRuntime("yogi_any_to_object", opaquePointer(), {boxed});
+		}
+
+		if (const auto *property = value->property_access()) {
+			if (auto slot = lowerStructAddressableSlot(property)) {
+				auto *loaded = context.builder.CreateLoad(
+					types.lower(slot->type),
+					slot->address,
+					"runtime.object.struct.slot.load"
+				);
+				auto *boxed = boxAny(loaded, slot->type);
+				return callRuntime("yogi_any_to_object", opaquePointer(), {boxed});
+			}
+
+			auto *cell = lowerRuntimeObjectCell(property);
+			auto *boxed = callRuntime("yogi_cell_get", opaquePointer(), {cell});
+			return callRuntime("yogi_any_to_object", opaquePointer(), {boxed});
+		}
+
+		return lower(value, opaquePointer(), valueSemanticType(value));
+	}
+
 	::llvm::Value *ValueLowerer::lowerAddressableArrayCell(
 		const Yogi::Sir::ElementAccessExpression *access
 	) {
@@ -1940,9 +1978,7 @@ namespace yogi::core::llvm::internal {
 				);
 			}
 
-			auto *object = lower(property->object(), opaquePointer(), valueSemanticType(property->object()));
-			auto *key = context.builder.CreateGlobalString(fbString(property->property()));
-			auto *cell = callRuntime("yogi_object_cell", opaquePointer(), {object, key});
+			auto *cell = lowerRuntimeObjectCell(property);
 			auto *taggedPointer = tagRuntimeCellPointer(cell);
 			return cast(
 				taggedPointer,
@@ -2788,7 +2824,7 @@ namespace yogi::core::llvm::internal {
 			}
 		}
 
-		auto *object = lower(access->object(), opaquePointer(), valueSemanticType(access->object()));
+		auto *object = lowerRuntimeObjectValue(access->object());
 		auto *property = context.builder.CreateGlobalString(propertyName);
 		auto *boxedValue = callRuntime("yogi_object_get", opaquePointer(), {object, property});
 		const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
@@ -3021,10 +3057,8 @@ namespace yogi::core::llvm::internal {
 				return cast(fieldValue, types.lower(property->type()), property->type(), slot->type);
 			}
 
-			auto *boxedValue = boxAny(rightValue, rightType);
-			auto *object = lower(property->object(), opaquePointer(), valueSemanticType(property->object()));
-			auto *key = context.builder.CreateGlobalString(fbString(property->property()));
-			callRuntime("yogi_object_set", ::llvm::Type::getVoidTy(context.llvmContext), {object, key, boxedValue});
+			auto *cell = lowerRuntimeObjectCell(property);
+			lowerPointerWrite(tagRuntimeCellPointer(cell), rightValue, property->type(), rightType);
 			const auto objectName = identifierName(property->object());
 			const auto rightName = identifierName(assignment->right());
 
@@ -3703,7 +3737,37 @@ namespace yogi::core::llvm::internal {
 				}
 				return callRuntime("yogi_any_from_object", opaquePointer(), {object});
 			}
-			return callRuntime("yogi_any_null", opaquePointer(), {});
+
+			switch (resolvedTypeKind(sourceSemanticType)) {
+				case Yogi::Sir::TypeKind_number_type:
+					return callRuntime("yogi_any_from_number", opaquePointer(), {toNumber(value, sourceSemanticType)});
+
+				case Yogi::Sir::TypeKind_boolean_type:
+					return callRuntime("yogi_any_from_boolean", opaquePointer(), {toBoolean(value)});
+
+				case Yogi::Sir::TypeKind_string_type:
+					return callRuntime("yogi_any_from_string", opaquePointer(), {value});
+
+				case Yogi::Sir::TypeKind_array_type:
+				case Yogi::Sir::TypeKind_tuple_type:
+					return callRuntime("yogi_any_from_array", opaquePointer(), {value});
+
+				case Yogi::Sir::TypeKind_type_literal:
+					return callRuntime("yogi_any_from_object", opaquePointer(), {value});
+
+				case Yogi::Sir::TypeKind_any_type:
+				case Yogi::Sir::TypeKind_union_type:
+					return value ? value : ::llvm::ConstantPointerNull::get(opaquePointer());
+
+				case Yogi::Sir::TypeKind_null_type:
+					return callRuntime("yogi_any_null", opaquePointer(), {});
+
+				case Yogi::Sir::TypeKind_undefined_type:
+					return callRuntime("yogi_any_undefined", opaquePointer(), {});
+
+				default:
+					return callRuntime("yogi_any_null", opaquePointer(), {});
+			}
 		}
 
 		case Yogi::Sir::TypeKind_null_type:
@@ -3758,7 +3822,33 @@ namespace yogi::core::llvm::internal {
 				}
 				return result;
 			}
-			return value;
+
+			switch (resolvedTypeKind(targetSemanticType)) {
+				case Yogi::Sir::TypeKind_number_type:
+					return callRuntime("yogi_any_to_number", ::llvm::Type::getDoubleTy(context.llvmContext), {value});
+
+				case Yogi::Sir::TypeKind_boolean_type:
+					return callRuntime("yogi_any_to_boolean", ::llvm::Type::getInt1Ty(context.llvmContext), {value});
+
+				case Yogi::Sir::TypeKind_string_type:
+					return callRuntime("yogi_any_to_string", opaquePointer(), {value});
+
+				case Yogi::Sir::TypeKind_array_type:
+				case Yogi::Sir::TypeKind_tuple_type:
+					return callRuntime("yogi_any_to_array", opaquePointer(), {value});
+
+				case Yogi::Sir::TypeKind_type_literal:
+					return callRuntime("yogi_any_to_object", opaquePointer(), {value});
+
+				case Yogi::Sir::TypeKind_null_type:
+					return callRuntime("yogi_any_to_null", opaquePointer(), {value});
+
+				case Yogi::Sir::TypeKind_undefined_type:
+					return callRuntime("yogi_any_to_undefined", opaquePointer(), {value});
+
+				default:
+					return value;
+			}
 		}
 
 		case Yogi::Sir::TypeKind_null_type:

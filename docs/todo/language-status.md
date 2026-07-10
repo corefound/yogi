@@ -109,8 +109,8 @@ without re-auditing the whole compiler.
 - [x] Semantic rejection for pointer-return paths borrowing from different parameters
 - [x] Internal dereference SIR for scalar pointer read-through lowering
 - [x] Aggregate pointer read-through rejection to avoid implicit owned copies
-- [ ] Nested runtime object cell chains such as `&user.address.zip`
-- [ ] Mixed array/object/struct addressability such as `&users[0].age`
+- [x] Nested runtime object cell chains such as `&user.address.zip`
+- [x] Mixed array/object/struct addressability such as `&users[0].age`
 - [ ] Pointer invalidation diagnostics for dynamic array/object structural mutation
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor

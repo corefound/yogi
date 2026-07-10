@@ -2385,7 +2385,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         `.${node.property}`,
                     ],
                     pointerPermission,
-                    readonly: property.readonly === true || pointerPermission === "readonly",
+                    readonly: property.readonly === true || pointerPermission === "readonly" || object.readonly === true,
                 };
             }
 
@@ -2455,7 +2455,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     ]
                     : undefined,
                 pointerPermission: inheritedPointerAccess ? pointerPermission : undefined,
-                readonly: property.readonly === true || pointerPermission === "readonly",
+                readonly: property.readonly === true || pointerPermission === "readonly" || object.readonly === true,
             };
         }
 

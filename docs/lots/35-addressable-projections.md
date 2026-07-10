@@ -166,8 +166,8 @@ the same addressable struct field path.
 
 ## Remaining Work
 
-- Nested runtime object cells such as `&user.address.zip`.
-- Object cells inside array elements such as `&users[0].age`.
+- Nested runtime object cells such as `&user.address.zip` were completed in Lot 38.
+- Object cells inside array elements such as `&users[0].age` were completed in Lot 38.
 - Cell invalidation diagnostics when a dynamic array/object reallocates after a
   cell pointer was created.
 - Optional LLVM alias/readonly metadata for raw struct pointers.

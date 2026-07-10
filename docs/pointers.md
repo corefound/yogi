@@ -218,6 +218,8 @@ Checklist:
 - ✅ deeper nested struct field assignment: `box.point.x.value = value`
 - ✅ projections through `ptr<Struct>`: `pBox.point.x = value`
 - ✅ returning field pointers from `ptr<Struct>` parameters: `return &box.point.x`
+- ✅ nested runtime object cell chains: `&user.address.zip`
+- ✅ mixed array/object/struct chains: `&users[0].age`
 - ✅ readonly root rejection for nested field mutation
 - ✅ RHS type checking for nested field mutation
 
@@ -225,8 +227,6 @@ Checklist:
 
 - ⬜ natural aggregate pointer replacement: `ptr<T> = T` for fixed arrays and structs
 - ⬜ correct full mutability matrix for `let/const owner` and `let/const ptr`
-- ⬜ nested runtime object cell chains: `&user.address.zip`
-- ⬜ mixed array/object/struct chains: `&users[0].age`
 - ⬜ pointer invalidation diagnostics for array/object realloc
 - ⬜ partial pointer views: `&matrix[0]` / `matrix[0] -> ptr<number[3]>`
 - ⬜ dynamic shaped arrays: `Array<T, Rank>`

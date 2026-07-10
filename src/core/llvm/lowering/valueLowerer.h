@@ -200,6 +200,8 @@ namespace yogi::core::llvm::internal {
 				const Yogi::Sir::PropertyAccessExpression *property
 			);
 			std::optional<AddressableSlot> lowerStructAddressableSlot(const Yogi::Sir::ValueRef *value);
+			::llvm::Value *lowerRuntimeObjectCell(const Yogi::Sir::PropertyAccessExpression *property);
+			::llvm::Value *lowerRuntimeObjectValue(const Yogi::Sir::ValueRef *value);
 			::llvm::Value *lowerAddressableArrayCell(const Yogi::Sir::ElementAccessExpression *access);
 			::llvm::Value *boxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType);
 			::llvm::Value *unboxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *targetSemanticType);

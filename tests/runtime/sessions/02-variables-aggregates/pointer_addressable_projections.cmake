@@ -215,6 +215,35 @@ expect_run_with_ir(
 	"yogi_cell_set"
 )
 
+expect_run_with_ir(
+	"nested_runtime_object_cell_address"
+	"type Address = {\n    zip: number\n}\n\ntype User = {\n    address: Address\n}\n\nlet user: User = { address: { zip: 10001 } }\nlet zip: ptr<number> = &user.address.zip\nprint(zip)\nzip = 10002\nprint(user.address.zip)\nuser.address.zip = 10003\nprint(zip)\n"
+	"10001\n10002\n10003\n"
+	"yogi_object_cell"
+	"yogi_cell_get"
+	"yogi_cell_set"
+)
+
+expect_run_with_ir(
+	"array_object_cell_field_address"
+	"type User = {\n    age: number\n}\n\nlet users: User[] = [{ age: 31 }, { age: 40 }]\nlet age: ptr<number> = &users[0].age\nprint(age)\nage = 32\nprint(users[0].age)\nusers[1].age = 41\nprint(users[1].age)\n"
+	"31\n32\n41\n"
+	"yogi_array_cell"
+	"yogi_object_cell"
+	"yogi_cell_get"
+	"yogi_cell_set"
+)
+
+expect_run_with_ir(
+	"array_struct_cell_field_address"
+	"struct User {\n    age: number\n}\n\nlet users: User[] = [{ age: 31 }, { age: 40 }]\nlet age: ptr<number> = &users[0].age\nprint(age)\nage = 32\nprint(users[0].age)\nusers[1].age = 41\nprint(users[1].age)\n"
+	"31\n32\n41\n"
+	"yogi_array_cell"
+	"yogi_object_cell"
+	"yogi_cell_get"
+	"yogi_cell_set"
+)
+
 expect_invalid(
 	"const_object_field_cell_write"
 	"type User = {\n    age: number\n}\nconst user: User = { age: 31 }\nlet age: ptr<number> = &user.age\nage = 32\n"
@@ -279,4 +308,16 @@ expect_invalid(
 	"ptr_non_struct_field_projection"
 	"let value: number = 1\nlet p: ptr<number> = &value\nprint(p.x)\n"
 	"cannot access field .*x.*pointee type .*number"
+)
+
+expect_invalid(
+	"const_nested_runtime_object_cell_write"
+	"type Address = {\n    zip: number\n}\n\ntype User = {\n    address: Address\n}\n\nconst user: User = { address: { zip: 10001 } }\nlet zip: ptr<number> = &user.address.zip\nzip = 10002\n"
+	"cannot write through pointer"
+)
+
+expect_invalid(
+	"const_array_object_cell_field_write"
+	"type User = {\n    age: number\n}\n\nconst users: User[] = [{ age: 31 }]\nlet age: ptr<number> = &users[0].age\nage = 32\n"
+	"cannot write through pointer"
 )

@@ -737,13 +737,14 @@ let users: User[2] = [
 ]
 ```
 
-Field address of an element may be supported when array element addressability is supported:
+Field address of an element is supported when the element is reached through an
+addressable array cell:
 
 ```ts
 let p: ptr<number> = &users[0].age
 ```
 
-This should be valid for fixed-size arrays because the storage is stable.
+For fixed-size arrays this uses row-major array cell addressability.
 
 For dynamic arrays:
 
@@ -755,7 +756,16 @@ let users: User[] = [
 let p: ptr<number> = &users[0].age
 ```
 
-This should be delayed until Yogi has safe rules for dynamic array element pointers, because array reallocation may move the underlying storage.
+This is also supported through a tagged runtime cell pointer. The pointer keeps
+the root provenance and readonly permission from `users`; writes through the
+pointer are rejected if the root is `const`.
+
+Current limitation:
+
+```txt
+Yogi does not yet diagnose pointer invalidation if a dynamic array/object
+structurally mutates after a cell pointer has been created.
+```
 
 ---
 
