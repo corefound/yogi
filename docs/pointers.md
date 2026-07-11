@@ -226,6 +226,7 @@ Checklist:
 - ✅ pointer rebind updates which dynamic array root is protected
 - ✅ pointer scope end releases the protected dynamic array root
 - ✅ whole dynamic array replacement is blocked while an internal pointer is live
+- ✅ adaptive dynamic array storage selection: contiguous by default, pointer-safe only when growth overlaps a live interior pointer
 - ✅ readonly root rejection for nested field mutation
 - ✅ RHS type checking for nested field mutation
 
@@ -245,7 +246,7 @@ Checklist:
 ### Known Limitations
 
 - ⚠️ `&matrix[0]` remains rejected because it is a partial view, not a scalar cell.
-- ⚠️ Dynamic array `push` is pointer-safe today; destructive/reordering operations such as `pop`, `splice`, `sort`, and `reverse` are still rejected conservatively while a live pointer points into the array.
+- ⚠️ Dynamic array `push` is pointer-safe when semantic analysis sees a live interior pointer during growth; destructive/reordering operations such as `pop`, `splice`, `sort`, and `reverse` are still rejected conservatively while a live pointer points into the array.
 - ⚠️ Function returns from `ptr<Array>` parameters into dynamic array cells are still pending because address-of through pointer-derived array access is currently rejected.
 
 ### Philosophy
@@ -944,9 +945,10 @@ destructive/reordering operations are rejected conservatively while an interior 
 Checklist:
 
 - [x] Support `&dynamicArray[index]`.
-- [x] Preserve element slots across `push`.
+- [x] Preserve element slots across `push` when a live interior pointer requires pointer-safe storage.
+- [x] Keep normal dynamic arrays on contiguous fast-path storage when no live interior pointer can be invalidated.
 - [x] Reject destructive/reordering operations while a live pointer targets the array.
-- [ ] Add adaptive fast contiguous storage when no live interior pointers can be invalidated.
+- [x] Add adaptive fast contiguous storage when no live interior pointers can be invalidated.
 - [ ] Add index-sensitive checks for destructive operations.
 
 Valid:
@@ -1247,7 +1249,7 @@ LLVM concept:
 - [ ] `function 'x' may mutate pointer parameter 'p', but argument '&v' points to const storage`
 - [ ] `cannot return pointer to local storage 'name'`
 - [ ] `cannot return pointer/view derived from value parameter 'name'`
-- [x] dynamic array element pointers use stable runtime cells instead of rejecting `&array[index]`
+- [x] dynamic array element pointers use stable runtime cells when semantic analysis selects pointer-safe storage
 - [ ] `pointer arithmetic is not supported in safe Yogi`
 - [ ] `dynamic index signatures are not supported in Yogi object types`
 

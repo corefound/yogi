@@ -39,22 +39,31 @@ print(users[1].age) // 30
 
 ## Runtime Storage
 
-The current correctness-first implementation stores dynamic array elements in
-stable element slots.
+Lot 40 introduced the pointer-safe dynamic-array representation needed to make
+`push` safe while a live interior pointer exists. Lot 41 refined this into an
+adaptive selection model: dynamic arrays stay contiguous by default, and only
+arrays proven to grow while an interior pointer is live use pointer-safe slots.
 
 ```txt
 Array descriptor:
-  slots pointer
+  storage mode
+  element pointer table
   length
   capacity
 
-Slot:
-  value pointer
+contiguous_fast_path:
+  one contiguous value buffer
+  element table points at the contiguous cells
+
+pointer_safe_chunked_mode:
+  each element cell is separately allocated
+  element table can move, existing cells remain stable
 ```
 
-Growing the array may move the slot pointer table, but it does not move existing
-slots. A pointer returned by `yogi_array_cell(array, index)` points to the slot,
-not to an entry inside the reallocating slot table.
+In pointer-safe mode, growing the array may move the element pointer table, but
+it does not move existing cells. A pointer returned by
+`yogi_array_cell(array, index)` points to the cell, not to an entry inside the
+reallocating pointer table.
 
 This preserves:
 
@@ -152,16 +161,16 @@ reverse/sort while pointer is live
 readonly root push
 ```
 
-## Future Optimization
+## Follow-Up Optimization
 
-The current runtime uses stable slots for all dynamic arrays. That is correct
-and simple, but not the final performance model.
+Lot 41 implements the first adaptive storage decision in semantic analysis and
+SIR/LLVM lowering. Remaining follow-up work is more precise than the original
+all-or-nothing plan:
 
-Future adaptive storage can add:
+Future work can add:
 
 ```txt
-fast contiguous mode when no live interior pointers can be invalidated
-promotion to pointer-safe/chunked mode when growth and live pointers overlap
 runtime index-sensitive checks for destructive operations
 compaction only when no protected cells are live
+runtime migration from contiguous to pointer-safe if a future feature creates a late storage transition
 ```

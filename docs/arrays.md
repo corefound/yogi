@@ -528,6 +528,45 @@ All return paths for a borrowed pointer result must borrow from the same
 parameter. Returning `left[0]` on one path and `right[0]` on another is rejected
 because the compiler cannot summarize the result as one stable parameter borrow.
 
+### Dynamic array storage analysis
+
+Dynamic `T[]` arrays are contiguous by default. A pointer expression alone does
+not force slower storage:
+
+```ts
+let users: User[] = [{ age: 20 }]
+let age: ptr<number> = &users[0].age
+
+age = 99 // users can still use contiguous storage
+```
+
+If a live interior pointer exists when the same dynamic array grows with
+`push`, semantic analysis marks that array literal as
+`pointer_safe_chunked_mode` in SIR. The LLVM backend lowers that mode into the
+runtime create/init call, so existing element cells remain stable across growth.
+
+```ts
+let users: User[] = [{ age: 20 }]
+let age: ptr<number> = &users[0].age
+
+users.push({ age: 30 }) // users uses pointer-safe storage
+age = 99
+```
+
+This does not apply to `ptr<User[]> = &users`, because that pointer targets the
+array descriptor rather than an interior element/cell. Rebinding a pointer
+updates the protected root: after `age = &usersB[0].age`, growth of `usersA`
+can stay contiguous while growth of `usersB` becomes pointer-safe.
+
+Destructive or reordering operations remain rejected while a live interior
+pointer exists:
+
+```ts
+users.sort()    // error if age still points into users
+users.reverse() // error
+users.splice(0, 1) // error
+```
+
 ### Future: pointers to dynamic shaped arrays
 
 Pointers to `Array<T, Rank>` and runtime-rank `Array<T>` are planned future
@@ -2005,6 +2044,7 @@ Yogi is flexible when the runtime can validate safely.
 ✅ Pointer-safe dynamic array push while a live pointer points into the array
 ✅ Destructive dynamic array mutation diagnostics while a live pointer points into the array
 ✅ Pointer rebind/scope-exit updates for dynamic array invalidation diagnostics
+✅ Adaptive dynamic array storage selection: contiguous fast path unless live interior pointers require pointer-safe storage
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer call diagnostics for missing &, value/pointer mismatch, shape mismatch, and pointer-to-pointer mismatch
 ✅ Borrow summaries for ptr<T> parameter-derived returns
@@ -2016,7 +2056,6 @@ Yogi is flexible when the runtime can validate safely.
 ### Next Lots
 
 ```txt
-⬜ Adaptive fast contiguous vs pointer-safe/chunked storage selection for dynamic arrays
 ⬜ Index-sensitive destructive operation checks for pop/splice/shift while pointers are live
 ```
 

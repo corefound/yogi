@@ -115,7 +115,9 @@ without re-auditing the whole compiler.
 - [x] Pointer invalidation diagnostics for destructive dynamic array operations while a live internal pointer exists
 - [x] Pointer rebind and scope-exit updates for dynamic array invalidation diagnostics
 - [x] Whole dynamic array replacement blocked while a live internal pointer exists
-- [ ] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage
+- [x] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage selected by semantic analysis
+- [ ] Runtime migration from contiguous to pointer-safe storage after allocation when future late analysis/runtime transitions need it
+- [ ] Index-sensitive destructive operation checks for live interior dynamic array pointers
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Interprocedural lifetime summaries for borrowed views
