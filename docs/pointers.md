@@ -222,7 +222,11 @@ Checklist:
 - ✅ mixed array/object/struct chains: `&users[0].age`
 - ✅ pointer invalidation diagnostics for dynamic arrays
 - ✅ dynamic array `push` remains valid while a live interior pointer points into the array
-- ✅ destructive/reordering mutation blocked while a live pointer points into a dynamic array
+- ✅ JavaScript-style mutating methods are allowed with live dynamic-array pointers when slot identity can be tracked
+- ✅ removed dynamic-array element slots invalidate only pointers to removed element identities
+- ✅ `pop`, `shift`, and `splice` report runtime pointer errors when a removed slot pointer is used later
+- ✅ `unshift`, `reverse`, and `sort` preserve existing dynamic-array pointer identities
+- ✅ `fill` and `copyWithin` preserve slot identity while overwriting current slot values
 - ✅ pointer rebind updates which dynamic array root is protected
 - ✅ pointer scope end releases the protected dynamic array root
 - ✅ whole dynamic array replacement is blocked while an internal pointer is live
@@ -246,7 +250,7 @@ Checklist:
 ### Known Limitations
 
 - ⚠️ `&matrix[0]` remains rejected because it is a partial view, not a scalar cell.
-- ⚠️ Dynamic array `push` is pointer-safe when semantic analysis sees a live interior pointer during growth; destructive/reordering operations such as `pop`, `splice`, `sort`, and `reverse` are still rejected conservatively while a live pointer points into the array.
+- ⚠️ Dynamic array pointer validity currently uses runtime checks for removed slots; richer compile-time diagnostics for provable invalidated pointer use are still pending.
 - ⚠️ Function returns from `ptr<Array>` parameters into dynamic array cells are still pending because address-of through pointer-derived array access is currently rejected.
 
 ### Philosophy

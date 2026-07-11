@@ -23,7 +23,7 @@ Pointer existence alone does not make a dynamic array pointer-safe. The array
 switches to pointer-safe storage only when semantic analysis sees:
 
 ```txt
-live interior pointer + push on the same dynamic array root
+live interior pointer + identity-sensitive dynamic array method on the same root
 ```
 
 Example that remains contiguous:
@@ -79,8 +79,9 @@ access path
 scope id
 ```
 
-When validating `push`, the compiler checks whether a live pointer points into
-the pushed dynamic array. If yes, the root array symbol receives:
+When validating methods such as `push`, `pop`, `shift`, `unshift`, `splice`,
+`sort`, or `reverse`, the compiler checks whether a live pointer points into the
+same dynamic array. If yes, the root array symbol receives:
 
 ```txt
 dynamicArrayStorageMode = pointer_safe_chunked_mode
@@ -141,17 +142,19 @@ descriptor pointer -> contiguous
 Negative coverage:
 
 ```txt
-sort while an interior pointer is live
-reverse while an interior pointer is live
 whole-array replacement while an interior pointer is live
 ```
+
+`sort` and `reverse` used to be rejected conservatively. Lot 42 replaced that
+behavior with slot-identity tracking so reordering methods are allowed while
+preserving pointer validity.
 
 ## Remaining Work
 
 ```txt
-index-sensitive destructive-operation checks
 runtime compaction when no protected cells are live
 late runtime migration if future features need storage changes after allocation
 pointer-return provenance from ptr<Array> parameters into dynamic array cells
 dynamic object structural mutation invalidation, if dynamic object storage becomes resizable/reordering
+compile-time diagnostics for provably invalidated dynamic-array pointer use
 ```

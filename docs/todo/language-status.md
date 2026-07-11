@@ -112,12 +112,15 @@ without re-auditing the whole compiler.
 - [x] Nested runtime object cell chains such as `&user.address.zip`
 - [x] Mixed array/object/struct addressability such as `&users[0].age`
 - [x] Pointer-safe dynamic array `push` while a live internal pointer exists
-- [x] Pointer invalidation diagnostics for destructive dynamic array operations while a live internal pointer exists
+- [x] Dynamic array mutating methods keep JavaScript-style surface while tracking element identity
+- [x] Runtime pointer validity checks for dynamic array slots removed by `pop`, `shift`, and `splice`
+- [x] Pointer identity preservation across `unshift`, `reverse`, `sort`, `fill`, and `copyWithin`
+- [x] Copy-returning array methods do not invalidate original dynamic array pointers
 - [x] Pointer rebind and scope-exit updates for dynamic array invalidation diagnostics
 - [x] Whole dynamic array replacement blocked while a live internal pointer exists
 - [x] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage selected by semantic analysis
 - [ ] Runtime migration from contiguous to pointer-safe storage after allocation when future late analysis/runtime transitions need it
-- [ ] Index-sensitive destructive operation checks for live interior dynamic array pointers
+- [ ] Compile-time diagnostics for provably invalidated dynamic-array pointer use after removal
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Interprocedural lifetime summaries for borrowed views

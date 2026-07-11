@@ -96,6 +96,61 @@ array.at(index)  = safe access, may return undefined
 
 ---
 
+### Dynamic array pointer validity
+
+Dynamic `T[]` arrays keep JavaScript/TypeScript method names, but Yogi gives
+interior pointers stricter runtime meaning.
+
+```ts
+struct User {
+    age: number
+}
+
+let users: User[] = [{ age: 20 }, { age: 30 }]
+let age: ptr<number> = &users[1].age
+
+users.shift()
+age = 99
+print(users[0].age) // 99
+```
+
+The pointer does not mean "index 1 forever." It points to the original element
+identity. `shift()` removed the first slot, so the original second slot still
+exists and moved to index `0`.
+
+If a method removes the pointed element, using the pointer is a runtime error:
+
+```ts
+let age: ptr<number> = &users[0].age
+
+users.shift()
+age = 99 // runtime pointer error
+```
+
+Policy:
+
+```txt
+pop      invalidates only the removed last slot
+shift    invalidates only the removed first slot
+splice   invalidates only removed slots
+unshift  preserves existing slots
+reverse  preserves existing slots and changes logical order
+sort     preserves existing slots and changes logical order
+fill     overwrites values inside existing slots
+copyWithin overwrites values inside existing slots
+toSpliced / toReversed / toSorted do not mutate original slots
+```
+
+When Yogi sees a live interior pointer and an identity-sensitive dynamic array
+method on the same root, semantic analysis selects pointer-safe storage for that
+array literal. The LLVM backend asks the runtime for `yogi_array_pointer_cell`
+and pointer reads/writes go through `yogi_pointer_cell_get` /
+`yogi_pointer_cell_set`.
+
+This is local slot metadata, not GC and not global pointer scanning.
+
+---
+
 ### Fixed-size arrays
 
 Fixed-size arrays must have exactly the declared length.
