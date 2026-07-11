@@ -18,6 +18,10 @@ namespace yogi::runtime {
 			void set(const char *name, void *value);
 			void *get(const char *name) const;
 			void **cell(const char *name);
+			void **cell(const char *name, void **ownerArraySlot);
+			static void *cellGet(void *cell);
+			static void cellSet(void *cell, void *value);
+			static void **ownerArraySlotForCell(void *cell);
 			std::size_t length() const;
 			const char *keyAt(std::size_t index) const;
 			void *valueAt(std::size_t index) const;
@@ -25,8 +29,9 @@ namespace yogi::runtime {
 
 		private:
 			struct Property {
-				char *key;
 				void *value;
+				char *key;
+				void **ownerArraySlot;
 			};
 
 			Property *properties = nullptr;
@@ -44,16 +49,20 @@ namespace yogi::runtime {
 				ContiguousFastPath,
 				PointerSafeChunkedMode,
 			};
+			struct ElementSlot;
 
 			static ArrayValue *create(std::size_t length, StorageMode storageMode = StorageMode::ContiguousFastPath);
 			static ArrayValue *createView(ArrayValue *source, std::size_t offset, std::size_t length);
 			static void init(void *address, std::size_t length, StorageMode storageMode = StorageMode::ContiguousFastPath);
 			static StorageMode storageModeFromName(const char *name);
+			static void *cellGet(void *cell);
+			static void cellSet(void *cell, void *value);
 			static std::size_t size();
 
 			void set(std::size_t index, void *value);
 			void *get(std::size_t index) const;
 			void **cell(std::size_t index);
+			void *pointerCell(std::size_t index);
 			std::size_t push(void *value);
 			void *pop();
 			void *at(std::size_t index) const;
@@ -71,6 +80,7 @@ namespace yogi::runtime {
 			void fill(void *value, double start, double end);
 			void copyWithin(double target, double start, double end);
 			ArrayValue *splice(double start, double deleteCount, const ArrayValue *inserted);
+			void swapSlots(std::size_t left, std::size_t right);
 			ArrayValue *toReversed() const;
 			ArrayValue *toSpliced(double start, double deleteCount, const ArrayValue *inserted) const;
 			ArrayValue *with(double index, void *value) const;
@@ -90,8 +100,11 @@ namespace yogi::runtime {
 			StorageMode storageMode = StorageMode::ContiguousFastPath;
 			void **contiguousValues = nullptr;
 			void ***elements = nullptr;
+			void ***retiredElements = nullptr;
 			std::size_t elementCount = 0;
 			std::size_t elementCapacity = 0;
+			std::size_t retiredElementCount = 0;
+			std::size_t retiredElementCapacity = 0;
 			ArrayValue *viewSource = nullptr;
 			std::size_t viewOffset = 0;
 
@@ -100,7 +113,11 @@ namespace yogi::runtime {
 			static void **createSlot(void *value);
 			void *slotValue(std::size_t index) const;
 			void setSlotValue(std::size_t index, void *value);
+			void invalidateSlot(std::size_t index);
+			void retireSlot(void **slot);
 			void releaseSlot(std::size_t index);
+			void releaseCell(void **slot);
+			void releaseRetiredSlots();
 			void ensureCapacity(std::size_t requiredCapacity);
 			bool isView() const;
 	};

@@ -73,6 +73,7 @@ void yogi_object_init(void *object);
 void yogi_object_set(void *object, const char *name, void *value);
 void *yogi_object_get(void *object, const char *name);
 void *yogi_object_cell(void *object, const char *name);
+void *yogi_object_cell_with_pointer_owner(void *object, const char *name, void *ownerPointer);
 void yogi_object_drop(void *object);
 void yogi_object_destroy(void *object);
 
@@ -85,6 +86,7 @@ void yogi_array_init_with_storage(void *array, unsigned long long length, const 
 void yogi_array_set(void *array, unsigned long long index, void *value);
 void *yogi_array_get(void *array, unsigned long long index);
 void *yogi_array_cell(void *array, unsigned long long index);
+void *yogi_array_pointer_cell(void *array, unsigned long long index);
 unsigned long long yogi_array_push(void *array, void *value);
 void *yogi_array_pop(void *array);
 void *yogi_array_at(void *array, unsigned long long index);
@@ -102,6 +104,7 @@ void yogi_array_insert(void *array, unsigned long long index, void *value);
 void yogi_array_fill(void *array, void *value, double start, double end);
 void yogi_array_copy_within(void *array, double target, double start, double end);
 void *yogi_array_splice(void *array, double start, double deleteCount, void *inserted);
+void yogi_array_swap_slots(void *array, unsigned long long left, unsigned long long right);
 void *yogi_array_to_reversed(void *array);
 void *yogi_array_to_spliced(void *array, double start, double deleteCount, void *inserted);
 void *yogi_array_with(void *array, double index, void *value);
@@ -120,6 +123,9 @@ void yogi_array_destroy(void *array);
 
 void *yogi_cell_get(void *cell);
 void yogi_cell_set(void *cell, void *value);
+void *yogi_project_cell(void *ownerPointer, const char *key);
+void *yogi_pointer_cell_get(void *pointer);
+void yogi_pointer_cell_set(void *pointer, void *value);
 
 void *yogi_alloc(unsigned long long size);
 void *yogi_realloc(void *address, unsigned long long newSize);

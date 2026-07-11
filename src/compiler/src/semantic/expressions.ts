@@ -669,7 +669,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
-            this.assertNoLivePointerIntoDynamicContainer(root, symbol, methodName, source, rawCallee);
+            this.markDynamicArrayStorageForGrowth(root, symbol, methodName);
 
             // pop() takes no arguments
             if (args.length !== 0) {
@@ -919,9 +919,9 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
-            const structuralArrayMethods = new Set(["pop", "shift", "unshift", "splice", "sort", "reverse", "resize", "clear"]);
-            if (structuralArrayMethods.has(methodName)) {
-                this.assertNoLivePointerIntoDynamicContainer(root, symbol, methodName, source, rawCallee);
+            const identitySensitiveMethods = new Set(["pop", "shift", "unshift", "splice", "sort", "reverse"]);
+            if (identitySensitiveMethods.has(methodName)) {
+                this.markDynamicArrayStorageForGrowth(root, symbol, methodName);
             }
         }
 

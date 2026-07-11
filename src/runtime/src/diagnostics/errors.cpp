@@ -114,6 +114,23 @@ namespace yogi::runtime {
         std::abort();
     }
 
+    void RuntimeError::abortInvalidPointer(const char* reason) {
+        const auto *sourcePath = safeText(MemoryManager::currentMemorySourcePath(), "<unknown>");
+        const auto line = static_cast<unsigned long long>(MemoryManager::currentMemorySourceLine());
+        const auto column = static_cast<unsigned long long>(MemoryManager::currentMemorySourceColumn());
+
+        std::fprintf(
+            stderr,
+            "%s:%llu:%llu - runtime pointer error: %s\n\n",
+            sourcePath,
+            line + 1,
+            column + 1,
+            safeText(reason, "invalid pointer use"));
+
+        printSourceLine(MemoryManager::currentMemorySourcePath(), line, column);
+        std::abort();
+    }
+
     void RuntimeError::abortRange(const char* operation, long long index, unsigned long long length) {
         const auto *sourcePath = safeText(MemoryManager::currentMemorySourcePath(), "<unknown>");
         const auto line = static_cast<unsigned long long>(MemoryManager::currentMemorySourceLine());

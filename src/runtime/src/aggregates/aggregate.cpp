@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -17,8 +18,57 @@
 
 namespace yogi::runtime {
 
-	namespace {
-		double toInteger(double value) {
+	struct ArrayValue::ElementSlot {
+		void *value = nullptr;
+		std::uint64_t generation = 1;
+		bool removed = false;
+	};
+
+	struct ProjectedCell {
+		void *ownerPointer = nullptr;
+		const char *key = nullptr;
+	};
+
+		namespace {
+			constexpr auto *removedArrayElementPointerMessage =
+				"pointer is used after the array element it points to was removed";
+			constexpr auto rawCellPointerTag = static_cast<std::uintptr_t>(1);
+			constexpr auto arrayCellPointerTag = static_cast<std::uintptr_t>(3);
+			constexpr auto projectedCellPointerTag = static_cast<std::uintptr_t>(5);
+			constexpr auto runtimeCellPointerMask = static_cast<std::uintptr_t>(7);
+
+			ArrayValue::ElementSlot *arraySlotFromCell(void **cell) {
+				return reinterpret_cast<ArrayValue::ElementSlot *>(cell);
+			}
+
+			void *tagRuntimePointer(void *cell, std::uintptr_t tag) {
+				auto address = reinterpret_cast<std::uintptr_t>(cell);
+				return reinterpret_cast<void *>(address | tag);
+			}
+
+			std::uintptr_t runtimePointerTag(void *pointer) {
+				return reinterpret_cast<std::uintptr_t>(pointer) & runtimeCellPointerMask;
+			}
+
+			void *untagRuntimePointer(void *pointer) {
+				auto address = reinterpret_cast<std::uintptr_t>(pointer);
+				return reinterpret_cast<void *>(address & ~runtimeCellPointerMask);
+			}
+
+			void **ownerArraySlotForPointer(void *pointer) {
+				switch (runtimePointerTag(pointer)) {
+					case arrayCellPointerTag:
+						return static_cast<void **>(untagRuntimePointer(pointer));
+					default:
+						return nullptr;
+				}
+			}
+
+			ProjectedCell *projectedCellFromPointer(void *pointer) {
+				return static_cast<ProjectedCell *>(untagRuntimePointer(pointer));
+			}
+
+			double toInteger(double value) {
 			if (std::isnan(value)) {
 				return 0;
 			}
@@ -337,8 +387,9 @@ namespace yogi::runtime {
 		}
 
 		ensureCapacity();
-		properties[propertyCount].key = copyKey(name);
 		properties[propertyCount].value = value ? value : AnyValue::undefined();
+		properties[propertyCount].key = copyKey(name);
+		properties[propertyCount].ownerArraySlot = nullptr;
 		++propertyCount;
 	}
 
@@ -359,6 +410,10 @@ namespace yogi::runtime {
 	}
 
 	void **ObjectValue::cell(const char *name) {
+		return cell(name, nullptr);
+	}
+
+	void **ObjectValue::cell(const char *name, void **ownerArraySlot) {
 		OwnershipTracker::assertLiveAggregate(this, "object cell after destroy/drop", "object value");
 
 		if (!name) {
@@ -370,13 +425,17 @@ namespace yogi::runtime {
 			if (!properties[index].value) {
 				properties[index].value = AnyValue::undefined();
 			}
+			if (ownerArraySlot) {
+				properties[index].ownerArraySlot = ownerArraySlot;
+			}
 
 			return &properties[index].value;
 		}
 
 		ensureCapacity();
-		properties[propertyCount].key = copyKey(name);
 		properties[propertyCount].value = AnyValue::undefined();
+		properties[propertyCount].key = copyKey(name);
+		properties[propertyCount].ownerArraySlot = ownerArraySlot;
 		++propertyCount;
 
 		return &properties[propertyCount - 1].value;
@@ -445,6 +504,7 @@ namespace yogi::runtime {
 			MemoryManager::deallocate(properties[index].key);
 			properties[index].key = nullptr;
 			properties[index].value = nullptr;
+			properties[index].ownerArraySlot = nullptr;
 		}
 
 		MemoryManager::deallocate(properties);
@@ -550,13 +610,18 @@ namespace yogi::runtime {
 	}
 
 	void **ArrayValue::createSlot(void *value) {
-		auto **slot = static_cast<void **>(MemoryManager::allocate(sizeof(void *), "array element slot"));
-		*slot = value ? value : AnyValue::undefined();
-		return slot;
+		auto *slot = static_cast<ElementSlot *>(MemoryManager::allocate(sizeof(ElementSlot), "array element slot"));
+		new (slot) ElementSlot();
+		slot->value = value ? value : AnyValue::undefined();
+		return &slot->value;
 	}
 
 	void *ArrayValue::slotValue(std::size_t index) const {
 		auto **slot = elements[index];
+		if (usesPointerSafeStorage()) {
+			return cellGet(slot);
+		}
+
 		return slot && *slot ? *slot : AnyValue::undefined();
 	}
 
@@ -578,10 +643,36 @@ namespace yogi::runtime {
 			return;
 		}
 
-		*elements[index] = value ? value : AnyValue::undefined();
+		cellSet(elements[index], value);
 	}
 
-	void ArrayValue::releaseSlot(std::size_t index) {
+	void *ArrayValue::cellGet(void *cell) {
+		if (!cell) {
+			return AnyValue::undefined();
+		}
+
+		auto *slot = arraySlotFromCell(static_cast<void **>(cell));
+		if (slot->removed) {
+			RuntimeError::abortInvalidPointer(removedArrayElementPointerMessage);
+		}
+
+		return slot->value ? slot->value : AnyValue::undefined();
+	}
+
+	void ArrayValue::cellSet(void *cell, void *value) {
+		if (!cell) {
+			return;
+		}
+
+		auto *slot = arraySlotFromCell(static_cast<void **>(cell));
+		if (slot->removed) {
+			RuntimeError::abortInvalidPointer(removedArrayElementPointerMessage);
+		}
+
+		slot->value = value ? value : AnyValue::undefined();
+	}
+
+	void ArrayValue::invalidateSlot(std::size_t index) {
 		auto **slot = elements[index];
 		if (!slot) {
 			return;
@@ -593,9 +684,104 @@ namespace yogi::runtime {
 			return;
 		}
 
-		*slot = nullptr;
-		MemoryManager::deallocate(slot);
+		auto *elementSlot = arraySlotFromCell(slot);
+		elementSlot->value = AnyValue::undefined();
+		elementSlot->removed = true;
+		++elementSlot->generation;
+		retireSlot(slot);
 		elements[index] = nullptr;
+	}
+
+	void ArrayValue::retireSlot(void **slot) {
+		if (!slot) {
+			return;
+		}
+
+		if (retiredElementCount >= retiredElementCapacity) {
+			const auto nextCapacity = retiredElementCapacity == 0 ? 4 : retiredElementCapacity * 2;
+			retiredElements = static_cast<void ***>(
+				MemoryManager::reallocate(retiredElements, sizeof(void **) * nextCapacity, "array retired element slots")
+			);
+			retiredElementCapacity = nextCapacity;
+		}
+
+		retiredElements[retiredElementCount++] = slot;
+	}
+
+	void ArrayValue::releaseCell(void **slot) {
+		if (!slot) {
+			return;
+		}
+
+		if (usesPointerSafeStorage()) {
+			auto *elementSlot = arraySlotFromCell(slot);
+			elementSlot->~ElementSlot();
+			MemoryManager::deallocate(elementSlot);
+			return;
+		}
+
+		*slot = AnyValue::undefined();
+	}
+
+	void ArrayValue::releaseSlot(std::size_t index) {
+		auto **slot = elements[index];
+		if (!slot) {
+			return;
+		}
+
+		releaseCell(slot);
+		elements[index] = nullptr;
+	}
+
+	void ArrayValue::releaseRetiredSlots() {
+		if (!retiredElements) {
+			return;
+		}
+
+		for (std::size_t index = 0; index < retiredElementCount; ++index) {
+			releaseCell(retiredElements[index]);
+			retiredElements[index] = nullptr;
+		}
+
+		MemoryManager::deallocate(retiredElements);
+		retiredElements = nullptr;
+		retiredElementCount = 0;
+		retiredElementCapacity = 0;
+	}
+
+	void *ObjectValue::cellGet(void *cell) {
+		if (!cell) {
+			return AnyValue::undefined();
+		}
+
+		auto *property = reinterpret_cast<Property *>(cell);
+		if (property->ownerArraySlot) {
+			ArrayValue::cellGet(property->ownerArraySlot);
+		}
+
+		return property->value ? property->value : AnyValue::undefined();
+	}
+
+	void ObjectValue::cellSet(void *cell, void *value) {
+		if (!cell) {
+			return;
+		}
+
+		auto *property = reinterpret_cast<Property *>(cell);
+		if (property->ownerArraySlot) {
+			ArrayValue::cellGet(property->ownerArraySlot);
+		}
+
+		property->value = value ? value : AnyValue::undefined();
+	}
+
+	void **ObjectValue::ownerArraySlotForCell(void *cell) {
+		if (!cell) {
+			return nullptr;
+		}
+
+		auto *property = reinterpret_cast<Property *>(cell);
+		return property->ownerArraySlot;
 	}
 
 	void ArrayValue::set(std::size_t index, void *value) {
@@ -650,6 +836,14 @@ namespace yogi::runtime {
 		return elements[index];
 	}
 
+	void *ArrayValue::pointerCell(std::size_t index) {
+		auto **slot = cell(index);
+		return tagRuntimePointer(
+			slot,
+			usesPointerSafeStorage() ? arrayCellPointerTag : rawCellPointerTag
+		);
+	}
+
 	std::size_t ArrayValue::push(void *value) {
 		OwnershipTracker::assertLiveAggregate(this, "array push after destroy/drop", "array value");
 
@@ -675,7 +869,7 @@ namespace yogi::runtime {
 		--elementCount;
 		auto *result = slotValue(elementCount);
 		if (usesPointerSafeStorage()) {
-			releaseSlot(elementCount);
+			invalidateSlot(elementCount);
 		} else {
 			contiguousValues[elementCount] = AnyValue::undefined();
 		}
@@ -756,8 +950,11 @@ namespace yogi::runtime {
 			resetContiguousSlots();
 		}
 		if (usesPointerSafeStorage() && removedSlot) {
-			*removedSlot = nullptr;
-			MemoryManager::deallocate(removedSlot);
+			auto *elementSlot = arraySlotFromCell(removedSlot);
+			elementSlot->value = AnyValue::undefined();
+			elementSlot->removed = true;
+			++elementSlot->generation;
+			retireSlot(removedSlot);
 		}
 
 		return result ? result : AnyValue::undefined();
@@ -926,6 +1123,26 @@ namespace yogi::runtime {
 		MemoryManager::deallocate(buffer);
 	}
 
+	void ArrayValue::swapSlots(std::size_t left, std::size_t right) {
+		OwnershipTracker::assertLiveAggregate(this, "array swap after destroy/drop", "array value");
+
+		if (left >= elementCount || right >= elementCount) {
+			RuntimeError::abortRange("array swap", static_cast<long long>(std::max(left, right)), elementCount);
+		}
+
+		if (left == right) {
+			return;
+		}
+
+		if (usesPointerSafeStorage()) {
+			std::swap(elements[left], elements[right]);
+			return;
+		}
+
+		std::swap(contiguousValues[left], contiguousValues[right]);
+		resetContiguousSlots();
+	}
+
 	ArrayValue *ArrayValue::splice(double start, double deleteCount, const ArrayValue *inserted) {
 		OwnershipTracker::assertLiveAggregate(this, "array splice after destroy/drop", "array value");
 
@@ -941,7 +1158,7 @@ namespace yogi::runtime {
 		for (std::size_t index = 0; index < removedCount; ++index) {
 			removed->setSlotValue(index, slotValue(startIndex + index));
 			if (usesPointerSafeStorage()) {
-				releaseSlot(startIndex + index);
+				invalidateSlot(startIndex + index);
 			}
 		}
 
@@ -1202,6 +1419,7 @@ namespace yogi::runtime {
 				for (std::size_t index = 0; index < elementCapacity; ++index) {
 					releaseSlot(index);
 				}
+				releaseRetiredSlots();
 			} else {
 				MemoryManager::deallocate(contiguousValues);
 			}
@@ -1211,8 +1429,11 @@ namespace yogi::runtime {
 
 		contiguousValues = nullptr;
 		elements = nullptr;
+		retiredElements = nullptr;
 		elementCount = 0;
 		elementCapacity = 0;
+		retiredElementCount = 0;
+		retiredElementCapacity = 0;
 		viewSource = nullptr;
 		viewOffset = 0;
 	}
@@ -1259,6 +1480,19 @@ void *yogi_object_cell(void *object, const char *name) {
 	}
 
 	return static_cast<void *>(static_cast<yogi::runtime::ObjectValue *>(object)->cell(name));
+}
+
+void *yogi_object_cell_with_pointer_owner(void *object, const char *name, void *ownerPointer) {
+	if (!object) {
+		return nullptr;
+	}
+
+	return static_cast<void *>(
+		static_cast<yogi::runtime::ObjectValue *>(object)->cell(
+			name,
+			yogi::runtime::ownerArraySlotForPointer(ownerPointer)
+		)
+	);
 }
 
 void yogi_object_drop(void *object) {
@@ -1346,6 +1580,14 @@ void *yogi_array_cell(void *array, unsigned long long index) {
 	}
 
 	return static_cast<void *>(static_cast<yogi::runtime::ArrayValue *>(array)->cell(static_cast<std::size_t>(index)));
+}
+
+void *yogi_array_pointer_cell(void *array, unsigned long long index) {
+	if (!array) {
+		return nullptr;
+	}
+
+	return static_cast<yogi::runtime::ArrayValue *>(array)->pointerCell(static_cast<std::size_t>(index));
 }
 
 unsigned long long yogi_array_push(void *array, void *value) {
@@ -1496,6 +1738,17 @@ void *yogi_array_splice(void *array, double start, double deleteCount, void *ins
 	);
 }
 
+void yogi_array_swap_slots(void *array, unsigned long long left, unsigned long long right) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->swapSlots(
+		static_cast<std::size_t>(left),
+		static_cast<std::size_t>(right)
+	);
+}
+
 void *yogi_array_to_reversed(void *array) {
 	if (!array) {
 		return yogi_array_create(0);
@@ -1640,6 +1893,68 @@ void yogi_cell_set(void *cell, void *value) {
 
 	auto **slot = static_cast<void **>(cell);
 	*slot = value ? value : yogi_any_undefined();
+}
+
+void *yogi_project_cell(void *ownerPointer, const char *key) {
+	if (!ownerPointer || !key) {
+		return nullptr;
+	}
+
+	auto *projected = static_cast<yogi::runtime::ProjectedCell *>(
+		yogi::runtime::MemoryManager::allocate(sizeof(yogi::runtime::ProjectedCell), "projected pointer cell")
+	);
+	projected->ownerPointer = ownerPointer;
+	projected->key = key;
+	return yogi::runtime::tagRuntimePointer(projected, yogi::runtime::projectedCellPointerTag);
+}
+
+void *yogi_pointer_cell_get(void *pointer) {
+	if (!pointer) {
+		return yogi_any_undefined();
+	}
+
+	auto *cell = yogi::runtime::untagRuntimePointer(pointer);
+	switch (yogi::runtime::runtimePointerTag(pointer)) {
+		case yogi::runtime::arrayCellPointerTag:
+			return yogi::runtime::ArrayValue::cellGet(cell);
+		case yogi::runtime::projectedCellPointerTag: {
+			auto *projected = yogi::runtime::projectedCellFromPointer(pointer);
+			auto *ownerValue = yogi_pointer_cell_get(projected->ownerPointer);
+			auto *object = static_cast<yogi::runtime::ObjectValue *>(
+				yogi::runtime::AnyValue::require(ownerValue, "object")->asObject()
+			);
+			return yogi_cell_get(object->cell(projected->key));
+		}
+		case yogi::runtime::rawCellPointerTag:
+		default:
+			return yogi_cell_get(cell);
+	}
+}
+
+void yogi_pointer_cell_set(void *pointer, void *value) {
+	if (!pointer) {
+		return;
+	}
+
+	auto *cell = yogi::runtime::untagRuntimePointer(pointer);
+	switch (yogi::runtime::runtimePointerTag(pointer)) {
+		case yogi::runtime::arrayCellPointerTag:
+			yogi::runtime::ArrayValue::cellSet(cell, value);
+			return;
+		case yogi::runtime::projectedCellPointerTag: {
+			auto *projected = yogi::runtime::projectedCellFromPointer(pointer);
+			auto *ownerValue = yogi_pointer_cell_get(projected->ownerPointer);
+			auto *object = static_cast<yogi::runtime::ObjectValue *>(
+				yogi::runtime::AnyValue::require(ownerValue, "object")->asObject()
+			);
+			yogi_cell_set(object->cell(projected->key), value);
+			return;
+		}
+		case yogi::runtime::rawCellPointerTag:
+		default:
+			yogi_cell_set(cell, value);
+			return;
+	}
 }
 
 }

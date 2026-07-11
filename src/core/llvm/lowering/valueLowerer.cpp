@@ -1110,8 +1110,7 @@ namespace yogi::core::llvm::internal {
 				context.builder.CreateCondBr(shouldSwap, swapBlock, innerContinue);
 
 				context.builder.SetInsertPoint(swapBlock);
-				callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray, innerIndex, rightBoxed});
-				callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray, nextInnerIndex, leftBoxed});
+				callRuntime("yogi_array_swap_slots", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray, innerIndex, nextInnerIndex});
 				context.builder.CreateBr(innerContinue);
 
 				context.builder.SetInsertPoint(innerContinue);
@@ -1588,7 +1587,7 @@ namespace yogi::core::llvm::internal {
 		auto *address = context.builder.CreatePtrToInt(pointer, integerType, "ptr.cell.tagged.addr");
 		auto *untagged = context.builder.CreateAnd(
 			address,
-			::llvm::ConstantInt::get(integerType, ~static_cast<uint64_t>(1)),
+			::llvm::ConstantInt::get(integerType, ~static_cast<uint64_t>(7)),
 			"ptr.cell.untag"
 		);
 
@@ -1624,8 +1623,7 @@ namespace yogi::core::llvm::internal {
 		context.builder.CreateCondBr(isCell, cellBlock, rawBlock);
 
 		context.builder.SetInsertPoint(cellBlock);
-		auto *cell = untagRuntimeCellPointer(pointer);
-		auto *boxed = callRuntime("yogi_cell_get", opaquePointer(), {cell});
+		auto *boxed = callRuntime("yogi_pointer_cell_get", opaquePointer(), {pointer});
 		auto *cellArray = unboxAny(boxed, pointeeSemanticType);
 		context.builder.CreateBr(mergeBlock);
 		auto *cellEnd = context.builder.GetInsertBlock();
@@ -1669,8 +1667,7 @@ namespace yogi::core::llvm::internal {
 		context.builder.CreateCondBr(isCell, cellBlock, rawBlock);
 
 		context.builder.SetInsertPoint(cellBlock);
-		auto *cell = untagRuntimeCellPointer(pointer);
-		auto *boxed = callRuntime("yogi_cell_get", opaquePointer(), {cell});
+		auto *boxed = callRuntime("yogi_pointer_cell_get", opaquePointer(), {pointer});
 		auto *cellValue = cast(
 			unboxAny(boxed, targetSemanticType),
 			targetType,
@@ -1713,9 +1710,8 @@ namespace yogi::core::llvm::internal {
 		context.builder.CreateCondBr(isCell, cellBlock, rawBlock);
 
 		context.builder.SetInsertPoint(cellBlock);
-		auto *cell = untagRuntimeCellPointer(pointer);
 		auto *boxed = boxAny(value, sourceSemanticType ? sourceSemanticType : pointeeSemanticType);
-		callRuntime("yogi_cell_set", ::llvm::Type::getVoidTy(context.llvmContext), {cell, boxed});
+		callRuntime("yogi_pointer_cell_set", ::llvm::Type::getVoidTy(context.llvmContext), {pointer, boxed});
 		context.builder.CreateBr(mergeBlock);
 
 		context.builder.SetInsertPoint(rawBlock);
@@ -1932,12 +1928,8 @@ namespace yogi::core::llvm::internal {
 		context.builder.CreateCondBr(isCell, cellBlock, rawBlock);
 
 		context.builder.SetInsertPoint(cellBlock);
-		auto *cell = untagRuntimeCellPointer(pointer);
-		auto *boxed = callRuntime("yogi_cell_get", opaquePointer(), {cell});
-		auto *object = callRuntime("yogi_any_to_object", opaquePointer(), {boxed});
 		auto *key = context.builder.CreateGlobalString(propertyName);
-		auto *fieldCell = callRuntime("yogi_object_cell", opaquePointer(), {object, key});
-		auto *taggedFieldCell = tagRuntimeCellPointer(fieldCell);
+		auto *taggedFieldCell = callRuntime("yogi_project_cell", opaquePointer(), {pointer, key});
 		context.builder.CreateBr(mergeBlock);
 		auto *cellEnd = context.builder.GetInsertBlock();
 
@@ -1961,6 +1953,31 @@ namespace yogi::core::llvm::internal {
 		}
 
 		return lowerPointerStructFieldPointer(fieldPointer, fieldType, chain, chainIndex + 1);
+	}
+
+	::llvm::Value *ValueLowerer::lowerRuntimeObjectCellForPointer(
+		const Yogi::Sir::PropertyAccessExpression *property
+	) {
+		if (!property) {
+			return ::llvm::ConstantPointerNull::get(opaquePointer());
+		}
+
+		auto *key = context.builder.CreateGlobalString(fbString(property->property()));
+		const auto *objectRef = property->object();
+
+		if (const auto *element = objectRef ? objectRef->element_access() : nullptr) {
+			auto *ownerPointer = lowerAddressableArrayPointerCell(element);
+			return callRuntime("yogi_project_cell", opaquePointer(), {ownerPointer, key});
+		}
+
+		if (const auto *parent = objectRef ? objectRef->property_access() : nullptr) {
+			auto *ownerPointer = lowerRuntimeObjectCellForPointer(parent);
+			return callRuntime("yogi_project_cell", opaquePointer(), {ownerPointer, key});
+		}
+
+		auto *object = lowerRuntimeObjectValue(objectRef);
+		auto *cell = callRuntime("yogi_object_cell", opaquePointer(), {object, key});
+		return tagRuntimeCellPointer(cell);
 	}
 
 	::llvm::Value *ValueLowerer::lowerRuntimeObjectCell(
@@ -2053,6 +2070,58 @@ namespace yogi::core::llvm::internal {
 		return cell;
 	}
 
+	::llvm::Value *ValueLowerer::lowerAddressableArrayPointerCell(
+		const Yogi::Sir::ElementAccessExpression *access
+	) {
+		const auto *objectSemanticType = valueSemanticType(access->object());
+		auto objectKind = resolvedTypeKind(objectSemanticType);
+		const auto *arraySemanticType = objectSemanticType;
+		auto *array = lower(access->object(), opaquePointer(), objectSemanticType);
+
+		if (objectKind == Yogi::Sir::TypeKind_pointer_type) {
+			arraySemanticType = objectSemanticType && objectSemanticType->element_type()
+				? objectSemanticType->element_type()
+				: access->type();
+			array = lowerPointerArrayDescriptor(array, arraySemanticType);
+			objectKind = resolvedTypeKind(arraySemanticType);
+		}
+
+		const auto *indices = access->indices();
+		const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
+		context.pushMemorySourceLocation(access->position());
+
+		if (isFixedShapeArray(arraySemanticType)) {
+			const auto shape = fixedShape(arraySemanticType);
+			if (static_cast<size_t>(indexCount) < shape.size()) {
+				context.popMemorySourceLocation();
+				return ::llvm::ConstantPointerNull::get(opaquePointer());
+			}
+
+			auto *offset = fixedShapeLinearOffset(access, shape, static_cast<size_t>(indexCount), false);
+			auto *cell = callRuntime("yogi_array_pointer_cell", opaquePointer(), {array, offset});
+			context.popMemorySourceLocation();
+			return cell;
+		}
+
+		for (flatbuffers::uoffset_t dimension = 0; dimension + 1 < indexCount; ++dimension) {
+			const auto *indexRef = indices && indices->size() > 0
+				? indices->Get(dimension)
+				: access->index();
+			auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
+			auto *rowValue = callRuntime("yogi_array_get", opaquePointer(), {array, toIndex(indexValue)});
+			array = callRuntime("yogi_any_to_array", opaquePointer(), {rowValue});
+		}
+
+		const auto *lastIndexRef = indices && indices->size() > 0
+			? indices->Get(indexCount - 1)
+			: access->index();
+		auto *indexValue = lower(lastIndexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(lastIndexRef));
+		auto *cell = callRuntime("yogi_array_pointer_cell", opaquePointer(), {array, toIndex(indexValue)});
+		context.popMemorySourceLocation();
+
+		return cell;
+	}
+
 		::llvm::Value *ValueLowerer::lowerAddressOf(
 			const Yogi::Sir::AddressOfExpression *addressOf,
 			::llvm::Type *expectedType,
@@ -2063,8 +2132,7 @@ namespace yogi::core::llvm::internal {
 		const auto *property = target ? target->property_access() : nullptr;
 
 		if (element) {
-			auto *cell = lowerAddressableArrayCell(element);
-			auto *taggedPointer = tagRuntimeCellPointer(cell);
+			auto *taggedPointer = lowerAddressableArrayPointerCell(element);
 			return cast(
 				taggedPointer,
 				expectedType ? expectedType : opaquePointer(),
@@ -2103,8 +2171,7 @@ namespace yogi::core::llvm::internal {
 				);
 			}
 
-			auto *cell = lowerRuntimeObjectCell(property);
-			auto *taggedPointer = tagRuntimeCellPointer(cell);
+			auto *taggedPointer = lowerRuntimeObjectCellForPointer(property);
 			return cast(
 				taggedPointer,
 				expectedType ? expectedType : opaquePointer(),
@@ -3214,10 +3281,10 @@ namespace yogi::core::llvm::internal {
 					context.deactivateAggregateOwner(rightName);
 				}
 				return cast(fieldValue, types.lower(property->type()), property->type(), slot->type);
-			}
+				}
 
-			auto *cell = lowerRuntimeObjectCell(property);
-			lowerPointerWrite(tagRuntimeCellPointer(cell), rightValue, property->type(), rightType);
+				auto *cell = lowerRuntimeObjectCell(property);
+				lowerPointerWrite(tagRuntimeCellPointer(cell), rightValue, property->type(), rightType);
 			const auto objectName = identifierName(property->object());
 			const auto rightName = identifierName(assignment->right());
 
