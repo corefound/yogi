@@ -1,6 +1,6 @@
 # Aggregate Assignment Ownership Audit
 
-> Last updated: 2026-06-17
+> Last updated: 2026-07-11
 >
 > Runtime suite: `tests/runtime/sessions/03-memory-management/aggregate_assignment_ownership.cmake`
 >
@@ -33,7 +33,7 @@ coverage.
 | fall-through switch escape | ✅ supported and tested | ✅ | `fallthrough_switch_local_to_global`; literal entry proves case 1 initializes before case 2 |
 | alias chain local -> alias -> global | ✅ supported and tested | ✅ | `alias_chain_local_to_global`; alias resolves to original owner |
 | returned aggregate assigned to global | ✅ supported and tested | ✅ | `returned_aggregate_to_global`; return move then global store |
-| global reassignment/replacement | ✅ supported and tested | ✅ | `global_reassignment_replaces_previous`; IR contains replacement destroy path |
+| dynamic array global reassignment/replacement | ✅ supported and tested | ✅ | `global_reassignment_replaces_previous`; IR contains `yogi_array_replace_from` path |
 | unsafe fall-through assignment | ✅ supported and tested | ✅ negative | `uninitialized_fallthrough_assignment`; semantic diagnostic before LLVM |
 | unsafe fall-through return | ✅ supported and tested | ✅ negative | `uninitialized_fallthrough_return`; semantic diagnostic before LLVM |
 | unsafe fall-through element read | ✅ supported and tested | ✅ negative | `uninitialized_fallthrough_read`; semantic diagnostic before LLVM |
@@ -53,17 +53,24 @@ The plain local-to-global assignment path already deactivated the RHS owner:
 saved = scores
 ```
 
-However, global reassignment did not destroy the previous global aggregate before
-overwriting it:
+However, global reassignment originally did not destroy the previous global
+aggregate before overwriting it:
 
 ```ts
 saved = first
 saved = second
 ```
 
-That could leak the previous global-owned aggregate. The backend now loads the
-old global value, checks that it is non-null and different from the new pointer,
-emits the aggregate destructor, then stores the replacement.
+That could leak the previous global-owned aggregate. For non-dynamic aggregate
+replacement, the backend loads the old global value, checks that it is non-null
+and different from the new pointer, emits the aggregate destructor, then stores
+the replacement.
+
+Dynamic arrays now have a more precise rule: assignment into an initialized
+dynamic-array binding calls `yogi_array_replace_from`. The target descriptor is
+kept, common slots are overwritten, new slots are created, and removed slots are
+invalidated. This avoids destroying a descriptor that live interior pointers may
+still target.
 
 ## Semantic Safety
 
@@ -98,14 +105,14 @@ The suite checks that every passing scenario:
   `yogi_array_get`, `yogi_array_destroy`, `yogi_memory_push_context`, and
   `yogi_memory_pop_context`
 
-The global replacement scenario additionally checks that the generated IR
-contains enough `yogi_array_destroy` calls to cover replacement cleanup.
+The dynamic-array global replacement scenario additionally checks that the
+generated IR contains `yogi_array_replace_from`, proving the slot-preserving
+replacement path is used.
 
 LLVM verification is still performed by the backend before writing the IR and
 object file.
 
 ## Current Verdict
 
-`saved = scores` safely transfers/escapes ownership when `saved` is
-global/module storage. The behavior is tested outside switch and inside switch.
-
+`saved = scores` safely updates global/module dynamic-array storage by in-place
+slot replacement. The behavior is tested outside switch and inside switch.

@@ -138,8 +138,27 @@ reverse  preserves existing slots and changes logical order
 sort     preserves existing slots and changes logical order
 fill     overwrites values inside existing slots
 copyWithin overwrites values inside existing slots
+assignment preserves common slots, creates new slots, and invalidates removed slots
 toSpliced / toReversed / toSorted do not mutate original slots
 ```
+
+Dynamic array assignment is a full in-place slot replacement:
+
+```ts
+let users: User[] = [{ age: 20 }, { age: 30 }]
+let age: ptr<number> = &users[0].age
+
+users = [{ age: 99 }, { age: 100 }]
+age = 50
+
+print(users[0].age) // 50
+print(users[1].age) // 100
+```
+
+The pointer keeps its slot identity. If the assignment keeps that slot index, the
+slot value is overwritten and the pointer remains valid. If the new array is
+shorter and removes the pointed slot, the next pointer read/write reports a
+runtime pointer error.
 
 When Yogi sees a live interior pointer and an identity-sensitive dynamic array
 method on the same root, semantic analysis selects pointer-safe storage for that

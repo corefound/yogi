@@ -139,7 +139,7 @@ pointer rebind -> old root contiguous, new root pointer-safe
 descriptor pointer -> contiguous
 ```
 
-Negative coverage:
+Historical negative coverage:
 
 ```txt
 whole-array replacement while an interior pointer is live
@@ -148,6 +148,10 @@ whole-array replacement while an interior pointer is live
 `sort` and `reverse` used to be rejected conservatively. Lot 42 replaced that
 behavior with slot-identity tracking so reordering methods are allowed while
 preserving pointer validity.
+
+Lot 43 also replaced whole-array replacement rejection with in-place dynamic
+array assignment. Preserved indexes keep slot identity, extra indexes create new
+slots, and removed indexes invalidate only the removed slots.
 
 ## Remaining Work
 

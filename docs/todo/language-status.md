@@ -117,7 +117,7 @@ without re-auditing the whole compiler.
 - [x] Pointer identity preservation across `unshift`, `reverse`, `sort`, `fill`, and `copyWithin`
 - [x] Copy-returning array methods do not invalidate original dynamic array pointers
 - [x] Pointer rebind and scope-exit updates for dynamic array invalidation diagnostics
-- [x] Whole dynamic array replacement blocked while a live internal pointer exists
+- [x] Dynamic array assignment performs in-place slot replacement: preserved indexes keep pointer identity, removed indexes invalidate pointers
 - [x] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage selected by semantic analysis
 - [ ] Runtime migration from contiguous to pointer-safe storage after allocation when future late analysis/runtime transitions need it
 - [ ] Compile-time diagnostics for provably invalidated dynamic-array pointer use after removal

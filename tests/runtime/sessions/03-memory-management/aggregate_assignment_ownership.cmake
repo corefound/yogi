@@ -94,6 +94,19 @@ function(run_valid_case_with_destroy_count case_name source_text expected_value 
 	endif()
 endfunction()
 
+function(run_valid_case_with_replace_count case_name source_text expected_value minimum_replace_count)
+	run_valid_case("${case_name}" "${source_text}" "${expected_value}")
+
+	set(ir "${TEST_WORK_DIR}/${case_name}/packages/.cache/modules/main.io/main.ll")
+	file(READ "${ir}" ir_content)
+	string(REGEX MATCHALL "yogi_array_replace_from" replace_matches "${ir_content}")
+	list(LENGTH replace_matches replace_count)
+
+	if(replace_count LESS minimum_replace_count)
+		message(FATAL_ERROR "${case_name} expected at least ${minimum_replace_count} yogi_array_replace_from calls, found ${replace_count}")
+	endif()
+endfunction()
+
 function(run_invalid_case case_name source_text expected_message)
 	set(case_dir "${TEST_WORK_DIR}/${case_name}")
 	file(MAKE_DIRECTORY "${case_dir}")
@@ -347,8 +360,8 @@ function main(): number {
 }
 " 1)
 
-# 13. Global reassignment/replacement behavior
-run_valid_case_with_destroy_count("global_reassignment_replaces_previous" "
+# 13. Dynamic array global reassignment/replacement behavior
+run_valid_case_with_replace_count("global_reassignment_replaces_previous" "
 let saved: number[] = [0]
 
 function store(): void {
@@ -363,7 +376,7 @@ function main(): number {
     store()
     return saved[0]
 }
-" 4 3)
+" 4 2)
 
 # 14. Fall-through direct entry assigns uninitialized aggregate to global
 run_invalid_case("uninitialized_fallthrough_assignment" "

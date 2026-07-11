@@ -93,6 +93,7 @@ reverse   reorders slots without invalidating pointers
 sort      reorders slots without invalidating pointers
 fill      overwrites values inside existing slots
 copyWithin overwrites values inside existing slots
+assignment preserves common slots, creates new slots, and invalidates removed slots
 ```
 
 Copy-returning methods do not mutate the original array and do not invalidate
@@ -157,6 +158,35 @@ print(age) // 50
 The pointer re-resolves the field through the current value stored in the same
 slot.
 
+## Dynamic Array Assignment
+
+Whole dynamic array assignment now uses the same slot validity model:
+
+```ts
+let users: User[] = [{ age: 20 }, { age: 30 }]
+let age: ptr<number> = &users[0].age
+
+users = [{ age: 99 }, { age: 100 }]
+age = 50
+```
+
+Conceptually, assignment runs as an in-place replacement:
+
+```txt
+oldLen = users.length
+newLen = newUsers.length
+commonLen = min(oldLen, newLen)
+
+0..<commonLen      overwrite existing slots
+commonLen..<newLen create new slots
+newLen..<oldLen    invalidate removed slots
+```
+
+Pointers are not retargeted to new expressions. They keep pointing to the same
+slot identity. If the slot survives, the pointer remains valid and observes the
+new value. If the slot is removed, pointer use fails through the existing
+runtime invalidation path.
+
 ## Tests
 
 Covered by:
@@ -182,6 +212,10 @@ sort preserves pointer identity
 fill preserves slot identity and pointer observes overwritten value
 copyWithin preserves slot identity and pointer observes overwritten value
 toSpliced/toReversed/toSorted preserve original pointers
+same-length assignment preserves a pointer to a surviving slot
+longer assignment preserves existing pointers and creates new slots
+shorter assignment preserves pointers to surviving slots
+nested projected pointers survive assignment when their slot survives
 ```
 
 Negative runtime coverage:
@@ -194,6 +228,8 @@ dynamic splice/index removes pointed slot and pointer is used afterward
 copied pointer to removed slot is used afterward
 ptr<User> to removed slot uses a field afterward
 nested pointer such as &users[0].address.zip is used after removal
+shorter assignment removes a pointed slot and the pointer is used afterward
+nested projected pointer is used after assignment removed its owner slot
 ```
 
 ## Completed
@@ -210,6 +246,8 @@ nested pointer such as &users[0].address.zip is used after removal
 - ✅ `sort` preserves existing pointers, including comparator sort
 - ✅ `fill` preserves slot identity and pointer validity
 - ✅ `copyWithin` preserves slot identity and pointer validity
+- ✅ dynamic array assignment preserves common slot identities
+- ✅ dynamic array assignment invalidates pointers to removed slots
 - ✅ non-mutating/copy-returning methods do not invalidate original pointers
 
 ## Pending / Future

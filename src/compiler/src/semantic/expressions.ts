@@ -3165,12 +3165,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         }
 
                         if (this.isDynamicArrayType(assignmentType)) {
-                            this.assertNoLivePointerIntoDynamicContainer(
+                            this.markDynamicArrayStorageForGrowth(
                                 identifierName,
                                 symbol,
                                 "replace",
-                                context.fullSource ?? node.fullSource ?? left.fullSource ?? left.source,
-                                left,
                             );
                         }
 
@@ -3190,7 +3188,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
-                        if (this.isAggregateType(assignmentType)) {
+                        if (this.isAggregateType(assignmentType) && !this.isDynamicArrayType(assignmentType)) {
                             const rightSymbol = this.getAggregateSymbolFromExpression(right);
 
                             if (rightSymbol) {
@@ -3637,12 +3635,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const assignmentType = symbol.declaredType ?? symbol.type;
 
             if (this.isDynamicArrayType(assignmentType)) {
-                this.assertNoLivePointerIntoDynamicContainer(
+                this.markDynamicArrayStorageForGrowth(
                     identifierName,
                     symbol,
                     "replace",
-                    source,
-                    left,
                 );
             }
 
@@ -3655,7 +3651,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, right.position ?? node.position, source, right);
             }
 
-            if (this.isAggregateType(assignmentType)) {
+            if (this.isAggregateType(assignmentType) && !this.isDynamicArrayType(assignmentType)) {
                 const rightSymbol = this.getAggregateSymbolFromExpression(right);
 
                 if (rightSymbol) {

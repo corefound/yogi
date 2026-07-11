@@ -163,10 +163,10 @@ expect_run(
 	"99\n"
 )
 
-expect_invalid(
-	"reject_replacement_while_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }]\nlet age: ptr<number> = &users[0].age\nusers = [{ age: 30 }]\n"
-	"cannot replace .*users.* while pointer .*age.* points into .*users"
+expect_run(
+	"allow_replacement_while_pointer_slot_survives"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers = [{ age: 99 }]\nage = 50\nprint(users[0].age)\n"
+	"50\n"
 )
 
 expect_run(

@@ -169,6 +169,30 @@ expect_run(
 	"99\n2\n2\n2\n"
 )
 
+expect_run(
+	"same_length_assignment_preserves_pointer"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers = [{ age: 99 }, { age: 100 }]\nage = 50\nprint(users[0].age)\nprint(users[1].age)\n"
+	"50\n100\n"
+)
+
+expect_run(
+	"longer_assignment_preserves_pointer_and_creates_slots"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers = [{ age: 99 }, { age: 100 }, { age: 200 }, { age: 300 }]\nage = 50\nprint(users[0].age)\nprint(users[1].age)\nprint(users[2].age)\nprint(users[3].age)\n"
+	"50\n100\n200\n300\n"
+)
+
+expect_run(
+	"shorter_assignment_preserves_pointer_to_surviving_slot"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers = [{ age: 99 }]\nage = 50\nprint(users[0].age)\nprint(users.length)\n"
+	"50\n1\n"
+)
+
+expect_run(
+	"nested_projected_pointer_survives_assignment_when_slot_survives"
+	"${NESTED_USER_STRUCT}let users: User[] = [{ age: 20, address: { zip: 10001 } }, { age: 30, address: { zip: 10002 } }]\nlet zip: ptr<number> = &users[0].address.zip\nusers = [{ age: 99, address: { zip: 20001 } }, { age: 100, address: { zip: 20002 } }]\nprint(zip)\nzip = 10459\nprint(users[0].address.zip)\n"
+	"20001\n10459\n"
+)
+
 expect_runtime_error(
 	"pop_removed_pointed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers.pop()\nage = 99\n"
@@ -208,5 +232,17 @@ expect_runtime_error(
 expect_runtime_error(
 	"nested_pointer_to_removed_slot_errors_on_later_use"
 	"${NESTED_USER_STRUCT}let users: User[] = [{ age: 20, address: { zip: 10001 } }, { age: 30, address: { zip: 10002 } }]\nlet zip: ptr<number> = &users[0].address.zip\nusers.shift()\nzip = 10459\n"
+	"${INVALID_POINTER_ERROR}"
+)
+
+expect_runtime_error(
+	"shorter_assignment_invalidates_pointer_to_removed_slot"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers = [{ age: 99 }]\nage = 50\n"
+	"${INVALID_POINTER_ERROR}"
+)
+
+expect_runtime_error(
+	"nested_projected_pointer_fails_when_assignment_removes_slot"
+	"${NESTED_USER_STRUCT}let users: User[] = [{ age: 20, address: { zip: 10001 } }, { age: 30, address: { zip: 10002 } }]\nlet zip: ptr<number> = &users[1].address.zip\nusers = [{ age: 99, address: { zip: 20001 } }]\nzip = 10459\n"
 	"${INVALID_POINTER_ERROR}"
 )

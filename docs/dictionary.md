@@ -764,8 +764,9 @@ Current dynamic-array policy:
 
 ```txt
 Yogi allows pointer-safe dynamic array growth through push while a live pointer
-points into that array. Destructive/reordering/replacement operations are still
-rejected conservatively while that pointer is live.
+points into that array. Mutating methods preserve slot identity when possible,
+and dynamic array assignment performs in-place slot replacement: surviving slots
+remain valid, removed slots invalidate their pointers.
 ```
 
 Dynamic object structural invalidation remains pending if Yogi later adds

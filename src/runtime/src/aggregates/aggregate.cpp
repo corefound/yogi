@@ -1212,6 +1212,50 @@ namespace yogi::runtime {
 		return removed;
 	}
 
+	void ArrayValue::replaceFrom(const ArrayValue *source) {
+		OwnershipTracker::assertLiveAggregate(this, "array replace after destroy/drop", "array value");
+
+		if (!source || source == this) {
+			return;
+		}
+
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(source), "array replace source after destroy/drop", "array value");
+
+		const auto oldCount = elementCount;
+		const auto newCount = source->elementCount;
+		const auto commonCount = std::min<std::size_t>(oldCount, newCount);
+		ensureCapacity(newCount);
+
+		for (std::size_t index = 0; index < commonCount; ++index) {
+			setSlotValue(index, source->get(index));
+		}
+
+		if (newCount > oldCount) {
+			for (std::size_t index = oldCount; index < newCount; ++index) {
+				if (usesPointerSafeStorage()) {
+					elements[index] = createSlot(source->get(index));
+				} else {
+					contiguousValues[index] = source->get(index);
+					elements[index] = &contiguousValues[index];
+				}
+			}
+		} else if (newCount < oldCount) {
+			for (std::size_t index = newCount; index < oldCount; ++index) {
+				if (usesPointerSafeStorage()) {
+					invalidateSlot(index);
+				} else {
+					contiguousValues[index] = AnyValue::undefined();
+				}
+			}
+		}
+
+		elementCount = newCount;
+
+		if (!usesPointerSafeStorage()) {
+			resetContiguousSlots();
+		}
+	}
+
 	ArrayValue *ArrayValue::toReversed() const {
 		auto *result = clone();
 		result->reverse();
@@ -1735,6 +1779,16 @@ void *yogi_array_splice(void *array, double start, double deleteCount, void *ins
 		start,
 		deleteCount,
 		static_cast<const yogi::runtime::ArrayValue *>(inserted)
+	);
+}
+
+void yogi_array_replace_from(void *array, void *source) {
+	if (!array || !source) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->replaceFrom(
+		static_cast<const yogi::runtime::ArrayValue *>(source)
 	);
 }
 

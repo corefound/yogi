@@ -18,9 +18,12 @@ function store(): void {
 }
 ```
 
-`scores` is a local aggregate owner. `saved` is module/global storage. The
-assignment moves/escapes the aggregate into `saved`, so `scores` must not be
-destroyed as a normal local when `store()` returns.
+`scores` is a local aggregate owner. `saved` is module/global storage. For
+ordinary owning aggregates, assignment can move/escape ownership into `saved`.
+Dynamic arrays use a more specific rule: if `saved` already owns a dynamic array
+descriptor, assignment replaces `saved` in place by preserving, creating, and
+invalidating slots by index. The RHS local descriptor can still be cleaned after
+its values have been copied into the target slots.
 
 ## Ownership Rules
 
@@ -31,6 +34,7 @@ destroyed as a normal local when `store()` returns.
 | local alias -> global/module binding | Alias resolves back to the original owner | Original owner is deactivated; global/module cleanup owns the value |
 | returned aggregate -> global/module binding | Return moves to caller, then assignment moves into module storage | Callee does not clean the returned value; global/module cleanup owns it |
 | global/module aggregate replacement | New aggregate replaces old aggregate in module storage | Previous global value is destroyed before storing the replacement |
+| dynamic array -> initialized dynamic array binding | Target descriptor is replaced in place by slot | Preserved slots stay valid, new slots are created, removed slots are invalidated; RHS descriptor cleanup remains separate |
 
 Primitive values such as `number` and `boolean` keep value-copy behavior and do
 not participate in aggregate ownership transfer.
@@ -51,13 +55,15 @@ function main(): number {
 }
 ```
 
-Expected behavior:
+Expected dynamic-array behavior:
 
-1. `scores` owns the array descriptor/buffer after declaration.
-2. `saved = scores` stores that aggregate into module storage.
-3. The lowering deactivates the local cleanup owner for `scores`.
-4. `store()` returns without destroying `scores`.
-5. `saved[0]` remains valid after `store()` returns.
+1. `scores` owns its local array descriptor after declaration.
+2. `saved = scores` overwrites `saved`'s dynamic-array slots in place.
+3. Common indexes are preserved by slot identity.
+4. Extra target slots are invalidated if `scores` is shorter.
+5. `scores` can be cleaned normally after the assignment.
+6. `saved[0]` remains valid after `store()` returns because the value was copied
+   into module-owned storage.
 
 The backend path is `ValueLowerer::lowerAssignment`, not
 `lowerAggregateAssignment`. `lowerAggregateAssignment` handles property/index
@@ -94,9 +100,11 @@ function store(): void {
 }
 ```
 
-`return scores` moves ownership from the callee to the caller. The assignment in
-`store()` then moves the returned aggregate into module storage. The callee skips
-cleanup for `scores`, and `saved` remains valid after `store()` returns.
+`return scores` moves ownership from the callee to the caller. For dynamic
+arrays, the assignment in `store()` replaces the existing `saved` descriptor
+in place from the returned descriptor, then the temporary returned descriptor can
+be destroyed. The callee still skips cleanup for `scores`, and `saved` remains
+valid after `store()` returns.
 
 ## Global Reassignment
 
@@ -112,8 +120,8 @@ function store(): void {
 }
 ```
 
-Replacing a global/module aggregate must not leak the previous value. The backend
-now emits this sequence for aggregate globals:
+Replacing a global/module aggregate must not leak the previous value. For
+non-dynamic aggregate globals, the backend emits this sequence:
 
 1. Load the previous global value.
 2. If the previous value is non-null and is not the same pointer as the new value,
@@ -123,6 +131,10 @@ now emits this sequence for aggregate globals:
 
 This keeps `main()` returning `4` while avoiding both early-free and leaks for
 the replaced global value.
+
+Dynamic arrays use `yogi_array_replace_from` instead. The global descriptor stays
+stable, common slots are overwritten, longer assignments create slots, and
+shorter assignments invalidate removed slots.
 
 ## Cleanup Rules After Assignment
 
@@ -135,6 +147,8 @@ The important cases are:
 - RHS returned aggregate assigned to global/module storage: no local owner exists
   in the caller, so the global takes responsibility.
 - Global/module replacement: destroy the previous global value before the store.
+- Dynamic array assignment into an initialized binding: call the runtime
+  replacement helper instead of destroying the whole target descriptor.
 
 This applies from normal functions, nested blocks, if/else branches, loops, and
 switch cases. Cleanup remains control-flow aware through scope cleanup lists and
@@ -201,4 +215,3 @@ function test(x: number): number {
 - This is not a Rust-style borrow checker. The model is RAII-like: creator owns
   by default, return moves, normal calls borrow unless summaries prove escape,
   and cleanup happens automatically when the current scope still owns the value.
-

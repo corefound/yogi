@@ -3363,6 +3363,84 @@ namespace yogi::core::llvm::internal {
 			return types.zero(targetType);
 		}
 
+		const auto targetKind = resolvedTypeKind(targetSemanticType);
+		if (
+			targetKind == Yogi::Sir::TypeKind_array_type &&
+			!isFixedLengthArray(targetSemanticType) &&
+			targetType->isPointerTy()
+		) {
+			const auto receiverReturningArrayMethod = [](const Yogi::Sir::ValueRef *value) {
+				const auto *call = value ? value->call() : nullptr;
+				if (!call || !call->builtin_method()) {
+					return false;
+				}
+
+				const auto method = fbString(call->builtin_method());
+				return method == "array.reverse" ||
+					method == "array.fill" ||
+					method == "array.copyWithin" ||
+					method == "array.sort";
+			};
+			const auto *right = assignment->right();
+			const auto shouldDestroySource =
+				isAggregateLiteral(right) ||
+				(right && right->call() && !receiverReturningArrayMethod(right));
+			auto *source = cast(
+				lower(right, targetType, targetSemanticType),
+				targetType,
+				targetSemanticType,
+				targetSemanticType
+			);
+			auto *previousValue = context.builder.CreateLoad(
+				targetType,
+				target,
+				sanitizeSymbol(name) + ".array.previous"
+			);
+			auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
+			auto *sameArray = context.builder.CreateICmpEQ(
+				previousValue,
+				source,
+				sanitizeSymbol(name) + ".array.same"
+			);
+			auto *shouldReplace = context.builder.CreateAnd(
+				hasPrevious,
+				context.builder.CreateNot(sameArray),
+				sanitizeSymbol(name) + ".array.should_replace"
+			);
+			auto *function = context.builder.GetInsertBlock()->getParent();
+			auto *replaceBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				sanitizeSymbol(name) + ".array.replace",
+				function
+			);
+			auto *storeBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				sanitizeSymbol(name) + ".array.store",
+				function
+			);
+			auto *mergeBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				sanitizeSymbol(name) + ".array.assignment.done",
+				function
+			);
+
+			context.builder.CreateCondBr(shouldReplace, replaceBlock, storeBlock);
+
+			context.builder.SetInsertPoint(replaceBlock);
+			callRuntime("yogi_array_replace_from", ::llvm::Type::getVoidTy(context.llvmContext), {previousValue, source});
+			if (shouldDestroySource) {
+				destroyEscapedAggregate(targetSemanticType, source);
+			}
+			context.builder.CreateBr(mergeBlock);
+
+			context.builder.SetInsertPoint(storeBlock);
+			context.builder.CreateStore(source, target);
+			context.builder.CreateBr(mergeBlock);
+
+			context.builder.SetInsertPoint(mergeBlock);
+			return context.builder.CreateLoad(targetType, target, sanitizeSymbol(name) + ".array.assignment.value");
+		}
+
 		auto *value = cast(
 			lower(assignment->right(), targetType, targetSemanticType),
 			targetType,
@@ -3370,7 +3448,6 @@ namespace yogi::core::llvm::internal {
 			targetSemanticType
 		);
 
-		const auto targetKind = resolvedTypeKind(targetSemanticType);
 		const auto targetIsAggregate =
 			targetKind == Yogi::Sir::TypeKind_array_type ||
 			targetKind == Yogi::Sir::TypeKind_tuple_type ||

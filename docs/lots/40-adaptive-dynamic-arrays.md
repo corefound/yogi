@@ -12,8 +12,12 @@ Current rule:
 
 ```txt
 live interior pointer + push = allowed
-destructive/reordering/replacement operation + live interior pointer = diagnostic
+destructive/reordering/replacement operation + live interior pointer = handled by later slot-identity lots
 ```
+
+Historical note: Lot 40 only made `push` adaptive. Lot 42 later allowed
+slot-preserving mutating methods such as `reverse`, `sort`, `fill`, and
+`copyWithin`. Lot 43 made dynamic array assignment an in-place slot replacement.
 
 ## User Model
 
@@ -113,10 +117,10 @@ push after pointer copy
 push while holding ptr<T[]> to the descriptor
 ```
 
-## Still Rejected While Interior Pointers Are Live
+## Later Slot-Identity Work
 
-Yogi remains conservative for operations that can remove, reorder, replace, or
-destroy pointed storage:
+Yogi originally remained conservative for operations that can remove, reorder,
+replace, or destroy pointed storage:
 
 ```txt
 pop
@@ -128,9 +132,14 @@ reverse
 whole-array replacement
 ```
 
-Future work can make some of these checks index-sensitive. For example, `pop`
-could be allowed when the compiler/runtime can prove the live pointer does not
-target the removed element. That is not implemented yet.
+That policy has since been relaxed by slot-identity tracking:
+
+```txt
+pop/shift/splice        invalidate only removed slots
+unshift/reverse/sort    preserve existing slots
+fill/copyWithin         overwrite existing slots
+array assignment        overwrites common slots, creates new slots, invalidates removed slots
+```
 
 ## Tests
 
@@ -152,7 +161,7 @@ pointer rebind then push on both roots
 ptr<User[]> descriptor pointer then push
 ```
 
-Negative cases include:
+Negative cases originally included:
 
 ```txt
 replacement while pointer is live
@@ -160,6 +169,9 @@ splice/shift/unshift/pop while pointer is live
 reverse/sort while pointer is live
 readonly root push
 ```
+
+The replacement/reordering/removal entries are now covered by Lot 42 and Lot 43
+runtime validity tests instead of semantic rejection tests.
 
 ## Follow-Up Optimization
 

@@ -2,8 +2,13 @@
 
 This lot originally added conservative semantic diagnostics for dynamic arrays.
 Lot 40 replaces the conservative `push` rule with pointer-safe dynamic array
-growth, while keeping diagnostics for destructive/reordering/replacement
-operations.
+growth. Later lots replace many remaining conservative diagnostics with
+slot-identity runtime validity:
+
+```txt
+Lot 42: mutating/removing/reordering methods preserve or invalidate slots
+Lot 43: dynamic array assignment performs in-place slot replacement
+```
 
 ## Rule
 
@@ -12,6 +17,10 @@ If a live ptr<T> is rooted in a dynamic array and has an internal access path,
 then operations that destroy, remove, reorder, compact, or replace existing
 storage are rejected.
 ```
+
+Historical note: this was the Lot 39 rule. Current dynamic arrays now preserve
+slot identity for many of these operations and report runtime pointer errors only
+when a removed slot pointer is actually used.
 
 Example:
 
@@ -168,12 +177,15 @@ Positive coverage:
 - structural mutation after pointer scope ends
 - structural mutation of a different array
 
-Negative coverage:
+Historical negative coverage:
 
 - `pop`, `shift`, `unshift`, `splice`, `reverse`, and `sort`
 - whole-array replacement
 - pointer copy preserving protection for destructive operations
 - readonly roots rejecting `push`
+
+Current runtime validity coverage lives in
+`dynamic_array_pointer_validity_tracking.cmake`.
 
 ## Remaining Work
 

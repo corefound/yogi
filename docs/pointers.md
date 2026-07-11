@@ -227,9 +227,9 @@ Checklist:
 - ✅ `pop`, `shift`, and `splice` report runtime pointer errors when a removed slot pointer is used later
 - ✅ `unshift`, `reverse`, and `sort` preserve existing dynamic-array pointer identities
 - ✅ `fill` and `copyWithin` preserve slot identity while overwriting current slot values
+- ✅ dynamic array assignment preserves common slot identities, creates extra slots, and invalidates removed slots
 - ✅ pointer rebind updates which dynamic array root is protected
 - ✅ pointer scope end releases the protected dynamic array root
-- ✅ whole dynamic array replacement is blocked while an internal pointer is live
 - ✅ adaptive dynamic array storage selection: contiguous by default, pointer-safe only when growth overlaps a live interior pointer
 - ✅ readonly root rejection for nested field mutation
 - ✅ RHS type checking for nested field mutation

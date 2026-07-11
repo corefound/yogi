@@ -94,6 +94,7 @@ namespace yogi::runtime {
 			const char *storageModeName() const;
 			void sort();
 			ArrayValue *toSorted() const;
+			void replaceFrom(const ArrayValue *source);
 			void destroy();
 
 		private:

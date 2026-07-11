@@ -104,6 +104,7 @@ void yogi_array_insert(void *array, unsigned long long index, void *value);
 void yogi_array_fill(void *array, void *value, double start, double end);
 void yogi_array_copy_within(void *array, double target, double start, double end);
 void *yogi_array_splice(void *array, double start, double deleteCount, void *inserted);
+void yogi_array_replace_from(void *array, void *source);
 void yogi_array_swap_slots(void *array, unsigned long long left, unsigned long long right);
 void *yogi_array_to_reversed(void *array);
 void *yogi_array_to_spliced(void *array, double start, double deleteCount, void *inserted);
