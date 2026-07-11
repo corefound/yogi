@@ -175,16 +175,20 @@ expect_run(
 	1
 )
 
-expect_invalid(
-	"reject_sort_while_interior_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.sort()\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"sort_while_interior_pointer_live_uses_pointer_safe_storage"
+	"${USER_STRUCT}let users: User[] = [{ age: 30 }, { age: 20 }]\nlet age: ptr<number> = &users[0].age\nusers.sort((a: User, b: User): number => a.age - b.age)\nage = 99\nprint(users[1].age)\n"
+	"99\n"
+	1
+	0
 )
 
-expect_invalid(
-	"reject_reverse_while_interior_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.reverse()\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"reverse_while_interior_pointer_live_uses_pointer_safe_storage"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.reverse()\nage = 99\nprint(users[1].age)\n"
+	"99\n"
+	1
+	0
 )
 
 expect_invalid(

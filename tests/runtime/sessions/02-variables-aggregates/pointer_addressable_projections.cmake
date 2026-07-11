@@ -193,26 +193,26 @@ expect_run_with_ir(
 	"type User = {\n    age: number\n    name: string\n}\n\nfunction write(value: ptr<number>, next: number): void {\n    value = next\n}\n\nlet user: User = { age: 31, name: \"Ada\" }\nlet age: ptr<number> = &user.age\nprint(age)\nage = 32\nprint(user.age)\nwrite(&user.age, 33)\nprint(user.age)\n"
 	"31\n32\n33\n"
 	"yogi_object_cell"
-	"yogi_cell_get"
-	"yogi_cell_set"
+	"yogi_pointer_cell_get"
+	"yogi_pointer_cell_set"
 )
 
 expect_run_with_ir(
 	"fixed_shape_array_cell_address"
 	"function write(value: ptr<number>, next: number): void {\n    value = next\n}\n\nlet matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet cell: ptr<number> = &matrix[1, 2]\nprint(cell)\ncell = 60\nprint(matrix[1, 2])\nwrite(&matrix[0, 1], 70)\nprint(matrix[0, 1])\n"
 	"6\n60\n70\n"
-	"yogi_array_cell"
-	"yogi_cell_get"
-	"yogi_cell_set"
+	"yogi_array_pointer_cell"
+	"yogi_pointer_cell_get"
+	"yogi_pointer_cell_set"
 )
 
 expect_run_with_ir(
 	"dynamic_array_cell_address"
 	"function write(value: ptr<number>, next: number): void {\n    value = next\n}\n\nlet values: number[] = [3, 4, 5]\nlet first: ptr<number> = &values[0]\nprint(first)\nfirst = 10\nprint(values[0])\nwrite(&values[2], 50)\nprint(values[2])\n"
 	"3\n10\n50\n"
-	"yogi_array_cell"
-	"yogi_cell_get"
-	"yogi_cell_set"
+	"yogi_array_pointer_cell"
+	"yogi_pointer_cell_get"
+	"yogi_pointer_cell_set"
 )
 
 expect_run_with_ir(
@@ -220,28 +220,29 @@ expect_run_with_ir(
 	"type Address = {\n    zip: number\n}\n\ntype User = {\n    address: Address\n}\n\nlet user: User = { address: { zip: 10001 } }\nlet zip: ptr<number> = &user.address.zip\nprint(zip)\nzip = 10002\nprint(user.address.zip)\nuser.address.zip = 10003\nprint(zip)\n"
 	"10001\n10002\n10003\n"
 	"yogi_object_cell"
-	"yogi_cell_get"
-	"yogi_cell_set"
+	"yogi_project_cell"
+	"yogi_pointer_cell_get"
+	"yogi_pointer_cell_set"
 )
 
 expect_run_with_ir(
 	"array_object_cell_field_address"
 	"type User = {\n    age: number\n}\n\nlet users: User[] = [{ age: 31 }, { age: 40 }]\nlet age: ptr<number> = &users[0].age\nprint(age)\nage = 32\nprint(users[0].age)\nusers[1].age = 41\nprint(users[1].age)\n"
 	"31\n32\n41\n"
-	"yogi_array_cell"
-	"yogi_object_cell"
-	"yogi_cell_get"
-	"yogi_cell_set"
+	"yogi_array_pointer_cell"
+	"yogi_project_cell"
+	"yogi_pointer_cell_get"
+	"yogi_pointer_cell_set"
 )
 
 expect_run_with_ir(
 	"array_struct_cell_field_address"
 	"struct User {\n    age: number\n}\n\nlet users: User[] = [{ age: 31 }, { age: 40 }]\nlet age: ptr<number> = &users[0].age\nprint(age)\nage = 32\nprint(users[0].age)\nusers[1].age = 41\nprint(users[1].age)\n"
 	"31\n32\n41\n"
-	"yogi_array_cell"
-	"yogi_object_cell"
-	"yogi_cell_get"
-	"yogi_cell_set"
+	"yogi_array_pointer_cell"
+	"yogi_project_cell"
+	"yogi_pointer_cell_get"
+	"yogi_pointer_cell_set"
 )
 
 expect_invalid(

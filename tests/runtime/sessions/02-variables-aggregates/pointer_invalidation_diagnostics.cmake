@@ -127,40 +127,40 @@ expect_run(
 	"20\n30\n"
 )
 
-expect_invalid(
-	"reject_splice_while_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers.splice(0, 1)\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_splice_when_pointer_slot_survives"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }, { age: 40 }]\nlet age: ptr<number> = &users[2].age\nusers.splice(0, 1)\nage = 99\nprint(users[1].age)\n"
+	"99\n"
 )
 
-expect_invalid(
-	"reject_shift_while_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.shift()\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_shift_when_pointer_slot_survives"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers.shift()\nage = 99\nprint(users[0].age)\n"
+	"99\n"
 )
 
-expect_invalid(
-	"reject_unshift_while_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.unshift({ age: 10 })\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_unshift_while_pointer_live"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.unshift({ age: 10 })\nage = 99\nprint(users[1].age)\n"
+	"99\n"
 )
 
-expect_invalid(
-	"reject_pop_while_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers.pop()\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_pop_when_pointer_slot_survives"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.pop()\nage = 99\nprint(users[0].age)\n"
+	"99\n"
 )
 
-expect_invalid(
-	"reject_reverse_while_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.reverse()\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_reverse_while_pointer_live"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.reverse()\nage = 99\nprint(users[1].age)\n"
+	"99\n"
 )
 
-expect_invalid(
-	"reject_sort_while_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.sort()\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_sort_while_pointer_live"
+	"${USER_STRUCT}let users: User[] = [{ age: 30 }, { age: 20 }]\nlet age: ptr<number> = &users[0].age\nusers.sort((a: User, b: User): number => a.age - b.age)\nage = 99\nprint(users[1].age)\n"
+	"99\n"
 )
 
 expect_invalid(
@@ -169,10 +169,10 @@ expect_invalid(
 	"cannot replace .*users.* while pointer .*age.* points into .*users"
 )
 
-expect_invalid(
-	"reject_sort_while_copied_pointer_live"
-	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age1: ptr<number> = &users[0].age\nlet age2: ptr<number> = age1\nusers.sort()\n"
-	"${INVALIDATION_ERROR}"
+expect_run(
+	"allow_sort_while_copied_pointer_live"
+	"${USER_STRUCT}let users: User[] = [{ age: 30 }, { age: 20 }]\nlet age1: ptr<number> = &users[0].age\nlet age2: ptr<number> = age1\nusers.sort((a: User, b: User): number => a.age - b.age)\nage2 = 99\nprint(age1)\nprint(users[1].age)\n"
+	"99\n99\n"
 )
 
 expect_invalid(

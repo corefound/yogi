@@ -489,6 +489,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_dynamic_array_pointer_validity_tracking
+                        pipeline-dynamic-array-pointer-validity-tracking
+                        tests/runtime/sessions/02-variables-aggregates/dynamic_array_pointer_validity_tracking.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_spread
                         pipeline-array-spread
                         tests/runtime/sessions/02-variables-aggregates/array_spread.cmake
