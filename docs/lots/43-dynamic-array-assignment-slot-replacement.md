@@ -149,11 +149,10 @@ nested projected pointer fails if its owner slot is removed
 - ✅ pointers to preserved slots remain valid
 - ✅ pointers to removed slots fail when used
 - ✅ behavior reuses the dynamic array pointer validity model
+- ✅ late runtime promotion now covers arrays created contiguous before entering
+  a function that takes an interior pointer
 
 ## Pending / Future
 
-- ⬜ late runtime migration from contiguous storage to pointer-safe storage, if a
-  future feature can create live interior pointers after allocation without a
-  prior semantic storage decision
 - ⬜ compile-time diagnostics for provably invalidated pointer use after a
   shortening replacement

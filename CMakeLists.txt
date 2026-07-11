@@ -387,6 +387,17 @@ if(BUILD_TESTING)
                 COMMAND yogi_runtime_string_test
         )
 
+        add_executable(yogi_runtime_array_storage_test
+                ${CMAKE_SOURCE_DIR}/tests/runtime/unit/runtime_array_storage_test.cpp
+        )
+
+        target_link_libraries(yogi_runtime_array_storage_test PRIVATE yogi_runtime)
+
+        add_test(
+                NAME yogi_runtime_array_storage_test
+                COMMAND yogi_runtime_array_storage_test
+        )
+
         function(add_yogi_pipeline_test TEST_NAME TEST_WORK_DIR TEST_SCRIPT)
                 add_test(
                         NAME ${TEST_NAME}

@@ -184,5 +184,6 @@ Future work can add:
 ```txt
 runtime index-sensitive checks for destructive operations
 compaction only when no protected cells are live
-runtime migration from contiguous to pointer-safe if a future feature creates a late storage transition
 ```
+
+Lot 44 completed runtime migration from contiguous to pointer-safe storage.

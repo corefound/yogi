@@ -119,7 +119,7 @@ without re-auditing the whole compiler.
 - [x] Pointer rebind and scope-exit updates for dynamic array invalidation diagnostics
 - [x] Dynamic array assignment performs in-place slot replacement: preserved indexes keep pointer identity, removed indexes invalidate pointers
 - [x] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage selected by semantic analysis
-- [ ] Runtime migration from contiguous to pointer-safe storage after allocation when future late analysis/runtime transitions need it
+- [x] Runtime migration from contiguous to pointer-safe storage when an interior pointer cell is requested after allocation
 - [ ] Compile-time diagnostics for provably invalidated dynamic-array pointer use after removal
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells

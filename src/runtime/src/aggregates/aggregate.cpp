@@ -692,6 +692,32 @@ namespace yogi::runtime {
 		elements[index] = nullptr;
 	}
 
+	void ArrayValue::promoteToPointerSafeStorage() {
+		if (isView()) {
+			viewSource->promoteToPointerSafeStorage();
+			return;
+		}
+
+		if (usesPointerSafeStorage()) {
+			return;
+		}
+
+		for (std::size_t index = 0; index < elementCount; ++index) {
+			const auto value = contiguousValues && contiguousValues[index]
+				? contiguousValues[index]
+				: AnyValue::undefined();
+			elements[index] = createSlot(value);
+		}
+
+		for (std::size_t index = elementCount; index < elementCapacity; ++index) {
+			elements[index] = nullptr;
+		}
+
+		MemoryManager::deallocate(contiguousValues);
+		contiguousValues = nullptr;
+		storageMode = StorageMode::PointerSafeChunkedMode;
+	}
+
 	void ArrayValue::retireSlot(void **slot) {
 		if (!slot) {
 			return;
@@ -837,10 +863,19 @@ namespace yogi::runtime {
 	}
 
 	void *ArrayValue::pointerCell(std::size_t index) {
+		if (isView()) {
+			OwnershipTracker::assertLiveAggregate(this, "array cell after destroy/drop", "array value");
+			if (index >= elementCount) {
+				RuntimeError::abortRange("array address-of", static_cast<long long>(index), elementCount);
+			}
+			return viewSource->pointerCell(viewOffset + index);
+		}
+
+		promoteToPointerSafeStorage();
 		auto **slot = cell(index);
 		return tagRuntimePointer(
 			slot,
-			usesPointerSafeStorage() ? arrayCellPointerTag : rawCellPointerTag
+			arrayCellPointerTag
 		);
 	}
 

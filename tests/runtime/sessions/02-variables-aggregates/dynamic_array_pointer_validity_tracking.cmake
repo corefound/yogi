@@ -246,3 +246,9 @@ expect_runtime_error(
 	"${NESTED_USER_STRUCT}let users: User[] = [{ age: 20, address: { zip: 10001 } }, { age: 30, address: { zip: 10002 } }]\nlet zip: ptr<number> = &users[1].address.zip\nusers = [{ age: 99, address: { zip: 20001 } }]\nzip = 10459\n"
 	"${INVALID_POINTER_ERROR}"
 )
+
+expect_runtime_error(
+	"parameter_shorter_assignment_invalidates_pointer_to_removed_slot"
+	"${USER_STRUCT}function shrink(users: User[]): void {\n    let age: ptr<number> = &users[1].age\n    users = [{ age: 99 }]\n    age = 50\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nshrink(users)\n"
+	"${INVALID_POINTER_ERROR}"
+)

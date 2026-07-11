@@ -604,26 +604,30 @@ because the compiler cannot summarize the result as one stable parameter borrow.
 
 ### Dynamic array storage analysis
 
-Dynamic `T[]` arrays are contiguous by default. A pointer expression alone does
-not force slower storage:
+Dynamic `T[]` arrays are contiguous by default. The compiler does not have to
+preselect slower storage just because a pointer expression appears:
 
 ```ts
 let users: User[] = [{ age: 20 }]
 let age: ptr<number> = &users[0].age
 
-age = 99 // users can still use contiguous storage
+age = 99
 ```
 
-If a live interior pointer exists when the same dynamic array grows with
-`push`, semantic analysis marks that array literal as
-`pointer_safe_chunked_mode` in SIR. The LLVM backend lowers that mode into the
-runtime create/init call, so existing element cells remain stable across growth.
+At runtime, `&users[index]` and projected pointers such as `&users[0].age`
+promote the array from `contiguous_fast_path` to `pointer_safe_chunked_mode` if
+it has not already been promoted. That gives the pointer a stable slot identity.
+
+If semantic analysis can see a live interior pointer before an identity-sensitive
+array operation, it can also mark the original array literal as
+`pointer_safe_chunked_mode` in SIR. This is an optimization and an early storage
+decision, not the only safety mechanism.
 
 ```ts
 let users: User[] = [{ age: 20 }]
 let age: ptr<number> = &users[0].age
 
-users.push({ age: 30 }) // users uses pointer-safe storage
+users.push({ age: 30 }) // existing slots remain stable
 age = 99
 ```
 
@@ -632,13 +636,13 @@ array descriptor rather than an interior element/cell. Rebinding a pointer
 updates the protected root: after `age = &usersB[0].age`, growth of `usersA`
 can stay contiguous while growth of `usersB` becomes pointer-safe.
 
-Destructive or reordering operations remain rejected while a live interior
-pointer exists:
+Removing operations invalidate only removed slots, while reordering operations
+preserve slot identities:
 
 ```ts
-users.sort()    // error if age still points into users
-users.reverse() // error
-users.splice(0, 1) // error
+users.sort()       // pointer remains valid, slot is reordered
+users.reverse()    // pointer remains valid, slot is reordered
+users.splice(0, 1) // pointer fails only if its own slot was removed
 ```
 
 ### Future: pointers to dynamic shaped arrays
@@ -2119,6 +2123,7 @@ Yogi is flexible when the runtime can validate safely.
 ✅ Destructive dynamic array mutation diagnostics while a live pointer points into the array
 ✅ Pointer rebind/scope-exit updates for dynamic array invalidation diagnostics
 ✅ Adaptive dynamic array storage selection: contiguous fast path unless live interior pointers require pointer-safe storage
+✅ Runtime promotion from contiguous to pointer-safe storage when an interior pointer cell is requested
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer call diagnostics for missing &, value/pointer mismatch, shape mismatch, and pointer-to-pointer mismatch
 ✅ Borrow summaries for ptr<T> parameter-derived returns

@@ -198,3 +198,11 @@ expect_run(
 	1
 	1
 )
+
+expect_run(
+	"parameter_pointer_plus_push_promotes_contiguous_runtime_storage"
+	"${USER_STRUCT}function bump(users: User[]): void {\n    let age: ptr<number> = &users[0].age\n    users.push({ age: 30 })\n    age = 99\n    print(users[0].age)\n    print(users[1].age)\n}\n\nlet users: User[] = [{ age: 20 }]\nbump(users)\nprint(users.length)\n"
+	"99\n30\n1\n"
+	0
+	1
+)

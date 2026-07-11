@@ -115,6 +115,7 @@ namespace yogi::runtime {
 			void *slotValue(std::size_t index) const;
 			void setSlotValue(std::size_t index, void *value);
 			void invalidateSlot(std::size_t index);
+			void promoteToPointerSafeStorage();
 			void retireSlot(void **slot);
 			void releaseSlot(std::size_t index);
 			void releaseCell(void **slot);

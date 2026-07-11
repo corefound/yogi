@@ -26,6 +26,11 @@ switches to pointer-safe storage only when semantic analysis sees:
 live interior pointer + identity-sensitive dynamic array method on the same root
 ```
 
+Current runtime note: Lot 44 added lazy runtime promotion. Even when semantic
+analysis leaves a literal as `contiguous_fast_path`, a later
+`yogi_array_pointer_cell` request promotes that concrete array descriptor to
+`pointer_safe_chunked_mode` before returning the pointer cell.
+
 Example that remains contiguous:
 
 ```ts
@@ -110,6 +115,10 @@ points at cells inside that buffer.
 pointer table during `push` does not move existing cells, so interior pointers
 remain valid.
 
+`yogi_array_pointer_cell(array, index)` now guarantees that `array` is
+pointer-safe before returning the cell. Views delegate to their source array, so
+the returned pointer always tracks the real owner slot.
+
 The LLVM backend still calls only the Yogi runtime ABI. It does not call
 allocator functions directly.
 
@@ -157,8 +166,9 @@ slots, and removed indexes invalidate only the removed slots.
 
 ```txt
 runtime compaction when no protected cells are live
-late runtime migration if future features need storage changes after allocation
 pointer-return provenance from ptr<Array> parameters into dynamic array cells
 dynamic object structural mutation invalidation, if dynamic object storage becomes resizable/reordering
 compile-time diagnostics for provably invalidated dynamic-array pointer use
 ```
+
+Lot 44 completed late runtime migration from contiguous to pointer-safe storage.

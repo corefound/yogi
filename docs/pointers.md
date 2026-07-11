@@ -228,6 +228,7 @@ Checklist:
 - ✅ `unshift`, `reverse`, and `sort` preserve existing dynamic-array pointer identities
 - ✅ `fill` and `copyWithin` preserve slot identity while overwriting current slot values
 - ✅ dynamic array assignment preserves common slot identities, creates extra slots, and invalidates removed slots
+- ✅ lazy runtime promotion from contiguous to pointer-safe dynamic array storage when an interior pointer cell is requested
 - ✅ pointer rebind updates which dynamic array root is protected
 - ✅ pointer scope end releases the protected dynamic array root
 - ✅ adaptive dynamic array storage selection: contiguous by default, pointer-safe only when growth overlaps a live interior pointer
@@ -943,7 +944,9 @@ Current rule:
 ```txt
 &dynamicArray[index] is supported.
 push while an interior pointer is live is supported.
-destructive/reordering operations are rejected conservatively while an interior pointer is live.
+reordering operations preserve slot identity.
+removing operations invalidate only removed slots.
+assignment preserves common slots and invalidates removed slots.
 ```
 
 Checklist:
