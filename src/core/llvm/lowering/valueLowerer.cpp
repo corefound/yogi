@@ -445,6 +445,24 @@ namespace yogi::core::llvm::internal {
 
 			return inserted;
 		};
+		const auto arrayReceiverSemanticType = [&](const Yogi::Sir::ValueRef *receiver) -> const Yogi::Sir::TypeRef * {
+			const auto *receiverType = valueSemanticType(receiver);
+			if (resolvedTypeKind(receiverType) == Yogi::Sir::TypeKind_pointer_type && receiverType->element_type()) {
+				return receiverType->element_type();
+			}
+
+			return receiverType;
+		};
+		const auto lowerArrayReceiver = [&](const Yogi::Sir::ValueRef *receiver) -> ::llvm::Value * {
+			const auto *receiverType = valueSemanticType(receiver);
+			auto *value = lower(receiver, opaquePointer(), receiverType);
+
+			if (resolvedTypeKind(receiverType) == Yogi::Sir::TypeKind_pointer_type && receiverType->element_type()) {
+				return lowerPointerArrayDescriptor(value, receiverType->element_type());
+			}
+
+			return value;
+		};
 		const auto createCallbackLoop = [&](const std::string &name, ::llvm::Value *array, const Yogi::Sir::TypeRef *elementType) {
 			auto *function = context.builder.GetInsertBlock()->getParent();
 			auto *condition = ::llvm::BasicBlock::Create(context.llvmContext, name + ".condition", function);
@@ -685,7 +703,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "push") {
-			auto *array = lower(callee->object(), opaquePointer(), objectSemanticType);
+			auto *array = lowerArrayReceiver(callee->object());
 			const auto *argument = arguments && argumentCount > 0
 				? arguments->Get(0)
 				: nullptr;
@@ -712,7 +730,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "unshift") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
 
 			if (arguments) {
@@ -744,7 +762,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "pop") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *result = callRuntime(
 				"yogi_array_pop",
 				opaquePointer(),
@@ -762,7 +780,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "shift") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *result = callRuntime(
 				"yogi_array_shift",
 				opaquePointer(),
@@ -780,7 +798,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "at") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *argumentValue = lowerNumberArgument(0, 0);
 			auto *result = callRuntime(
 				"yogi_array_at_index",
@@ -799,7 +817,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "copy") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
 			auto *length = callRuntime("yogi_array_length", i64, {array});
 			auto *copy = callRuntime("yogi_array_create", opaquePointer(), {length});
@@ -834,7 +852,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "includes" || methodName == "indexOf" || methodName == "lastIndexOf") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			const auto *argument = arguments && argumentCount > 0
 				? arguments->Get(0)
 				: nullptr;
@@ -880,7 +898,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "concat") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *result = callRuntime("yogi_array_clone", opaquePointer(), {array});
 
 			if (arguments) {
@@ -917,7 +935,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "reverse") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			callRuntime("yogi_array_reverse", ::llvm::Type::getVoidTy(context.llvmContext), {array});
 
 			return cast(
@@ -929,7 +947,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "fill") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			const auto *argument = arguments && argumentCount > 0
 				? arguments->Get(0)
 				: nullptr;
@@ -954,7 +972,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "copyWithin") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *target = lowerNumberArgument(0, 0);
 			auto *start = lowerNumberArgument(1, 0);
 			auto *end = lowerNumberArgument(2, std::numeric_limits<double>::infinity());
@@ -974,7 +992,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "splice" || methodName == "toSpliced") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *start = lowerNumberArgument(0, 0);
 			auto *deleteCount = lowerNumberArgument(1, std::numeric_limits<double>::infinity());
 			auto *inserted = createInsertArray(2);
@@ -994,7 +1012,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "toReversed") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *result = callRuntime("yogi_array_to_reversed", opaquePointer(), {array});
 
 			return cast(
@@ -1006,7 +1024,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "join" || methodName == "toString" || methodName == "toLocaleString") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 
 			if (methodName == "join") {
 				::llvm::Value *separator = nullptr;
@@ -1036,7 +1054,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "sort" || methodName == "toSorted") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *targetArray = array;
 
 			if (methodName == "toSorted") {
@@ -1055,7 +1073,7 @@ namespace yogi::core::llvm::internal {
 					);
 				}
 
-				const auto *arrayType = valueSemanticType(callee->object());
+				const auto *arrayType = arrayReceiverSemanticType(callee->object());
 				const auto *elementType = arrayType && arrayType->element_type()
 					? arrayType->element_type()
 					: call->type();
@@ -1151,7 +1169,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "flat" || methodName == "keys" || methodName == "values" || methodName == "entries") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			::llvm::Value *result = nullptr;
 
 			if (methodName == "flat") {
@@ -1174,7 +1192,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "with") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *index = lowerNumberArgument(0, 0);
 			const auto *argument = arguments && argumentCount > 1
 				? arguments->Get(1)
@@ -1212,8 +1230,8 @@ namespace yogi::core::llvm::internal {
 				return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
 			}
 
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
-			const auto *arrayType = valueSemanticType(callee->object());
+			auto *array = lowerArrayReceiver(callee->object());
+			const auto *arrayType = arrayReceiverSemanticType(callee->object());
 			const auto *elementType = arrayType && arrayType->element_type()
 				? arrayType->element_type()
 				: call->type();
@@ -1441,7 +1459,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (methodName == "slice") {
-			auto *array = lower(callee->object(), opaquePointer(), valueSemanticType(callee->object()));
+			auto *array = lowerArrayReceiver(callee->object());
 			auto *start = lowerNumberArgument(0, 0);
 			auto *end = lowerNumberArgument(1, std::numeric_limits<double>::infinity());
 			auto *result = callRuntime(

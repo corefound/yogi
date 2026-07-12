@@ -271,6 +271,30 @@ expect_run(
 	"99\n"
 )
 
+expect_run(
+	"ptr_array_methods_mutate_caller_storage"
+	"function mutate(values: ptr<number[]>): void {\n    values.push(4)\n    values.unshift(0)\n    values.reverse()\n    values.sort()\n    values.fill(9, 0, 1)\n    values.copyWithin(1, 3, 4)\n    values.splice(2, 1, 8)\n}\n\nlet values: number[] = [3, 1, 2]\nmutate(&values)\nlet first: ptr<number> = &values[0]\nprint(values[0])\nprint(values[1])\nprint(values[2])\nprint(values[3])\nprint(values[4])\nprint(values.length)\n"
+	"9\n3\n8\n3\n4\n5\n"
+)
+
+expect_run(
+	"ptr_array_binding_shift_mutates_caller_and_preserves_surviving_pointer"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet list: ptr<User[]> = &users\nlet age: ptr<number> = &users[1].age\nlist.shift()\nage = 99\nprint(users[0].age)\nprint(users.length)\n"
+	"99\n1\n"
+)
+
+expect_run(
+	"ptr_array_parameter_shift_mutates_caller_and_preserves_surviving_pointer"
+	"${USER_STRUCT}function dropFirst(users: ptr<User[]>): void {\n    users.shift()\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\ndropFirst(&users)\nage = 99\nprint(users[0].age)\nprint(users.length)\n"
+	"99\n1\n"
+)
+
+expect_run(
+	"const_pointer_binding_can_mutate_mutable_array"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nconst list: ptr<User[]> = &users\nlet age: ptr<number> = &users[0].age\nlist.push({ age: 40 })\nage = 99\nprint(users[0].age)\nprint(users[2].age)\nprint(users.length)\n"
+	"99\n40\n3\n"
+)
+
 expect_semantic_error(
 	"pop_removed_pointed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers.pop()\nage = 99\n"
@@ -287,6 +311,18 @@ expect_semantic_error(
 	"splice_removed_pointed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }, { age: 40 }]\nlet age: ptr<number> = &users[1].age\nusers.splice(0, 2)\nage = 99\n"
 	"${INVALID_POINTER_ERROR}"
+)
+
+expect_semantic_error(
+	"ptr_array_parameter_shift_invalidates_removed_caller_pointer"
+	"${USER_STRUCT}function dropFirst(users: ptr<User[]>): void {\n    users.shift()\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\ndropFirst(&users)\nage = 99\n"
+	"${INVALID_POINTER_ERROR}"
+)
+
+expect_semantic_error(
+	"readonly_array_pointer_method_rejected"
+	"${USER_STRUCT}const users: User[] = [{ age: 20 }, { age: 30 }]\nlet list: ptr<User[]> = &users\nlist.push({ age: 40 })\n"
+	"cannot mutate storage derived from const value"
 )
 
 expect_runtime_error(

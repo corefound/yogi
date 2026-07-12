@@ -613,11 +613,6 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 escaping.add(key);
             };
 
-            const addMutatedIdentifier = (value: any): void => {
-                const key = this.getAggregateIdentifierKey(value);
-                if (key) mutated.add(key);
-            };
-
             const getPointerIdentifierKey = (value: any): string | null => {
                 if (!value || value.kind !== Kinds.Expressions.IdentifierExpression) {
                     return null;
@@ -639,13 +634,22 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 return null;
             };
 
+            const getAggregateOrPointerIdentifierKey = (value: any): string | null => {
+                return this.getAggregateIdentifierKey(value) ?? getPointerIdentifierKey(value);
+            };
+
+            const addMutatedIdentifier = (value: any): void => {
+                const key = getAggregateOrPointerIdentifierKey(value);
+                if (key) mutated.add(key);
+            };
+
             const addPointerMutatedIdentifier = (value: any): void => {
                 const key = getPointerIdentifierKey(value);
                 if (key) pointerMutated.add(key);
             };
 
             const addArrayInvalidationIdentifier = (value: any, effect: any): void => {
-                const key = this.getAggregateIdentifierKey(value);
+                const key = getAggregateOrPointerIdentifierKey(value);
                 addArrayInvalidationKey(key, effect);
             };
 

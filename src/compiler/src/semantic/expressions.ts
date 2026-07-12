@@ -499,8 +499,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 return methodHandlers[methodName]();
             }
 
+            const receiverIsPointer = receiverType?.kind === Kinds.Types.PointerType;
+            const arrayReceiverType = receiverIsPointer
+                ? this.pointerPointeeType(receiverType)
+                : receiverType;
+
+            if (receiverIsPointer) {
+                this.assertPointerTargetUsable(receiver, source);
+            }
+
             // Validate receiver is an array or tuple
-            if (receiverType?.kind !== Kinds.Types.ArrayType && receiverType?.kind !== Kinds.Types.TupleType) {
+            if (arrayReceiverType?.kind !== Kinds.Types.ArrayType && arrayReceiverType?.kind !== Kinds.Types.TupleType) {
                 const message =
                     `method ${Helpers.RED}'${methodName}'${Helpers.RESET} does not exist on type ` +
                     `${Helpers.RED}'${receiverType?.raw ?? "unknown"}'${Helpers.RESET}`;
@@ -511,45 +520,45 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             // Dispatch table for built-in array methods
             const methodHandlers: Record<string, () => any> = {
-                push: () => this.validateAndCreatePushCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                pop: () => this.validateAndCreatePopCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                at: () => this.validateAndCreateAtCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                copy: () => this.validateAndCreateCopyCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                shift: () => this.validateAndCreateShiftCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                unshift: () => this.validateAndCreateUnshiftCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                includes: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, receiverType, methodName, args, source, "boolean"),
-                indexOf: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, receiverType, methodName, args, source, "number"),
-                lastIndexOf: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, receiverType, methodName, args, source, "number"),
-                reverse: () => this.validateAndCreateReverseCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                slice: () => this.validateAndCreateSliceCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                concat: () => this.validateAndCreateConcatCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                fill: () => this.validateAndCreateFillCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                copyWithin: () => this.validateAndCreateCopyWithinCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                splice: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, receiverType, methodName, args, source, true),
-                toReversed: () => this.validateAndCreateToReversedCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                toSpliced: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, receiverType, methodName, args, source, false),
-                with: () => this.validateAndCreateWithCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                join: () => this.validateAndCreateJoinCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                toString: () => this.validateAndCreateToStringCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                toLocaleString: () => this.validateAndCreateToStringCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                sort: () => this.validateAndCreateSortCall(node, rawCallee, receiver, receiverType, methodName, args, source, true),
-                toSorted: () => this.validateAndCreateSortCall(node, rawCallee, receiver, receiverType, methodName, args, source, false),
-                flat: () => this.validateAndCreateFlatCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                keys: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                values: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                entries: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                forEach: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                map: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                filter: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                some: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                every: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                find: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                findIndex: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                findLast: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                findLastIndex: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                flatMap: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                reduce: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
-                reduceRight: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, receiverType, methodName, args, source),
+                push: () => this.validateAndCreatePushCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                pop: () => this.validateAndCreatePopCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                at: () => this.validateAndCreateAtCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                copy: () => this.validateAndCreateCopyCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                shift: () => this.validateAndCreateShiftCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                unshift: () => this.validateAndCreateUnshiftCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                includes: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source, "boolean"),
+                indexOf: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source, "number"),
+                lastIndexOf: () => this.validateAndCreateSearchCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source, "number"),
+                reverse: () => this.validateAndCreateReverseCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                slice: () => this.validateAndCreateSliceCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                concat: () => this.validateAndCreateConcatCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                fill: () => this.validateAndCreateFillCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                copyWithin: () => this.validateAndCreateCopyWithinCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                splice: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source, true),
+                toReversed: () => this.validateAndCreateToReversedCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                toSpliced: () => this.validateAndCreateSpliceCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source, false),
+                with: () => this.validateAndCreateWithCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                join: () => this.validateAndCreateJoinCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                toString: () => this.validateAndCreateToStringCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                toLocaleString: () => this.validateAndCreateToStringCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                sort: () => this.validateAndCreateSortCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source, true),
+                toSorted: () => this.validateAndCreateSortCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source, false),
+                flat: () => this.validateAndCreateFlatCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                keys: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                values: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                entries: () => this.validateAndCreateIteratorArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                forEach: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                map: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                filter: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                some: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                every: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                find: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                findIndex: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                findLast: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                findLastIndex: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                flatMap: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                reduce: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
+                reduceRight: () => this.validateAndCreateCallbackArrayCall(node, rawCallee, receiver, arrayReceiverType, methodName, args, source),
             };
 
             if (!methodHandlers[methodName]) {
@@ -568,9 +577,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
          * push(element: T): number - mutates array, returns length
          */
         public validateAndCreatePushCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
-            const pushRoot = this.getAggregateRootIdentifier(receiver);
-            const pushSymbol = pushRoot ? this.resolveSymbol(pushRoot) : null;
-            receiverType = this.resolveType(pushSymbol?.declaredType ?? receiverType);
+            const { rootName: pushRoot, symbol: pushSymbol } = this.dynamicArrayReceiverOwner(receiver);
+            receiverType = this.resolveType(receiverType);
 
             // Tuples have fixed length; push is not allowed
             if (receiverType?.kind === Kinds.Types.TupleType) {
@@ -594,9 +602,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const root = pushRoot;
             const symbol = pushSymbol;
 
-            if (root && symbol?.mutable !== true) {
+            if (this.resolveType(receiver?.declaredType ?? receiver?.type)?.kind !== Kinds.Types.PointerType && root && symbol?.mutable !== true) {
                 const message =
                     `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            if (this.resolveType(receiver?.declaredType ?? receiver?.type)?.kind === Kinds.Types.PointerType && receiver.pointerPermission === "readonly") {
+                const message =
+                    `cannot mutate storage derived from const value ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET}`;
 
                 rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
@@ -675,9 +691,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
          * pop(): T | undefined - mutates array, returns element
          */
         public validateAndCreatePopCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
-            const popRoot = this.getAggregateRootIdentifier(receiver);
-            const popSymbol = popRoot ? this.resolveSymbol(popRoot) : null;
-            receiverType = this.resolveType(popSymbol?.declaredType ?? receiverType);
+            const { rootName: popRoot, symbol: popSymbol } = this.dynamicArrayReceiverOwner(receiver);
+            receiverType = this.resolveType(receiverType);
 
             // Tuples have fixed length; pop is not allowed
             if (receiverType?.kind === Kinds.Types.TupleType) {
@@ -701,9 +716,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const root = popRoot;
             const symbol = popSymbol;
 
-            if (root && symbol?.mutable !== true) {
+            if (this.resolveType(receiver?.declaredType ?? receiver?.type)?.kind !== Kinds.Types.PointerType && root && symbol?.mutable !== true) {
                 const message =
                     `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            if (this.resolveType(receiver?.declaredType ?? receiver?.type)?.kind === Kinds.Types.PointerType && receiver.pointerPermission === "readonly") {
+                const message =
+                    `cannot mutate storage derived from const value ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET}`;
 
                 rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
@@ -937,6 +960,46 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             this.throwError(message, argument.position ?? node.position, source, argument);
         }
 
+        public dynamicArrayReceiverOwner(receiver: any): {
+            rootName: string | null;
+            symbol: any | null;
+            pointerReceiver: boolean;
+            pointerPermission?: "mutable" | "readonly";
+        } {
+            const receiverType = this.resolveType(receiver?.declaredType ?? receiver?.type);
+            const pointerReceiver = receiverType?.kind === Kinds.Types.PointerType;
+
+            if (pointerReceiver) {
+                const rootName =
+                    receiver?.pointerRootName ??
+                    receiver?.rootName ??
+                    null;
+                const symbol =
+                    typeof receiver?.pointerRootSymbolId === "number"
+                        ? this.getSymbolById(receiver.pointerRootSymbolId)
+                        : typeof receiver?.rootSymbolId === "number"
+                            ? this.getSymbolById(receiver.rootSymbolId)
+                            : rootName
+                                ? this.resolveSymbol(rootName)
+                                : null;
+
+                return {
+                    rootName,
+                    symbol,
+                    pointerReceiver: true,
+                    pointerPermission: receiver?.pointerPermission ?? receiver?.permission,
+                };
+            }
+
+            const rootName = this.getAggregateRootIdentifier(receiver);
+
+            return {
+                rootName,
+                symbol: rootName ? this.resolveSymbol(rootName) : null,
+                pointerReceiver: false,
+            };
+        }
+
         public validateMutableArrayReceiver(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, source: string): void {
             if (receiverType?.kind === Kinds.Types.TupleType) {
                 const message =
@@ -960,11 +1023,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
-            const root = this.getAggregateRootIdentifier(receiver);
-            const symbol = root ? this.resolveSymbol(root) : null;
+            const {
+                rootName: root,
+                symbol,
+                pointerReceiver,
+                pointerPermission,
+            } = this.dynamicArrayReceiverOwner(receiver);
             const readonlyInfo = this.borrowedArrayReadonlyInfo(receiver, receiverType);
 
-            if (root && symbol?.mutable !== true) {
+            if (!pointerReceiver && root && symbol?.mutable !== true) {
                 const message =
                     `cannot mutate ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET} because it is immutable`;
 
@@ -974,6 +1041,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             if (readonlyInfo.borrowedViewReadonly) {
                 this.throwReadonlyBorrowedViewMutationError(receiver, rawCallee, source, root, readonlyInfo.sourceName);
+            }
+
+            if (pointerReceiver && pointerPermission === "readonly") {
+                const message =
+                    `cannot mutate storage derived from const value ${Helpers.RED}'${root ?? rawCallee.source}'${Helpers.RESET}`;
+
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
 
             if (this.isReadonlyType(receiverType)) {
@@ -1213,8 +1288,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
             this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
 
-            const root = this.getAggregateRootIdentifier(receiver);
-            const symbol = root ? this.resolveSymbol(root) : null;
+            const { rootName: root, symbol } = this.dynamicArrayReceiverOwner(receiver);
             this.markDynamicArrayPointersRemovedByIndex(
                 root,
                 symbol,
@@ -1256,8 +1330,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
             });
 
-            const root = this.getAggregateRootIdentifier(receiver);
-            const symbol = root ? this.resolveSymbol(root) : null;
+            const { symbol } = this.dynamicArrayReceiverOwner(receiver);
             this.updateKnownDynamicArrayLength(symbol, (length) =>
                 typeof length === "number" ? length + args.length : null,
             );
@@ -1482,8 +1555,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             });
 
             if (mutating) {
-                const root = this.getAggregateRootIdentifier(receiver);
-                const symbol = root ? this.resolveSymbol(root) : null;
+                const { rootName: root, symbol } = this.dynamicArrayReceiverOwner(receiver);
                 const knownLength = this.knownDynamicArrayLength(symbol);
                 const rawStart = this.literalIndexValue(args[0]);
                 const rawDeleteCount = args[1] ? this.literalIndexValue(args[1]) : null;
