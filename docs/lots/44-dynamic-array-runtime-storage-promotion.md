@@ -111,7 +111,7 @@ shorter assignment in callee invalidates pointer to removed slot
 - ✅ parameter/callee scenarios no longer depend on caller-side storage decisions
 - ✅ no new user-facing array type or method
 
-## Pending / Future
+## Follow-Up
 
-- ⬜ compile-time diagnostics for provably invalidated dynamic-array pointer use
+- ✅ compile-time diagnostics for provably invalidated dynamic-array pointer use
 - ⬜ generation-based slot reuse optimization

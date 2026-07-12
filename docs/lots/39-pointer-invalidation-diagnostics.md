@@ -38,25 +38,30 @@ users.push({ age: 30 }) // error
 This example was rejected by Lot 39. It is now allowed by Lot 40 because
 `push` preserves existing element cells.
 
-Current rejected example:
+Current rejected example for readonly roots:
 
 ```ts
-users.sort() // error while age is live
+const users: User[] = [{ age: 20 }]
+users.push({ age: 30 }) // error: users is immutable
 ```
 
-Diagnostic:
+Current removed-slot example:
 
-```txt
-cannot call 'sort' on 'users' while pointer 'age' points into 'users[0].age'
+```ts
+let users: User[] = [{ age: 20 }, { age: 30 }]
+let age: ptr<number> = &users[0].age
+
+users.shift()
+age = 99 // semantic error when the compiler can prove the removed slot
 ```
 
-The destructive-operation check is conservative by design. Yogi does not yet
-try to prove that a particular index would survive a removal/reorder.
+When the compiler cannot prove the removed slot statically, the runtime slot
+validity check remains responsible for the error.
 
 ## Structural Mutations
 
-The semantic checker rejects these operations while a live internal pointer
-protects the same dynamic array root:
+The old semantic checker rejected these operations while a live internal pointer
+protected the same dynamic array root:
 
 ```txt
 pop
@@ -67,7 +72,7 @@ sort
 reverse
 ```
 
-It also rejects whole-container replacement:
+It also rejected whole-container replacement:
 
 ```ts
 users = [{ age: 30 }]
@@ -130,7 +135,7 @@ let age1: ptr<number> = &users[0].age
 let age2: ptr<number> = age1
 
 users.push({ age: 30 }) // allowed
-users.sort() // error
+users.sort() // allowed; slot identity is preserved
 ```
 
 Pointer rebind updates which root is protected:
@@ -141,7 +146,7 @@ age = &usersB[0].age
 
 usersA.push({ age: 21 }) // allowed
 usersB.push({ age: 31 }) // allowed
-usersB.sort() // error
+usersB.sort() // allowed; slot identity is preserved
 ```
 
 ## Implementation Notes
@@ -151,8 +156,8 @@ usersB.sort() // error
   its access path is not empty.
 - `exitScope()` removes pointer provenance for the closing lexical scope.
 - Pointer declarations, pointer copies, and pointer rebinds update the table.
-- Dynamic array destructive/reordering methods and whole-array assignment query
-  the table before allowing mutation.
+- Dynamic array destructive/reordering methods and whole-array assignment now
+  mark removed slots where possible instead of rejecting the mutation itself.
 - `push` no longer queries this table because runtime array cells remain stable
   across growth.
 
@@ -187,6 +192,9 @@ Historical negative coverage:
 Current runtime validity coverage lives in
 `dynamic_array_pointer_validity_tracking.cmake`.
 
+Current semantic invalidated-pointer coverage also lives in
+`dynamic_array_pointer_validity_tracking.cmake`.
+
 ## Remaining Work
 
 - Dynamic object structural invalidation, if Yogi adds mutable object shapes.
@@ -194,5 +202,4 @@ Current runtime validity coverage lives in
   pending because address-of through pointer-derived array access is currently
   rejected.
 - Partial fixed-shape view addressability such as `&matrix[0]`.
-- Index-sensitive destructive operation checks. Today Yogi rejects destructive
-  operations conservatively while any live interior pointer targets that array.
+- Branch-sensitive invalidated-pointer merging for conditionals and loops.

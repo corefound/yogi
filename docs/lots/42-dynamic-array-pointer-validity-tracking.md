@@ -185,7 +185,8 @@ newLen..<oldLen    invalidate removed slots
 Pointers are not retargeted to new expressions. They keep pointing to the same
 slot identity. If the slot survives, the pointer remains valid and observes the
 new value. If the slot is removed, pointer use fails through the existing
-runtime invalidation path.
+invalidation path. Obvious literal cases now fail during semantic analysis;
+dynamic cases remain runtime checked.
 
 ## Tests
 
@@ -218,18 +219,23 @@ shorter assignment preserves pointers to surviving slots
 nested projected pointers survive assignment when their slot survives
 ```
 
-Negative runtime coverage:
+Negative semantic coverage:
 
 ```txt
 pop removes pointed slot and pointer is used afterward
 shift removes pointed slot and pointer is used afterward
-splice removes pointed slot and pointer is used afterward
-dynamic splice/index removes pointed slot and pointer is used afterward
+splice removes pointed literal slot and pointer is used afterward
 copied pointer to removed slot is used afterward
 ptr<User> to removed slot uses a field afterward
 nested pointer such as &users[0].address.zip is used after removal
 shorter assignment removes a pointed slot and the pointer is used afterward
 nested projected pointer is used after assignment removed its owner slot
+```
+
+Negative runtime coverage:
+
+```txt
+dynamic splice/index removes pointed slot and pointer is used afterward
 ```
 
 ## Completed
@@ -249,11 +255,12 @@ nested projected pointer is used after assignment removed its owner slot
 - ✅ dynamic array assignment preserves common slot identities
 - ✅ dynamic array assignment invalidates pointers to removed slots
 - ✅ non-mutating/copy-returning methods do not invalidate original pointers
+- ✅ obvious removed-slot pointer uses fail during semantic analysis
 
 ## Pending / Future
 
 - ⬜ remove runtime validity checks when compiler proves safety
-- ⬜ richer compile-time diagnostics for provably invalidated pointer use
+- ⬜ richer branch-sensitive compile-time diagnostics for provably invalidated pointer use
 - ⬜ source notes for pointer creation, element removal, and invalid pointer use
 - ⬜ generation-based slot reuse optimization
 - ⬜ projected pointer metadata cleanup tied to pointer lifetime

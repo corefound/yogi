@@ -90,11 +90,14 @@ users = [{ age: 99 }]
 age = 50
 ```
 
-Slot `1` was removed, so the pointer write reports:
+Slot `1` was removed, so the pointer write reports a semantic error when the
+compiler can prove the removed slot:
 
 ```txt
-runtime pointer error: pointer is used after the array element it points to was removed
+pointer 'age' is used after its target dynamic array element 'users[1].age' was removed by 'replace'
 ```
+
+Dynamic/unknown shortening paths still use the runtime pointer check.
 
 ## Runtime And Lowering
 
@@ -132,7 +135,7 @@ nested projected pointer survives if its slot survives
 replacement while an interior pointer is live uses pointer-safe storage
 ```
 
-Negative runtime cases:
+Negative semantic cases:
 
 ```txt
 shorter assignment invalidates pointer to removed slot
@@ -151,8 +154,9 @@ nested projected pointer fails if its owner slot is removed
 - ✅ behavior reuses the dynamic array pointer validity model
 - ✅ late runtime promotion now covers arrays created contiguous before entering
   a function that takes an interior pointer
+- ✅ literal shortening replacement reports provably invalid pointer use during
+  semantic analysis
 
 ## Pending / Future
 
-- ⬜ compile-time diagnostics for provably invalidated pointer use after a
-  shortening replacement
+- ⬜ branch-sensitive invalidation merging after conditional replacements
