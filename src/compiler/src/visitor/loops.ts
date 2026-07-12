@@ -102,6 +102,13 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
 
             const iterable = this.visitNode(node.expression);
             const useDirectIterable = ts.isIdentifier(node.expression) || ts.isStringLiteral(node.expression);
+            const iterableRoot = ts.isIdentifier(node.expression) ? node.expression.getText() : null;
+            const useStableIteration =
+                iterableRoot !== null &&
+                (
+                    elementType?.kind === Kinds.Types.PointerType ||
+                    this.forOfBodyMayStructurallyMutateIterable(node.statement, iterableRoot)
+                );
             const indexIdentifier = this.createSyntheticIdentifier(indexName, node);
             const iterableIdentifier = this.createSyntheticIdentifier(iterableName, node.expression);
             const iterableReference = useDirectIterable ? iterable : iterableIdentifier;
@@ -111,6 +118,17 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                 elementType: iterableElementType,
                 readonly: false,
             };
+
+            if (useStableIteration) {
+                return this.createStableForOfStatement(
+                    node,
+                    declaration,
+                    elementType,
+                    iterable,
+                    indexName,
+                    indexIdentifier,
+                );
+            }
 
             const initializer = {
                 kind: Kinds.Statements.DeclarationStatement,
@@ -233,6 +251,248 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                     statements: [...valueDeclarations, ...(body.statements ?? [])],
                 },
                 source: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        forOfBodyMayStructurallyMutateIterable(statement: ts.Statement, iterableName: string): boolean {
+            const mutatingMethods = new Set([
+                "push",
+                "pop",
+                "shift",
+                "unshift",
+                "splice",
+                "sort",
+                "reverse",
+                "fill",
+                "copyWithin",
+            ]);
+            let mutates = false;
+
+            const rootIdentifier = (expression: ts.Expression): string | null => {
+                if (ts.isIdentifier(expression)) {
+                    return expression.getText();
+                }
+
+                if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+                    return rootIdentifier(expression.expression);
+                }
+
+                return null;
+            };
+
+            const isAddressOfIterable = (expression: ts.Expression): boolean => {
+                return (
+                    ts.isBinaryExpression(expression) &&
+                    expression.operatorToken.kind === ts.SyntaxKind.AmpersandToken &&
+                    expression.left.getText().trim() === "" &&
+                    rootIdentifier(expression.right) === iterableName
+                );
+            };
+
+            const visit = (current: ts.Node) => {
+                if (mutates) {
+                    return;
+                }
+
+                if (
+                    ts.isBinaryExpression(current) &&
+                    current.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+                    current.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+                    rootIdentifier(current.left) === iterableName
+                ) {
+                    mutates = true;
+                    return;
+                }
+
+                if (ts.isCallExpression(current)) {
+                    if (
+                        ts.isPropertyAccessExpression(current.expression) &&
+                        rootIdentifier(current.expression.expression) === iterableName &&
+                        mutatingMethods.has(current.expression.name.getText())
+                    ) {
+                        mutates = true;
+                        return;
+                    }
+
+                    if (current.arguments.some((argument) => isAddressOfIterable(argument))) {
+                        mutates = true;
+                        return;
+                    }
+                }
+
+                ts.forEachChild(current, visit);
+            };
+
+            visit(statement);
+            return mutates;
+        }
+
+        createStableForOfStatement(
+            node: ts.ForOfStatement,
+            declaration: ts.VariableDeclaration,
+            elementType: any,
+            iterable: any,
+            indexName: string,
+            indexIdentifier: any,
+        ) {
+            const planName = `__yogi_for_of_plan_${this.forOfCounter++}`;
+            const planIdentifier = this.createSyntheticIdentifier(planName, node);
+            const anyType = { kind: Kinds.Types.AnyType, raw: "any" };
+            const numberType = { kind: Kinds.Types.NumberType, raw: "number" };
+            const isPointerIteration = elementType?.kind === Kinds.Types.PointerType;
+            const stableValueMethod = isPointerIteration ? "__yogiStablePointer" : "__yogiStableValue";
+
+            const planDeclaration = this.createSyntheticDeclaration(
+                planName,
+                anyType,
+                this.createSyntheticMethodCall(iterable, "__yogiStablePlan", [], node),
+                node,
+            );
+            const indexDeclaration = this.createSyntheticDeclaration(
+                indexName,
+                numberType,
+                {
+                    kind: Kinds.Literals.NumberLiteral,
+                    type: "number",
+                    value: 0,
+                    source: "0",
+                    position: this.getNodePosistion(node),
+                },
+                node,
+            );
+            const condition = {
+                kind: Kinds.Expressions.BinaryExpression,
+                left: indexIdentifier,
+                operator: "<",
+                right: this.createSyntheticMethodCall(planIdentifier, "__yogiStableLength", [], node),
+                source: `${indexName} < ${planName}.__yogiStableLength()`,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+            const incrementor = {
+                kind: Kinds.Expressions.BinaryExpression,
+                left: indexIdentifier,
+                operator: "=",
+                right: {
+                    kind: Kinds.Expressions.BinaryExpression,
+                    left: indexIdentifier,
+                    operator: "+",
+                    right: {
+                        kind: Kinds.Literals.NumberLiteral,
+                        type: "number",
+                        value: 1,
+                        source: "1",
+                        position: this.getNodePosistion(node),
+                    },
+                    source: `${indexName} + 1`,
+                    fullSource: node.getText(),
+                    position: this.getNodePosistion(node),
+                },
+                source: `${indexName} = ${indexName} + 1`,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+            const skipRemovedSlot = {
+                kind: Kinds.ControlFlow.IfStatement,
+                condition: {
+                    kind: Kinds.Expressions.BinaryExpression,
+                    left: this.createSyntheticMethodCall(planIdentifier, "__yogiStableValid", [indexIdentifier], node),
+                    operator: "==",
+                    right: {
+                        kind: Kinds.Literals.BooleanLiteral,
+                        type: "boolean",
+                        value: false,
+                        source: "false",
+                        position: this.getNodePosistion(node),
+                    },
+                    source: `${planName}.__yogiStableValid(${indexName}) == false`,
+                    fullSource: node.getText(),
+                    position: this.getNodePosistion(node),
+                },
+                then: {
+                    kind: Kinds.Statements.BlockStatement,
+                    statements: [{
+                        kind: Kinds.Statements.ContinueStatement,
+                        source: "continue",
+                        position: this.getNodePosistion(node),
+                    }],
+                    source: "{ continue }",
+                    position: this.getNodePosistion(node),
+                },
+                else: null as any,
+                source: `if (!${planName}.__yogiStableValid(${indexName})) { continue }`,
+                position: this.getNodePosistion(node),
+            };
+            const valueAccess = this.createSyntheticMethodCall(planIdentifier, stableValueMethod, [indexIdentifier], node, elementType);
+            const valueDeclarations = this.createForOfValueDeclarations(node, declaration, elementType, valueAccess);
+            const body = this.visitLoopBody(node.statement);
+            const loop = {
+                kind: Kinds.ControlFlow.ForStatement,
+                initializer: indexDeclaration,
+                condition,
+                incrementor,
+                body: {
+                    ...body,
+                    statements: [skipRemovedSlot, ...valueDeclarations, ...(body.statements ?? [])],
+                },
+                source: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+            const destroyPlan = this.createSyntheticMethodCall(planIdentifier, "__yogiStableDestroy", [], node);
+
+            return {
+                kind: Kinds.Statements.BlockStatement,
+                statements: [planDeclaration, loop, destroyPlan],
+                source: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        createSyntheticDeclaration(name: string, type: any, value: any, node: ts.Node) {
+            return {
+                kind: Kinds.Statements.DeclarationStatement,
+                flag: "let",
+                export: false,
+                declare: false,
+                ambient: false,
+                emit: true,
+                declarations: [{
+                    kind: Kinds.Statements.VariableDeclaration,
+                    name,
+                    flag: "let",
+                    export: false,
+                    declare: false,
+                    ambient: false,
+                    emit: true,
+                    definiteAssignment: false,
+                    type,
+                    value,
+                    source: `${name}: ${type.raw ?? "unknown"} = ${value.source ?? ""}`,
+                    fullSource: node.getText(),
+                    position: this.getNodePosistion(node),
+                }],
+                source: `let ${name}: ${type.raw ?? "unknown"} = ${value.source ?? ""}`,
+                fullSource: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
+
+        createSyntheticMethodCall(object: any, methodName: string, args: any[], node: ts.Node, returnType: any = null) {
+            const objectSource = object?.source ?? object?.name ?? object?.value ?? "value";
+            return {
+                kind: Kinds.Expressions.CallExpression,
+                callee: {
+                    kind: Kinds.Expressions.PropertyAccessExpression,
+                    object,
+                    property: methodName,
+                    optional: false,
+                    source: `${objectSource}.${methodName}`,
+                    position: this.getNodePosistion(node),
+                },
+                arguments: args,
+                stableReturnType: returnType,
+                source: `${objectSource}.${methodName}(${args.map((arg) => arg.source ?? arg.name ?? arg.value ?? "").join(", ")})`,
                 position: this.getNodePosistion(node),
             };
         }

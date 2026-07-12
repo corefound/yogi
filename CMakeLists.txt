@@ -614,6 +614,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_dynamic_array_iteration_mutation
+                        pipeline-dynamic-array-iteration-mutation
+                        tests/runtime/sessions/04-control-flow/dynamic_array_iteration_mutation.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_switch
                         pipeline-switch
                         tests/runtime/sessions/04-control-flow/switch.cmake

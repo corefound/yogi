@@ -1321,7 +1321,43 @@ external C ABI: explicit pointer or descriptor rules
 
 ---
 
-### 9. Lazy iterator objects
+### 9. Dynamic array iteration and structural mutation semantics
+
+Current state:
+
+- `for...of` without possible structural mutation keeps the fast indexed path.
+- `for...of` over a dynamic array switches to a stable slot plan when the loop
+  mutates that array, passes `&array` into a call, or requests `ptr<T>`
+  iteration.
+- The stable plan captures the initial slot identities, not full element copies.
+- Slots appended after the loop starts are not visited.
+- Planned slots removed before their turn are skipped.
+- Surviving planned slots remain visitable even if their logical index changes.
+- `sort()` and `reverse()` mutate the array immediately but do not reorder the
+  active iteration plan.
+- `T` loop variables are by-value; `ptr<T>` loop variables are explicit slot
+  pointers.
+- Nested structural mutation through pointer-array calls is covered by the
+  stable path when the loop passes `&array`.
+
+Covered by:
+
+```txt
+tests/runtime/sessions/04-control-flow/dynamic_array_iteration_mutation.cmake
+```
+
+Remaining notes:
+
+- Stable plan cleanup currently follows the emitted loop shape. `break` and
+  normal loop exit run the destroy call after the loop. Early `return` correctly
+  stops iteration; a future defer/finally-style cleanup hook should make the
+  synthetic plan cleanup unconditional on every return edge.
+- Function summaries can become more precise for cases where a call mutates an
+  array without the source appearing syntactically as `&array`.
+
+---
+
+### 10. Lazy iterator objects
 
 Current state:
 
@@ -1340,7 +1376,7 @@ Yogi does not have lazy iterator objects yet.
 
 ---
 
-### 10. Object stringification inside arrays
+### 11. Object stringification inside arrays
 
 Current state:
 
@@ -1554,18 +1590,26 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
 ✅ String element extraction from string[] through .at() inside struct fields
+✅ Dynamic array for...of fast path when structural mutation is not possible
+✅ Stable slot-identity for...of when structural mutation is possible
+✅ Added slots are not visited by an active stable iteration
+✅ Removed planned slots are skipped by an active stable iteration
+✅ sort/reverse preserve the active stable iteration plan order
+✅ Whole-array assignment works with stable iteration slot identity
+✅ Explicit ptr<T> for...of iteration mutates original dynamic array slots
+✅ Nested structural mutation through ptr<T[]> calls selects stable iteration
+✅ shift() on an empty dynamic array returns undefined without invalidation
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Dynamic array iteration and structural mutation semantics
+⬜ Explicit borrowed return/view types
 ```
 
 ### Future Work
 
 ```txt
-⬜ Explicit borrowed return/view types
 ⬜ Borrow summaries interprocedural for explicit borrowed views
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for borrowed views and materialized copies
@@ -1586,18 +1630,17 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ## Recommended Implementation Order
 
 ```txt
-1. Dynamic array iteration and structural mutation semantics
-2. Explicit borrowed return/view types
-3. Borrow summaries interprocedural for explicit borrowed views
-4. Escape analysis complete for borrowed views
-5. Cleanup/destructor rules for borrowed views and materialized copies
-6. Dynamic shaped arrays: Array<T, Rank>
-7. Dynamic shaped views/slices
-8. Native fixed-shape ABI without runtime descriptor
-9. C ABI interop rules for arrays
-10. Lazy iterator objects
-11. Object stringification inside arrays
-12. Final array method policy
-13. Final diagnostics polish
-14. Documentation final pass
+1. Explicit borrowed return/view types
+2. Borrow summaries interprocedural for explicit borrowed views
+3. Escape analysis complete for borrowed views
+4. Cleanup/destructor rules for borrowed views and materialized copies
+5. Dynamic shaped arrays: Array<T, Rank>
+6. Dynamic shaped views/slices
+7. Native fixed-shape ABI without runtime descriptor
+8. C ABI interop rules for arrays
+9. Lazy iterator objects
+10. Object stringification inside arrays
+11. Final array method policy
+12. Final diagnostics polish
+13. Documentation final pass
 ```

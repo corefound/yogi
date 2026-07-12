@@ -463,6 +463,71 @@ namespace yogi::core::llvm::internal {
 
 			return value;
 		};
+
+		if (methodName == "__yogiStablePlan") {
+			auto *array = lowerArrayReceiver(callee->object());
+			return callRuntime("yogi_array_iteration_plan", opaquePointer(), {array});
+		}
+
+		if (methodName == "__yogiStableLength") {
+			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
+			auto *length = callRuntime("yogi_array_iteration_plan_length", ::llvm::Type::getInt64Ty(context.llvmContext), {plan});
+			auto *asNumber = context.builder.CreateUIToFP(
+				length,
+				::llvm::Type::getDoubleTy(context.llvmContext),
+				"array.iteration.plan.length"
+			);
+			return cast(
+				asNumber,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "__yogiStableValid") {
+			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
+			auto *index = toIndex(lowerNumberArgument(0, 0));
+			auto *valid = callRuntime("yogi_array_iteration_plan_valid", ::llvm::Type::getInt1Ty(context.llvmContext), {plan, index});
+			return cast(
+				valid,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "__yogiStableValue") {
+			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
+			auto *index = toIndex(lowerNumberArgument(0, 0));
+			auto *boxedValue = callRuntime("yogi_array_iteration_plan_value", opaquePointer(), {plan, index});
+			auto *targetType = expectedType ? expectedType : types.lower(call->type());
+			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
+			return cast(
+				unboxAny(boxedValue, targetSemanticType),
+				targetType,
+				targetSemanticType,
+				call->type()
+			);
+		}
+
+		if (methodName == "__yogiStablePointer") {
+			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
+			auto *index = toIndex(lowerNumberArgument(0, 0));
+			auto *pointer = callRuntime("yogi_array_iteration_plan_pointer", opaquePointer(), {plan, index});
+			return cast(
+				pointer,
+				expectedType ? expectedType : types.lower(call->type()),
+				expectedSemanticType ? expectedSemanticType : call->type(),
+				call->type()
+			);
+		}
+
+		if (methodName == "__yogiStableDestroy") {
+			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
+			return callRuntime("yogi_array_iteration_plan_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {plan});
+		}
+
 		const auto createCallbackLoop = [&](const std::string &name, ::llvm::Value *array, const Yogi::Sir::TypeRef *elementType) {
 			auto *function = context.builder.GetInsertBlock()->getParent();
 			auto *condition = ::llvm::BasicBlock::Create(context.llvmContext, name + ".condition", function);

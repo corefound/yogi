@@ -1451,6 +1451,80 @@ namespace yogi::runtime {
 		return result;
 	}
 
+	ArrayIterationPlan *ArrayIterationPlan::create(ArrayValue *source) {
+		auto *plan = static_cast<ArrayIterationPlan *>(
+			MemoryManager::allocate(sizeof(ArrayIterationPlan), "array iteration plan")
+		);
+		new (plan) ArrayIterationPlan();
+		plan->source = source;
+
+		if (!source) {
+			return plan;
+		}
+
+		OwnershipTracker::assertLiveAggregate(source, "array iteration plan after destroy/drop", "array value");
+		auto startOffset = std::size_t{0};
+		auto count = source->elementCount;
+		if (source->isView()) {
+			startOffset = source->viewOffset;
+			count = source->elementCount;
+			source = source->viewSource;
+			OwnershipTracker::assertLiveAggregate(source, "array iteration view source after destroy/drop", "array value");
+		}
+
+		source->promoteToPointerSafeStorage();
+		plan->source = source;
+		plan->slotCount = count;
+		if (plan->slotCount == 0) {
+			return plan;
+		}
+
+		plan->slots = static_cast<void ***>(
+			MemoryManager::allocate(sizeof(void **) * plan->slotCount, "array iteration plan slots")
+		);
+		for (std::size_t index = 0; index < plan->slotCount; ++index) {
+			plan->slots[index] = source->elements[startOffset + index];
+		}
+
+		return plan;
+	}
+
+	std::size_t ArrayIterationPlan::length() const {
+		return slotCount;
+	}
+
+	bool ArrayIterationPlan::valid(std::size_t index) const {
+		if (index >= slotCount || !slots || !slots[index]) {
+			return false;
+		}
+
+		auto *slot = arraySlotFromCell(slots[index]);
+		return slot && !slot->removed;
+	}
+
+	void *ArrayIterationPlan::value(std::size_t index) const {
+		if (!valid(index)) {
+			return AnyValue::undefined();
+		}
+
+		return ArrayValue::cellGet(slots[index]);
+	}
+
+	void *ArrayIterationPlan::pointer(std::size_t index) const {
+		if (!valid(index)) {
+			return nullptr;
+		}
+
+		return tagRuntimePointer(slots[index], arrayCellPointerTag);
+	}
+
+	void ArrayIterationPlan::destroy() {
+		MemoryManager::deallocate(slots);
+		slots = nullptr;
+		source = nullptr;
+		slotCount = 0;
+	}
+
 	void ArrayValue::ensureCapacity(std::size_t requiredCapacity) {
 		if (isView()) {
 			RuntimeError::abortRange("array view resize", static_cast<long long>(requiredCapacity), elementCount);
@@ -1936,6 +2010,63 @@ void *yogi_array_to_sorted(void *array) {
 	}
 
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->toSorted();
+}
+
+void *yogi_array_iteration_plan(void *array) {
+	return yogi::runtime::ArrayIterationPlan::create(
+		static_cast<yogi::runtime::ArrayValue *>(array)
+	);
+}
+
+unsigned long long yogi_array_iteration_plan_length(void *plan) {
+	if (!plan) {
+		return 0;
+	}
+
+	return static_cast<unsigned long long>(
+		static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->length()
+	);
+}
+
+bool yogi_array_iteration_plan_valid(void *plan, unsigned long long index) {
+	if (!plan) {
+		return false;
+	}
+
+	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->valid(
+		static_cast<std::size_t>(index)
+	);
+}
+
+void *yogi_array_iteration_plan_value(void *plan, unsigned long long index) {
+	if (!plan) {
+		return yogi_any_undefined();
+	}
+
+	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->value(
+		static_cast<std::size_t>(index)
+	);
+}
+
+void *yogi_array_iteration_plan_pointer(void *plan, unsigned long long index) {
+	if (!plan) {
+		return nullptr;
+	}
+
+	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->pointer(
+		static_cast<std::size_t>(index)
+	);
+}
+
+void yogi_array_iteration_plan_destroy(void *plan) {
+	if (!plan) {
+		return;
+	}
+
+	auto *iterationPlan = static_cast<yogi::runtime::ArrayIterationPlan *>(plan);
+	iterationPlan->destroy();
+	iterationPlan->~ArrayIterationPlan();
+	yogi::runtime::MemoryManager::deallocate(iterationPlan);
 }
 
 const char *yogi_array_storage_mode(void *array) {

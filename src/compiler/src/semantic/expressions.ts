@@ -468,6 +468,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             });
             const source = node.fullSource ?? node.source ?? rawCallee.source;
 
+            if (methodName?.startsWith("__yogiStable")) {
+                return this.validateAndCreateStableIterationCall(node, rawCallee, receiver, methodName, args, source);
+            }
+
             if (receiverType?.kind === Kinds.Types.StringType) {
                 const methodHandlers: Record<string, () => any> = {
                     slice: () => this.validateAndCreateStringSliceCall(node, rawCallee, receiver, methodName, args, source),
@@ -1839,6 +1843,45 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     readonly: false,
                 };
             }
+
+            return this.createArrayBuiltinCall(node, rawCallee, receiver, args, returnType, methodName);
+        }
+
+        public validateAndCreateStableIterationCall(node: any, rawCallee: any, receiver: any, methodName: string, args: any[], source: string): any {
+            const anyType = { kind: Kinds.Types.AnyType, raw: "any" };
+            const numberType = { kind: Kinds.Types.NumberType, raw: "number" };
+            const booleanType = { kind: Kinds.Types.BooleanType, raw: "boolean" };
+            const voidType = { kind: Kinds.Types.VoidType, raw: "void" };
+            const pointerAnyType = {
+                kind: Kinds.Types.PointerType,
+                raw: "ptr<any>",
+                elementType: anyType,
+            };
+            const signatures: Record<string, { min: number; max: number; type: any }> = {
+                __yogiStablePlan: { min: 0, max: 0, type: anyType },
+                __yogiStableLength: { min: 0, max: 0, type: numberType },
+                __yogiStableValid: { min: 1, max: 1, type: booleanType },
+                __yogiStableValue: { min: 1, max: 1, type: anyType },
+                __yogiStablePointer: { min: 1, max: 1, type: pointerAnyType },
+                __yogiStableDestroy: { min: 0, max: 0, type: voidType },
+            };
+            const signature = signatures[methodName];
+
+            if (!signature) {
+                const message = `internal stable iteration method ${Helpers.RED}'${methodName}'${Helpers.RESET} is not supported`;
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
+                this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
+            }
+
+            this.validateArrayMethodArgumentCount(node, methodName, args, source, signature.min, signature.max);
+
+            if (args[0]) {
+                this.validateNumberArrayMethodArgument(node, methodName, args[0], source, "index");
+            }
+
+            const returnType = node.stableReturnType
+                ? this.toSerializableType(node.stableReturnType)
+                : signature.type;
 
             return this.createArrayBuiltinCall(node, rawCallee, receiver, args, returnType, methodName);
         }

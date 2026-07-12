@@ -9,6 +9,8 @@
 
 namespace yogi::runtime {
 
+	class ArrayIterationPlan;
+
 	class ObjectValue final {
 		public:
 			static ObjectValue *create();
@@ -98,6 +100,8 @@ namespace yogi::runtime {
 			void destroy();
 
 		private:
+			friend class ArrayIterationPlan;
+
 			StorageMode storageMode = StorageMode::ContiguousFastPath;
 			void **contiguousValues = nullptr;
 			void ***elements = nullptr;
@@ -122,6 +126,22 @@ namespace yogi::runtime {
 			void releaseRetiredSlots();
 			void ensureCapacity(std::size_t requiredCapacity);
 			bool isView() const;
+	};
+
+	class ArrayIterationPlan final {
+		public:
+			static ArrayIterationPlan *create(ArrayValue *source);
+
+			std::size_t length() const;
+			bool valid(std::size_t index) const;
+			void *value(std::size_t index) const;
+			void *pointer(std::size_t index) const;
+			void destroy();
+
+		private:
+			ArrayValue *source = nullptr;
+			void ***slots = nullptr;
+			std::size_t slotCount = 0;
 	};
 
 } // namespace yogi::runtime
