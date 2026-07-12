@@ -223,6 +223,30 @@ expect_run(
 	"20001\n10459\n"
 )
 
+expect_run(
+	"if_invalidates_then_returns_does_not_leak"
+	"${USER_STRUCT}function test(flag: boolean): number {\n    let users: User[] = [{ age: 20 }, { age: 30 }]\n    let age: ptr<number> = &users[0].age\n\n    if (flag) {\n        users.shift()\n        return users.length\n    }\n\n    age = 99\n    return users[0].age\n}\n\nprint(test(false))\n"
+	"99\n"
+)
+
+expect_run(
+	"if_rebinds_invalidated_pointer_before_merge"
+	"${USER_STRUCT}function test(flag: boolean): number {\n    let users: User[] = [{ age: 20 }, { age: 30 }]\n    let age: ptr<number> = &users[0].age\n\n    if (flag) {\n        users.shift()\n        age = &users[0].age\n    } else {\n        age = &users[1].age\n    }\n\n    age = 99\n    return age\n}\n\nprint(test(true))\nprint(test(false))\n"
+	"99\n99\n"
+)
+
+expect_run(
+	"while_invalidates_then_returns_does_not_leak"
+	"${USER_STRUCT}function test(flag: boolean): number {\n    let users: User[] = [{ age: 20 }, { age: 30 }]\n    let age: ptr<number> = &users[0].age\n\n    while (flag) {\n        users.shift()\n        return users.length\n    }\n\n    age = 99\n    return users[0].age\n}\n\nprint(test(false))\n"
+	"99\n"
+)
+
+expect_run(
+	"branch_length_merge_keeps_pop_runtime_checked"
+	"${USER_STRUCT}function test(flag: boolean): number {\n    let users: User[] = [{ age: 20 }, { age: 30 }]\n    let age: ptr<number> = &users[1].age\n\n    if (flag) {\n        users.push({ age: 40 })\n    }\n\n    users.pop()\n    age = 99\n    return users[1].age\n}\n\nprint(test(true))\n"
+	"99\n"
+)
+
 expect_semantic_error(
 	"pop_removed_pointed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers.pop()\nage = 99\n"
@@ -293,4 +317,16 @@ expect_semantic_error(
 	"parameter_shorter_assignment_invalidates_pointer_to_removed_slot"
 	"${USER_STRUCT}function shrink(users: User[]): void {\n    let age: ptr<number> = &users[1].age\n    users = [{ age: 99 }]\n    age = 50\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nshrink(users)\n"
 	"${INVALID_POINTER_ERROR}"
+)
+
+expect_semantic_error(
+	"if_maybe_invalidated_pointer_errors_after_merge"
+	"${USER_STRUCT}function test(flag: boolean): void {\n    let users: User[] = [{ age: 20 }, { age: 30 }]\n    let age: ptr<number> = &users[0].age\n\n    if (flag) {\n        users.shift()\n    }\n\n    age = 99\n}\n"
+	"may be used after.*array element.*removed"
+)
+
+expect_semantic_error(
+	"while_maybe_invalidated_pointer_errors_after_merge"
+	"${USER_STRUCT}function test(flag: boolean): void {\n    let users: User[] = [{ age: 20 }, { age: 30 }]\n    let age: ptr<number> = &users[0].age\n\n    while (flag) {\n        users.shift()\n        break\n    }\n\n    age = 99\n}\n"
+	"may be used after.*array element.*removed"
 )

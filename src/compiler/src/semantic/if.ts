@@ -49,8 +49,12 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
 
             const { thenNarrowings, elseNarrowings } = this.getEqualityNarrowings(condition);
             const beforeMoveState = this.captureMoveState();
+            const beforePointerState = this.capturePointerInvalidationState();
+            const beforeLengthState = this.captureDynamicArrayLengthState();
 
             this.restoreMoveState(beforeMoveState);
+            this.restorePointerInvalidationState(beforePointerState);
+            this.restoreDynamicArrayLengthState(beforeLengthState);
             const thenBlock = this.withTemporaryNarrowings(
                 thenNarrowings,
                 () => this.visitIfBlockStatement(node.then),
@@ -58,8 +62,16 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             const thenMoveState = this.blockAlwaysReturns(thenBlock)
                 ? null
                 : this.captureMoveState();
+            const thenPointerState = this.blockAlwaysReturns(thenBlock)
+                ? null
+                : this.capturePointerInvalidationState();
+            const thenLengthState = this.blockAlwaysReturns(thenBlock)
+                ? null
+                : this.captureDynamicArrayLengthState();
 
             this.restoreMoveState(beforeMoveState);
+            this.restorePointerInvalidationState(beforePointerState);
+            this.restoreDynamicArrayLengthState(beforeLengthState);
             const elseBlock = node.else
                 ? this.withTemporaryNarrowings(
                     elseNarrowings,
@@ -71,9 +83,23 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     ? null
                     : this.captureMoveState()
                 : beforeMoveState;
+            const elsePointerState = node.else
+                ? this.blockAlwaysReturns(elseBlock)
+                    ? null
+                    : this.capturePointerInvalidationState()
+                : beforePointerState;
+            const elseLengthState = node.else
+                ? this.blockAlwaysReturns(elseBlock)
+                    ? null
+                    : this.captureDynamicArrayLengthState()
+                : beforeLengthState;
 
             this.restoreMoveState(beforeMoveState);
+            this.restorePointerInvalidationState(beforePointerState);
+            this.restoreDynamicArrayLengthState(beforeLengthState);
             this.mergeMoveState(thenMoveState, elseMoveState);
+            this.mergePointerInvalidationState(thenPointerState, elsePointerState);
+            this.mergeDynamicArrayLengthState(thenLengthState, elseLengthState);
 
             return {
                 ...node,
@@ -134,17 +160,31 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             }
 
             const beforeMoveState = this.captureMoveState();
+            const beforePointerState = this.capturePointerInvalidationState();
+            const beforeLengthState = this.captureDynamicArrayLengthState();
 
             this.loopDepth++;
             this.restoreMoveState(beforeMoveState);
+            this.restorePointerInvalidationState(beforePointerState);
+            this.restoreDynamicArrayLengthState(beforeLengthState);
             const body = this.visitBlockStatement(node.body);
             const bodyMoveState = this.blockAlwaysReturns(body)
                 ? null
                 : this.captureMoveState();
+            const bodyPointerState = this.blockAlwaysReturns(body)
+                ? null
+                : this.capturePointerInvalidationState();
+            const bodyLengthState = this.blockAlwaysReturns(body)
+                ? null
+                : this.captureDynamicArrayLengthState();
             this.loopDepth--;
 
             this.restoreMoveState(beforeMoveState);
+            this.restorePointerInvalidationState(beforePointerState);
+            this.restoreDynamicArrayLengthState(beforeLengthState);
             this.mergeMoveState(bodyMoveState);
+            this.mergePointerInvalidationState(beforePointerState, bodyPointerState);
+            this.mergeDynamicArrayLengthState(beforeLengthState, bodyLengthState);
 
             return {
                 ...node,
@@ -181,27 +221,47 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             }
 
             const beforeBodyMoveState = this.captureMoveState();
+            const beforeBodyPointerState = this.capturePointerInvalidationState();
+            const beforeBodyLengthState = this.captureDynamicArrayLengthState();
             this.loopDepth++;
             this.restoreMoveState(beforeBodyMoveState);
+            this.restorePointerInvalidationState(beforeBodyPointerState);
+            this.restoreDynamicArrayLengthState(beforeBodyLengthState);
             const body = this.visitBlockStatement(node.body);
             const bodyMoveState = this.blockAlwaysReturns(body)
                 ? null
                 : this.captureMoveState();
+            const bodyPointerState = this.blockAlwaysReturns(body)
+                ? null
+                : this.capturePointerInvalidationState();
+            const bodyLengthState = this.blockAlwaysReturns(body)
+                ? null
+                : this.captureDynamicArrayLengthState();
             let incrementor = null;
 
             if (bodyMoveState) {
                 this.restoreMoveState(bodyMoveState);
+                this.restorePointerInvalidationState(bodyPointerState ?? beforeBodyPointerState);
+                this.restoreDynamicArrayLengthState(bodyLengthState ?? beforeBodyLengthState);
                 incrementor = node.incrementor ? this.visitNode(node.incrementor) : null;
             } else {
                 this.restoreMoveState(beforeBodyMoveState);
+                this.restorePointerInvalidationState(beforeBodyPointerState);
+                this.restoreDynamicArrayLengthState(beforeBodyLengthState);
                 incrementor = node.incrementor ? this.visitNode(node.incrementor) : null;
             }
 
             const afterIterationMoveState = this.captureMoveState();
+            const afterIterationPointerState = this.capturePointerInvalidationState();
+            const afterIterationLengthState = this.captureDynamicArrayLengthState();
             this.loopDepth--;
 
             this.restoreMoveState(beforeBodyMoveState);
+            this.restorePointerInvalidationState(beforeBodyPointerState);
+            this.restoreDynamicArrayLengthState(beforeBodyLengthState);
             this.mergeMoveState(afterIterationMoveState);
+            this.mergePointerInvalidationState(beforeBodyPointerState, afterIterationPointerState);
+            this.mergeDynamicArrayLengthState(beforeBodyLengthState, afterIterationLengthState);
             this.exitScope();
 
             return {

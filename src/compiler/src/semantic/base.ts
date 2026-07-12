@@ -19,6 +19,7 @@ type LivePointerProvenance = {
         reason: string;
         source?: string;
         position?: any;
+        maybe?: boolean;
     };
 };
 
@@ -1541,8 +1542,9 @@ export class BaseSemantic {
 
         const target = value ?? {};
         const path = `${provenance.rootName}${provenance.accessPath.join("")}`;
+        const maybe = provenance.invalidated.maybe === true;
         const message =
-            `pointer ${Helpers.RED}'${provenance.pointerName}'${Helpers.RESET} is used after its target ` +
+            `pointer ${Helpers.RED}'${provenance.pointerName}'${Helpers.RESET} ${maybe ? "may be" : "is"} used after its target ` +
             `dynamic array element ${Helpers.RED}'${path}'${Helpers.RESET} was removed by ` +
             `${Helpers.BLUE}'${provenance.invalidated.operation}'${Helpers.RESET}`;
 
@@ -1631,6 +1633,154 @@ export class BaseSemantic {
                 position: context?.position,
             };
         }
+    }
+
+    public capturePointerInvalidationState(): Map<number, LivePointerProvenance> {
+        const snapshot = new Map<number, LivePointerProvenance>();
+
+        for (const [id, provenance] of this.livePointerProvenance.entries()) {
+            snapshot.set(id, this.clonePointerProvenance(provenance));
+        }
+
+        return snapshot;
+    }
+
+    public restorePointerInvalidationState(snapshot: Map<number, LivePointerProvenance>): void {
+        this.livePointerProvenance = new Map(
+            [...snapshot.entries()].map(([id, provenance]) => [
+                id,
+                this.clonePointerProvenance(provenance),
+            ]),
+        );
+    }
+
+    public mergePointerInvalidationState(
+        ...snapshots: Array<Map<number, LivePointerProvenance> | null | undefined>
+    ): void {
+        const reachable = snapshots.filter((snapshot): snapshot is Map<number, LivePointerProvenance> => !!snapshot);
+
+        if (reachable.length === 0) {
+            this.livePointerProvenance.clear();
+            return;
+        }
+
+        const pointerIds = new Set<number>();
+        reachable.forEach((snapshot) => {
+            snapshot.forEach((_, id) => pointerIds.add(id));
+        });
+
+        const merged = new Map<number, LivePointerProvenance>();
+
+        for (const pointerId of pointerIds) {
+            const states = reachable
+                .map((snapshot) => snapshot.get(pointerId) ?? null)
+                .filter((state): state is LivePointerProvenance => !!state);
+
+            if (states.length === 0) {
+                continue;
+            }
+
+            const invalidatedStates = states.filter((state) => state.invalidated);
+            const representative = invalidatedStates.length > 0
+                ? this.clonePointerProvenance(invalidatedStates[0])
+                : this.mergePointerProvenanceShape(states);
+
+            if (invalidatedStates.length > 0) {
+                const invalidated = invalidatedStates[0].invalidated!;
+                const maybe =
+                    states.length !== reachable.length ||
+                    invalidatedStates.length !== states.length ||
+                    invalidatedStates.some((state) => state.invalidated?.maybe === true);
+
+                representative.invalidated = {
+                    ...invalidated,
+                    maybe,
+                    reason: maybe
+                        ? `${invalidated.reason}; this invalidation occurs only on some control-flow paths`
+                        : invalidated.reason,
+                };
+            } else {
+                delete representative.invalidated;
+            }
+
+            merged.set(pointerId, representative);
+        }
+
+        this.livePointerProvenance = merged;
+    }
+
+    public captureDynamicArrayLengthState(): Map<number, number | null> {
+        return new Map(this.dynamicArrayKnownLengths);
+    }
+
+    public restoreDynamicArrayLengthState(snapshot: Map<number, number | null>): void {
+        this.dynamicArrayKnownLengths = new Map(snapshot);
+    }
+
+    public mergeDynamicArrayLengthState(
+        ...snapshots: Array<Map<number, number | null> | null | undefined>
+    ): void {
+        const reachable = snapshots.filter((snapshot): snapshot is Map<number, number | null> => !!snapshot);
+
+        if (reachable.length === 0) {
+            this.dynamicArrayKnownLengths.clear();
+            return;
+        }
+
+        const ids = new Set<number>();
+        reachable.forEach((snapshot) => {
+            snapshot.forEach((_, id) => ids.add(id));
+        });
+
+        const merged = new Map<number, number | null>();
+
+        for (const id of ids) {
+            const values = reachable.map((snapshot) =>
+                snapshot.has(id) ? snapshot.get(id) ?? null : null,
+            );
+            const first = values[0];
+            const allSame = values.every((value) => value === first);
+
+            merged.set(id, allSame ? first : null);
+        }
+
+        this.dynamicArrayKnownLengths = merged;
+    }
+
+    public clonePointerProvenance(provenance: LivePointerProvenance): LivePointerProvenance {
+        return {
+            ...provenance,
+            accessPath: [...provenance.accessPath],
+            invalidated: provenance.invalidated
+                ? { ...provenance.invalidated }
+                : undefined,
+        };
+    }
+
+    public mergePointerProvenanceShape(states: LivePointerProvenance[]): LivePointerProvenance {
+        const first = this.clonePointerProvenance(states[0]);
+        const sameRoot = states.every((state) =>
+            state.rootName === first.rootName &&
+            state.rootSymbolId === first.rootSymbolId,
+        );
+        const samePath = states.every((state) =>
+            state.accessPath.length === first.accessPath.length &&
+            state.accessPath.every((part, index) => part === first.accessPath[index]),
+        );
+
+        if (!sameRoot) {
+            return {
+                ...first,
+                rootName: first.rootName,
+                rootSymbolId: first.rootSymbolId,
+                accessPath: ["[?]"],
+            };
+        }
+
+        return {
+            ...first,
+            accessPath: samePath ? first.accessPath : ["[?]"],
+        };
     }
 
     public pointerSymbolFromValue(value: any): Types.SymbolInfo | null {
