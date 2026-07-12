@@ -2,6 +2,45 @@
 
 This file tracks user-visible language/runtime behavior added by recent lots.
 
+## Automatic Borrowed View Materialization
+
+Fixed-shape partial views can now escape local stack storage through `return` or
+module/global assignment without forcing the user to write `.copy()`.
+
+```ts
+function row(): number[3] {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return matrix[1]
+}
+```
+
+The compiler materializes an owned result before the local source is cleaned up.
+The same applies when a borrowed view identifier escapes:
+
+```ts
+let saved: number[3] = [0, 0, 0]
+
+function save(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[1]
+
+    saved = row
+}
+```
+
+`saved` receives safe owned storage, not a dangling view into `matrix`.
+
+Local-only partial views still use lightweight borrowed descriptors, and
+explicit `.copy()` remains available when the programmer wants an owned copy at
+a specific point.
+
 ## Dynamic Array Iteration and Structural Mutation
 
 Dynamic-array `for...of` now supports structural mutation while keeping

@@ -71,6 +71,15 @@ function returnedRowCopy(): number[3] {
     return localMatrix[1].copy()
 }
 
+function returnedRowAutoMaterialized(): number[3] {
+    let localMatrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return localMatrix[1]
+}
+
 function returnedPixelCopy(): number[3] {
     let localImage: number[2, 2, 3] = [
         [
@@ -144,6 +153,8 @@ unionRow[0] = 100
 unionRow[1] = "C"
 let ownedRow: number[3] = returnedRowCopy()
 ownedRow[2] = 199
+let autoOwnedRow: number[3] = returnedRowAutoMaterialized()
+autoOwnedRow[0] = 188
 let ownedPixel: number[3] = returnedPixelCopy()
 let ownedBlock: number[2, 3] = returnedBlockCopy()
 let ownedUnionRow: Cell[2] = returnedUnionRowCopy()
@@ -174,6 +185,9 @@ print(copiedVec[0])
 print(ownedRow[0])
 print(ownedRow[1])
 print(ownedRow[2])
+print(autoOwnedRow[0])
+print(autoOwnedRow[1])
+print(autoOwnedRow[2])
 print(ownedPixel[0])
 print(ownedPixel[1])
 print(ownedPixel[2])
@@ -264,7 +278,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array indexing executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n16\n12\n6\n166\n16\n10\n77\n4\n5\n199\n7\n8\n9\n7\n8\n9\n10\n11\n12\nB\n2\n4\n5\n6\n299\n6\n")
+set(expected_stdout "30\n3\n6\n4\n6\n9\n99\n7\n9\n88\n99\n100\nC\n16\n12\n6\n166\n16\n10\n77\n4\n5\n199\n188\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\nB\n2\n4\n5\n6\n299\n6\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array indexing executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -398,12 +412,6 @@ expect_invalid(
 	fixed_array_push
 	"let vec: number[3] = [1, 2, 3]\nvec.push(4)\n"
 	"size-changing method.*push.*fixed-size array"
-)
-
-expect_invalid(
-	borrowed_slice_return_from_local
-	"function bad(): number[3] {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    return matrix[1]\n}\n"
-	"cannot return borrowed slice from local fixed-shape array.*matrix"
 )
 
 expect_invalid(

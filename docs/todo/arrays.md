@@ -1599,20 +1599,21 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ✅ Explicit ptr<T> for...of iteration mutates original dynamic array slots
 ✅ Nested structural mutation through ptr<T[]> calls selects stable iteration
 ✅ shift() on an empty dynamic array returns undefined without invalidation
+✅ Automatic materialization for fixed-shape borrowed views escaping through return/global assignment
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Explicit borrowed return/view types
+⬜ Borrowed view escape/lifetime analysis for fields, callbacks, externals, and owner promotion
 ```
 
 ### Future Work
 
 ```txt
-⬜ Borrow summaries interprocedural for explicit borrowed views
-⬜ Escape analysis complete for borrowed views
-⬜ Cleanup/destructor rules for borrowed views and materialized copies
+⬜ Interprocedural borrowed-view provenance beyond direct return/global assignment
+⬜ Owner promotion when aliasing must be preserved instead of materialization
+⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
 ⬜ Dynamic shaped arrays: Array<T, Rank>
 ⬜ Dynamic shaped views/slices
 ⬜ Native fixed-shape ABI without runtime descriptor
@@ -1630,9 +1631,9 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ## Recommended Implementation Order
 
 ```txt
-1. Explicit borrowed return/view types
-2. Borrow summaries interprocedural for explicit borrowed views
-3. Escape analysis complete for borrowed views
+1. Borrowed view escape/lifetime analysis for fields, callbacks, externals, and owner promotion
+2. Interprocedural borrowed-view provenance beyond direct return/global assignment
+3. Owner promotion when aliasing must be preserved instead of materialization
 4. Cleanup/destructor rules for borrowed views and materialized copies
 5. Dynamic shaped arrays: Array<T, Rank>
 6. Dynamic shaped views/slices

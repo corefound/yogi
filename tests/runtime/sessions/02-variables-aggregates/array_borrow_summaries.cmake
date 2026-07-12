@@ -54,6 +54,37 @@ function forwardRow(matrix: number[2, 3]): number[3] {
     return firstRow(matrix)
 }
 
+function localRowAutoMaterialized(): number[3] {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return matrix[1]
+}
+
+function localRowAliasAutoMaterialized(): number[3] {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[0]
+
+    return row
+}
+
+let savedRow: number[3] = [0, 0, 0]
+
+function saveLocalRowAlias(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[1]
+
+    savedRow = row
+}
+
 let matrixA: number[2, 3] = [
     [1, 2, 3],
     [4, 5, 6]
@@ -156,6 +187,34 @@ let matrixF: number[2, 3] = [
 let forwarded: number[3] = forwardRow(matrixF)
 forwarded[0] = 99
 print(matrixF[0, 0])
+
+const matrixG: number[2, 3] = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+let constSourceCopy: number[3] = firstRow(matrixG)
+constSourceCopy[0] = 55
+print(constSourceCopy[0])
+print(matrixG[0, 0])
+
+let localAuto: number[3] = localRowAutoMaterialized()
+print(localAuto[0])
+print(localAuto[1])
+print(localAuto[2])
+localAuto[0] = 77
+print(localAuto[0])
+
+let localAlias: number[3] = localRowAliasAutoMaterialized()
+print(localAlias[0])
+print(localAlias[1])
+print(localAlias[2])
+
+saveLocalRowAlias()
+print(savedRow[0])
+print(savedRow[1])
+print(savedRow[2])
+savedRow[2] = 88
+print(savedRow[2])
 ]=])
 
 execute_process(
@@ -197,7 +256,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array borrow summaries executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n")
+set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array borrow summaries executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -263,16 +322,10 @@ function(expect_runtime_error case_name source expected)
 	endif()
 endfunction()
 
-expect_invalid(
-	borrowed_slice_return_from_local
-	"function bad(): number[3] {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    return matrix[0]\n}\n"
-	"cannot return borrowed slice from local fixed-shape array.*matrix"
-)
-
-expect_invalid(
-	readonly_returned_borrow_assignment
-	"function firstRow(matrix: number[2, 3]): number[3] {\n    return matrix[0]\n}\nconst matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\nlet row: number[3] = firstRow(matrix)\nrow[2] = 99\n"
-	"cannot mutate borrowed view.*row.*readonly source.*matrix"
+expect_runtime_error(
+	global_borrowed_view_materializes_before_source_cleanup
+	"let saved: number[3] = [0, 0, 0]\nfunction save(): void {\n    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]\n    let row: number[3] = matrix[1]\n    saved = row\n}\nsave()\nlet index: number = 3\nprint(saved[0])\nprint(saved[index])\n"
+	"main.ts:[0-9]+:.*runtime range error: array subscript.*3.*length 3"
 )
 
 expect_invalid(

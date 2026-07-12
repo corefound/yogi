@@ -198,7 +198,11 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
-            this.rejectEscapingLocalFixedShapeView(value, node);
+            value = this.materializeBorrowedViewForEscape(
+                value,
+                node.fullSource ?? node.source,
+                node,
+            );
             this.rejectReturningLocalPointerDerivedValue(value, node);
             this.rejectReturningLocalDereferencedAggregate(value, node);
 
@@ -236,6 +240,55 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 kind: Kinds.Statements.ReturnStatement,
                 value,
             };
+        }
+
+        public materializeBorrowedViewForEscape(value: any, source: string, node: any): any {
+            if (!this.shouldMaterializeBorrowedViewForEscape(value)) {
+                return value;
+            }
+
+            const valueSource = value.source ?? "view";
+            const position = value.position ?? node.position;
+            const copyCallee = {
+                kind: Kinds.Expressions.PropertyAccessExpression,
+                object: value,
+                property: "copy",
+                optional: false,
+                type: value.type,
+                source: `${valueSource}.copy`,
+                position,
+            };
+
+            return {
+                kind: Kinds.Expressions.CallExpression,
+                callee: copyCallee,
+                arguments: [],
+                argumentEffects: [],
+                type: {
+                    ...value.type,
+                    readonly: false,
+                },
+                external: false,
+                builtinMethod: "array.copy",
+                source: `${valueSource}.copy()`,
+                fullSource: source,
+                position,
+                materializedBorrowedView: true,
+            };
+        }
+
+        public shouldMaterializeBorrowedViewForEscape(value: any): boolean {
+            if (!value || value.borrowedView !== true) {
+                return false;
+            }
+
+            const sourceName =
+                value.borrowedViewSourceName ??
+                this.borrowedViewRootName(value) ??
+                (this as any).getAggregateRootIdentifier(value);
+            const sourceSymbol = sourceName ? this.resolveSymbol(sourceName) : null;
+
+            return sourceSymbol?.storage === Kinds.Storage.stack;
         }
 
         public rejectEscapingLocalFixedShapeView(value: any, node: any): void {

@@ -3481,6 +3481,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
+                        if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
+                            right = (this as any).materializeBorrowedViewForEscape(
+                                right,
+                                context.fullSource ?? node.fullSource ?? node.source,
+                                node,
+                            );
+                            rightType = right.type;
+                        }
+
                         if (this.isAggregateType(assignmentType) && !this.isDynamicArrayType(assignmentType)) {
                             const rightSymbol = this.getAggregateSymbolFromExpression(right);
 
@@ -3957,6 +3966,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 right.arrowLength = right.source?.length ?? 1;
                 this.throwError(message, right.position ?? node.position, source, right);
+            }
+
+            if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
+                right = (this as any).materializeBorrowedViewForEscape(
+                    right,
+                    source,
+                    node,
+                );
             }
 
             if (this.isAggregateType(assignmentType) && !this.isDynamicArrayType(assignmentType)) {
