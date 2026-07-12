@@ -1066,11 +1066,40 @@ Pending:
 
 ### 10. String element extraction from `string[]` inside struct fields
 
-Known issue:
+Supported:
 
-- String element extraction from `string[]` through `.at()` when the array lives inside a struct field needs a focused array/string ownership lowering fix.
-- The field type and array length are valid.
-- Direct string extraction still needs focused lowering work.
+- `string[]` elements returned by `.at()` now unbox correctly into explicit string contexts.
+- This works for direct dynamic string arrays.
+- This works when the `string[]` lives inside a struct field.
+- This works for fields inherited from interfaces and fields declared directly on the struct.
+
+Example:
+
+```ts
+interface Named {
+    aliases: string[]
+}
+
+struct Playlist extends Named {
+    songs: string[]
+}
+
+let playlist: Playlist = {
+    aliases: ["daily"],
+    songs: ["intro", "outro"]
+}
+
+print(playlist.aliases.at(0) as string)
+print(playlist.songs.at(1) as string)
+```
+
+Reason:
+
+```txt
+.at() returns a boxed array element.
+Strings lower as ptr in LLVM, just like arrays/objects also lower as ptr.
+The lowerer must unbox ptr-typed string targets while still preserving aggregate ptr values.
+```
 
 ---
 
@@ -1524,12 +1553,13 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ✅ Normal T[] parameters do not invalidate caller pointers under current value semantics
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
+✅ String element extraction from string[] through .at() inside struct fields
 ```
 
 ### Next Lots
 
 ```txt
-⬜ String element extraction from string[] through .at() inside struct fields
+⬜ Dynamic array iteration and structural mutation semantics
 ```
 
 ### Future Work
@@ -1556,7 +1586,7 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ## Recommended Implementation Order
 
 ```txt
-1. String element extraction from string[] through .at() inside struct fields
+1. Dynamic array iteration and structural mutation semantics
 2. Explicit borrowed return/view types
 3. Borrow summaries interprocedural for explicit borrowed views
 4. Escape analysis complete for borrowed views

@@ -4189,7 +4189,15 @@ namespace yogi::core::llvm::internal {
 		const Yogi::Sir::TypeRef *targetSemanticType,
 		const Yogi::Sir::TypeRef *sourceSemanticType
 	) {
-		if (!value || !targetType || !value->getType()->isPointerTy() || targetType->isPointerTy()) {
+		const auto targetKind = resolvedTypeKind(targetSemanticType);
+		const auto targetIsString = targetKind == Yogi::Sir::TypeKind_string_type;
+
+		if (
+			!value ||
+			!targetType ||
+			!value->getType()->isPointerTy() ||
+			(targetType->isPointerTy() && !targetIsString)
+		) {
 			return value;
 		}
 

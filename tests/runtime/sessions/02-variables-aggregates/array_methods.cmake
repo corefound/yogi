@@ -60,6 +60,12 @@ function stringBatch(): void {
     print(scores.toLocaleString())
 }
 
+function stringAtBatch(): void {
+    let songs: string[] = ["intro", "outro"]
+    print(songs.at(0) as string)
+    print(songs.at(1) as string)
+}
+
 function sortBatch(): number {
     let scores: number[] = [3, 1, 20]
     scores.sort()
@@ -113,6 +119,7 @@ directAtBatch()
 negativeAtBatch()
 printArrayBatch()
 stringBatch()
+stringAtBatch()
 print(sortBatch())
 print(toSortedBatch())
 print(comparatorSortBatch())
@@ -192,7 +199,7 @@ set(CYAN "${ESC}[96m")
 set(YELLOW "${ESC}[93m")
 set(RESET "${ESC}[0m")
 set(printed_scores "${CYAN}[${RESET}\n  ${YELLOW}4${RESET},\n  ${YELLOW}5${RESET},\n  ${YELLOW}6${RESET}\n${CYAN}]${RESET}")
-set(expected_stdout "213\n10133\n243\n8\n${printed_scores}\n3-1-20\n3,1,20\n3,1,20\n303\n30033\n150\n203013\n1234\n26106\n")
+set(expected_stdout "213\n10133\n243\n8\n${printed_scores}\n3-1-20\n3,1,20\n3,1,20\nintro\noutro\n303\n30033\n150\n203013\n1234\n26106\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array methods executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
