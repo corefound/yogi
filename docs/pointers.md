@@ -234,6 +234,8 @@ Checklist:
 - ✅ pointer rebind updates which dynamic array root is protected
 - ✅ pointer scope end releases the protected dynamic array root
 - ✅ adaptive dynamic array storage selection: contiguous by default, pointer-safe only when growth overlaps a live interior pointer
+- ✅ mutating dynamic-array methods through `ptr<T[]>`
+- ✅ function-summary invalidation from `ptr<T[]>` parameters back to caller storage
 - ✅ readonly root rejection for nested field mutation
 - ✅ RHS type checking for nested field mutation
 

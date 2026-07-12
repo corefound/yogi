@@ -135,8 +135,8 @@ invalidation, and runtime dynamic invalidation.
 
 ## Pending / Future
 
-- ⬜ mutating array methods through `ptr<T[]>`
-- ⬜ end-to-end caller invalidation tests once `ptr<T[]>` mutation is lowerable
+- ✅ mutating array methods through `ptr<T[]>`
+- ✅ end-to-end caller invalidation tests for `ptr<T[]>` parameters
 - ⬜ serialize invalidation summaries into FlatBuffers if cross-module semantic
   imports need them
 - ⬜ dynamic/non-literal invalidation summaries that defer to runtime checks
