@@ -1519,12 +1519,13 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ✅ Rejection for conflicting pointer-return borrow roots
 ✅ General dereference syntax: *p read, scalar (*p) = value write-through
 ✅ Compile-time invalidated pointer diagnostics for obvious dynamic array slot removals
+✅ Branch-sensitive invalidated pointer diagnostics for if/else and loops
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Branch-sensitive compile-time invalidated pointer diagnostics
+⬜ Function-summary propagation for pointer invalidation effects
 ```
 
 ### Future Work
@@ -1540,7 +1541,6 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ⬜ C ABI interop rules for arrays
 ⬜ Lazy iterator objects
 ⬜ Object stringification inside arrays
-⬜ Branch-sensitive compile-time invalidated pointer diagnostics
 ⬜ Function-summary propagation for pointer invalidation effects
 ⬜ Final array method policy
 ⬜ Final diagnostics polish for shape/index/readonly/materialization errors
@@ -1552,20 +1552,19 @@ Yogi borrows partial array views locally. `.copy()` creates an owned copy when t
 ## Recommended Implementation Order
 
 ```txt
-1. Branch-sensitive compile-time invalidated pointer diagnostics
-2. Function-summary propagation for pointer invalidation effects
-3. String element extraction from string[] through .at() inside struct fields
-4. Explicit borrowed return/view types
-5. Borrow summaries interprocedural for explicit borrowed views
-6. Escape analysis complete for borrowed views
-7. Cleanup/destructor rules for borrowed views and materialized copies
-8. Dynamic shaped arrays: Array<T, Rank>
-9. Dynamic shaped views/slices
-10. Native fixed-shape ABI without runtime descriptor
-11. C ABI interop rules for arrays
-12. Lazy iterator objects
-13. Object stringification inside arrays
-14. Final array method policy
-15. Final diagnostics polish
-16. Documentation final pass
+1. Function-summary propagation for pointer invalidation effects
+2. String element extraction from string[] through .at() inside struct fields
+3. Explicit borrowed return/view types
+4. Borrow summaries interprocedural for explicit borrowed views
+5. Escape analysis complete for borrowed views
+6. Cleanup/destructor rules for borrowed views and materialized copies
+7. Dynamic shaped arrays: Array<T, Rank>
+8. Dynamic shaped views/slices
+9. Native fixed-shape ABI without runtime descriptor
+10. C ABI interop rules for arrays
+11. Lazy iterator objects
+12. Object stringification inside arrays
+13. Final array method policy
+14. Final diagnostics polish
+15. Documentation final pass
 ```

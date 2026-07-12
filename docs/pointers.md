@@ -226,6 +226,7 @@ Checklist:
 - ✅ removed dynamic-array element slots invalidate only pointers to removed element identities
 - ✅ `pop`, `shift`, and `splice` report runtime pointer errors when a removed slot pointer is used later
 - ✅ provable removed-slot pointer uses report semantic errors before LLVM generation
+- ✅ branch-sensitive invalidated pointer diagnostics report `may be used after` for unsafe paths
 - ✅ `unshift`, `reverse`, and `sort` preserve existing dynamic-array pointer identities
 - ✅ `fill` and `copyWithin` preserve slot identity while overwriting current slot values
 - ✅ dynamic array assignment preserves common slot identities, creates extra slots, and invalidates removed slots
@@ -252,7 +253,7 @@ Checklist:
 ### Known Limitations
 
 - ⚠️ `&matrix[0]` remains rejected because it is a partial view, not a scalar cell.
-- ⚠️ Dynamic/branch-sensitive removed-slot pointer cases still rely on runtime checks when semantic analysis cannot prove the removed slot.
+- ⚠️ Dynamic removed-slot pointer cases still rely on runtime checks when semantic analysis cannot prove the removed slot.
 - ⚠️ Function returns from `ptr<Array>` parameters into dynamic array cells are still pending because address-of through pointer-derived array access is currently rejected.
 
 ### Philosophy
