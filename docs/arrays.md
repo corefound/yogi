@@ -592,11 +592,12 @@ Current behavior:
 -   Returning a partial view from a local fixed-shape owner materializes
     owned storage when that preserves observable behavior.
 -   Storing a local borrowed view into module/global storage, a
-    retaining call, or an aggregate member also materializes when safe.
+    retaining call, or an aggregate member materializes when copying is
+    behavior-preserving.
+-   If aliasing remains observable after the escape, Yogi promotes the
+    source owner and retains it through the escaped view.
 -   `.copy()` creates an owned copy for users who want independent
     storage.
--   Future owner promotion/lifetime extension will cover cases where
-    aliasing must remain observable after escape.
 
 Example local borrowed view:
 
@@ -1539,6 +1540,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Nested readonly borrowed views
 ✅ Automatic materialization for fixed-shape borrowed views escaping through return/global assignment
 ✅ Automatic materialization for borrowed views escaping through retaining calls, aggregate member stores, and returned aggregate literals
+✅ Owner promotion/lifetime extension for direct borrowed views escaping through storage/member stores
 ✅ Explicit .copy() for owned slice/view copies
 ✅ Array element return unboxing for primitive contexts
 ✅ Readonly length on arrays and tuples
@@ -1583,7 +1585,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ### Future Work
 
 ``` txt
-⬜ Automatic owner promotion for escaping views where aliasing must remain observable
+⬜ Owner promotion through closure-captured views and nested object graphs
 ⬜ Borrow summaries interprocedural for explicit borrowed views
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
@@ -1605,7 +1607,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 
 ``` txt
 1. String element extraction from string[] through .at() inside struct fields
-2. Owner promotion/lifetime extension for escaping views where aliasing must remain observable
+2. Owner promotion through closure-captured views and nested object graphs
 3. Borrow summaries interprocedural for explicit borrowed views if Yogi later adds explicit view types
 4. Escape analysis complete for callback/closure-captured borrowed views
 5. Cleanup/destructor rules for promoted owners and materialized copies
@@ -2753,6 +2755,7 @@ readonly propagation from the original owner
 ✅ Borrowed view return from local owner materializes owned storage when safe
 ✅ Automatic materialization for fixed-shape borrowed views escaping through return/global assignment
 ✅ Automatic materialization for retaining calls, aggregate member stores, and returned aggregate literals
+✅ Owner promotion/lifetime extension for direct borrowed views escaping through storage/member stores
 ✅ Explicit .copy() for owned slice/view copies
 ✅ Array element return unboxing for primitive contexts
 ✅ Readonly length on arrays and tuples
@@ -2806,7 +2809,7 @@ readonly propagation from the original owner
 ⬜ Final callback ownership/borrow semantics
 ⬜ Nested dynamic-array ownership and pointer chains
 ⬜ Fixed-array and multidimensional matrix completion
-⬜ Automatic owner promotion/storage lifetime extension where aliasing must remain observable
+⬜ Owner promotion through closure-captured views and nested object graphs
 ⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
 ⬜ Broader array copy/move/ownership semantics
 ⬜ Union-array runtime/narrowing completion

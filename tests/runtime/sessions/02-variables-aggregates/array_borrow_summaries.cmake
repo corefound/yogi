@@ -120,6 +120,28 @@ function makeBoxFromLocalView(): RowBox {
     return { row: matrix[0] }
 }
 
+function saveAliasedRowAndMutateAlias(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[1]
+
+    savedRow = row
+    row[0] = 40
+    matrix[1, 1] = 50
+}
+
+function saveDirectRowAndMutateOwner(): void {
+    let matrix: number[2, 3] = [
+        [10, 20, 30],
+        [40, 50, 60]
+    ]
+
+    savedRow = matrix[0]
+    matrix[0, 2] = 90
+}
+
 let matrixA: number[2, 3] = [
     [1, 2, 3],
     [4, 5, 6]
@@ -267,6 +289,16 @@ let madeBox: RowBox = makeBoxFromLocalView()
 print(madeBox.row[0])
 print(madeBox.row[1])
 print(madeBox.row[2])
+
+saveAliasedRowAndMutateAlias()
+print(savedRow[0])
+print(savedRow[1])
+print(savedRow[2])
+
+saveDirectRowAndMutateOwner()
+print(savedRow[0])
+print(savedRow[1])
+print(savedRow[2])
 ]=])
 
 execute_process(
@@ -295,6 +327,9 @@ file(READ "${IR}" ir)
 if(NOT ir MATCHES "yogi_array_view")
 	message(FATAL_ERROR "expected borrowed array returns to lower through yogi_array_view")
 endif()
+if(NOT ir MATCHES "yogi_array_retain_view_source")
+	message(FATAL_ERROR "expected escaping borrowed views to retain their promoted source owner")
+endif()
 
 execute_process(
 	COMMAND "${EXECUTABLE}"
@@ -308,7 +343,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array borrow summaries executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n1\n2\n3\n4\n5\n6\n77\n1\n2\n3\n")
+set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n1\n2\n3\n4\n5\n6\n77\n1\n2\n3\n40\n50\n6\n10\n20\n90\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array borrow summaries executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

@@ -2035,6 +2035,47 @@ export class BaseSemantic {
         return nodes.map(visit);
     }
 
+    public applyBorrowedViewOwnerPromotions(nodes: any[]): any[] {
+        const visit = (node: any): any => {
+            if (!node || typeof node !== "object") {
+                return node;
+            }
+
+            if (Array.isArray(node)) {
+                return node.map(visit);
+            }
+
+            const result = { ...node };
+
+            if (
+                (
+                    result.kind === Kinds.Statements.VariableDeclaration ||
+                    result.kind === Kinds.Statements.ArrayDeclaration
+                ) &&
+                typeof result.symbolId === "number"
+            ) {
+                const symbol = this.getSymbolById(result.symbolId);
+
+                if (symbol?.borrowedViewOwnerPromoted === true) {
+                    result.escapes = true;
+                    result.storage = Kinds.Storage.stack;
+                }
+            }
+
+            for (const key of Object.keys(result)) {
+                if (key === "type" || key === "declaredType") {
+                    continue;
+                }
+
+                result[key] = visit(result[key]);
+            }
+
+            return result;
+        };
+
+        return nodes.map(visit);
+    }
+
     public getSymbolById(symbolId: number | undefined | null): Types.SymbolInfo | null {
         if (typeof symbolId !== "number" || symbolId < 0) {
             return null;

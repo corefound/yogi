@@ -97,6 +97,7 @@ namespace yogi::runtime {
 			void sort();
 			ArrayValue *toSorted() const;
 			void replaceFrom(const ArrayValue *source);
+			void retainViewSource();
 			void destroy();
 
 		private:
@@ -112,6 +113,8 @@ namespace yogi::runtime {
 			std::size_t retiredElementCapacity = 0;
 			ArrayValue *viewSource = nullptr;
 			std::size_t viewOffset = 0;
+			std::size_t owningViewCount = 0;
+			bool ownsViewSource = false;
 
 			bool usesPointerSafeStorage() const;
 			void resetContiguousSlots(std::size_t start = 0);

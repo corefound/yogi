@@ -24,6 +24,7 @@ namespace yogi::core::llvm::internal {
 			std::map<std::string, const Yogi::Sir::TypeRef *> localTypes;
 			std::map<std::string, Yogi::Sir::TypeKind> localTypeKinds;
 			std::map<std::string, std::string> aggregateAliases;
+			std::map<std::string, std::string> borrowedViewAliases;
 			std::vector<ModuleLoweringContext::LocalAggregateCleanup> localAggregateCleanups;
 		};
 
@@ -582,6 +583,7 @@ namespace yogi::core::llvm::internal {
 				context.localTypes,
 				context.localTypeKinds,
 				context.aggregateAliases,
+				context.borrowedViewAliases,
 				context.localAggregateCleanups,
 			};
 		};
@@ -590,6 +592,7 @@ namespace yogi::core::llvm::internal {
 			context.localTypes = state.localTypes;
 			context.localTypeKinds = state.localTypeKinds;
 			context.aggregateAliases = state.aggregateAliases;
+			context.borrowedViewAliases = state.borrowedViewAliases;
 			context.localAggregateCleanups = state.localAggregateCleanups;
 		};
 		const auto mergeState = [&](const OwnershipState &base, const std::vector<OwnershipState> &reachableStates) {
@@ -782,6 +785,7 @@ namespace yogi::core::llvm::internal {
 				context.localTypes,
 				context.localTypeKinds,
 				context.aggregateAliases,
+				context.borrowedViewAliases,
 				context.localAggregateCleanups,
 			};
 		};
@@ -790,6 +794,7 @@ namespace yogi::core::llvm::internal {
 			context.localTypes = state.localTypes;
 			context.localTypeKinds = state.localTypeKinds;
 			context.aggregateAliases = state.aggregateAliases;
+			context.borrowedViewAliases = state.borrowedViewAliases;
 		};
 		const auto incomingState = captureState();
 

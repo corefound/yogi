@@ -24,11 +24,77 @@ namespace yogi::core::llvm::internal {
 			const auto *identifier = value ? value->identifier() : nullptr;
 			return identifier ? fbString(identifier->name()) : "";
 		}
+
+		std::string rootIdentifierName(const Yogi::Sir::ValueRef *value) {
+			if (!value) {
+				return "";
+			}
+
+			if (const auto *identifier = value->identifier()) {
+				return fbString(identifier->name());
+			}
+
+			if (const auto *access = value->element_access()) {
+				return rootIdentifierName(access->object());
+			}
+
+			if (const auto *access = value->property_access()) {
+				return rootIdentifierName(access->object());
+			}
+
+			return "";
+		}
 	}
 
 	ValueLowerer::ValueLowerer(ModuleLoweringContext &context, TypeLowerer &types)
 		: context(context),
 		  types(types) {}
+
+	std::string ValueLowerer::borrowedViewOwnerName(const Yogi::Sir::ValueRef *value) const {
+		if (!value) {
+			return "";
+		}
+
+		if (const auto *identifier = value->identifier()) {
+			const auto name = fbString(identifier->name());
+			const auto viewAlias = context.borrowedViewAliases.find(name);
+			return viewAlias == context.borrowedViewAliases.end()
+				? ""
+				: viewAlias->second;
+		}
+
+		if (const auto *access = value->element_access()) {
+			const auto owner = borrowedViewOwnerName(access->object());
+			return owner.empty() ? rootIdentifierName(access->object()) : owner;
+		}
+
+		if (const auto *access = value->property_access()) {
+			return borrowedViewOwnerName(access->object());
+		}
+
+		return "";
+	}
+
+	void ValueLowerer::retainEscapedBorrowedViewSource(
+		const Yogi::Sir::ValueRef *value,
+		::llvm::Value *loweredValue
+	) {
+		if (!value || !loweredValue || !loweredValue->getType()->isPointerTy()) {
+			return;
+		}
+
+		const auto ownerName = borrowedViewOwnerName(value);
+		if (ownerName.empty() || !context.locals.contains(ownerName)) {
+			return;
+		}
+
+		callRuntime(
+			"yogi_array_retain_view_source",
+			::llvm::Type::getVoidTy(context.llvmContext),
+			{loweredValue}
+		);
+		context.deactivateAggregateOwner(ownerName);
+	}
 
 	::llvm::Value *ValueLowerer::lower(
 		const Yogi::Sir::ValueRef *value,
@@ -115,7 +181,8 @@ namespace yogi::core::llvm::internal {
 				const auto *argument = call->arguments()->Get(index);
 				const auto *argumentSemanticType = valueSemanticType(argument);
 				auto *argumentType = types.lower(argumentSemanticType);
-				arguments.push_back(lower(argument, argumentType, argumentSemanticType));
+				auto *argumentValue = lower(argument, argumentType, argumentSemanticType);
+				arguments.push_back(argumentValue);
 				argumentTypes.push_back(argumentType);
 
 				const auto *effect = call->argument_effects() && index < call->argument_effects()->size()
@@ -123,6 +190,7 @@ namespace yogi::core::llvm::internal {
 					: nullptr;
 
 				if (effect && effect->escapes()) {
+					retainEscapedBorrowedViewSource(argument, argumentValue);
 					const auto name = identifierName(argument);
 					if (!name.empty()) {
 						context.deactivateAggregateOwner(name);
@@ -3273,6 +3341,13 @@ namespace yogi::core::llvm::internal {
 		const auto *target = assignment->target();
 			const auto *rightType = valueSemanticType(assignment->right());
 			auto *rightValue = lower(assignment->right(), types.lower(rightType), rightType);
+			const auto rightKind = resolvedTypeKind(rightType);
+			if (
+				rightKind == Yogi::Sir::TypeKind_array_type ||
+				rightKind == Yogi::Sir::TypeKind_tuple_type
+			) {
+				retainEscapedBorrowedViewSource(assignment->right(), rightValue);
+			}
 
 			if (const auto *dereference = target ? target->dereference() : nullptr) {
 				auto *pointer = lower(
@@ -3537,6 +3612,17 @@ namespace yogi::core::llvm::internal {
 			targetKind == Yogi::Sir::TypeKind_type_literal ||
 			targetKind == Yogi::Sir::TypeKind_type_reference ||
 			targetKind == Yogi::Sir::TypeKind_string_type;
+
+		if (
+			targetIsGlobal &&
+			targetIsAggregate &&
+			(
+				targetKind == Yogi::Sir::TypeKind_array_type ||
+				targetKind == Yogi::Sir::TypeKind_tuple_type
+			)
+		) {
+			retainEscapedBorrowedViewSource(assignment->right(), value);
+		}
 
 		if (targetIsGlobal && targetIsAggregate && targetType->isPointerTy()) {
 			auto *previousValue = context.builder.CreateLoad(

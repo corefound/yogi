@@ -333,6 +333,46 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             return sourceSymbol?.storage === Kinds.Storage.stack;
         }
 
+        public prepareBorrowedViewForEscapingStorage(value: any, source: string, node: any, reason: string): any {
+            if (!value) {
+                return value;
+            }
+
+            if (this.promoteBorrowedViewOwnerForEscape(value, reason)) {
+                return {
+                    ...value,
+                    borrowedViewOwnerPromoted: true,
+                };
+            }
+
+            return this.materializeBorrowedViewForEscape(value, source, node);
+        }
+
+        public promoteBorrowedViewOwnerForEscape(value: any, reason: string): boolean {
+            if (!this.shouldMaterializeBorrowedViewForEscape(value)) {
+                return false;
+            }
+
+            const sourceName =
+                value.borrowedViewSourceName ??
+                this.borrowedViewRootName(value) ??
+                (this as any).getAggregateRootIdentifier(value);
+            const sourceSymbol = sourceName ? this.resolveSymbol(sourceName) : null;
+
+            if (!sourceSymbol || sourceSymbol.storage !== Kinds.Storage.stack) {
+                return false;
+            }
+
+            sourceSymbol.escapes = true;
+            sourceSymbol.borrowedViewOwnerPromoted = true;
+            sourceSymbol.borrowedViewOwnerPromotionReasons = [
+                ...(sourceSymbol.borrowedViewOwnerPromotionReasons ?? []),
+                reason,
+            ];
+
+            return true;
+        }
+
         public rejectEscapingLocalFixedShapeView(value: any, node: any): void {
             if (!value || value.kind !== Kinds.Expressions.ElementAccessExpression) return;
 

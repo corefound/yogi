@@ -95,9 +95,10 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node: value,
             });
 
+            const borrowedOwner = borrowedViewSourceName ? this.resolveSymbol(borrowedViewSourceName) : null;
             this.setAggregateOwner(
                 symbol,
-                this.getAggregateSymbolFromExpression(value),
+                borrowedOwner ?? this.getAggregateSymbolFromExpression(value),
             );
             this.setKnownDynamicArrayLength(symbol, this.arrayLiteralLength(value));
             this.registerPointerProvenance(symbol, value);

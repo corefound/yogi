@@ -14,6 +14,28 @@
 
 namespace yogi::core::llvm::internal {
 
+	namespace {
+		std::string aggregateRootIdentifier(const Yogi::Sir::ValueRef *value) {
+			if (!value) {
+				return "";
+			}
+
+			if (const auto *identifier = value->identifier()) {
+				return fbString(identifier->name());
+			}
+
+			if (const auto *access = value->element_access()) {
+				return aggregateRootIdentifier(access->object());
+			}
+
+			if (const auto *access = value->property_access()) {
+				return aggregateRootIdentifier(access->object());
+			}
+
+			return "";
+		}
+	}
+
 	VariableLowerer::VariableLowerer(
 		ModuleLoweringContext &context,
 		TypeLowerer &types,
@@ -193,6 +215,12 @@ namespace yogi::core::llvm::internal {
 		} else if (isAggregateType(variable->type())) {
 			if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
 				context.aliasAggregateOwner(name, fbString(identifier->name()));
+			} else if (const auto *elementAccess = variable->value() ? variable->value()->element_access() : nullptr) {
+				const auto ownerName = aggregateRootIdentifier(elementAccess->object());
+				if (!ownerName.empty()) {
+					context.aliasAggregateOwner(name, ownerName);
+					context.borrowedViewAliases[name] = ownerName;
+				}
 			} else if (const auto *call = variable->value() ? variable->value()->call() : nullptr) {
 				const auto *property = call->callee() ? call->callee()->property_access() : nullptr;
 				const auto *receiver = property && property->object() ? property->object()->identifier() : nullptr;

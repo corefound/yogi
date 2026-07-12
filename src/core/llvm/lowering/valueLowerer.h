@@ -183,6 +183,8 @@ namespace yogi::core::llvm::internal {
 			bool isOwnedStringExpression(const Yogi::Sir::ValueRef *value) const;
 			void destroyStringTemporary(::llvm::Value *value);
 			void destroyStringTemporaryIfOwned(::llvm::Value *value, const Yogi::Sir::ValueRef *source);
+			std::string borrowedViewOwnerName(const Yogi::Sir::ValueRef *value) const;
+			void retainEscapedBorrowedViewSource(const Yogi::Sir::ValueRef *value, ::llvm::Value *loweredValue);
 			::llvm::Value *tagRuntimeCellPointer(::llvm::Value *cell);
 			::llvm::Value *untagRuntimeCellPointer(::llvm::Value *pointer);
 			::llvm::Value *isRuntimeCellPointer(::llvm::Value *pointer);

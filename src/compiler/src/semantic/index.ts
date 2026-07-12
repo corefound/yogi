@@ -52,7 +52,8 @@ export class Semantic extends applySemanticMixins(
                 );
             });
 
-        const analyzedSir = this.applyDynamicArrayStorageDecisions(sir);
+        const promotedSir = this.applyBorrowedViewOwnerPromotions(sir);
+        const analyzedSir = this.applyDynamicArrayStorageDecisions(promotedSir);
 
         return {
             sir: analyzedSir,

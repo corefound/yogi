@@ -2,6 +2,28 @@
 
 This file tracks user-visible language/runtime behavior added by recent lots.
 
+## Borrowed View Owner Promotion
+
+Fixed-shape borrowed array views that escape through module/global storage or
+aggregate member storage can now preserve observable aliasing instead of always
+materializing a copy.
+
+```ts
+let saved: number[3] = [0, 0, 0]
+
+function save(): void {
+    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+    let row: number[3] = matrix[1]
+
+    saved = row
+    row[0] = 40
+    matrix[1, 1] = 50
+}
+```
+
+`saved` remains a view of the promoted owner, so later writes through `row` or
+`matrix` are visible after `save()` returns.
+
 ## Borrowed View Escape Surfaces
 
 Automatic materialization for fixed-shape borrowed array views now also covers

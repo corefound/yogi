@@ -80,6 +80,7 @@ void yogi_object_destroy(void *object);
 void *yogi_array_create(unsigned long long length);
 void *yogi_array_create_with_storage(unsigned long long length, const char *storageMode);
 void *yogi_array_view(void *source, unsigned long long offset, unsigned long long length);
+void yogi_array_retain_view_source(void *array);
 unsigned long long yogi_array_sizeof(void);
 void yogi_array_init(void *array, unsigned long long length);
 void yogi_array_init_with_storage(void *array, unsigned long long length, const char *storageMode);

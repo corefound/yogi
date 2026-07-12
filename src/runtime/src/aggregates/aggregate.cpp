@@ -599,6 +599,18 @@ namespace yogi::runtime {
 		return storageMode == StorageMode::PointerSafeChunkedMode;
 	}
 
+	void ArrayValue::retainViewSource() {
+		OwnershipTracker::assertLiveAggregate(this, "array view retain after destroy/drop", "array value");
+
+		if (!isView() || !viewSource || ownsViewSource) {
+			return;
+		}
+
+		OwnershipTracker::assertLiveAggregate(viewSource, "array view source retain after destroy/drop", "array value");
+		++viewSource->owningViewCount;
+		ownsViewSource = true;
+	}
+
 	void ArrayValue::resetContiguousSlots(std::size_t start) {
 		if (usesPointerSafeStorage() || !elements || !contiguousValues) {
 			return;
@@ -1566,6 +1578,7 @@ namespace yogi::runtime {
 
 	void ArrayValue::destroy() {
 		OwnershipTracker::assertLiveAggregate(this, "array destroy/drop after destroy/drop", "array value");
+		auto *retainedSource = isView() && ownsViewSource ? viewSource : nullptr;
 
 		if (!isView()) {
 			if (usesPointerSafeStorage()) {
@@ -1589,6 +1602,17 @@ namespace yogi::runtime {
 		retiredElementCapacity = 0;
 		viewSource = nullptr;
 		viewOffset = 0;
+		ownsViewSource = false;
+
+		if (retainedSource && retainedSource->owningViewCount > 0) {
+			--retainedSource->owningViewCount;
+
+			if (retainedSource->owningViewCount == 0) {
+				retainedSource->destroy();
+				OwnershipTracker::destroyHeapAggregate(retainedSource, "array value");
+				yogi_free(retainedSource);
+			}
+		}
 	}
 
 } // namespace yogi::runtime
@@ -1685,6 +1709,14 @@ void *yogi_array_view(void *source, unsigned long long offset, unsigned long lon
 		static_cast<std::size_t>(offset),
 		static_cast<std::size_t>(length)
 	);
+}
+
+void yogi_array_retain_view_source(void *array) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->retainViewSource();
 }
 
 unsigned long long yogi_array_sizeof(void) {

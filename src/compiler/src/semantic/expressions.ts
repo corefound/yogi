@@ -392,7 +392,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     return;
                 }
 
-                if (effect.consumes === true || effect.escapes === true) {
+                if ((effect.consumes === true || effect.escapes === true) && argument.borrowedViewOwnerPromoted !== true) {
                     const reason = external
                         ? `it was passed to unknown/external function '${calleeName}'`
                         : `function '${calleeName}' may retain or return that parameter`;
@@ -3499,10 +3499,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         }
 
                         if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
-                            right = (this as any).materializeBorrowedViewForEscape(
+                            right = (this as any).prepareBorrowedViewForEscapingStorage(
                                 right,
                                 context.fullSource ?? node.fullSource ?? node.source,
                                 node,
+                                `it was assigned into module/global storage '${identifierName}'`,
                             );
                             rightType = right.type;
                         }
@@ -3512,11 +3513,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                             if (rightSymbol) {
                                 if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
-                                    this.markAggregateExpressionMoved(
-                                        right,
-                                        `it was assigned into module/global storage '${identifierName}'`,
-                                        right,
-                                    );
+                                    if (right.borrowedViewOwnerPromoted !== true) {
+                                        this.markAggregateExpressionMoved(
+                                            right,
+                                            `it was assigned into module/global storage '${identifierName}'`,
+                                            right,
+                                        );
+                                    }
                                 } else {
                                     this.transferAggregateOwner(
                                         symbol,
@@ -3774,17 +3777,20 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
 
                 if (this.isAggregateType(right.type)) {
-                    right = (this as any).materializeBorrowedViewForEscape(
+                    right = (this as any).prepareBorrowedViewForEscapingStorage(
                         right,
                         context.fullSource ?? node.fullSource ?? node.source,
                         right ?? node,
+                        `it was stored into aggregate member '${left.source ?? "member"}'`,
                     );
 
-                    this.markAggregateExpressionMoved(
-                        right,
-                        `it was stored into aggregate member '${left.source ?? "member"}'`,
-                        right,
-                    );
+                    if (right.borrowedViewOwnerPromoted !== true) {
+                        this.markAggregateExpressionMoved(
+                            right,
+                            `it was stored into aggregate member '${left.source ?? "member"}'`,
+                            right,
+                        );
+                    }
                 }
 
                 return {
@@ -3918,17 +3924,20 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     }
 
                     if (this.isAggregateType(right.type)) {
-                        right = (this as any).materializeBorrowedViewForEscape(
+                        right = (this as any).prepareBorrowedViewForEscapingStorage(
                             right,
                             source,
                             right ?? node,
+                            `it was stored into aggregate member '${left.source ?? "member"}'`,
                         );
 
-                        this.markAggregateExpressionMoved(
-                            right,
-                            `it was stored into aggregate member '${left.source ?? "member"}'`,
-                            right,
-                        );
+                        if (right.borrowedViewOwnerPromoted !== true) {
+                            this.markAggregateExpressionMoved(
+                                right,
+                                `it was stored into aggregate member '${left.source ?? "member"}'`,
+                                right,
+                            );
+                        }
                     }
 
                     return {
@@ -3998,10 +4007,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             }
 
             if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
-                right = (this as any).materializeBorrowedViewForEscape(
+                right = (this as any).prepareBorrowedViewForEscapingStorage(
                     right,
                     source,
                     node,
+                    `it was assigned into module/global storage '${identifierName}'`,
                 );
             }
 
@@ -4010,11 +4020,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 if (rightSymbol) {
                     if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
-                        this.markAggregateExpressionMoved(
-                            right,
-                            `it was assigned into module/global storage '${identifierName}'`,
-                            right,
-                        );
+                        if (right.borrowedViewOwnerPromoted !== true) {
+                            this.markAggregateExpressionMoved(
+                                right,
+                                `it was assigned into module/global storage '${identifierName}'`,
+                                right,
+                            );
+                        }
                     } else {
                         this.transferAggregateOwner(
                             symbol,
