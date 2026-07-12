@@ -257,11 +257,12 @@ dynamic splice/index removes pointed slot and pointer is used afterward
 - ✅ non-mutating/copy-returning methods do not invalidate original pointers
 - ✅ obvious removed-slot pointer uses fail during semantic analysis
 - ✅ branch-sensitive removed-slot pointer uses fail during semantic analysis
+- ✅ function summaries record dynamic-array invalidation effects
 
 ## Pending / Future
 
 - ⬜ remove runtime validity checks when compiler proves safety
-- ⬜ function-summary propagation for invalidated pointer effects
+- ⬜ end-to-end caller invalidation through `ptr<T[]>` parameters
 - ⬜ source notes for pointer creation, element removal, and invalid pointer use
 - ⬜ generation-based slot reuse optimization
 - ⬜ projected pointer metadata cleanup tied to pointer lifetime

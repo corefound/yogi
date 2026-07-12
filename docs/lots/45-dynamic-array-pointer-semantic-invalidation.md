@@ -171,6 +171,7 @@ dynamic splice/index removes pointed slot and pointer is used afterward
 ## Pending / Future
 
 - ✅ richer branch-sensitive invalidation merging
+- ✅ function summaries record dynamic-array invalidation effects
 - ⬜ diagnostics with a secondary note at pointer creation and removal site
 - ⬜ compile-time removal proofs for more non-literal but constant-foldable cases
-- ⬜ function-summary propagation for pointer invalidation effects
+- ⬜ end-to-end caller invalidation through `ptr<T[]>` parameters

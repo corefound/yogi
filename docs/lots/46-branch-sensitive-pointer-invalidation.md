@@ -195,9 +195,10 @@ while maybe invalidates; later pointer use is rejected
 - ✅ invalidating return paths do not poison following code
 - ✅ pointer rebind clears prior invalidation on that path
 - ✅ known dynamic array lengths merge conservatively
+- ✅ function summaries record dynamic-array invalidation effects
 
 ## Pending / Future
 
 - ⬜ switch-specific branch invalidation summaries
-- ⬜ function-summary propagation for invalidation effects
+- ⬜ end-to-end caller invalidation through `ptr<T[]>` parameters
 - ⬜ secondary diagnostics for pointer creation and removal branch

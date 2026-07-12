@@ -2143,12 +2143,14 @@ Yogi is flexible when the runtime can validate safely.
 ✅ General dereference syntax: *p read, scalar (*p) = value write-through
 ✅ Compile-time invalidated pointer diagnostics for obvious dynamic array slot removals
 ✅ Branch-sensitive invalidated pointer diagnostics for if/else and loops
+✅ Function summaries record dynamic-array invalidation effects
+✅ Normal T[] parameters do not invalidate caller pointers under current value semantics
 ```
 
 ### Next Lots
 
 ```txt
-⬜ Function-summary propagation for pointer invalidation effects
+⬜ Mutating array methods through ptr<T[]>
 ```
 
 ### Future Work
@@ -2165,7 +2167,8 @@ Yogi is flexible when the runtime can validate safely.
 ⬜ C ABI interop rules for arrays
 ⬜ Lazy iterator objects
 ⬜ Object stringification inside arrays
-⬜ Function-summary propagation for pointer invalidation effects
+⬜ End-to-end caller invalidation through ptr<T[]> parameters
+⬜ Serialize invalidation summaries for cross-module semantic imports if needed
 ⬜ Final array method policy
 ⬜ Final diagnostics polish for shape/index/readonly errors
 ⬜ Documentation fully updated after each lot
@@ -2176,20 +2179,21 @@ Yogi is flexible when the runtime can validate safely.
 ## Recommended Implementation Order
 
 ```txt
-1. Function-summary propagation for pointer invalidation effects
-2. String element extraction from string[] through .at() inside struct fields
-3. Dynamic shaped arrays: Array<T, Rank>
-4. Runtime-rank dynamic shaped arrays: Array<T>
-5. Union element dynamic shaped arrays
-6. Pointers to dynamic shaped arrays: ptr<Array<T, Rank>> and ptr<Array<T>>
-7. Dynamic shaped views/slices
-8. Escape analysis complete for borrowed views
-9. Cleanup/destructor rules for borrowed views
-10. Native fixed-shape ABI without runtime descriptor
-11. C ABI interop rules for arrays
-12. Lazy iterator objects
-13. Object stringification inside arrays
-14. Final array method policy
-15. Final diagnostics polish
-16. Documentation final pass
+1. Mutating array methods through ptr<T[]>
+2. End-to-end caller invalidation through ptr<T[]> parameters
+3. String element extraction from string[] through .at() inside struct fields
+4. Dynamic shaped arrays: Array<T, Rank>
+5. Runtime-rank dynamic shaped arrays: Array<T>
+6. Union element dynamic shaped arrays
+7. Pointers to dynamic shaped arrays: ptr<Array<T, Rank>> and ptr<Array<T>>
+8. Dynamic shaped views/slices
+9. Escape analysis complete for borrowed views
+10. Cleanup/destructor rules for borrowed views
+11. Native fixed-shape ABI without runtime descriptor
+12. C ABI interop rules for arrays
+13. Lazy iterator objects
+14. Object stringification inside arrays
+15. Final array method policy
+16. Final diagnostics polish
+17. Documentation final pass
 ```
