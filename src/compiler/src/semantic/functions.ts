@@ -243,6 +243,48 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
         }
 
         public materializeBorrowedViewForEscape(value: any, source: string, node: any): any {
+            if (!value) {
+                return value;
+            }
+
+            if (value.kind === Kinds.Collections.DictionaryExpression) {
+                let changed = false;
+                const properties = (value.properties ?? []).map((property: any) => {
+                    const materialized = this.materializeBorrowedViewForEscape(
+                        property.value,
+                        source,
+                        property.value ?? node,
+                    );
+
+                    if (materialized !== property.value) {
+                        changed = true;
+                    }
+
+                    return {
+                        ...property,
+                        value: materialized,
+                        type: materialized?.type ?? property.type,
+                    };
+                });
+
+                return changed ? { ...value, properties } : value;
+            }
+
+            if (value.kind === Kinds.Collections.ArrayExpression) {
+                let changed = false;
+                const elements = (value.elements ?? []).map((element: any) => {
+                    const materialized = this.materializeBorrowedViewForEscape(element, source, element ?? node);
+
+                    if (materialized !== element) {
+                        changed = true;
+                    }
+
+                    return materialized;
+                });
+
+                return changed ? { ...value, elements } : value;
+            }
+
             if (!this.shouldMaterializeBorrowedViewForEscape(value)) {
                 return value;
             }

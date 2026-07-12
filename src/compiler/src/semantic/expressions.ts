@@ -291,6 +291,23 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const returnIsPointer = this.isPointerType(returnType);
             const effectSummary = symbol.effectSummary ?? symbol.node?.effectSummary ?? null;
             const external = symbol.ambient === true || symbol.declare === true || !effectSummary;
+
+            args.forEach((argument: any, index: number) => {
+                const effect = effectSummary?.parameterEffects?.[index];
+                const parameterType = parameters[index]?.type;
+                const parameterMayEscape = external
+                    ? this.isAggregateType(parameterType)
+                    : effect?.escapes === true || effect?.stores === true || effect?.returns === true;
+
+                if (parameterMayEscape) {
+                    args[index] = (this as any).materializeBorrowedViewForEscape(
+                        argument,
+                        node.fullSource ?? node.source,
+                        argument ?? node,
+                    );
+                }
+            });
+
             if (!external) {
                 args.forEach((argument: any, index: number) => {
                     const expectedType = parameters[index]?.type;
@@ -3757,6 +3774,12 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
 
                 if (this.isAggregateType(right.type)) {
+                    right = (this as any).materializeBorrowedViewForEscape(
+                        right,
+                        context.fullSource ?? node.fullSource ?? node.source,
+                        right ?? node,
+                    );
+
                     this.markAggregateExpressionMoved(
                         right,
                         `it was stored into aggregate member '${left.source ?? "member"}'`,
@@ -3895,6 +3918,12 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     }
 
                     if (this.isAggregateType(right.type)) {
+                        right = (this as any).materializeBorrowedViewForEscape(
+                            right,
+                            source,
+                            right ?? node,
+                        );
+
                         this.markAggregateExpressionMoved(
                             right,
                             `it was stored into aggregate member '${left.source ?? "member"}'`,

@@ -74,6 +74,10 @@ function localRowAliasAutoMaterialized(): number[3] {
 }
 
 let savedRow: number[3] = [0, 0, 0]
+type RowBox = {
+    row: number[3]
+}
+let savedBox: RowBox = { row: [0, 0, 0] }
 
 function saveLocalRowAlias(): void {
     let matrix: number[2, 3] = [
@@ -83,6 +87,37 @@ function saveLocalRowAlias(): void {
     let row: number[3] = matrix[1]
 
     savedRow = row
+}
+
+function retainRow(row: number[3]): void {
+    savedRow = row
+}
+
+function saveThroughRetainingCall(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    retainRow(matrix[0])
+}
+
+function saveBoxField(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    savedBox.row = matrix[1]
+}
+
+function makeBoxFromLocalView(): RowBox {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+
+    return { row: matrix[0] }
 }
 
 let matrixA: number[2, 3] = [
@@ -215,6 +250,23 @@ print(savedRow[1])
 print(savedRow[2])
 savedRow[2] = 88
 print(savedRow[2])
+
+saveThroughRetainingCall()
+print(savedRow[0])
+print(savedRow[1])
+print(savedRow[2])
+
+saveBoxField()
+print(savedBox.row[0])
+print(savedBox.row[1])
+print(savedBox.row[2])
+savedBox.row[1] = 77
+print(savedBox.row[1])
+
+let madeBox: RowBox = makeBoxFromLocalView()
+print(madeBox.row[0])
+print(madeBox.row[1])
+print(madeBox.row[2])
 ]=])
 
 execute_process(
@@ -256,7 +308,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array borrow summaries executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n")
+set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n1\n2\n3\n4\n5\n6\n77\n1\n2\n3\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array borrow summaries executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

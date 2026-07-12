@@ -2,6 +2,28 @@
 
 This file tracks user-visible language/runtime behavior added by recent lots.
 
+## Borrowed View Escape Surfaces
+
+Automatic materialization for fixed-shape borrowed array views now also covers
+known retaining calls, aggregate member stores, and nested views inside returned
+aggregate literals.
+
+```ts
+let saved: number[3] = [0, 0, 0]
+
+function retain(row: number[3]): void {
+    saved = row
+}
+
+function save(): void {
+    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+    retain(matrix[0])
+}
+```
+
+The call site sees that `retain` may store the parameter and materializes an
+owned row before the local matrix is cleaned up.
+
 ## Automatic Borrowed View Materialization
 
 Fixed-shape partial views can now escape local stack storage through `return` or
