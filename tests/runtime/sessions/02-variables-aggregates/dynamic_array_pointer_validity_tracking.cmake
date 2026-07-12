@@ -93,6 +93,30 @@ function(expect_runtime_error case_name source expected_error)
 	endif()
 endfunction()
 
+function(expect_semantic_error case_name source expected_error)
+	set(case_dir "${TEST_WORK_DIR}/invalid/${case_name}")
+	file(REMOVE_RECURSE "${case_dir}")
+	file(MAKE_DIRECTORY "${case_dir}")
+	set(source_file "${case_dir}/main.ts")
+	file(WRITE "${source_file}" "${source}")
+
+	execute_process(
+		COMMAND "${YOGI_EXECUTABLE}" "${source_file}"
+		WORKING_DIRECTORY "${case_dir}"
+		RESULT_VARIABLE compile_result
+		OUTPUT_VARIABLE compile_stdout
+		ERROR_VARIABLE compile_stderr
+	)
+
+	if(compile_result EQUAL 0)
+		message(FATAL_ERROR "${case_name} unexpectedly compiled:\nstdout:\n${compile_stdout}")
+	endif()
+
+	if(NOT compile_stderr MATCHES "${expected_error}")
+		message(FATAL_ERROR "${case_name} did not report ${expected_error}:\nstdout:\n${compile_stdout}\nstderr:\n${compile_stderr}")
+	endif()
+endfunction()
+
 set(USER_STRUCT "struct User {\n    age: number\n}\n\n")
 set(NESTED_USER_STRUCT "struct Address {\n    zip: number\n}\n\nstruct User {\n    age: number\n    address: Address\n}\n\n")
 set(INVALID_POINTER_ERROR "pointer.*array element.*removed")
@@ -188,24 +212,30 @@ expect_run(
 )
 
 expect_run(
+	"pointer_rebind_after_slot_invalidation_is_allowed"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.shift()\nage = &users[0].age\nage = 99\nprint(users[0].age)\n"
+	"99\n"
+)
+
+expect_run(
 	"nested_projected_pointer_survives_assignment_when_slot_survives"
 	"${NESTED_USER_STRUCT}let users: User[] = [{ age: 20, address: { zip: 10001 } }, { age: 30, address: { zip: 10002 } }]\nlet zip: ptr<number> = &users[0].address.zip\nusers = [{ age: 99, address: { zip: 20001 } }, { age: 100, address: { zip: 20002 } }]\nprint(zip)\nzip = 10459\nprint(users[0].address.zip)\n"
 	"20001\n10459\n"
 )
 
-expect_runtime_error(
+expect_semantic_error(
 	"pop_removed_pointed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers.pop()\nage = 99\n"
 	"${INVALID_POINTER_ERROR}"
 )
 
-expect_runtime_error(
+expect_semantic_error(
 	"shift_removed_pointed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.shift()\nage = 99\n"
 	"${INVALID_POINTER_ERROR}"
 )
 
-expect_runtime_error(
+expect_semantic_error(
 	"splice_removed_pointed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }, { age: 40 }]\nlet age: ptr<number> = &users[1].age\nusers.splice(0, 2)\nage = 99\n"
 	"${INVALID_POINTER_ERROR}"
@@ -217,37 +247,49 @@ expect_runtime_error(
 	"${INVALID_POINTER_ERROR}"
 )
 
-expect_runtime_error(
+expect_semantic_error(
 	"copied_pointer_to_removed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age1: ptr<number> = &users[0].age\nlet age2: ptr<number> = age1\nusers.shift()\nage2 = 99\n"
 	"${INVALID_POINTER_ERROR}"
 )
 
-expect_runtime_error(
+expect_semantic_error(
+	"copying_already_invalidated_pointer_preserves_error"
+	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age1: ptr<number> = &users[0].age\nusers.shift()\nlet age2: ptr<number> = age1\nage2 = 99\n"
+	"${INVALID_POINTER_ERROR}"
+)
+
+expect_semantic_error(
+	"passing_invalidated_pointer_to_function_errors"
+	"${USER_STRUCT}function writeAge(age: ptr<number>): void {\n    age = 99\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\nusers.shift()\nwriteAge(age)\n"
+	"${INVALID_POINTER_ERROR}"
+)
+
+expect_semantic_error(
 	"ptr_to_removed_user_slot_errors_when_field_is_used"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet user: ptr<User> = &users[0]\nusers.shift()\nuser.age = 99\n"
 	"${INVALID_POINTER_ERROR}"
 )
 
-expect_runtime_error(
+expect_semantic_error(
 	"nested_pointer_to_removed_slot_errors_on_later_use"
 	"${NESTED_USER_STRUCT}let users: User[] = [{ age: 20, address: { zip: 10001 } }, { age: 30, address: { zip: 10002 } }]\nlet zip: ptr<number> = &users[0].address.zip\nusers.shift()\nzip = 10459\n"
 	"${INVALID_POINTER_ERROR}"
 )
 
-expect_runtime_error(
+expect_semantic_error(
 	"shorter_assignment_invalidates_pointer_to_removed_slot"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers = [{ age: 99 }]\nage = 50\n"
 	"${INVALID_POINTER_ERROR}"
 )
 
-expect_runtime_error(
+expect_semantic_error(
 	"nested_projected_pointer_fails_when_assignment_removes_slot"
 	"${NESTED_USER_STRUCT}let users: User[] = [{ age: 20, address: { zip: 10001 } }, { age: 30, address: { zip: 10002 } }]\nlet zip: ptr<number> = &users[1].address.zip\nusers = [{ age: 99, address: { zip: 20001 } }]\nzip = 10459\n"
 	"${INVALID_POINTER_ERROR}"
 )
 
-expect_runtime_error(
+expect_semantic_error(
 	"parameter_shorter_assignment_invalidates_pointer_to_removed_slot"
 	"${USER_STRUCT}function shrink(users: User[]): void {\n    let age: ptr<number> = &users[1].age\n    users = [{ age: 99 }]\n    age = 50\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nshrink(users)\n"
 	"${INVALID_POINTER_ERROR}"

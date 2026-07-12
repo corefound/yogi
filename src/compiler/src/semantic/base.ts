@@ -14,6 +14,12 @@ type LivePointerProvenance = {
     rootName: string;
     rootSymbolId?: number;
     accessPath: string[];
+    invalidated?: {
+        operation: string;
+        reason: string;
+        source?: string;
+        position?: any;
+    };
 };
 
 export function applySemanticMixins<TBase extends Constructor>(Base: TBase, ...mixins: MixinFunction[]): TBase | any {
@@ -44,6 +50,7 @@ export class BaseSemantic {
     public functionEffectSummaries: Map<number, Types.Sir.SemanticFunctionEffectSummary> = new Map();
     public symbolsById: Map<number, Types.SymbolInfo> = new Map();
     public livePointerProvenance: Map<number, LivePointerProvenance> = new Map();
+    public dynamicArrayKnownLengths: Map<number, number | null> = new Map();
 
     constructor(ast: Types.Ast[]) {
         this.ast = ast;
@@ -623,6 +630,8 @@ export class BaseSemantic {
     }
 
     public createImplicitPointerReadThrough(value: any, expectedType: any, source: string): any {
+        this.assertPointerTargetUsable(value, source);
+
         const pointerType = this.resolveType(value?.declaredType ?? value?.type);
         const pointee = this.toSerializableType(this.pointerPointeeType(pointerType) ?? {
             kind: Kinds.Types.UnknownType,
@@ -1493,6 +1502,10 @@ export class BaseSemantic {
             (rootName ? this.resolveSymbol(rootName) : null);
         const accessPath = symbol.pointerAccessPath ?? value?.pointerAccessPath ?? value?.accessPath ?? [];
         const rootType = rootSymbol?.declaredType ?? rootSymbol?.type;
+        const sourcePointerSymbol = this.pointerSymbolFromValue(value);
+        const sourceInvalidation = sourcePointerSymbol
+            ? this.livePointerProvenance.get(sourcePointerSymbol.id)?.invalidated
+            : undefined;
 
         if (
             !rootName ||
@@ -1511,7 +1524,140 @@ export class BaseSemantic {
             rootName,
             rootSymbolId: rootSymbol.id,
             accessPath,
+            invalidated: sourceInvalidation ? { ...sourceInvalidation } : undefined,
         });
+    }
+
+    public assertPointerTargetUsable(value: any, source: string): void {
+        const symbol = this.pointerSymbolFromValue(value);
+        if (!symbol) {
+            return;
+        }
+
+        const provenance = this.livePointerProvenance.get(symbol.id);
+        if (!provenance?.invalidated) {
+            return;
+        }
+
+        const target = value ?? {};
+        const path = `${provenance.rootName}${provenance.accessPath.join("")}`;
+        const message =
+            `pointer ${Helpers.RED}'${provenance.pointerName}'${Helpers.RESET} is used after its target ` +
+            `dynamic array element ${Helpers.RED}'${path}'${Helpers.RESET} was removed by ` +
+            `${Helpers.BLUE}'${provenance.invalidated.operation}'${Helpers.RESET}`;
+
+        target.arrowLength = target.source?.length ?? target.raw?.length ?? provenance.pointerName.length;
+        this.throwError(
+            message,
+            target.position ?? provenance.invalidated.position,
+            source,
+            target,
+            `  = ${provenance.invalidated.reason}`,
+        );
+    }
+
+    public setKnownDynamicArrayLength(symbol: Types.SymbolInfo | null | undefined, length: number | null): void {
+        if (!symbol || !this.isDynamicArrayType(symbol.declaredType ?? symbol.type)) {
+            return;
+        }
+
+        this.dynamicArrayKnownLengths.set(symbol.id, length);
+    }
+
+    public knownDynamicArrayLength(symbol: Types.SymbolInfo | null | undefined): number | null {
+        if (!symbol || !this.isDynamicArrayType(symbol.declaredType ?? symbol.type)) {
+            return null;
+        }
+
+        if (this.dynamicArrayKnownLengths.has(symbol.id)) {
+            return this.dynamicArrayKnownLengths.get(symbol.id) ?? null;
+        }
+
+        const literalLength = this.arrayLiteralLength(symbol.node);
+        this.dynamicArrayKnownLengths.set(symbol.id, literalLength);
+        return literalLength;
+    }
+
+    public arrayLiteralLength(value: any): number | null {
+        return value?.kind === Kinds.Collections.ArrayExpression
+            ? value.elements?.length ?? 0
+            : null;
+    }
+
+    public updateKnownDynamicArrayLength(
+        symbol: Types.SymbolInfo | null | undefined,
+        updater: (length: number | null) => number | null,
+    ): void {
+        if (!symbol || !this.isDynamicArrayType(symbol.declaredType ?? symbol.type)) {
+            return;
+        }
+
+        this.setKnownDynamicArrayLength(symbol, updater(this.knownDynamicArrayLength(symbol)));
+    }
+
+    public markDynamicArrayPointersRemovedByIndex(
+        rootName: string | null | undefined,
+        rootSymbol: Types.SymbolInfo | null | undefined,
+        operation: string,
+        source: string,
+        context: any,
+        isRemovedIndex: (index: number) => boolean,
+    ): void {
+        if (!rootName || !rootSymbol || !this.isDynamicArrayType(rootSymbol.declaredType ?? rootSymbol.type)) {
+            return;
+        }
+
+        for (const provenance of this.livePointerProvenance.values()) {
+            if (
+                provenance.invalidated ||
+                (
+                    provenance.rootSymbolId !== rootSymbol.id &&
+                    provenance.rootName !== rootName
+                )
+            ) {
+                continue;
+            }
+
+            const index = this.firstDynamicArrayIndexFromAccessPath(provenance.accessPath);
+            if (index === null || !isRemovedIndex(index)) {
+                continue;
+            }
+
+            const path = `${provenance.rootName}${provenance.accessPath.join("")}`;
+            provenance.invalidated = {
+                operation,
+                reason: `slot ${index} in '${rootName}' was removed; pointer '${provenance.pointerName}' still points to '${path}'`,
+                source,
+                position: context?.position,
+            };
+        }
+    }
+
+    public pointerSymbolFromValue(value: any): Types.SymbolInfo | null {
+        if (!value) {
+            return null;
+        }
+
+        if (typeof value.symbolId === "number") {
+            return this.getSymbolById(value.symbolId);
+        }
+
+        if (value.kind !== Kinds.Expressions.IdentifierExpression) {
+            return null;
+        }
+
+        const name = value.value ?? value.name ?? value.raw;
+        return name ? this.resolveSymbol(name) : null;
+    }
+
+    public firstDynamicArrayIndexFromAccessPath(accessPath: string[]): number | null {
+        const first = accessPath.find((part) => /^\[\s*-?\d+\s*\]$/.test(part));
+        if (!first) {
+            return null;
+        }
+
+        const value = Number(first.slice(1, -1).trim());
+        return Number.isInteger(value) ? value : null;
     }
 
     public forgetPointerProvenance(symbol: Types.SymbolInfo | null | undefined): void {

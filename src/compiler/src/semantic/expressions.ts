@@ -205,6 +205,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 const actualType = args[index]?.type;
 
+                if (this.isPointerType(actualType)) {
+                    this.assertPointerTargetUsable(args[index], node.fullSource ?? node.source);
+                }
+
                 if (this.rejectsImplicitObjectContractConversion(expectedType, args[index])) {
                     this.throwImplicitObjectContractConversionError(
                         expectedType,
@@ -592,6 +596,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, args[0].position ?? node.position, source, args[0]);
             }
 
+            this.updateKnownDynamicArrayLength(symbol, (length) =>
+                typeof length === "number" ? length + 1 : null,
+            );
+
             return {
                 ...node,
                 kind: Kinds.Expressions.CallExpression,
@@ -680,6 +688,22 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 node.arrowLength = node.source?.length ?? methodName?.length ?? 1;
                 this.throwError(message, node.position, source, node);
             }
+
+            const knownLength = this.knownDynamicArrayLength(symbol);
+            if (typeof knownLength === "number" && knownLength > 0) {
+                const removedIndex = knownLength - 1;
+                this.markDynamicArrayPointersRemovedByIndex(
+                    root,
+                    symbol,
+                    methodName,
+                    source,
+                    rawCallee,
+                    (index) => index === removedIndex,
+                );
+            }
+            this.updateKnownDynamicArrayLength(symbol, (length) =>
+                typeof length === "number" && length > 0 ? length - 1 : length,
+            );
 
             // pop() returns T | undefined
             const elementType = receiverType.elementType;
@@ -1148,6 +1172,20 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
             this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
 
+            const root = this.getAggregateRootIdentifier(receiver);
+            const symbol = root ? this.resolveSymbol(root) : null;
+            this.markDynamicArrayPointersRemovedByIndex(
+                root,
+                symbol,
+                methodName,
+                source,
+                rawCallee,
+                (index) => index === 0,
+            );
+            this.updateKnownDynamicArrayLength(symbol, (length) =>
+                typeof length === "number" && length > 0 ? length - 1 : length,
+            );
+
             return this.createArrayBuiltinCall(
                 node,
                 rawCallee,
@@ -1176,6 +1214,12 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.throwError(message, argument.position ?? node.position, source, argument);
                 }
             });
+
+            const root = this.getAggregateRootIdentifier(receiver);
+            const symbol = root ? this.resolveSymbol(root) : null;
+            this.updateKnownDynamicArrayLength(symbol, (length) =>
+                typeof length === "number" ? length + args.length : null,
+            );
 
             return this.createArrayBuiltinCall(
                 node,
@@ -1395,6 +1439,66 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             args.slice(2).forEach((argument: any) => {
                 this.validateArrayElementValue(node, methodName, argument, elementType, source, "insert value");
             });
+
+            if (mutating) {
+                const root = this.getAggregateRootIdentifier(receiver);
+                const symbol = root ? this.resolveSymbol(root) : null;
+                const knownLength = this.knownDynamicArrayLength(symbol);
+                const rawStart = this.literalIndexValue(args[0]);
+                const rawDeleteCount = args[1] ? this.literalIndexValue(args[1]) : null;
+                const startIsKnown = typeof rawStart === "number" && Number.isInteger(rawStart);
+                const deleteCountIsKnown =
+                    args[1]
+                        ? typeof rawDeleteCount === "number" && Number.isInteger(rawDeleteCount)
+                        : true;
+
+                if (startIsKnown && deleteCountIsKnown) {
+                    const normalizedStart =
+                        rawStart < 0
+                            ? typeof knownLength === "number"
+                                ? Math.max(knownLength + rawStart, 0)
+                                : null
+                            : rawStart;
+                    const requestedDeleteCount = args[1]
+                        ? Math.max(rawDeleteCount as number, 0)
+                        : null;
+
+                    if (normalizedStart !== null) {
+                        this.markDynamicArrayPointersRemovedByIndex(
+                            root,
+                            symbol,
+                            methodName,
+                            source,
+                            rawCallee,
+                            (index) => {
+                                if (index < normalizedStart) {
+                                    return false;
+                                }
+
+                                return requestedDeleteCount === null
+                                    ? true
+                                    : index < normalizedStart + requestedDeleteCount;
+                            },
+                        );
+                    }
+                }
+
+                this.updateKnownDynamicArrayLength(symbol, (length) => {
+                    if (typeof length !== "number" || !startIsKnown || !deleteCountIsKnown) {
+                        return null;
+                    }
+
+                    const normalizedStart =
+                        rawStart < 0
+                            ? Math.max(length + rawStart, 0)
+                            : Math.min(rawStart as number, length);
+                    const requestedDeleteCount = args[1]
+                        ? Math.max(rawDeleteCount as number, 0)
+                        : length - normalizedStart;
+                    const deleted = Math.min(requestedDeleteCount, length - normalizedStart);
+                    return length - deleted + args.slice(2).length;
+                });
+            }
 
             return this.createArrayBuiltinCall(
                 node,
@@ -2256,6 +2360,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             const target = this.visitNode(node.target);
             const source = node.fullSource ?? node.source;
+            this.assertPointerTargetUsable(target, source);
             const pointerType = this.resolveType(target?.declaredType ?? target?.type);
 
             if (pointerType?.kind !== Kinds.Types.PointerType) {
@@ -2335,8 +2440,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const object = this.visitNode(node.object);
             const accessType = object?.declaredType ?? object?.type;
             const objectType = this.resolveOptionalAccessObjectType(accessType);
+            const source = node.fullSource ?? node.source;
 
             if (objectType?.kind === Kinds.Types.PointerType) {
+                this.assertPointerTargetUsable(object, source);
+
                 const pointee = objectType.elementType ?? objectType.pointee;
                 const resolvedPointee = this.resolveType(pointee);
                 const pointeeIsStruct =
@@ -2479,6 +2587,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const source = node.fullSource ?? node.source;
 
             if (objectType?.kind === Kinds.Types.PointerType) {
+                this.assertPointerTargetUsable(object, source);
+
                 const pointee = objectType.elementType ?? objectType.pointee;
                 const resolvedPointee = this.resolveType(pointee);
 
@@ -2816,6 +2926,39 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
 
             const checkBinary = (node: any): any => {
+                const trackDynamicArrayReplacement = (
+                    identifierName: string,
+                    symbol: any,
+                    assignmentType: any,
+                    replacement: any,
+                    operationNode: any,
+                ): void => {
+                    if (!this.isDynamicArrayType(assignmentType)) {
+                        return;
+                    }
+
+                    this.markDynamicArrayStorageForGrowth(
+                        identifierName,
+                        symbol,
+                        "replace",
+                    );
+
+                    const newLength = this.arrayLiteralLength(replacement);
+                    if (newLength !== null) {
+                        this.markDynamicArrayPointersRemovedByIndex(
+                            identifierName,
+                            symbol,
+                            "replace",
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            operationNode,
+                            (index) => index >= newLength,
+                        );
+                        this.setKnownDynamicArrayLength(symbol, newLength);
+                    } else {
+                        this.setKnownDynamicArrayLength(symbol, null);
+                    }
+                };
+
                 const publicDereferenceTarget = (candidate: any): any => {
                     if (!candidate) return null;
                     if (candidate.kind === Kinds.Expressions.DereferenceExpression) return candidate;
@@ -3164,13 +3307,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             rightType = right.type;
                         }
 
-                        if (this.isDynamicArrayType(assignmentType)) {
-                            this.markDynamicArrayStorageForGrowth(
-                                identifierName,
-                                symbol,
-                                "replace",
-                            );
-                        }
+                        trackDynamicArrayReplacement(identifierName, symbol, assignmentType, right, left);
 
                         if (!this.isTypeAssignable(assignmentType, rightType)) {
                             const message = this.isPointerType(rightType)
@@ -3640,6 +3777,21 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     symbol,
                     "replace",
                 );
+
+                const newLength = this.arrayLiteralLength(right);
+                if (newLength !== null) {
+                    this.markDynamicArrayPointersRemovedByIndex(
+                        identifierName,
+                        symbol,
+                        "replace",
+                        source,
+                        left,
+                        (index) => index >= newLength,
+                    );
+                    this.setKnownDynamicArrayLength(symbol, newLength);
+                } else {
+                    this.setKnownDynamicArrayLength(symbol, null);
+                }
             }
 
             if (!this.isTypeAssignable(assignmentType, right.type)) {
