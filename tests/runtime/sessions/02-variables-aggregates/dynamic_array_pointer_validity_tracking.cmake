@@ -247,6 +247,30 @@ expect_run(
 	"99\n"
 )
 
+expect_run(
+	"normal_array_parameter_shift_does_not_invalidate_caller_pointer"
+	"${USER_STRUCT}function dropFirst(users: User[]): void {\n    users.shift()\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\ndropFirst(users)\nage = 99\nprint(users[0].age)\nprint(users[1].age)\n"
+	"20\n99\n"
+)
+
+expect_run(
+	"normal_array_parameter_shift_does_not_mutate_caller"
+	"${USER_STRUCT}function dropFirst(users: User[]): void {\n    users.shift()\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[0].age\ndropFirst(users)\nage = 99\nprint(users[0].age)\nprint(users[1].age)\n"
+	"99\n30\n"
+)
+
+expect_run(
+	"normal_array_parameter_pop_does_not_invalidate_caller_pointer"
+	"${USER_STRUCT}function dropLast(users: User[]): void {\n    users.pop()\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\ndropLast(users)\nage = 99\nprint(users[1].age)\n"
+	"99\n"
+)
+
+expect_run(
+	"normal_array_parameter_maybe_shift_does_not_invalidate_caller_pointer"
+	"${USER_STRUCT}function maybeDropFirst(flag: boolean, users: User[]): void {\n    if (flag) {\n        users.shift()\n    }\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet flag: boolean = true\nlet age: ptr<number> = &users[0].age\nmaybeDropFirst(flag, users)\nage = 99\nprint(users[0].age)\n"
+	"99\n"
+)
+
 expect_semantic_error(
 	"pop_removed_pointed_slot_errors_on_later_use"
 	"${USER_STRUCT}let users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = &users[1].age\nusers.pop()\nage = 99\n"

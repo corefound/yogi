@@ -46,6 +46,7 @@ export namespace Types {
         export type SemanticSwitchStatement = SirTypes.SemanticSwitchStatement;
         export type SemanticFunctionParameter = SirTypes.SemanticFunctionParameter;
         export type SemanticParameterEffect = SirTypes.SemanticParameterEffect;
+        export type SemanticArrayInvalidationEffect = SirTypes.SemanticArrayInvalidationEffect;
         export type SemanticReturnBorrowSummary = SirTypes.SemanticReturnBorrowSummary;
         export type SemanticFunctionEffectSummary = SirTypes.SemanticFunctionEffectSummary;
         export type SemanticFunctionDeclaration = SirTypes.SemanticFunctionDeclaration;

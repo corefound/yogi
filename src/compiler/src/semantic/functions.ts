@@ -552,6 +552,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     escapes: false,
                     mutates: false,
                     consumes: false,
+                    invalidations: [] as Types.Sir.SemanticArrayInvalidationEffect[],
                 })),
                 returnsAggregate: this.isAggregateType(returnType),
                 returnBorrow: {
@@ -571,6 +572,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const stored = new Set<string>();
             const mutated = new Set<string>();
             const pointerMutated = new Set<string>();
+            const arrayInvalidations = new Map<string, any[]>();
             const propertyStores: Array<{ root: string | null; value: string | null }> = [];
             const paramKeys: Array<string | null> = (functionNode.params ?? []).map((param: any) => {
                 const key = this.getDeclarationKey(param);
@@ -642,11 +644,93 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 if (key) pointerMutated.add(key);
             };
 
-            const visit = (node: any): void => {
+            const addArrayInvalidationIdentifier = (value: any, effect: any): void => {
+                const key = this.getAggregateIdentifierKey(value);
+                addArrayInvalidationKey(key, effect);
+            };
+
+            const addArrayInvalidationKey = (key: string | null, effect: any): void => {
+                if (!key || !effect) return;
+
+                if (!arrayInvalidations.has(key)) {
+                    arrayInvalidations.set(key, []);
+                }
+
+                const effects = arrayInvalidations.get(key)!;
+                const signature = JSON.stringify(effect);
+                if (!effects.some((existing: any) => JSON.stringify(existing) === signature)) {
+                    effects.push(effect);
+                }
+            };
+
+            const arrayInvalidationEffectFromMethod = (methodName: string | null | undefined, args: any[], maybe: boolean): any | null => {
+                switch (methodName) {
+                    case "array.shift":
+                    case "shift":
+                        return { kind: "shift", maybe };
+
+                    case "array.pop":
+                    case "pop":
+                        return { kind: "pop", maybe };
+
+                    case "array.splice":
+                    case "splice": {
+                        const start = this.literalIndexValue(args[0]);
+                        const deleteCount = args[1] ? this.literalIndexValue(args[1]) : null;
+
+                        if (
+                            typeof start !== "number" ||
+                            !Number.isInteger(start) ||
+                            (
+                                args[1] &&
+                                (
+                                    typeof deleteCount !== "number" ||
+                                    !Number.isInteger(deleteCount)
+                                )
+                            )
+                        ) {
+                            return null;
+                        }
+
+                        return {
+                            kind: "splice",
+                            start,
+                            deleteCount: args[1] ? deleteCount : null,
+                            maybe,
+                        };
+                    }
+
+                    default:
+                        return null;
+                }
+            };
+
+            const visit = (node: any, context: { maybe: boolean } = { maybe: false }): void => {
                 if (!node) return;
 
                 if (Array.isArray(node)) {
-                    for (const child of node) visit(child);
+                    for (const child of node) visit(child, context);
+                    return;
+                }
+
+                if (node.kind === Kinds.Statements.IfStatement) {
+                    visit(node.condition, context);
+                    visit(node.then, { maybe: true });
+                    visit(node.else, { maybe: true });
+                    return;
+                }
+
+                if (
+                    node.kind === Kinds.Statements.WhileStatement ||
+                    node.kind === Kinds.Statements.ForStatement ||
+                    node.kind === Kinds.Statements.SwitchStatement
+                ) {
+                    visit(node.condition, context);
+                    visit(node.initializer, context);
+                    visit(node.expression, context);
+                    visit(node.body, { maybe: true });
+                    visit(node.clauses, { maybe: true });
+                    visit(node.incrementor, { maybe: true });
                     return;
                 }
 
@@ -659,7 +743,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         addAlias(key, this.getAggregateIdentifierKey(node.value));
                     }
 
-                    visit(node.value);
+                    visit(node.value, context);
                     return;
                 }
 
@@ -669,21 +753,33 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     const leftKey = this.getAggregateIdentifierKey(left);
                     const rightKey = this.getAggregateIdentifierKey(right);
 
+                    if (
+                        leftKey &&
+                        this.isDynamicArrayType(left?.declaredType ?? left?.type) &&
+                        right?.kind === Kinds.Collections.ArrayExpression
+                    ) {
+                        addArrayInvalidationIdentifier(left, {
+                            kind: "replace",
+                            newLength: right.elements?.length ?? 0,
+                            maybe: context.maybe,
+                        });
+                    }
+
                     if (this.isGlobalIdentifier(left)) {
                         addStoredIdentifier(right);
                     } else {
                         addAlias(leftKey, rightKey);
                     }
 
-                    visit(right);
+                    visit(right, context);
                     return;
                 }
 
-                    if (node.kind === "AggregateAssignmentExpression") {
-                        if (node.target?.kind === Kinds.Expressions.DereferenceExpression) {
-                            addPointerMutatedIdentifier(node.target.target);
-                            visit(node.target);
-                            visit(node.right);
+                if (node.kind === "AggregateAssignmentExpression") {
+                    if (node.target?.kind === Kinds.Expressions.DereferenceExpression) {
+                        addPointerMutatedIdentifier(node.target.target);
+                        visit(node.target, context);
+                        visit(node.right, context);
                         return;
                     }
 
@@ -697,8 +793,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         node.target?.pointerAccess === true
                     ) {
                         addPointerMutatedIdentifier(root);
-                        visit(node.target);
-                        visit(node.right);
+                        visit(node.target, context);
+                        visit(node.right, context);
                         return;
                     }
 
@@ -712,14 +808,14 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         });
                     }
 
-                    visit(node.target);
-                    visit(node.right);
+                    visit(node.target, context);
+                    visit(node.right, context);
                     return;
                 }
 
                 if (node.kind === Kinds.Statements.ReturnStatement) {
                     addReturnedIdentifier(node.value);
-                    visit(node.value);
+                    visit(node.value, context);
                     return;
                 }
 
@@ -753,8 +849,16 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         )
                     ) {
                         addMutatedIdentifier(node.callee?.object);
-                        visit(node.callee?.object);
-                        visit(node.arguments);
+                        const effect = arrayInvalidationEffectFromMethod(
+                            node.builtinMethod ?? node.callee?.property,
+                            node.arguments ?? [],
+                            context.maybe,
+                        );
+                        if (effect) {
+                            addArrayInvalidationIdentifier(node.callee?.object, effect);
+                        }
+                        visit(node.callee?.object, context);
+                        visit(node.arguments, context);
                         return;
                     }
 
@@ -775,18 +879,25 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                             if (effect?.mutates === true) {
                                 addMutatedIdentifier(argument);
                             }
+
+                            for (const invalidation of effect?.invalidations ?? []) {
+                                addArrayInvalidationIdentifier(argument, {
+                                    ...invalidation,
+                                    maybe: context.maybe || invalidation.maybe === true,
+                                });
+                            }
                         }
 
-                        visit(argument);
+                        visit(argument, context);
                     }
 
-                    visit(node.callee);
+                    visit(node.callee, context);
                     return;
                 }
 
                 for (const value of Object.values(node)) {
                     if (value && typeof value === "object") {
-                        visit(value);
+                        visit(value, context);
                     }
                 }
             };
@@ -852,6 +963,22 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     }
                 }
 
+                for (const [target, sources] of aliases.entries()) {
+                    const effects = arrayInvalidations.get(target);
+                    if (!effects?.length) continue;
+
+                    for (const source of sources) {
+                        const previousCount = arrayInvalidations.get(source)?.length ?? 0;
+                        for (const effect of effects) {
+                            addArrayInvalidationKey(source, effect);
+                        }
+
+                        if ((arrayInvalidations.get(source)?.length ?? 0) !== previousCount) {
+                            changed = true;
+                        }
+                    }
+                }
+
                 for (const store of propertyStores) {
                     if (!store.root || !store.value || !escaping.has(store.root)) {
                         continue;
@@ -884,6 +1011,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     escapes: key ? escaping.has(key) : false,
                     mutates: key ? (mutated.has(key) || pointerMutated.has(key)) : false,
                     consumes: false,
+                    invalidations: key ? arrayInvalidations.get(key) ?? [] : [],
                 })),
                 returnsAggregate: this.isAggregateType(functionNode.returnType),
                 returnBorrow: this.analyzeReturnBorrowSummary(functionNode),

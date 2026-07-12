@@ -410,6 +410,15 @@ export type SemanticParameterEffect = {
     escapes: boolean;
     mutates: boolean;
     consumes: boolean;
+    invalidations?: SemanticArrayInvalidationEffect[];
+};
+
+export type SemanticArrayInvalidationEffect = {
+    kind: "shift" | "pop" | "splice" | "replace";
+    start?: number;
+    deleteCount?: number | null;
+    newLength?: number;
+    maybe?: boolean;
 };
 
 export type SemanticFunctionEffectSummary = {

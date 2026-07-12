@@ -1604,6 +1604,7 @@ export class BaseSemantic {
         source: string,
         context: any,
         isRemovedIndex: (index: number) => boolean,
+        maybe = false,
     ): void {
         if (!rootName || !rootSymbol || !this.isDynamicArrayType(rootSymbol.declaredType ?? rootSymbol.type)) {
             return;
@@ -1631,7 +1632,115 @@ export class BaseSemantic {
                 reason: `slot ${index} in '${rootName}' was removed; pointer '${provenance.pointerName}' still points to '${path}'`,
                 source,
                 position: context?.position,
+                maybe,
             };
+        }
+    }
+
+    public markDynamicArrayPointersRemovedByEffect(
+        rootName: string | null | undefined,
+        rootSymbol: Types.SymbolInfo | null | undefined,
+        effect: any,
+        operation: string,
+        source: string,
+        context: any,
+    ): boolean {
+        if (!effect || !rootName || !rootSymbol || !this.isDynamicArrayType(rootSymbol.declaredType ?? rootSymbol.type)) {
+            return false;
+        }
+
+        const knownLength = this.knownDynamicArrayLength(rootSymbol);
+        const maybe = effect.maybe === true;
+
+        switch (effect.kind) {
+            case "shift":
+                this.markDynamicArrayPointersRemovedByIndex(
+                    rootName,
+                    rootSymbol,
+                    operation,
+                    source,
+                    context,
+                    (index) => index === 0,
+                    maybe,
+                );
+                return true;
+
+            case "pop": {
+                if (typeof knownLength !== "number" || knownLength <= 0) {
+                    return false;
+                }
+
+                const removedIndex = knownLength - 1;
+                this.markDynamicArrayPointersRemovedByIndex(
+                    rootName,
+                    rootSymbol,
+                    operation,
+                    source,
+                    context,
+                    (index) => index === removedIndex,
+                    maybe,
+                );
+                return true;
+            }
+
+            case "splice": {
+                if (typeof effect.start !== "number" || !Number.isInteger(effect.start)) {
+                    return false;
+                }
+
+                const start = effect.start < 0
+                    ? typeof knownLength === "number"
+                        ? Math.max(knownLength + effect.start, 0)
+                        : null
+                    : effect.start;
+
+                if (start === null) {
+                    return false;
+                }
+
+                const deleteCount = typeof effect.deleteCount === "number"
+                    ? Math.max(effect.deleteCount, 0)
+                    : null;
+
+                this.markDynamicArrayPointersRemovedByIndex(
+                    rootName,
+                    rootSymbol,
+                    operation,
+                    source,
+                    context,
+                    (index) => {
+                        if (index < start) {
+                            return false;
+                        }
+
+                        return deleteCount === null
+                            ? true
+                            : index < start + deleteCount;
+                    },
+                    maybe,
+                );
+                return true;
+            }
+
+            case "replace": {
+                if (typeof effect.newLength !== "number" || !Number.isInteger(effect.newLength)) {
+                    return false;
+                }
+
+                this.markDynamicArrayPointersRemovedByIndex(
+                    rootName,
+                    rootSymbol,
+                    operation,
+                    source,
+                    context,
+                    (index) => index >= effect.newLength,
+                    maybe,
+                );
+                return true;
+            }
+
+            default:
+                return false;
         }
     }
 

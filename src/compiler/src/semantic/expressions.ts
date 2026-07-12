@@ -316,6 +316,47 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     }
                 });
             }
+
+            args.forEach((argument: any, index: number) => {
+                const effect = effectSummary?.parameterEffects?.[index];
+                const expectedType = parameters[index]?.type;
+                const pointerPointee = this.pointerPointeeType(expectedType);
+                const parameterPointsToDynamicArray = this.isDynamicArrayType(pointerPointee);
+                const rootName =
+                    argument?.pointerRootName ??
+                    argument?.rootName ??
+                    this.getAggregateRootIdentifier(argument);
+                const rootSymbol =
+                    typeof argument?.pointerRootSymbolId === "number"
+                        ? this.getSymbolById(argument.pointerRootSymbolId)
+                        : typeof argument?.rootSymbolId === "number"
+                            ? this.getSymbolById(argument.rootSymbolId)
+                            : rootName
+                                ? this.resolveSymbol(rootName)
+                                : null;
+
+                if (!parameterPointsToDynamicArray || !rootSymbol) {
+                    return;
+                }
+
+                if (!external) {
+                    for (const invalidation of effect?.invalidations ?? []) {
+                        this.markDynamicArrayPointersRemovedByEffect(
+                            rootName,
+                            rootSymbol,
+                            invalidation,
+                            `function ${calleeName}`,
+                            node.fullSource ?? node.source,
+                            argument,
+                        );
+                    }
+                }
+
+                if (external || effect?.mutates === true || (effect?.invalidations?.length ?? 0) > 0) {
+                    this.setKnownDynamicArrayLength(rootSymbol, null);
+                }
+            });
+
             const argumentEffects = args.map((_: any, index: number) => {
                 const effect = effectSummary?.parameterEffects?.[index];
 
