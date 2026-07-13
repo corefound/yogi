@@ -452,6 +452,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_array_struct_string_at
+                        pipeline-array-struct-string-at
+                        tests/runtime/sessions/02-variables-aggregates/array_struct_string_at.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_flat_depth_semantics
                         pipeline-array-flat-depth-semantics
                         tests/runtime/sessions/02-variables-aggregates/array_flat_depth_semantics.cmake

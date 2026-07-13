@@ -906,20 +906,72 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
         }
 
         public arrayLiteralLength(receiver: any): number | null {
-            if (!receiver) {
+            const literal = this.aggregateLiteralValue(receiver);
+            return literal?.kind === Kinds.Collections.ArrayExpression
+                ? literal.elements?.length ?? 0
+                : null;
+        }
+
+        public aggregateLiteralValue(node: any, seen = new Set<string>()): any {
+            if (!node || typeof node !== "object") {
                 return null;
             }
 
-            if (receiver.kind === Kinds.Collections.ArrayExpression) {
-                return receiver.elements?.length ?? 0;
+            if (
+                node.kind === Kinds.Collections.ArrayExpression ||
+                node.kind === Kinds.Collections.DictionaryExpression
+            ) {
+                return node;
             }
 
-            const root = this.getAggregateRootIdentifier(receiver);
-            const symbol = root ? this.resolveSymbol(root) : null;
-            const node = symbol?.node;
+            if (node.kind === Kinds.Expressions.IdentifierExpression) {
+                const name = node.value ?? node.name ?? node.raw;
+                if (!name || seen.has(name)) {
+                    return null;
+                }
 
-            if (node?.kind === Kinds.Collections.ArrayExpression) {
-                return node.elements?.length ?? 0;
+                seen.add(name);
+                const symbol = this.resolveSymbol(name);
+                return this.aggregateLiteralValue(symbol?.node, seen);
+            }
+
+            if (node.kind === Kinds.Expressions.PropertyAccessExpression) {
+                const aggregate = this.aggregateLiteralValue(node.object, seen);
+                if (aggregate?.kind !== Kinds.Collections.DictionaryExpression) {
+                    return null;
+                }
+
+                const property = (aggregate.properties ?? []).find((item: any) =>
+                    item.key === node.property ||
+                    item.name === node.property
+                );
+
+                return property?.value
+                    ? this.aggregateLiteralValue(property.value, seen) ?? property.value
+                    : null;
+            }
+
+            if (node.kind === Kinds.Expressions.ElementAccessExpression) {
+                const aggregate = this.aggregateLiteralValue(node.object, seen);
+                if (aggregate?.kind !== Kinds.Collections.ArrayExpression) {
+                    return null;
+                }
+
+                const indexRef = node.indices?.[0] ?? node.index;
+                const indexValue = this.literalIndexValue(indexRef);
+                const elements = aggregate.elements ?? [];
+                const normalized = typeof indexValue === "number" && Number.isInteger(indexValue)
+                    ? indexValue < 0
+                        ? elements.length + indexValue
+                        : indexValue
+                    : null;
+
+                if (typeof normalized !== "number" || normalized < 0 || normalized >= elements.length) {
+                    return null;
+                }
+
+                const element = elements[normalized];
+                return this.aggregateLiteralValue(element, seen) ?? element;
             }
 
             return null;

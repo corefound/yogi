@@ -1556,6 +1556,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Array spread in dynamic/fixed/tuple/union contexts
 ✅ Local capture/closure semantics for immediate inline callbacks
 ✅ Persistent closure-captured borrowed views are rejected with semantic diagnostics until closure runtime exists
+✅ Direct string extraction from struct-held string[] through provably in-bounds .at()
 ✅ Depth-aware semantic result typing for flat(depth)
 ✅ Borrow summaries interprocedural
 ✅ Core pointer type: ptr<T>
@@ -1584,7 +1585,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ### Next Lots
 
 ``` txt
-⬜ String element extraction from string[] through .at() inside struct fields
+⬜ Dynamic array iteration and structural mutation semantics
 ```
 
 ### Future Work
@@ -1611,7 +1612,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ## Recommended Implementation Order
 
 ``` txt
-1. String element extraction from string[] through .at() inside struct fields
+1. Dynamic array iteration and structural mutation semantics
 2. Real persistent closure runtime for captured borrowed views
 3. Borrow summaries interprocedural for explicit borrowed views if Yogi later adds explicit view types
 4. Escape analysis complete for callback/closure-captured borrowed views
@@ -2237,23 +2238,27 @@ flatMap
 Arrays remain one of Yogi's largest subsystems. Future work should be
 split into focused lots.
 
-## 1. String extraction through struct-held `string[]`
+## Completed: String extraction through struct-held `string[]`
 
-Known focused issue:
+Yogi can now narrow `.at()` on a `string[]` field when the field's literal
+length is known through a struct/object path:
 
-``` txt
-string[] field inside struct
-        +
-.at()
-        +
-direct string extraction
+```ts
+struct Playlist {
+    songs: string[]
+}
+
+let playlist: Playlist = { songs: ["intro", "outro"] }
+let first: string = playlist.songs.at(0)
 ```
 
-needs a focused array/string ownership lowering fix.
+Out-of-range literal indexes and dynamic indexes still return
+`string | undefined`, so direct assignment to `string` is rejected unless the
+program narrows or casts explicitly.
 
 ------------------------------------------------------------------------
 
-## 2. Dynamic Array Iteration and Structural Mutation
+## 1. Dynamic Array Iteration and Structural Mutation
 
 Define exact behavior when an array is structurally modified during
 iteration.
@@ -2775,6 +2780,7 @@ readonly propagation from the original owner
 ✅ Array spread in dynamic/fixed/tuple/union contexts
 ✅ Local capture/closure semantics for immediate inline callbacks
 ✅ Persistent closure-captured borrowed views are rejected with semantic diagnostics until closure runtime exists
+✅ Direct string extraction from struct-held string[] through provably in-bounds .at()
 ✅ Depth-aware semantic result typing for flat(depth)
 ✅ Borrow summaries interprocedural
 ✅ Core pointer type: ptr<T>
@@ -2812,7 +2818,6 @@ readonly propagation from the original owner
 ## Remaining
 
 ``` txt
-⬜ String element extraction from string[] through .at() inside struct fields
 ⬜ Dynamic array iteration and structural mutation semantics
 ⬜ Final JavaScript-compatible method policy audit
 ⬜ Final callback ownership/borrow semantics
@@ -2842,14 +2847,13 @@ readonly propagation from the original owner
 # Recommended Future Lot Order
 
 ``` txt
-1. String element extraction from string[] through .at() inside struct fields
-2. Dynamic Array Iteration and Structural Mutation
-3. Final JavaScript-Compatible Array Method Policy
-4. Array Callback Ownership and Borrow Semantics
-5. Nested Dynamic Array Ownership and Pointer Chains
-6. Fixed Arrays and Multidimensional Matrix Completion
-7. Automatic Array View Escape and Lifetime Analysis
-8. Array Copy, Move, and Ownership Semantics
+1. Dynamic Array Iteration and Structural Mutation
+2. Final JavaScript-Compatible Array Method Policy
+3. Array Callback Ownership and Borrow Semantics
+4. Nested Dynamic Array Ownership and Pointer Chains
+5. Fixed Arrays and Multidimensional Matrix Completion
+6. Automatic Array View Escape and Lifetime Analysis
+7. Array Copy, Move, and Ownership Semantics
 9. Union Array Runtime and Narrowing Semantics
 10. Array Rest and Destructuring Semantics
 11. Array Native ABI and Contiguous Interop
