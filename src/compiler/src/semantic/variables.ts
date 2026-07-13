@@ -18,6 +18,12 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             let value = node.value ? this.visitNode(node.value) : null;
             const declaredType = this.toSerializableType(node.type);
             const source = node.fullSource ?? node.source ?? node.raw;
+            (this as any).rejectPersistentFunctionExpressions?.(
+                value,
+                source,
+                node,
+                `be stored in variable '${node.name}'`,
+            );
 
             if (
                 value &&

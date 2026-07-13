@@ -154,6 +154,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             const callee = this.visitNode(node.callee);
             const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
+            for (const argument of args) {
+                (this as any).rejectPersistentFunctionExpressions?.(
+                    argument,
+                    node.fullSource ?? node.source,
+                    argument ?? node,
+                    "be passed as a persistent function value",
+                );
+            }
 
             if (callee?.kind !== Kinds.Expressions.IdentifierExpression) {
                 const message = `only direct function calls are supported for now`;

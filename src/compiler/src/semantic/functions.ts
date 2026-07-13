@@ -185,6 +185,12 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
         public visitReturnStatement(node: any): any {
             let value = node.value ? this.visitNode(node.value) : null;
             const expectedReturnType = this.currentFunctionReturnType;
+            this.rejectPersistentFunctionExpressions(
+                value,
+                node.fullSource ?? node.source,
+                node,
+                "be returned from a function",
+            );
 
             if (
                 value &&
@@ -772,6 +778,20 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
         public declarationFunctionDiagnostics(context: any): any {
             let trusted = true;
 
+            if (!context.regular && this.currentScope.parent !== null) {
+                const message =
+                    `local function value ${Helpers.RED}'${context.name}'${Helpers.RESET} is not supported yet`;
+
+                context.arrowLength = context.name?.length ?? 1;
+                this.throwError(
+                    message,
+                    context.position,
+                    context.fullSource ?? context.source,
+                    context,
+                    "  = module-level named callbacks are supported\n  = inline callbacks passed directly to array methods are supported\n  = persistent closures need an explicit capture lifetime model first",
+                );
+            }
+
             if (!context.regular && context.type.kind === Kinds.Types.UnTyped) {
                 const message =
                     `the name ${Helpers.RED}'${context.name}'${Helpers.RESET} is missing explicit type annotation`;
@@ -829,6 +849,52 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             }
 
             return { trusted };
+        }
+
+        public rejectPersistentFunctionExpressions(value: any, source: string, node: any, reason: string): void {
+            const visit = (current: any): void => {
+                if (!current) {
+                    return;
+                }
+
+                if (Array.isArray(current)) {
+                    current.forEach(visit);
+                    return;
+                }
+
+                if (current.kind === Kinds.Functions.FunctionExpression) {
+                    current.arrowLength = current.source?.length ?? 1;
+                    this.throwError(
+                        `function expression cannot ${reason}`,
+                        current.position ?? node.position,
+                        source ?? current.source ?? node.source,
+                        current,
+                        "  = inline callbacks are supported only when passed directly to array methods\n  = storing or returning callbacks requires a real closure object and capture lifetime summary\n  = borrowed views captured by persistent closures are rejected until that ownership model exists",
+                    );
+                }
+
+                if (current.kind === Kinds.Collections.DictionaryExpression) {
+                    for (const property of current.properties ?? []) {
+                        visit(property.value);
+                    }
+                    return;
+                }
+
+                if (current.kind === Kinds.Collections.ArrayExpression) {
+                    for (const element of current.elements ?? []) {
+                        visit(element);
+                    }
+                    return;
+                }
+
+                if (current.kind === Kinds.Expressions.ConditionalExpression) {
+                    visit(current.whenTrue);
+                    visit(current.whenFalse);
+                    return;
+                }
+            };
+
+            visit(value);
         }
 
         public checkFunctionDataType(expectedType: any, value: any): boolean {

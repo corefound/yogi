@@ -548,6 +548,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_array_persistent_closure_captures
+                        pipeline-array-persistent-closure-captures
+                        tests/runtime/sessions/02-variables-aggregates/array_persistent_closure_captures.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_string_operators
                         pipeline-string-operators
                         tests/runtime/sessions/02-variables-aggregates/string_operators.cmake

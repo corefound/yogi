@@ -846,8 +846,9 @@ Supported inside block-bodied inline arrows:
 Notes:
 
 -   Inline callbacks currently lower inside the array loop.
--   Captures should wait until Yogi has closure/lifetime rules for
-    captured locals.
+-   Immediate captures are supported because the callback does not escape.
+-   Persistent function values are rejected until Yogi has closure/lifetime
+    rules for captured locals.
 
 ------------------------------------------------------------------------
 
@@ -1061,17 +1062,13 @@ let b: int[3] = [0, ...a]
 
 ### 8. Local capture / closure semantics for inline callbacks
 
-Still pending:
+Implemented for callbacks passed directly to array methods:
 
--   Closures that capture outer locals.
--   Lifetime rules for captured locals.
--   Closure lowering for callbacks that escape the immediate array loop.
-
-Current note:
-
--   Inline callbacks currently lower inside the array loop.
--   Captures should wait until Yogi has closure/lifetime rules for
-    captured locals.
+-   Inline callbacks can capture outer locals.
+-   Captured borrowed views remain valid because the callback is lowered inside
+    the current array loop and does not escape.
+-   Escaping/persistent function expressions are rejected until Yogi has real
+    closure environments and capture lifetime summaries.
 
 ------------------------------------------------------------------------
 
@@ -1558,6 +1555,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Comparator overloads for sort and toSorted
 ✅ Array spread in dynamic/fixed/tuple/union contexts
 ✅ Local capture/closure semantics for immediate inline callbacks
+✅ Persistent closure-captured borrowed views are rejected with semantic diagnostics until closure runtime exists
 ✅ Depth-aware semantic result typing for flat(depth)
 ✅ Borrow summaries interprocedural
 ✅ Core pointer type: ptr<T>
@@ -1592,7 +1590,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ### Future Work
 
 ``` txt
-⬜ Persistent closure-captured borrowed views
+⬜ Real persistent closure runtime for captured borrowed views
 ⬜ Borrow summaries interprocedural for explicit borrowed views
 ⬜ Escape analysis complete for borrowed views
 ⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
@@ -1614,7 +1612,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 
 ``` txt
 1. String element extraction from string[] through .at() inside struct fields
-2. Persistent closure-captured borrowed views
+2. Real persistent closure runtime for captured borrowed views
 3. Borrow summaries interprocedural for explicit borrowed views if Yogi later adds explicit view types
 4. Escape analysis complete for callback/closure-captured borrowed views
 5. Cleanup/destructor rules for promoted owners and materialized copies
@@ -2776,6 +2774,7 @@ readonly propagation from the original owner
 ✅ Comparator overloads for sort and toSorted
 ✅ Array spread in dynamic/fixed/tuple/union contexts
 ✅ Local capture/closure semantics for immediate inline callbacks
+✅ Persistent closure-captured borrowed views are rejected with semantic diagnostics until closure runtime exists
 ✅ Depth-aware semantic result typing for flat(depth)
 ✅ Borrow summaries interprocedural
 ✅ Core pointer type: ptr<T>
@@ -2819,7 +2818,7 @@ readonly propagation from the original owner
 ⬜ Final callback ownership/borrow semantics
 ⬜ Nested dynamic-array ownership and pointer chains
 ⬜ Fixed-array and multidimensional matrix completion
-⬜ Persistent closure-captured borrowed views
+⬜ Real persistent closure runtime for captured borrowed views
 ⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
 ⬜ Broader array copy/move/ownership semantics
 ⬜ Union-array runtime/narrowing completion

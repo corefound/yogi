@@ -2358,6 +2358,9 @@ export class BaseSemantic {
             case Kinds.Expressions.CallExpression:
                 return this.visitCallExpression(node);
 
+            case Kinds.Functions.FunctionExpression:
+                return node;
+
             case Kinds.Expressions.UnaryExpression:
                 return this.visitUnaryExpression(node);
 
