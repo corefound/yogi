@@ -1,6 +1,5 @@
 .PHONY: dev build
 
-
 dev:
 	@./bin/parser-macos-arm64 ./tests/main.io
 
