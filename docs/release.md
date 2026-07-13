@@ -2,6 +2,34 @@
 
 This file tracks user-visible language/runtime behavior added by recent lots.
 
+## Borrowed Views Inside Escaping Object Graphs
+
+Borrowed fixed-shape views stored inside escaping object or array literals now
+preserve observable aliasing by promoting the source owner instead of copying
+too early.
+
+```ts
+type RowBox = {
+    row: number[3]
+}
+
+let saved: RowBox = { row: [0, 0, 0] }
+
+function save(): void {
+    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+    let row: number[3] = matrix[1]
+
+    saved = { row: row }
+    row[0] = 41
+    matrix[1, 1] = 51
+}
+```
+
+After `save()`, `saved.row` observes `41, 51, 6`. Nested object literals follow
+the same rule. Immediate inline callbacks can also capture a borrowed view and
+store it into module/global storage safely; persistent escaping closures remain
+future work.
+
 ## Borrowed View Owner Promotion
 
 Fixed-shape borrowed array views that escape through module/global storage or

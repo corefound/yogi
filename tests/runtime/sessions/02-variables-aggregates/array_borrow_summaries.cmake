@@ -78,6 +78,10 @@ type RowBox = {
     row: number[3]
 }
 let savedBox: RowBox = { row: [0, 0, 0] }
+type OuterBox = {
+    inner: RowBox
+}
+let savedOuter: OuterBox = { inner: { row: [0, 0, 0] } }
 
 function saveLocalRowAlias(): void {
     let matrix: number[2, 3] = [
@@ -140,6 +144,45 @@ function saveDirectRowAndMutateOwner(): void {
 
     savedRow = matrix[0]
     matrix[0, 2] = 90
+}
+
+function saveBoxLiteralAndMutate(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[1]
+
+    savedBox = { row: row }
+    row[0] = 41
+    matrix[1, 1] = 51
+}
+
+function saveNestedBoxLiteralAndMutate(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[0]
+
+    savedOuter = { inner: { row: row } }
+    matrix[0, 0] = 61
+    row[2] = 62
+}
+
+function saveCapturedBorrowedViewIntoGlobal(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[1]
+    let indexes: number[] = [0]
+
+    indexes.forEach((index: number): void => {
+        savedRow = row
+        row[index] = 81
+    })
+    matrix[1, 1] = 82
 }
 
 let matrixA: number[2, 3] = [
@@ -299,6 +342,21 @@ saveDirectRowAndMutateOwner()
 print(savedRow[0])
 print(savedRow[1])
 print(savedRow[2])
+
+saveBoxLiteralAndMutate()
+print(savedBox.row[0])
+print(savedBox.row[1])
+print(savedBox.row[2])
+
+saveNestedBoxLiteralAndMutate()
+print(savedOuter.inner.row[0])
+print(savedOuter.inner.row[1])
+print(savedOuter.inner.row[2])
+
+saveCapturedBorrowedViewIntoGlobal()
+print(savedRow[0])
+print(savedRow[1])
+print(savedRow[2])
 ]=])
 
 execute_process(
@@ -343,7 +401,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array borrow summaries executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n1\n2\n3\n4\n5\n6\n77\n1\n2\n3\n40\n50\n6\n10\n20\n90\n")
+set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n1\n2\n3\n4\n5\n6\n77\n1\n2\n3\n40\n50\n6\n10\n20\n90\n41\n51\n6\n61\n2\n62\n81\n82\n6\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array borrow summaries executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

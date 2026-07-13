@@ -338,6 +338,72 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 return value;
             }
 
+            if (value.kind === Kinds.Collections.DictionaryExpression) {
+                let changed = false;
+                let promoted = false;
+                const properties = (value.properties ?? []).map((property: any) => {
+                    const prepared = this.prepareBorrowedViewForEscapingStorage(
+                        property.value,
+                        source,
+                        property.value ?? node,
+                        `${reason} through property '${property.key ?? property.name ?? "member"}'`,
+                    );
+
+                    if (prepared !== property.value) {
+                        changed = true;
+                    }
+
+                    if (prepared?.borrowedViewOwnerPromoted === true) {
+                        promoted = true;
+                    }
+
+                    return {
+                        ...property,
+                        value: prepared,
+                        type: prepared?.type ?? property.type,
+                    };
+                });
+
+                return changed || promoted
+                    ? {
+                        ...value,
+                        properties,
+                        borrowedViewOwnerPromoted: promoted,
+                    }
+                    : value;
+            }
+
+            if (value.kind === Kinds.Collections.ArrayExpression) {
+                let changed = false;
+                let promoted = false;
+                const elements = (value.elements ?? []).map((element: any, index: number) => {
+                    const prepared = this.prepareBorrowedViewForEscapingStorage(
+                        element,
+                        source,
+                        element ?? node,
+                        `${reason} through element ${index}`,
+                    );
+
+                    if (prepared !== element) {
+                        changed = true;
+                    }
+
+                    if (prepared?.borrowedViewOwnerPromoted === true) {
+                        promoted = true;
+                    }
+
+                    return prepared;
+                });
+
+                return changed || promoted
+                    ? {
+                        ...value,
+                        elements,
+                        borrowedViewOwnerPromoted: promoted,
+                    }
+                    : value;
+            }
+
             if (this.promoteBorrowedViewOwnerForEscape(value, reason)) {
                 return {
                     ...value,

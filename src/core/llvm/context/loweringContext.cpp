@@ -151,11 +151,12 @@ namespace yogi::core::llvm::internal {
 	void ModuleLoweringContext::clearLocalState() {
 		locals.clear();
 		localTypes.clear();
-	localTypeKinds.clear();
-	aggregateAliases.clear();
-	borrowedViewAliases.clear();
-	localAggregateCleanups.clear();
-}
+		localTypeKinds.clear();
+		aggregateAliases.clear();
+		borrowedViewAliases.clear();
+		localAggregateCleanups.clear();
+		retainEscapedObjectGraph = false;
+	}
 
 	void ModuleLoweringContext::registerAggregateOwner(
 		const std::string &name,

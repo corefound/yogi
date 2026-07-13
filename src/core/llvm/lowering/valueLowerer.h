@@ -185,6 +185,12 @@ namespace yogi::core::llvm::internal {
 			void destroyStringTemporaryIfOwned(::llvm::Value *value, const Yogi::Sir::ValueRef *source);
 			std::string borrowedViewOwnerName(const Yogi::Sir::ValueRef *value) const;
 			void retainEscapedBorrowedViewSource(const Yogi::Sir::ValueRef *value, ::llvm::Value *loweredValue);
+			void deactivateEscapedAggregateGraphOwner(const Yogi::Sir::ValueRef *value);
+			::llvm::Value *lowerWithEscapedObjectGraphRetention(
+				const Yogi::Sir::ValueRef *value,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
 			::llvm::Value *tagRuntimeCellPointer(::llvm::Value *cell);
 			::llvm::Value *untagRuntimeCellPointer(::llvm::Value *pointer);
 			::llvm::Value *isRuntimeCellPointer(::llvm::Value *pointer);

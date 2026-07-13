@@ -96,6 +96,25 @@ namespace yogi::core::llvm::internal {
 		context.deactivateAggregateOwner(ownerName);
 	}
 
+	void ValueLowerer::deactivateEscapedAggregateGraphOwner(const Yogi::Sir::ValueRef *value) {
+		const auto name = identifierName(value);
+		if (!name.empty()) {
+			context.deactivateAggregateOwner(name);
+		}
+	}
+
+	::llvm::Value *ValueLowerer::lowerWithEscapedObjectGraphRetention(
+		const Yogi::Sir::ValueRef *value,
+		::llvm::Type *expectedType,
+		const Yogi::Sir::TypeRef *expectedSemanticType
+	) {
+		const auto previous = context.retainEscapedObjectGraph;
+		context.retainEscapedObjectGraph = true;
+		auto *result = lower(value, expectedType, expectedSemanticType);
+		context.retainEscapedObjectGraph = previous;
+		return result;
+	}
+
 	::llvm::Value *ValueLowerer::lower(
 		const Yogi::Sir::ValueRef *value,
 		::llvm::Type *expectedType,
@@ -2499,6 +2518,10 @@ namespace yogi::core::llvm::internal {
 					field.type,
 					property->type()
 				);
+				if (context.retainEscapedObjectGraph) {
+					retainEscapedBorrowedViewSource(property->value(), fieldValue);
+					deactivateEscapedAggregateGraphOwner(property->value());
+				}
 			}
 
 			result = context.builder.CreateInsertValue(
@@ -2913,6 +2936,10 @@ namespace yogi::core::llvm::internal {
 
 			const auto *elementType = valueSemanticType(element);
 			auto *elementValue = lower(element, types.lower(elementType), elementType);
+			if (context.retainEscapedObjectGraph) {
+				retainEscapedBorrowedViewSource(element, elementValue);
+				deactivateEscapedAggregateGraphOwner(element);
+			}
 			auto *boxedValue = boxAny(elementValue, elementType);
 			emitBoxedValue(boxedValue);
 		}
@@ -3103,6 +3130,10 @@ namespace yogi::core::llvm::internal {
 			for (const auto *property: *object->properties()) {
 				const auto *propertyType = property->type();
 				auto *value = lower(property->value(), types.lower(propertyType), propertyType);
+				if (context.retainEscapedObjectGraph) {
+					retainEscapedBorrowedViewSource(property->value(), value);
+					deactivateEscapedAggregateGraphOwner(property->value());
+				}
 				auto *boxedValue = boxAny(value, propertyType);
 				auto *key = context.builder.CreateGlobalString(fbString(property->key()));
 
@@ -3339,15 +3370,22 @@ namespace yogi::core::llvm::internal {
 		const Yogi::Sir::AggregateAssignmentExpression *assignment
 	) {
 		const auto *target = assignment->target();
-			const auto *rightType = valueSemanticType(assignment->right());
-			auto *rightValue = lower(assignment->right(), types.lower(rightType), rightType);
-			const auto rightKind = resolvedTypeKind(rightType);
-			if (
-				rightKind == Yogi::Sir::TypeKind_array_type ||
-				rightKind == Yogi::Sir::TypeKind_tuple_type
-			) {
-				retainEscapedBorrowedViewSource(assignment->right(), rightValue);
-			}
+		const auto *rightType = valueSemanticType(assignment->right());
+		const auto targetRoot = rootIdentifierName(target);
+		const auto targetEscapes =
+			!targetRoot.empty() &&
+			context.globals.contains(targetRoot) &&
+			isAggregateLiteral(assignment->right());
+		auto *rightValue = targetEscapes
+			? lowerWithEscapedObjectGraphRetention(assignment->right(), types.lower(rightType), rightType)
+			: lower(assignment->right(), types.lower(rightType), rightType);
+		const auto rightKind = resolvedTypeKind(rightType);
+		if (
+			rightKind == Yogi::Sir::TypeKind_array_type ||
+			rightKind == Yogi::Sir::TypeKind_tuple_type
+		) {
+			retainEscapedBorrowedViewSource(assignment->right(), rightValue);
+		}
 
 			if (const auto *dereference = target ? target->dereference() : nullptr) {
 				auto *pointer = lower(
@@ -3543,8 +3581,11 @@ namespace yogi::core::llvm::internal {
 			const auto shouldDestroySource =
 				isAggregateLiteral(right) ||
 				(right && right->call() && !receiverReturningArrayMethod(right));
+			const auto shouldRetainGraph = targetIsGlobal && isAggregateLiteral(right);
 			auto *source = cast(
-				lower(right, targetType, targetSemanticType),
+				shouldRetainGraph
+					? lowerWithEscapedObjectGraphRetention(right, targetType, targetSemanticType)
+					: lower(right, targetType, targetSemanticType),
 				targetType,
 				targetSemanticType,
 				targetSemanticType
@@ -3599,8 +3640,11 @@ namespace yogi::core::llvm::internal {
 			return context.builder.CreateLoad(targetType, target, sanitizeSymbol(name) + ".array.assignment.value");
 		}
 
+		const auto retainGraph = targetIsGlobal && isAggregateLiteral(assignment->right());
 		auto *value = cast(
-			lower(assignment->right(), targetType, targetSemanticType),
+			retainGraph
+				? lowerWithEscapedObjectGraphRetention(assignment->right(), targetType, targetSemanticType)
+				: lower(assignment->right(), targetType, targetSemanticType),
 			targetType,
 			targetSemanticType,
 			targetSemanticType

@@ -96,6 +96,7 @@ namespace yogi::core::llvm::internal {
 			std::map<std::string, std::string> aggregateAliases;
 			std::map<std::string, std::string> borrowedViewAliases;
 			std::vector<LocalAggregateCleanup> localAggregateCleanups;
+			bool retainEscapedObjectGraph = false;
 			int switchBodyDepth = 0;
 			const Yogi::Sir::TypeRef *currentReturnType = nullptr;
 
