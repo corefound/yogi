@@ -130,6 +130,15 @@ namespace yogi::core::llvm::internal {
 				method == "array.copyWithin" ||
 				method == "array.sort";
 		};
+		const auto isStableIterationPlan = [](const Yogi::Sir::ValueRef *value) {
+			const auto *call = value ? value->call() : nullptr;
+			if (!call || !call->builtin_method()) {
+				return false;
+			}
+
+			const auto method = fbString(call->builtin_method());
+			return method == "__yogiStablePlan" || method == "array.__yogiStablePlan";
+		};
 		const auto isOwnedAggregateInitializer =
 			variable->value() &&
 			(
@@ -199,6 +208,14 @@ namespace yogi::core::llvm::internal {
 				name, variable->symbol_id(), variable->type(),
 				initializer, false,
 				inSwitchBody ? slot : nullptr
+			);
+		} else if (isStableIterationPlan(variable->value())) {
+			context.registerRuntimeCleanup(
+				name,
+				variable->symbol_id(),
+				initializer,
+				slot,
+				"yogi_array_iteration_plan_destroy"
 			);
 		} else if (isLocalOwnedHeapAggregate) {
 			context.registerAggregateOwner(

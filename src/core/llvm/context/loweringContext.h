@@ -38,6 +38,7 @@ namespace yogi::core::llvm::internal {
 				bool heapOwned;
 				bool active;
 				::llvm::Value *cleanupSlot;
+				std::string runtimeDestroyFunction;
 			};
 
 			struct StructFieldInfo {
@@ -76,6 +77,13 @@ namespace yogi::core::llvm::internal {
 				::llvm::Value *value,
 				bool heapOwned,
 				::llvm::Value *cleanupSlot = nullptr
+			);
+			void registerRuntimeCleanup(
+				const std::string &name,
+				int symbolId,
+				::llvm::Value *value,
+				::llvm::Value *cleanupSlot,
+				const std::string &destroyFunction
 			);
 			void aliasAggregateOwner(const std::string &alias, const std::string &source);
 			std::optional<std::string> resolveAggregateOwner(const std::string &name) const;

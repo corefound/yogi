@@ -175,6 +175,26 @@ namespace yogi::core::llvm::internal {
 			heapOwned,
 			true,
 			cleanupSlot,
+			"",
+		});
+	}
+
+	void ModuleLoweringContext::registerRuntimeCleanup(
+		const std::string &name,
+		int symbolId,
+		::llvm::Value *value,
+		::llvm::Value *cleanupSlot,
+		const std::string &destroyFunction
+	) {
+		localAggregateCleanups.push_back({
+			name,
+			symbolId,
+			nullptr,
+			value,
+			false,
+			true,
+			cleanupSlot,
+			destroyFunction,
 		});
 	}
 

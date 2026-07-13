@@ -133,7 +133,11 @@ The suite covers:
 
 ## Remaining Work
 
-- Make synthetic stable-plan cleanup unconditional on every early `return` path
-  once Yogi has a general defer/finally-style cleanup hook.
 - Improve interprocedural mutation summaries beyond the current syntactic
   `&array` call-site detection.
+
+## Follow-up
+
+Lot 57 moved stable-plan cleanup into the normal compiler cleanup stack. Stable
+iteration plans are now runtime cleanup resources, so early `return` paths do
+not leak the plan.

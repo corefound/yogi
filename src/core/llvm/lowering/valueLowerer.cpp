@@ -612,7 +612,17 @@ namespace yogi::core::llvm::internal {
 
 		if (methodName == "__yogiStableDestroy") {
 			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
-			return callRuntime("yogi_array_iteration_plan_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {plan});
+			auto *destroy = callRuntime("yogi_array_iteration_plan_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {plan});
+
+			if (const auto *identifier = callee->object() ? callee->object()->identifier() : nullptr) {
+				const auto name = fbString(identifier->name());
+				if (context.locals.contains(name)) {
+					auto *slot = context.locals[name];
+					context.builder.CreateStore(::llvm::Constant::getNullValue(slot->getAllocatedType()), slot);
+				}
+			}
+
+			return destroy;
 		}
 
 		const auto createCallbackLoop = [&](const std::string &name, ::llvm::Value *array, const Yogi::Sir::TypeRef *elementType) {

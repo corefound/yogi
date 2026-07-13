@@ -439,11 +439,9 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                 source: node.getText(),
                 position: this.getNodePosistion(node),
             };
-            const destroyPlan = this.createSyntheticMethodCall(planIdentifier, "__yogiStableDestroy", [], node);
-
             return {
                 kind: Kinds.Statements.BlockStatement,
-                statements: [planDeclaration, loop, destroyPlan],
+                statements: [planDeclaration, loop],
                 source: node.getText(),
                 position: this.getNodePosistion(node),
             };

@@ -516,6 +516,50 @@ namespace yogi::core::llvm::internal {
 				continue;
 			}
 
+			if (!cleanup.runtimeDestroyFunction.empty()) {
+				auto *value = cleanup.value;
+				auto *slot = cleanup.cleanupSlot
+					? ::llvm::cast<::llvm::AllocaInst>(cleanup.cleanupSlot)
+					: nullptr;
+
+				if (slot) {
+					value = context.builder.CreateLoad(
+						slot->getAllocatedType(),
+						cleanup.cleanupSlot
+					);
+				}
+
+				auto *isNull = context.builder.CreateIsNull(value);
+				auto *currentBB = context.builder.GetInsertBlock();
+				auto *function = currentBB->getParent();
+				auto *cleanupBB = ::llvm::BasicBlock::Create(
+					context.llvmContext, "runtime.cleanup", function
+				);
+				auto *skipBB = ::llvm::BasicBlock::Create(
+					context.llvmContext, "runtime.skip", function
+				);
+				context.builder.CreateCondBr(isNull, skipBB, cleanupBB);
+				context.builder.SetInsertPoint(cleanupBB);
+
+				auto *destroy = context.runtimeFunction(
+					cleanup.runtimeDestroyFunction,
+					::llvm::Type::getVoidTy(context.llvmContext),
+					{::llvm::PointerType::getUnqual(context.llvmContext)}
+				);
+				context.builder.CreateCall(destroy, {value});
+
+				if (slot) {
+					context.builder.CreateStore(
+						::llvm::Constant::getNullValue(slot->getAllocatedType()),
+						cleanup.cleanupSlot
+					);
+				}
+
+				context.builder.CreateBr(skipBB);
+				context.builder.SetInsertPoint(skipBB);
+				continue;
+			}
+
 			if (cleanup.cleanupSlot) {
 				if (values.isStructType(cleanup.type)) {
 					auto *slot = ::llvm::cast<::llvm::AllocaInst>(cleanup.cleanupSlot);

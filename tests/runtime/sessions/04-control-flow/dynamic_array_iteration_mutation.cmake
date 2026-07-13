@@ -390,6 +390,36 @@ foreach(symbol
 	endif()
 endforeach()
 
+set(EARLY_RETURN_CLEANUP_SOURCE [=[
+function takeFirst(): number {
+    let values: number[] = [1, 2, 3]
+
+    for (let value: number of values) {
+        values.push(9)
+        return value
+    }
+
+    return 0
+}
+
+print(takeFirst())
+]=])
+
+run_positive("early_return_stable_cleanup" "${EARLY_RETURN_CLEANUP_SOURCE}" "1\n")
+
+set(EARLY_RETURN_IR "${TEST_WORK_DIR}/early_return_stable_cleanup/packages/.cache/modules/main.ts/main.ll")
+file(READ "${EARLY_RETURN_IR}" early_return_ir)
+
+if(NOT early_return_ir MATCHES "yogi_array_iteration_plan")
+	message(FATAL_ERROR "early-return stable for...of IR did not contain an iteration plan:\n${early_return_ir}")
+endif()
+
+string(REGEX MATCHALL "call void @yogi_array_iteration_plan_destroy" early_return_destroy_calls "${early_return_ir}")
+list(LENGTH early_return_destroy_calls early_return_destroy_call_count)
+if(early_return_destroy_call_count LESS 2)
+	message(FATAL_ERROR "early-return stable for...of IR did not clean up both return and fallthrough paths:\n${early_return_ir}")
+endif()
+
 expect_runtime_invalid(
 	removed_pointer_after_nested_shift
 	"function level3(values: ptr<number[]>): void {\n    values.shift()\n}\nfunction level2(values: ptr<number[]>): void {\n    values.shift()\n    level3(values)\n}\nfunction level1(values: ptr<number[]>): void {\n    values.shift()\n    level2(values)\n}\nlet values: number[] = [1, 2, 3]\nlet selected: ptr<number> = &values[1]\nlevel1(&values)\nselected = 99\n"

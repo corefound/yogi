@@ -1580,12 +1580,13 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Normal T[] parameters do not invalidate caller pointers under current value semantics
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
+✅ Dynamic array iteration and structural mutation semantics
 ```
 
 ### Next Lots
 
 ``` txt
-⬜ Dynamic array iteration and structural mutation semantics
+⬜ Final JavaScript-compatible method policy audit
 ```
 
 ### Future Work
@@ -1612,7 +1613,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ## Recommended Implementation Order
 
 ``` txt
-1. Dynamic array iteration and structural mutation semantics
+1. Final JavaScript-compatible method policy audit
 2. Real persistent closure runtime for captured borrowed views
 3. Borrow summaries interprocedural for explicit borrowed views if Yogi later adds explicit view types
 4. Escape analysis complete for callback/closure-captured borrowed views
@@ -1623,9 +1624,8 @@ Yogi borrows partial array views locally and materializes escaping views automat
 9. C ABI interop rules for arrays
 10. Lazy iterator objects
 11. Object stringification inside arrays
-12. Final array method policy
-13. Final diagnostics polish
-14. Documentation final pass
+12. Final diagnostics polish
+13. Documentation final pass
 ```
 
 ------------------------------------------------------------------------
@@ -2258,10 +2258,22 @@ program narrows or casts explicitly.
 
 ------------------------------------------------------------------------
 
-## 1. Dynamic Array Iteration and Structural Mutation
+## Completed: Dynamic Array Iteration and Structural Mutation
 
-Define exact behavior when an array is structurally modified during
-iteration.
+Dynamic-array `for...of` now has defined behavior when the iterated array is
+structurally modified during the loop.
+
+Yogi uses two lowering paths:
+
+``` txt
+no possible structural mutation -> fast indexed iteration
+possible structural mutation    -> stable slot-identity iteration
+```
+
+The stable path records the original slot identities at loop entry. Appended
+slots are not visited by the current loop, removed planned slots are skipped,
+and surviving planned slots remain visible even if `shift`, `splice`, `sort`,
+`reverse`, or whole-array assignment changes the logical indexes.
 
 Examples:
 
@@ -2277,15 +2289,14 @@ for (let user: User of users) {
 }
 ```
 
-Questions:
+Cleanup is compiler-owned. Stable iteration plans are registered as runtime
+cleanup resources, so `break`, `continue`, normal fallthrough, and early
+`return` paths all destroy the plan exactly once.
+
+Covered by:
 
 ``` txt
-Do appended elements participate in the current iteration?
-What happens when the current slot is removed?
-Does iteration follow slot identity or logical index progression?
-How do break and continue interact with mutation?
-How do pointers created inside the loop behave?
-How do callback-based iteration methods align with for..of?
+tests/runtime/sessions/04-control-flow/dynamic_array_iteration_mutation.cmake
 ```
 
 ------------------------------------------------------------------------
@@ -2818,7 +2829,6 @@ readonly propagation from the original owner
 ## Remaining
 
 ``` txt
-⬜ Dynamic array iteration and structural mutation semantics
 ⬜ Final JavaScript-compatible method policy audit
 ⬜ Final callback ownership/borrow semantics
 ⬜ Nested dynamic-array ownership and pointer chains
@@ -2847,21 +2857,20 @@ readonly propagation from the original owner
 # Recommended Future Lot Order
 
 ``` txt
-1. Dynamic Array Iteration and Structural Mutation
-2. Final JavaScript-Compatible Array Method Policy
-3. Array Callback Ownership and Borrow Semantics
-4. Nested Dynamic Array Ownership and Pointer Chains
-5. Fixed Arrays and Multidimensional Matrix Completion
-6. Automatic Array View Escape and Lifetime Analysis
-7. Array Copy, Move, and Ownership Semantics
-9. Union Array Runtime and Narrowing Semantics
-10. Array Rest and Destructuring Semantics
-11. Array Native ABI and Contiguous Interop
-12. Array Bounds-Check Elimination and Loop Optimization
-13. Dynamic Shaped Arrays and Runtime Rank Metadata
-14. Lazy Array Iterators
-15. Array Diagnostics and Runtime Formatting Polish
-16. Concurrent Array Ownership and Mutation
+1. Final JavaScript-Compatible Array Method Policy
+2. Array Callback Ownership and Borrow Semantics
+3. Nested Dynamic Array Ownership and Pointer Chains
+4. Fixed Arrays and Multidimensional Matrix Completion
+5. Automatic Array View Escape and Lifetime Analysis
+6. Array Copy, Move, and Ownership Semantics
+7. Union Array Runtime and Narrowing Semantics
+8. Array Rest and Destructuring Semantics
+9. Array Native ABI and Contiguous Interop
+10. Array Bounds-Check Elimination and Loop Optimization
+11. Dynamic Shaped Arrays and Runtime Rank Metadata
+12. Lazy Array Iterators
+13. Array Diagnostics and Runtime Formatting Polish
+14. Concurrent Array Ownership and Mutation
 ```
 
 ------------------------------------------------------------------------
