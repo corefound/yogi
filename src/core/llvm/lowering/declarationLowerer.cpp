@@ -157,10 +157,16 @@ namespace yogi::core::llvm::internal {
 			!isGlobalVariable &&
 			fbString(variable->storage()) == "stack" &&
 			isStructType;
+		const auto shouldRetainEscapedGraph =
+			!isGlobalVariable &&
+			variable->escapes() &&
+			values.isAggregateLiteral(variable->value());
 
 		context.pushMemorySourceLocation(variable->position());
 		auto *initializer = isLocalStackAggregate
 			? values.lowerLocalAggregate(variable->value(), name, variable->type())
+			: shouldRetainEscapedGraph
+				? values.lowerWithEscapedObjectGraphRetention(variable->value(), type, variable->type())
 			: values.lower(variable->value(), type, variable->type());
 		context.popMemorySourceLocation();
 

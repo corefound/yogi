@@ -2,6 +2,32 @@
 
 This file tracks user-visible language/runtime behavior added by recent lots.
 
+## Borrowed Views Through Local Object Graph Identifiers
+
+Borrowed fixed-shape views can now be stored inside a local object graph and
+escape later by assigning that graph identifier to module/global storage.
+
+```ts
+type RowBox = {
+    row: number[3]
+}
+
+let saved: RowBox = { row: [0, 0, 0] }
+
+function save(): void {
+    let matrix: number[2, 3] = [[1, 2, 3], [4, 5, 6]]
+    let row: number[3] = matrix[1]
+    let box: RowBox = { row: row }
+
+    saved = box
+    row[0] = 91
+    matrix[1, 1] = 92
+}
+```
+
+`saved.row` observes `91, 92, 6`. Nested local graph identifiers are also
+covered, such as `let outer = { inner }; savedOuter = outer`.
+
 ## Borrowed Views Inside Escaping Object Graphs
 
 Borrowed fixed-shape views stored inside escaping object or array literals now

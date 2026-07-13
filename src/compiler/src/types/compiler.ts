@@ -119,6 +119,9 @@ export type SymbolInfo = {
     borrowedView?: boolean;
     borrowedViewReadonly?: boolean;
     borrowedViewSourceName?: string | null;
+    borrowedViewGraphSourceNames?: string[];
+    borrowedViewGraphAggregateSymbolIds?: number[];
+    borrowedViewGraphEscaped?: boolean;
     borrowedViewOwnerPromoted?: boolean;
     borrowedViewOwnerPromotionReasons?: string[];
     pointerRootName?: string | null;

@@ -49,6 +49,9 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const borrowedViewSourceName =
                 value?.borrowedViewSourceName ??
                 (value?.borrowedView === true ? (this as any).getAggregateRootIdentifier(value.object) : null);
+            const borrowedViewGraph = (this as any).borrowedViewGraph
+                ? (this as any).borrowedViewGraph(value)
+                : { sourceNames: [], aggregateSymbolIds: [] };
             const pointerRootName =
                 value?.pointerRootName ??
                 value?.rootName ??
@@ -86,6 +89,8 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 borrowedView: value?.borrowedView === true,
                 borrowedViewReadonly: value?.borrowedViewReadonly === true,
                 borrowedViewSourceName,
+                borrowedViewGraphSourceNames: borrowedViewGraph.sourceNames,
+                borrowedViewGraphAggregateSymbolIds: borrowedViewGraph.aggregateSymbolIds,
                 ...pointerProvenance,
 
                 declare: isAmbient,

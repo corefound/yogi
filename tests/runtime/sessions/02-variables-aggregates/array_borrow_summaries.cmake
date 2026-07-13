@@ -185,6 +185,33 @@ function saveCapturedBorrowedViewIntoGlobal(): void {
     matrix[1, 1] = 82
 }
 
+function saveLocalBoxIdentifierAndMutate(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[1]
+    let box: RowBox = { row: row }
+
+    savedBox = box
+    row[0] = 91
+    matrix[1, 1] = 92
+}
+
+function saveNestedLocalBoxIdentifierAndMutate(): void {
+    let matrix: number[2, 3] = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    let row: number[3] = matrix[0]
+    let inner: RowBox = { row: row }
+    let outer: OuterBox = { inner: inner }
+
+    savedOuter = outer
+    matrix[0, 0] = 93
+    row[2] = 94
+}
+
 let matrixA: number[2, 3] = [
     [1, 2, 3],
     [4, 5, 6]
@@ -357,6 +384,16 @@ saveCapturedBorrowedViewIntoGlobal()
 print(savedRow[0])
 print(savedRow[1])
 print(savedRow[2])
+
+saveLocalBoxIdentifierAndMutate()
+print(savedBox.row[0])
+print(savedBox.row[1])
+print(savedBox.row[2])
+
+saveNestedLocalBoxIdentifierAndMutate()
+print(savedOuter.inner.row[0])
+print(savedOuter.inner.row[1])
+print(savedOuter.inner.row[2])
 ]=])
 
 execute_process(
@@ -401,7 +438,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array borrow summaries executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n1\n2\n3\n4\n5\n6\n77\n1\n2\n3\n40\n50\n6\n10\n20\n90\n41\n51\n6\n61\n2\n62\n81\n82\n6\n")
+set(expected_stdout "1\n2\n3\n3\n4\n5\n6\n4\n5\n6\n7\n8\n9\n7\n8\n9\n10\n11\n12\n99\n3\n99\nB\n2\n99\nC\nB\n2\n1\n55\n1\n4\n5\n6\n77\n1\n2\n3\n4\n5\n6\n88\n1\n2\n3\n4\n5\n6\n77\n1\n2\n3\n40\n50\n6\n10\n20\n90\n41\n51\n6\n61\n2\n62\n81\n82\n6\n91\n92\n6\n93\n2\n94\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array borrow summaries executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

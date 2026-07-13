@@ -404,6 +404,20 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     : value;
             }
 
+            if (
+                value.kind === Kinds.Expressions.IdentifierExpression &&
+                value.borrowedView !== true
+            ) {
+                const promoted = this.promoteBorrowedViewGraphForEscape(value, reason);
+
+                if (promoted) {
+                    return {
+                        ...value,
+                        borrowedViewGraphOwnerPromoted: true,
+                    };
+                }
+            }
+
             if (this.promoteBorrowedViewOwnerForEscape(value, reason)) {
                 return {
                     ...value,
@@ -412,6 +426,148 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             }
 
             return this.materializeBorrowedViewForEscape(value, source, node);
+        }
+
+        public borrowedViewGraph(value: any): { sourceNames: string[]; aggregateSymbolIds: number[] } {
+            const sourceNames = new Set<string>();
+            const aggregateSymbolIds = new Set<number>();
+            const visit = (current: any): void => {
+                if (!current) {
+                    return;
+                }
+
+                if (Array.isArray(current)) {
+                    current.forEach(visit);
+                    return;
+                }
+
+                if (current.borrowedView === true) {
+                    const sourceName =
+                        current.borrowedViewSourceName ??
+                        this.borrowedViewRootName(current) ??
+                        (this as any).getAggregateRootIdentifier(current);
+
+                    if (sourceName) {
+                        sourceNames.add(sourceName);
+                    }
+                }
+
+                if (current.kind === Kinds.Expressions.IdentifierExpression) {
+                    const name = current.value ?? current.name ?? current.raw;
+                    const symbol = name ? this.resolveSymbol(name) : null;
+
+                    if (!symbol) {
+                        return;
+                    }
+
+                    if (symbol.borrowedViewSourceName) {
+                        sourceNames.add(symbol.borrowedViewSourceName);
+                    }
+
+                    for (const sourceName of symbol.borrowedViewGraphSourceNames ?? []) {
+                        sourceNames.add(sourceName);
+                    }
+
+                    for (const symbolId of symbol.borrowedViewGraphAggregateSymbolIds ?? []) {
+                        aggregateSymbolIds.add(symbolId);
+                    }
+
+                    if (
+                        this.isAggregateType(symbol.type) &&
+                        symbol.borrowedView !== true &&
+                        (
+                            (symbol.borrowedViewGraphSourceNames?.length ?? 0) > 0 ||
+                            (symbol.borrowedViewGraphAggregateSymbolIds?.length ?? 0) > 0
+                        )
+                    ) {
+                        aggregateSymbolIds.add(symbol.id);
+                    }
+
+                    return;
+                }
+
+                if (current.kind === Kinds.Collections.DictionaryExpression) {
+                    for (const property of current.properties ?? []) {
+                        visit(property.value);
+                    }
+                    return;
+                }
+
+                if (current.kind === Kinds.Collections.ArrayExpression) {
+                    for (const element of current.elements ?? []) {
+                        visit(element);
+                    }
+                    return;
+                }
+
+                if (
+                    current.kind === Kinds.Expressions.PropertyAccessExpression ||
+                    current.kind === Kinds.Expressions.ElementAccessExpression
+                ) {
+                    visit(current.object);
+                    return;
+                }
+
+                if (current.kind === Kinds.Expressions.DereferenceExpression) {
+                    visit(current.target);
+                }
+            };
+
+            visit(value);
+
+            return {
+                sourceNames: [...sourceNames],
+                aggregateSymbolIds: [...aggregateSymbolIds],
+            };
+        }
+
+        public promoteBorrowedViewGraphForEscape(value: any, reason: string): boolean {
+            const graph = this.borrowedViewGraph(value);
+            const visited = new Set<number>();
+            let promoted = false;
+
+            const promoteSourceName = (sourceName: string): void => {
+                if (this.promoteBorrowedViewSourceNameForEscape(sourceName, reason)) {
+                    promoted = true;
+                }
+            };
+
+            const promoteAggregateSymbol = (symbolId: number): void => {
+                if (visited.has(symbolId)) {
+                    return;
+                }
+
+                visited.add(symbolId);
+                const symbol = this.getSymbolById(symbolId);
+
+                if (!symbol || !this.isAggregateType(symbol.type)) {
+                    return;
+                }
+
+                if (symbol.storage === Kinds.Storage.stack) {
+                    symbol.escapes = true;
+                    symbol.borrowedViewGraphEscaped = true;
+                    promoted = true;
+                }
+
+                for (const sourceName of symbol.borrowedViewGraphSourceNames ?? []) {
+                    promoteSourceName(sourceName);
+                }
+
+                for (const nestedSymbolId of symbol.borrowedViewGraphAggregateSymbolIds ?? []) {
+                    promoteAggregateSymbol(nestedSymbolId);
+                }
+            };
+
+            for (const sourceName of graph.sourceNames) {
+                promoteSourceName(sourceName);
+            }
+
+            for (const symbolId of graph.aggregateSymbolIds) {
+                promoteAggregateSymbol(symbolId);
+            }
+
+            return promoted;
         }
 
         public promoteBorrowedViewOwnerForEscape(value: any, reason: string): boolean {
@@ -423,6 +579,13 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 value.borrowedViewSourceName ??
                 this.borrowedViewRootName(value) ??
                 (this as any).getAggregateRootIdentifier(value);
+
+            return sourceName
+                ? this.promoteBorrowedViewSourceNameForEscape(sourceName, reason)
+                : false;
+        }
+
+        public promoteBorrowedViewSourceNameForEscape(sourceName: string, reason: string): boolean {
             const sourceSymbol = sourceName ? this.resolveSymbol(sourceName) : null;
 
             if (!sourceSymbol || sourceSymbol.storage !== Kinds.Storage.stack) {

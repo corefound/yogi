@@ -2060,6 +2060,11 @@ export class BaseSemantic {
                     result.escapes = true;
                     result.storage = Kinds.Storage.stack;
                 }
+
+                if (symbol?.borrowedViewGraphEscaped === true) {
+                    result.escapes = true;
+                    result.storage = Kinds.Storage.stack;
+                }
             }
 
             for (const key of Object.keys(result)) {

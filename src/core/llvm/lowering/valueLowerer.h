@@ -56,6 +56,11 @@ namespace yogi::core::llvm::internal {
 				const std::string &name,
 				const Yogi::Sir::TypeRef *declaredType = nullptr
 			);
+			::llvm::Value *lowerWithEscapedObjectGraphRetention(
+				const Yogi::Sir::ValueRef *value,
+				::llvm::Type *expectedType,
+				const Yogi::Sir::TypeRef *expectedSemanticType
+			);
 			void dropLocalAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
 			void destroyEscapedAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
 			bool isStructType(const Yogi::Sir::TypeRef *type) const;
@@ -186,11 +191,6 @@ namespace yogi::core::llvm::internal {
 			std::string borrowedViewOwnerName(const Yogi::Sir::ValueRef *value) const;
 			void retainEscapedBorrowedViewSource(const Yogi::Sir::ValueRef *value, ::llvm::Value *loweredValue);
 			void deactivateEscapedAggregateGraphOwner(const Yogi::Sir::ValueRef *value);
-			::llvm::Value *lowerWithEscapedObjectGraphRetention(
-				const Yogi::Sir::ValueRef *value,
-				::llvm::Type *expectedType,
-				const Yogi::Sir::TypeRef *expectedSemanticType
-			);
 			::llvm::Value *tagRuntimeCellPointer(::llvm::Value *cell);
 			::llvm::Value *untagRuntimeCellPointer(::llvm::Value *pointer);
 			::llvm::Value *isRuntimeCellPointer(::llvm::Value *pointer);
