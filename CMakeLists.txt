@@ -464,6 +464,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_array_method_policy
+                        pipeline-array-method-policy
+                        tests/runtime/sessions/02-variables-aggregates/array_method_policy.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_indexing_semantics
                         pipeline-array-indexing-semantics
                         tests/runtime/sessions/02-variables-aggregates/array_indexing_semantics.cmake

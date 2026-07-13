@@ -1359,9 +1359,18 @@ Future work:
 
 ------------------------------------------------------------------------
 
-### 11. Final array method policy
+### 11. Final JavaScript-Compatible Array Method Policy
 
-Need to finalize the method policy across:
+Status: completed and covered by:
+
+``` txt
+tests/runtime/sessions/02-variables-aggregates/array_method_policy.cmake
+```
+
+Yogi keeps the JavaScript/TypeScript array method names, but applies strict
+Yogi typing, ownership, readonly, fixed-size, and pointer-validity rules.
+
+Covered receiver families:
 
 ``` txt
 dynamic arrays
@@ -1372,46 +1381,76 @@ readonly borrowed views
 tuples
 ```
 
-Methods to define carefully:
+Supported dynamic-array method surface:
 
 ``` txt
+at
+concat
+copy
+copyWithin
+entries
+every
+fill
+filter
+find
+findIndex
+findLast
+findLastIndex
+flat
+flatMap
+forEach
 includes
 indexOf
-forEach
+join
+keys
+lastIndexOf
 map
-filter
-slice
-fill
-copy
+pop
+push
+reduce
+reduceRight
 reverse
+shift
+slice
+some
 sort
-flat
-with
+splice
+toLocaleString
 toReversed
-toSpliced
 toSorted
+toSpliced
+toString
+unshift
+values
+with
 ```
 
-Recommended policy:
+Strict policy:
 
 ``` txt
-Allowed on fixed arrays:
-- read-only methods
-- iteration
-- copy
-- fill if mutable
-- map if shape preserving
+readonly arrays:
+  allow non-mutating methods such as slice, toSorted, toReversed, keys, values
+  reject mutating methods such as push, reverse, fill, sort, splice
 
-Forbidden on fixed arrays:
-- push
-- pop
-- shift
-- unshift
-- splice when it changes length
+const array bindings:
+  reject mutating methods on the binding
+  allow non-mutating copy-returning methods
 
-Special:
-- filter returns dynamic array
-- slice should have explicit view/copy semantics
+fixed arrays:
+  allow read/index/search/copy/iteration-style methods
+  reject size-changing methods such as push, pop, shift, unshift, splice
+
+tuples:
+  reject mutating length/ordering methods
+  keep tuple shape explicit
+
+callbacks:
+  require callable callbacks with explicit compatible parameter and return types
+  reject boolean predicates that return non-boolean values
+  reject comparators that do not return number
+
+unsupported JavaScript proposals:
+  reject explicitly with "array method '<name>' is not supported"
 ```
 
 ------------------------------------------------------------------------
@@ -1581,12 +1620,13 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
 ✅ Dynamic array iteration and structural mutation semantics
+✅ Final JavaScript-compatible array method policy audit
 ```
 
 ### Next Lots
 
 ``` txt
-⬜ Final JavaScript-compatible method policy audit
+⬜ Final callback ownership/borrow semantics
 ```
 
 ### Future Work
@@ -1603,7 +1643,6 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ⬜ Lazy iterator objects
 ⬜ Object stringification inside arrays
 ⬜ Serialize invalidation summaries for cross-module semantic imports if needed
-⬜ Final array method policy
 ⬜ Final diagnostics polish for shape/index/readonly/materialization errors
 ⬜ Documentation fully updated after each lot
 ```
@@ -1613,7 +1652,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ## Recommended Implementation Order
 
 ``` txt
-1. Final JavaScript-compatible method policy audit
+1. Final callback ownership/borrow semantics
 2. Real persistent closure runtime for captured borrowed views
 3. Borrow summaries interprocedural for explicit borrowed views if Yogi later adds explicit view types
 4. Escape analysis complete for callback/closure-captured borrowed views
@@ -2301,34 +2340,46 @@ tests/runtime/sessions/04-control-flow/dynamic_array_iteration_mutation.cmake
 
 ------------------------------------------------------------------------
 
-## 3. Final JavaScript-Compatible Array Method Policy
+## Completed: Final JavaScript-Compatible Array Method Policy
 
-Yogi should keep JavaScript/TypeScript familiarity and avoid inventing
-arbitrary array methods.
+Yogi keeps JavaScript/TypeScript array method names, but the semantics remain
+strict and ahead-of-time friendly.
 
-Audit the final policy across:
+Covered method families:
 
 ``` txt
-dynamic arrays
-fixed arrays
-fixed-shape arrays
-borrowed views
-readonly views
-tuples
+mutating methods:
+  push, pop, shift, unshift, reverse, fill, copyWithin, sort, splice
+
+copy-returning methods:
+  copy, concat, slice, toReversed, toSorted, toSpliced, with, flat
+
+search/string/iterator methods:
+  at, includes, indexOf, lastIndexOf, join, toString, toLocaleString,
+  keys, values, entries
+
+callback methods:
+  forEach, map, filter, some, every, find, findIndex, findLast,
+  findLastIndex, reduce, reduceRight, flatMap
 ```
 
-The goal is not only method availability. Each method needs final rules
-for:
+Policy tests cover:
 
 ``` txt
-typing
-ownership
-mutation
-readonly behavior
-fixed-shape behavior
-callbacks
-pointer validity
-return type
+runtime execution for the supported method surface
+LLVM IR calls for the runtime-backed method families
+readonly and const mutation rejection
+fixed-size array size-change rejection
+tuple mutation rejection
+strict callback/comparator diagnostics
+strict search/join/flat argument diagnostics
+unsupported method diagnostics
+```
+
+Covered by:
+
+``` txt
+tests/runtime/sessions/02-variables-aggregates/array_method_policy.cmake
 ```
 
 ------------------------------------------------------------------------
@@ -2824,12 +2875,12 @@ readonly propagation from the original owner
 ✅ Normal T[] parameters preserve current local/value semantics
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
+✅ Final JavaScript-compatible array method policy audit
 ```
 
 ## Remaining
 
 ``` txt
-⬜ Final JavaScript-compatible method policy audit
 ⬜ Final callback ownership/borrow semantics
 ⬜ Nested dynamic-array ownership and pointer chains
 ⬜ Fixed-array and multidimensional matrix completion
@@ -2857,20 +2908,19 @@ readonly propagation from the original owner
 # Recommended Future Lot Order
 
 ``` txt
-1. Final JavaScript-Compatible Array Method Policy
-2. Array Callback Ownership and Borrow Semantics
-3. Nested Dynamic Array Ownership and Pointer Chains
-4. Fixed Arrays and Multidimensional Matrix Completion
-5. Automatic Array View Escape and Lifetime Analysis
-6. Array Copy, Move, and Ownership Semantics
-7. Union Array Runtime and Narrowing Semantics
-8. Array Rest and Destructuring Semantics
-9. Array Native ABI and Contiguous Interop
-10. Array Bounds-Check Elimination and Loop Optimization
-11. Dynamic Shaped Arrays and Runtime Rank Metadata
-12. Lazy Array Iterators
-13. Array Diagnostics and Runtime Formatting Polish
-14. Concurrent Array Ownership and Mutation
+1. Array Callback Ownership and Borrow Semantics
+2. Nested Dynamic Array Ownership and Pointer Chains
+3. Fixed Arrays and Multidimensional Matrix Completion
+4. Automatic Array View Escape and Lifetime Analysis
+5. Array Copy, Move, and Ownership Semantics
+6. Union Array Runtime and Narrowing Semantics
+7. Array Rest and Destructuring Semantics
+8. Array Native ABI and Contiguous Interop
+9. Array Bounds-Check Elimination and Loop Optimization
+10. Dynamic Shaped Arrays and Runtime Rank Metadata
+11. Lazy Array Iterators
+12. Array Diagnostics and Runtime Formatting Polish
+13. Concurrent Array Ownership and Mutation
 ```
 
 ------------------------------------------------------------------------
