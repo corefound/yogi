@@ -129,6 +129,7 @@ without re-auditing the whole compiler.
 - [x] Extern native ABI supports numeric arrays through temporary contiguous buffers (`number[]`, `ptr<number[]>`, and fixed-shape numeric arrays)
 - [x] Extern native ABI supports plain numeric struct arrays through temporary contiguous buffers (`Struct[]` and `ptr<Struct[]>`)
 - [x] Extern native ABI supports read-only `string[]` through temporary `const char** + length` buffers
+- [x] Mutable native string ABI ownership policy is documented before enabling `ptr<string[]>`
 - [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Interprocedural lifetime summaries for borrowed views

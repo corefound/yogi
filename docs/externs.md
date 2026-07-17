@@ -94,6 +94,28 @@ The original Yogi `string[]` and its values remain unchanged after the call.
 Native code may read the strings but must not mutate, free, or retain the
 received pointers.
 
+## Native String Ownership Policy
+
+Mutable native strings are policy-gated. Yogi currently supports only input
+strings across the Native ABI.
+
+| Mode | Current Status | Native Shape | Rule |
+|---|---|---|---|
+| Input string | Supported | `const char*` or `const char** + length` | Native borrows read-only during the call. |
+| Output string | Not implemented | future `char** out` or owned handle | Native must declare how Yogi receives and frees produced text. |
+| In/out string | Not implemented | future `char** + length` or descriptor | Native replacement needs explicit copy-back and free rules. |
+
+`ptr<string[]>` remains rejected because it would let native code replace string
+entries without a declared ownership contract. Before enabling it, Yogi must know
+whether replacement pointers are borrowed, native-owned with a free function, or
+runtime-owned handles.
+
+If a future native call replaces a string with text of a different length, Yogi
+must create a new Yogi-owned string for that array slot during copy-back. It
+must not mutate an existing Yogi string buffer in place.
+
+See `docs/lots/71-mutable-native-string-abi-policy.md` for the full policy.
+
 For struct arrays, the C struct must match Yogi field order and use `double`
 for every field:
 

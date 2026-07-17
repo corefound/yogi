@@ -69,7 +69,5 @@ The temporary buffer belongs to the Yogi runtime.
 
 ## Next
 
-The next native ABI lot should decide mutable string array semantics or move to
-nested/resource-owning struct array marshalling. Mutable string arrays need a
-real copy-back policy because C may replace pointers, mutate pointed-to buffers,
-or expect ownership of returned text.
+Mutable string arrays are blocked on an explicit ownership policy. See
+`docs/lots/71-mutable-native-string-abi-policy.md`.

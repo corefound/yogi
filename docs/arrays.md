@@ -1450,6 +1450,9 @@ Dynamic `number[]` by value is a read-only borrowed native buffer.
 Dynamic `string[]` by value is converted to a temporary `const char**`
 plus length for the duration of the native call. The original Yogi
 array and strings are never modified or replaced by this conversion.
+Mutable native string arrays are intentionally not enabled yet. `ptr<string[]>`
+requires an explicit ownership/free policy for native-produced replacement
+strings before it can be implemented safely.
 Plain numeric `Struct[]` behaves the same with a native C struct pointer.
 `ptr<number[]>`, `ptr<number[N, M]>`, and `ptr<Struct[]>` are mutable borrowed native buffers.
 After the native call returns, Yogi copies modified values back into the
@@ -2830,7 +2833,7 @@ Still to define:
 ptr<string[]> ABI
 native retention of pointers
 ownership transfer
-mutability
+mutable string output/free contracts
 length/capacity descriptors
 struct arrays with resource-owning fields
 ```
@@ -3092,6 +3095,7 @@ readonly propagation from the original owner
 ⬜ Dynamic shaped views/slices
 ✅ Numeric array native ABI via temporary contiguous buffers
 ✅ String array native ABI via temporary `const char**` buffers
+✅ Mutable native string ABI ownership policy documented
 ✅ Plain numeric struct array native ABI via temporary contiguous buffers
 ⬜ Native fixed-shape LLVM `[N x T]` value ABI without runtime array descriptor
 ⬜ Mutable string array native ABI
@@ -3115,7 +3119,7 @@ readonly propagation from the original owner
 2. Automatic Array View Escape and Lifetime Analysis
 3. Array Copy, Move, and Ownership Semantics
 4. Union Array Runtime and Narrowing Semantics
-5. Mutable string-array and resource-owning struct native ABI marshalling
+5. Native string ownership metadata or resource-owning struct native ABI policy
 6. Array Bounds-Check Elimination and Loop Optimization
 7. Dynamic Shaped Arrays and Runtime Rank Metadata
 8. Lazy Array Iterators
