@@ -408,6 +408,10 @@ if(BUILD_TESTING)
                 )
         endfunction()
 
+        function(add_yogi_program_test TEST_NAME TEST_WORK_DIR TEST_SCRIPT)
+                add_yogi_pipeline_test(${TEST_NAME} ${TEST_WORK_DIR} ${TEST_SCRIPT})
+        endfunction()
+
         if(YOGI_LLVM_ENABLED)
                 add_yogi_pipeline_test(
                         yogi_pipeline_runtime_any
@@ -671,6 +675,12 @@ if(BUILD_TESTING)
                         yogi_package_manager_init_build_run
                         package-manager-init-build-run
                         tests/package-manager/init_build_run.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_inventory_manager
+                        program-inventory-manager
+                        tests/programs/inventory_manager.cmake
                 )
         endif()
 endif()

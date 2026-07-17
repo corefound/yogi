@@ -157,3 +157,14 @@ without re-auditing the whole compiler.
 - [x] `switch` with TypeScript-style fall-through and definite-assignment validation
 - [x] `break` / `continue`
 - [ ] Exhaustiveness helpers for union-like values
+
+## Testing
+
+- [x] Unit tests for focused runtime/compiler behavior
+- [x] Focused runtime pipeline tests by language area
+- [x] Program Tests category for complete Yogi programs
+- [x] Inventory Manager Program Test
+- [ ] Contact Manager Program Test
+- [ ] Matrix Operations Program Test
+- [ ] Graph Traversal Program Tests
+- [ ] Expression Evaluator Program Test

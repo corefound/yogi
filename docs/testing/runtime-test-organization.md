@@ -12,6 +12,7 @@ tests/runtime/sessions/01-runtime/
 tests/runtime/sessions/02-variables-aggregates/
 tests/runtime/sessions/03-memory-management/
 tests/runtime/sessions/04-control-flow/
+tests/programs/
 ```
 
 ## Folder Responsibilities
@@ -23,6 +24,7 @@ tests/runtime/sessions/04-control-flow/
 | `tests/runtime/sessions/02-variables-aggregates/` | Variables and aggregate value behavior | arrays, tuples, objects, dynamic expressions |
 | `tests/runtime/sessions/03-memory-management/` | Escape analysis, ownership, move state, cleanup | function ownership, destructor scheduling, aggregate assignment ownership |
 | `tests/runtime/sessions/04-control-flow/` | Control-flow semantics and lowering | loops, break/continue, switch/case/default |
+| `tests/programs/` | Complete Yogi programs that combine language systems | inventory manager |
 
 ## Placement Rules
 
@@ -76,6 +78,20 @@ question being protected:
 - "Does `switch` fall through like TypeScript?" -> `04-control-flow`
 - "Does an aggregate escape safely through assignment inside a switch?" ->
   `03-memory-management`
+
+Complete real-program tests belong in:
+
+```txt
+tests/programs/
+```
+
+Examples:
+
+- `inventory_manager.cmake`
+
+Use this folder when the goal is not one isolated rule, but a real Yogi program
+that combines structs, arrays, functions, control flow, callbacks, ownership,
+runtime execution, and LLVM lowering in one scenario.
 
 ## CTest Naming
 
