@@ -554,6 +554,7 @@ Working behavior:
 -   Coordinate indexing with `matrix[i, j]`.
 -   Partial indexing such as `matrix[i]` with shaped result type.
 -   Multidimensional assignment.
+-   Partial slice assignment such as `matrix[i] = row`.
 -   Dynamic indices keep runtime bounds checks.
 
 Example:
@@ -618,6 +619,29 @@ row[2] = 99
 print(matrix[1, 2]) // 99
 ```
 
+Fixed-shape slice assignment:
+
+``` ts
+let matrix: number[2, 3] = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+let row: number[3] = [7, 8, 9]
+
+matrix[0] = row
+
+print(matrix[0, 2]) // 9
+```
+
+Current behavior:
+
+-   The target slice start is computed with row-major shape math.
+-   The RHS array/view is copied element-by-element into the target
+    slice.
+-   `matrix[0] = row`, `image[1] = block`, and
+    `image[0, 1] = pixel` update the original fixed-shape owner.
+-   Shape mismatches are rejected before LLVM lowering.
+
 Example escaping automatic materialization:
 
 ``` ts
@@ -652,6 +676,8 @@ Supported:
 -   Fixed-shape literals lower as flat row-major descriptor storage.
 -   Row-major offset calculation for reads.
 -   Row-major offset calculation for writes.
+-   Row-major partial-slice assignment copies the RHS array/view into
+    the existing target slice.
 -   IR checks confirm fixed 2D lowering as flat descriptor storage.
 -   IR uses `array.shape.*` blocks/markers for shaped lowering paths.
 
@@ -905,7 +931,11 @@ tests/runtime/sessions/02-variables-aggregates/array_callback_ownership_borrow.c
 
 ------------------------------------------------------------------------
 
-## In Progress / Next Lots
+## Historical Array Design Notes
+
+Some subsections below were written before later array lots landed. Treat
+them as design notes and examples; the final checklist near the end of
+this document is the current status source.
 
 ### 1. Const / readonly propagation into borrowed views
 
@@ -1623,6 +1653,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ ElementAccessExpression preserves multiple indices
 ✅ Row-major flat LLVM lowering for fixed-shape arrays
 ✅ Multidimensional assignment
+✅ Partial fixed-shape slice assignment
 ✅ Partial indexing type inference
 ✅ Partial indexing as borrowed views for safe local use
 ✅ Borrowed views mutate original owner
@@ -1681,7 +1712,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ### Next Lots
 
 ``` txt
-⬜ Fixed-array and multidimensional matrix completion
+⬜ Automatic view escape and lifetime analysis for fixed-shape/dynamic borrowed views
 ```
 
 ### Future Work
@@ -1707,19 +1738,18 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ## Recommended Implementation Order
 
 ``` txt
-1. Nested dynamic-array ownership and pointer chains
+1. Automatic view escape and lifetime analysis for fixed-shape/dynamic borrowed views
 2. Real persistent closure runtime for captured borrowed views
 3. Borrow summaries interprocedural for explicit borrowed views if Yogi later adds explicit view types
-4. Escape analysis complete for callback/closure-captured borrowed views
-5. Cleanup/destructor rules for promoted owners and materialized copies
-6. Dynamic shaped arrays: Array<T, Rank>
-7. Dynamic shaped views/slices
-8. Native fixed-shape ABI without runtime descriptor
-9. C ABI interop rules for arrays
-10. Lazy iterator objects
-11. Object stringification inside arrays
-12. Final diagnostics polish
-13. Documentation final pass
+4. Cleanup/destructor rules for promoted owners and materialized copies
+5. Dynamic shaped arrays: Array<T, Rank>
+6. Dynamic shaped views/slices
+7. Native fixed-shape ABI without runtime descriptor
+8. C ABI interop rules for arrays
+9. Lazy iterator objects
+10. Object stringification inside arrays
+11. Final diagnostics polish
+12. Documentation final pass
 ```
 
 ------------------------------------------------------------------------
@@ -2518,7 +2548,6 @@ Remaining areas include:
 
 ``` txt
 final iteration semantics
-assignment between identical shapes
 equality/identity policy
 native layout guarantees
 ABI behavior
@@ -2876,6 +2905,7 @@ readonly propagation from the original owner
 ✅ Element access preserves multiple indices
 ✅ Row-major flat LLVM lowering for fixed-shape arrays
 ✅ Multidimensional assignment
+✅ Partial fixed-shape slice assignment
 ✅ Partial indexing type inference
 ✅ Partial indexing as borrowed views for safe local use
 ✅ Borrowed views mutate original owner
@@ -2943,7 +2973,6 @@ readonly propagation from the original owner
 ## Remaining
 
 ``` txt
-⬜ Fixed-array and multidimensional matrix completion
 ⬜ Real persistent closure runtime for captured borrowed views
 ⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
 ⬜ Broader array copy/move/ownership semantics

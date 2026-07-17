@@ -3135,6 +3135,27 @@ namespace yogi::core::llvm::internal {
 		);
 	}
 
+	void ValueLowerer::copyFixedShapeSlice(
+		::llvm::Value *targetArray,
+		::llvm::Value *targetStart,
+		::llvm::Value *sourceArray,
+		uint64_t length
+	) {
+		auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
+		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
+
+		for (uint64_t index = 0; index < length; ++index) {
+			auto *sourceIndex = ::llvm::ConstantInt::get(i64, index);
+			auto *targetIndex = context.builder.CreateAdd(
+				targetStart,
+				sourceIndex,
+				"array.shape.slice.copy.index"
+			);
+			auto *boxedValue = callRuntime("yogi_array_get", opaquePointer(), {sourceArray, sourceIndex});
+			callRuntime("yogi_array_set", voidType, {targetArray, targetIndex, boxedValue});
+		}
+	}
+
 	void ValueLowerer::populateObject(const Yogi::Sir::ObjectExpression *object, ::llvm::Value *aggregate) {
 		if (object->properties()) {
 			for (const auto *property: *object->properties()) {
@@ -3417,7 +3438,6 @@ namespace yogi::core::llvm::internal {
 
 				if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
 					auto *array = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
-					auto *boxedValue = boxAny(rightValue, rightType);
 					const auto *indices = element->indices();
 					const auto indexCount = indices && indices->size() > 0 ? indices->size() : 1;
 					context.pushMemorySourceLocation(element->position());
@@ -3425,16 +3445,30 @@ namespace yogi::core::llvm::internal {
 					if (isFixedLengthArray(pointeeSemanticType)) {
 						const auto shape = fixedShape(pointeeSemanticType);
 						if (static_cast<size_t>(indexCount) < shape.size()) {
+							auto *startOffset = fixedShapeLinearOffset(
+								element,
+								shape,
+								static_cast<size_t>(indexCount),
+								true
+							);
+							copyFixedShapeSlice(
+								array,
+								startOffset,
+								rightValue,
+								fixedShapeElementCount(shape, static_cast<size_t>(indexCount))
+							);
 							context.popMemorySourceLocation();
-							return types.zero(types.lower(assignment->type()));
+							return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
 						}
 
+						auto *boxedValue = boxAny(rightValue, rightType);
 						auto *offset = fixedShapeLinearOffset(element, shape, static_cast<size_t>(indexCount), false);
 						callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, offset, boxedValue});
 						context.popMemorySourceLocation();
 						return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
 					}
 
+					auto *boxedValue = boxAny(rightValue, rightType);
 					const auto *indexRef = indices && indices->size() > 0
 						? indices->Get(0)
 						: element->index();
@@ -3502,7 +3536,6 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (const auto *element = target ? target->element_access() : nullptr) {
-			auto *boxedValue = boxAny(rightValue, rightType);
 			auto *array = lower(element->object(), opaquePointer(), valueSemanticType(element->object()));
 			const auto *objectSemanticType = valueSemanticType(element->object());
 			const auto *indices = element->indices();
@@ -3511,12 +3544,31 @@ namespace yogi::core::llvm::internal {
 
 			if (isFixedShapeArray(objectSemanticType)) {
 				const auto shape = fixedShape(objectSemanticType);
+				if (static_cast<size_t>(indexCount) < shape.size()) {
+					auto *startOffset = fixedShapeLinearOffset(
+						element,
+						shape,
+						static_cast<size_t>(indexCount),
+						true
+					);
+					copyFixedShapeSlice(
+						array,
+						startOffset,
+						rightValue,
+						fixedShapeElementCount(shape, static_cast<size_t>(indexCount))
+					);
+					context.popMemorySourceLocation();
+					return cast(rightValue, types.lower(element->type()), element->type(), rightType);
+				}
+
+				auto *boxedValue = boxAny(rightValue, rightType);
 				auto *offset = fixedShapeLinearOffset(element, shape, static_cast<size_t>(indexCount), false);
 				callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, offset, boxedValue});
 				context.popMemorySourceLocation();
 				return cast(rightValue, types.lower(element->type()), element->type(), rightType);
 			}
 
+			auto *boxedValue = boxAny(rightValue, rightType);
 			for (flatbuffers::uoffset_t dimension = 0; dimension + 1 < indexCount; ++dimension) {
 				const auto *indexRef = indices->Get(dimension);
 				auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));

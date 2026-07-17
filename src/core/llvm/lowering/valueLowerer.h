@@ -161,6 +161,12 @@ namespace yogi::core::llvm::internal {
 				::llvm::Value *startOffset,
 				uint64_t length
 			);
+			void copyFixedShapeSlice(
+				::llvm::Value *targetArray,
+				::llvm::Value *targetStart,
+				::llvm::Value *sourceArray,
+				uint64_t length
+			);
 			::llvm::Value *lowerPropertyAccess(
 				const Yogi::Sir::PropertyAccessExpression *access,
 				::llvm::Type *expectedType,

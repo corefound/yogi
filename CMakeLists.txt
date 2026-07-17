@@ -480,6 +480,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_fixed_shape_array_assignment
+                        pipeline-fixed-shape-array-assignment
+                        tests/runtime/sessions/02-variables-aggregates/fixed_shape_array_assignment.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_borrow_summaries
                         pipeline-array-borrow-summaries
                         tests/runtime/sessions/02-variables-aggregates/array_borrow_summaries.cmake
