@@ -785,6 +785,7 @@ describe("Yogi frontend semantic pipeline", () => {
           fixed(values: number[4]): number
           readings(values: Reading[]): number
           mutateReadings(values: ptr<Reading[]>): void
+          words(values: string[]): void
         }
       `,
     }));
@@ -802,21 +803,32 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(returnType.stderr).toContain("native ABI");
     expect(returnType.stderr).toContain("return array type");
 
-    const stringArray = runCompiler(createProject({
+    const stringReturnType = runCompiler(createProject({
       "main.io": `
         extern native from "./libnative.a" {
-          process(values: string[]): void
+          load(): string[]
         }
       `,
     }));
-    expect(stringArray.status).not.toBe(0);
-    expect(stringArray.stderr).toContain("native ABI");
-    expect(stringArray.stderr).toContain("values");
+    expect(stringReturnType.status).not.toBe(0);
+    expect(stringReturnType.stderr).toContain("native ABI");
+    expect(stringReturnType.stderr).toContain("return array type");
+
+    const stringPointerArray = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          process(values: ptr<string[]>): void
+        }
+      `,
+    }));
+    expect(stringPointerArray.status).not.toBe(0);
+    expect(stringPointerArray.stderr).toContain("native ABI");
+    expect(stringPointerArray.stderr).toContain("values");
 
     const nestedArray = runCompiler(createProject({
       "main.io": `
         extern native from "./libnative.a" {
-          process(values: number[][]): void
+          process(values: string[][]): void
         }
       `,
     }));

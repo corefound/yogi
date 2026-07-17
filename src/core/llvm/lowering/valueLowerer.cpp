@@ -209,6 +209,7 @@ namespace yogi::core::llvm::internal {
 		};
 		std::vector<NativeArrayCleanup> nativeArrayCleanups;
 		std::vector<NativeStructArrayCopyBack> nativeStructArrayCopyBacks;
+		std::vector<::llvm::Value *> nativeStringArrayCleanups;
 		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
 		const auto nativeArrayElementType = [&](const Yogi::Sir::TypeRef *type) -> const Yogi::Sir::TypeRef * {
@@ -225,6 +226,10 @@ namespace yogi::core::llvm::internal {
 		const auto isNativeNumberArray = [&](const Yogi::Sir::TypeRef *type) {
 			const auto *elementType = nativeArrayElementType(type);
 			return elementType && resolvedTypeKind(elementType) == Yogi::Sir::TypeKind_number_type;
+		};
+		const auto isNativeStringArray = [&](const Yogi::Sir::TypeRef *type) {
+			const auto *elementType = nativeArrayElementType(type);
+			return elementType && resolvedTypeKind(elementType) == Yogi::Sir::TypeKind_string_type;
 		};
 		const auto nativeStructArrayName = [&](const Yogi::Sir::TypeRef *type) {
 			const auto *elementType = nativeArrayElementType(type);
@@ -283,6 +288,19 @@ namespace yogi::core::llvm::internal {
 			argumentTypes.push_back(opaquePointer());
 			appendNativeArrayDimensions(arrayType, length);
 			nativeArrayCleanups.push_back({array, buffer, length, mutableBorrow});
+		};
+		const auto appendNativeStringArrayArgument = [&](
+			const Yogi::Sir::ValueRef *argument,
+			const Yogi::Sir::TypeRef *argumentSemanticType,
+			const Yogi::Sir::TypeRef *arrayType
+		) {
+			auto *array = lower(argument, opaquePointer(), argumentSemanticType);
+			auto *length = callRuntime("yogi_array_length", integerType, {array});
+			auto *buffer = callRuntime("yogi_array_native_string_buffer", opaquePointer(), {array});
+			arguments.push_back(buffer);
+			argumentTypes.push_back(opaquePointer());
+			appendNativeArrayDimensions(arrayType, length);
+			nativeStringArrayCleanups.push_back(buffer);
 		};
 		const auto emitStructArrayCopyBack = [&](
 			::llvm::Value *array,
@@ -424,6 +442,15 @@ namespace yogi::core::llvm::internal {
 
 				if (
 					call->external() &&
+					argumentKind == Yogi::Sir::TypeKind_array_type &&
+					isNativeStringArray(argumentSemanticType)
+				) {
+					appendNativeStringArrayArgument(argument, argumentSemanticType, argumentSemanticType);
+					continue;
+				}
+
+				if (
+					call->external() &&
 					argumentKind == Yogi::Sir::TypeKind_array_type
 				) {
 					const auto structName = nativeStructArrayName(argumentSemanticType);
@@ -485,6 +512,10 @@ namespace yogi::core::llvm::internal {
 		const auto emitNativeArrayCleanups = [&]() {
 			for (auto it = nativeStructArrayCopyBacks.rbegin(); it != nativeStructArrayCopyBacks.rend(); ++it) {
 				emitStructArrayCopyBack(it->array, it->buffer, it->length, it->elementType, it->structType);
+			}
+
+			for (auto it = nativeStringArrayCleanups.rbegin(); it != nativeStringArrayCleanups.rend(); ++it) {
+				callRuntime("yogi_array_native_string_buffer_destroy", voidType, {*it});
 			}
 
 			for (auto it = nativeArrayCleanups.rbegin(); it != nativeArrayCleanups.rend(); ++it) {

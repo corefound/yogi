@@ -21,7 +21,9 @@ set(NATIVE_OBJECT "${TEST_WORK_DIR}/native_array.o")
 set(NATIVE_LIBRARY "${TEST_WORK_DIR}/libnative_array.a")
 
 file(WRITE "${NATIVE_SOURCE}" [=[
+#include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 double sumValues(double *values, uint64_t length) {
 	double total = 0.0;
@@ -67,6 +69,23 @@ void boostReadings(NativeReading *readings, uint64_t length) {
 		readings[index].score += readings[index].weight;
 	}
 }
+
+double totalStringLength(const char **values, uint64_t length) {
+	double total = 0.0;
+	for (uint64_t index = 0; index < length; ++index) {
+		total += (double)strlen(values[index]);
+	}
+	return total;
+}
+
+bool containsString(const char **values, uint64_t length, const char *target) {
+	for (uint64_t index = 0; index < length; ++index) {
+		if (strcmp(values[index], target) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
 ]=])
 
 execute_process(
@@ -107,6 +126,8 @@ extern native from "./libnative_array.a" {
     transformMatrix(values: ptr<number[2, 3]>): void
     weightedScore(readings: Reading[]): number
     boostReadings(readings: ptr<Reading[]>): void
+    totalStringLength(values: string[]): number
+    containsString(values: string[], target: string): boolean
 }
 
 let samples: number[] = [1, 2, 3, 4]
@@ -119,6 +140,8 @@ let readings: Reading[] = [
     { score: 2, weight: 10 },
     { score: 3, weight: 20 }
 ]
+let names: string[] = ["Ana", "Luis", "Mia"]
+let emptyNames: string[] = []
 
 print(native.sumValues(samples))
 native.incrementValues(&samples)
@@ -133,6 +156,11 @@ print(native.weightedScore(readings))
 native.boostReadings(&readings)
 print(readings[0].score)
 print(readings[1].score)
+print(native.totalStringLength(names))
+print(native.containsString(names, "Luis"))
+print(names.length)
+print(names[0])
+print(native.totalStringLength(emptyNames))
 ]=])
 
 execute_process(
@@ -162,11 +190,15 @@ foreach(symbol
 		yogi_array_native_number_buffer
 		yogi_array_native_number_buffer_copy_back
 		yogi_array_native_buffer_destroy
+		yogi_array_native_string_buffer
+		yogi_array_native_string_buffer_destroy
 		sumValues
 		incrementValues
 		transformMatrix
 		weightedScore
-		boostReadings)
+		boostReadings
+		totalStringLength
+		containsString)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected array native ABI IR to contain ${symbol}")
 	endif()
@@ -184,7 +216,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array native ABI executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "10\n11\n14\n20\n5\n104\n108\n80\n12\n23\n")
+set(expected_stdout "10\n11\n14\n20\n5\n104\n108\n80\n12\n23\n10\ntrue\n3\nAna\n0\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array native ABI executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -215,14 +247,20 @@ function(expect_invalid case_name source expected)
 endfunction()
 
 expect_invalid(
-	"extern_string_array_parameter"
-	"extern native from \"./libnative_array.a\" {\n    process(values: string[]): void\n}\n"
+	"extern_string_pointer_array_parameter"
+	"extern native from \"./libnative_array.a\" {\n    process(values: ptr<string[]>): void\n}\n"
 	"native ABI"
 )
 
 expect_invalid(
 	"extern_nested_dynamic_array_parameter"
-	"extern native from \"./libnative_array.a\" {\n    process(values: number[][]): void\n}\n"
+	"extern native from \"./libnative_array.a\" {\n    process(values: string[][]): void\n}\n"
+	"native ABI"
+)
+
+expect_invalid(
+	"extern_string_array_return"
+	"extern native from \"./libnative_array.a\" {\n    load(): string[]\n}\n"
 	"native ABI"
 )
 

@@ -51,6 +51,7 @@ Each test should:
 | Array Storage Policy Report | `tests/programs/array_storage_policy_report.cmake` | Implemented | contiguous vs pointer-safe array storage, live interior pointers, fixed-shape indexing, functions, LLVM/runtime execution |
 | Native Signal Processor | `tests/programs/native_signal_processor.cmake` | Implemented | extern native numeric array ABI, temporary contiguous buffers, mutable copy-back through `ptr<number[]>`, fixed-shape matrix dimensions, static native library linking, LLVM/runtime execution |
 | Native Reading Calibrator | `tests/programs/native_reading_calibrator.cmake` | Implemented | extern native plain numeric struct array ABI, `Struct* + length` marshalling, mutable copy-back through `ptr<Struct[]>`, static native library linking, LLVM/runtime execution |
+| Native Dictionary Lookup | `tests/programs/native_dictionary_lookup.cmake` | Implemented | extern native `string[]` ABI, temporary `const char** + length` marshalling, native lookup, original array preservation, static native library linking, LLVM/runtime execution |
 
 ## Rules
 

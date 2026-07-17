@@ -380,7 +380,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 const pointee = this.resolveType(resolved.elementType ?? resolved.pointee ?? resolved.pointeeType);
 
                 if (pointee?.kind === Kinds.Types.ArrayType || pointee?.kind === Kinds.Types.TupleType) {
-                    return this.isExternNativeArrayAbiType(pointee);
+                    return this.isExternNativeMutableArrayAbiType(pointee);
                 }
             }
 
@@ -417,7 +417,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 type?.position ?? node.position,
                 source,
                 node,
-                "  = supported array ABI today is number[] / fixed number arrays, or ptr<number[]> for mutable borrowed buffers\n  = string arrays, nested dynamic arrays, tuple returns, and non-marshallable struct arrays are rejected",
+                "  = supported array ABI today is number[] / string[] / ABI-safe Struct[] by value, plus ptr<number[]> or ptr<Struct[]> for mutable borrowed buffers\n  = ptr<string[]>, nested dynamic arrays, tuple returns, array variables, and non-marshallable struct arrays are rejected",
             );
         }
 
@@ -457,6 +457,30 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             }
 
             if (resolved.kind !== Kinds.Types.ArrayType) {
+                return false;
+            }
+
+            const elementType = this.resolveType(resolved.elementType);
+
+            if (!elementType) {
+                return false;
+            }
+
+            if (elementType.kind === Kinds.Types.NumberType) {
+                return true;
+            }
+
+            if (elementType.kind === Kinds.Types.StringType) {
+                return true;
+            }
+
+            return this.isExternNativePlainStructType(resolved.elementType);
+        }
+
+        public isExternNativeMutableArrayAbiType(type: any): boolean {
+            const resolved = this.resolveType(type);
+
+            if (!resolved || resolved.kind !== Kinds.Types.ArrayType) {
                 return false;
             }
 

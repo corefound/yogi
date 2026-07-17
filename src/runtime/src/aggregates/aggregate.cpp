@@ -1617,6 +1617,17 @@ namespace yogi::runtime {
 
 } // namespace yogi::runtime
 
+namespace {
+	constexpr std::size_t alignNativeStringBufferOffset(std::size_t value) {
+		constexpr auto alignment = alignof(const char *);
+		return (value + alignment - 1) & ~(alignment - 1);
+	}
+
+	constexpr std::size_t nativeStringArrayPointerOffset() {
+		return alignNativeStringBufferOffset(sizeof(std::size_t));
+	}
+}
+
 extern "C" {
 
 void *yogi_object_create(void) {
@@ -2120,6 +2131,46 @@ void *yogi_array_native_number_buffer(void *array) {
 	}
 
 	return buffer;
+}
+
+void *yogi_array_native_string_buffer(void *array) {
+	const auto length = yogi_array_length(array);
+	std::size_t textBytes = 0;
+
+	for (unsigned long long index = 0; index < length; ++index) {
+		const auto *text = yogi_any_to_string(yogi_array_get(array, index));
+		textBytes += std::strlen(text ? text : "") + 1;
+	}
+
+	const auto pointerBytes = sizeof(const char *) * static_cast<std::size_t>(length);
+	const auto offset = nativeStringArrayPointerOffset();
+	auto *base = static_cast<unsigned char *>(
+		yogi::runtime::MemoryManager::allocate(offset + pointerBytes + textBytes, "native string array buffer")
+	);
+	*reinterpret_cast<std::size_t *>(base) = static_cast<std::size_t>(length);
+
+	auto **values = reinterpret_cast<const char **>(base + offset);
+	auto *cursor = reinterpret_cast<char *>(base + offset + pointerBytes);
+
+	for (unsigned long long index = 0; index < length; ++index) {
+		const auto *text = yogi_any_to_string(yogi_array_get(array, index));
+		const auto *safeText = text ? text : "";
+		const auto size = std::strlen(safeText) + 1;
+		std::memcpy(cursor, safeText, size);
+		values[index] = cursor;
+		cursor += size;
+	}
+
+	return values;
+}
+
+void yogi_array_native_string_buffer_destroy(void *buffer) {
+	if (!buffer) {
+		return;
+	}
+
+	auto *base = static_cast<unsigned char *>(buffer) - nativeStringArrayPointerOffset();
+	yogi::runtime::MemoryManager::deallocate(base);
 }
 
 void yogi_array_native_number_buffer_copy_back(void *array, void *buffer, unsigned long long length) {

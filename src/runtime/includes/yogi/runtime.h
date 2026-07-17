@@ -122,6 +122,8 @@ void *yogi_array_to_sorted(void *array);
 void *yogi_array_native_number_buffer(void *array);
 void yogi_array_native_number_buffer_copy_back(void *array, void *buffer, unsigned long long length);
 void yogi_array_native_buffer_destroy(void *buffer);
+void *yogi_array_native_string_buffer(void *array);
+void yogi_array_native_string_buffer_destroy(void *buffer);
 void *yogi_array_iteration_plan(void *array);
 unsigned long long yogi_array_iteration_plan_length(void *plan);
 bool yogi_array_iteration_plan_valid(void *plan, unsigned long long index);

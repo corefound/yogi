@@ -760,6 +760,12 @@ if(BUILD_TESTING)
                         program-native-reading-calibrator
                         tests/programs/native_reading_calibrator.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_native_dictionary_lookup
+                        program-native-dictionary-lookup
+                        tests/programs/native_dictionary_lookup.cmake
+                )
         endif()
 endif()
 

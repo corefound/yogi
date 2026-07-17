@@ -27,6 +27,7 @@ language support.
 | Array Storage Policy Report | `tests/programs/array_storage_policy_report.cmake` | Implemented | Exercises contiguous vs pointer-safe array storage policy, interior pointers, fixed-shape indexing, functions, LLVM IR storage markers, object generation, linking, and runtime execution |
 | Native Signal Processor | `tests/programs/native_signal_processor.cmake` | Implemented | Exercises extern native numeric array ABI, temporary contiguous buffers, mutable copy-back through `ptr<number[]>`, fixed-shape matrix ABI dimensions, LLD linking with a static native library, LLVM IR generation, object generation, and runtime execution |
 | Native Reading Calibrator | `tests/programs/native_reading_calibrator.cmake` | Implemented | Exercises extern native plain numeric struct array ABI, `Struct* + length` marshalling, mutable copy-back through `ptr<Struct[]>`, static native library linking, LLVM IR generation, object generation, and runtime execution |
+| Native Dictionary Lookup | `tests/programs/native_dictionary_lookup.cmake` | Implemented | Exercises extern native `string[]` ABI, temporary `const char** + length` marshalling, native lookup, original array preservation, static native library linking, LLVM IR generation, object generation, and runtime execution |
 
 ## Planned Program Tests
 
