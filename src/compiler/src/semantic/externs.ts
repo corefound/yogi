@@ -228,6 +228,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             }
 
             if (!this.isSupportedExternVariableType(type)) {
+                this.throwExternArrayAbiError("variable", name, type, member, source);
                 member.arrowLength = type?.raw?.length ?? name.length ?? 1;
                 this.throwError(
                     `extern variable ${Helpers.RED}'${name}'${Helpers.RESET} has unsupported type ` +
@@ -273,6 +274,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             }
 
             if (!this.isSupportedExternReturnType(returnType)) {
+                this.throwExternArrayAbiError("return type", name, returnType, member.returnType ?? member, source);
                 member.arrowLength = member.returnType?.raw?.length ?? name.length ?? 1;
                 this.throwError(
                     `extern function ${Helpers.RED}'${name}'${Helpers.RESET} has unsupported return type ` +
@@ -336,6 +338,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             }
 
             if (!this.isSupportedExternParameterType(type)) {
+                this.throwExternArrayAbiError("parameter", name, type, parameter, functionSource);
                 parameter.arrowLength = type?.raw?.length ?? name.length ?? 1;
                 this.throwError(
                     `extern parameter ${Helpers.RED}'${name}'${Helpers.RESET} has unsupported type ` +
@@ -379,6 +382,33 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
 
         public isSupportedExternVariableType(type: any): boolean {
             return this.isSupportedExternParameterType(type);
+        }
+
+        public throwExternArrayAbiError(kind: "parameter" | "return type" | "variable", name: string, type: any, node: any, source: string): void {
+            if (!this.isExternArrayAbiType(type)) {
+                return;
+            }
+
+            const label =
+                kind === "return type"
+                    ? `extern function ${Helpers.RED}'${name}'${Helpers.RESET} cannot return array type`
+                    : `extern ${kind} ${Helpers.RED}'${name}'${Helpers.RESET} cannot use array type`;
+
+            node.arrowLength = type?.raw?.length ?? name.length ?? 1;
+            this.throwError(
+                `${label} ${Helpers.RED}'${type?.raw ?? "array"}'${Helpers.RESET} across native ABI by value`,
+                type?.position ?? node.position,
+                source,
+                node,
+                "  = array native ABI is not implicit in Yogi\n  = use an explicit pointer or descriptor boundary when that ABI is modeled",
+            );
+        }
+
+        public isExternArrayAbiType(type: any): boolean {
+            return (
+                type?.kind === Kinds.Types.ArrayType ||
+                type?.kind === Kinds.Types.TupleType
+            );
         }
 
         public isSupportedExternPath(externPath: string): boolean {

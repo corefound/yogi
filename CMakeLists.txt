@@ -552,6 +552,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_array_native_abi_policy
+                        pipeline-array-native-abi-policy
+                        tests/runtime/sessions/02-variables-aggregates/array_native_abi_policy.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_print_collections
                         pipeline-print-collections
                         tests/runtime/sessions/02-variables-aggregates/print_collections.cmake
@@ -735,6 +741,12 @@ if(BUILD_TESTING)
                         yogi_program_sales_destructuring_report
                         program-sales-destructuring-report
                         tests/programs/sales_destructuring_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_array_storage_policy_report
+                        program-array-storage-policy-report
+                        tests/programs/array_storage_policy_report.cmake
                 )
         endif()
 endif()

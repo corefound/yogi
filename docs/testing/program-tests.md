@@ -48,6 +48,7 @@ Each test should:
 | Player Scoreboard | `tests/programs/player_scoreboard.cmake` | Implemented | returned pointers into dynamic array cells, struct field pointer mutation, `push`, value iteration over `ptr<Player[]>`, function calls, LLVM/runtime execution |
 | Matrix Report | `tests/programs/matrix_report.cmake` | Implemented | fixed-shape matrix row views, returned/materialized views, global view retention, value-parameter isolation, LLVM/runtime execution |
 | Sales Destructuring Report | `tests/programs/sales_destructuring_report.cmake` | Implemented | array destructuring, rest bindings, tuple-rest annotations, `entries()` destructuring, structs, function calls, LLVM/runtime execution |
+| Array Storage Policy Report | `tests/programs/array_storage_policy_report.cmake` | Implemented | contiguous vs pointer-safe array storage, live interior pointers, fixed-shape indexing, functions, LLVM/runtime execution |
 
 ## Rules
 

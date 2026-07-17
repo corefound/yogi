@@ -771,6 +771,42 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("rejects implicit array by-value types in extern native ABI declarations", () => {
+    const parameter = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          process(values: number[]): void
+        }
+      `,
+    }));
+    expect(parameter.status).not.toBe(0);
+    expect(parameter.stderr).toContain("native ABI");
+    expect(parameter.stderr).toContain("array type");
+    expect(parameter.stderr).toContain("values");
+
+    const returnType = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          load(): number[]
+        }
+      `,
+    }));
+    expect(returnType.status).not.toBe(0);
+    expect(returnType.stderr).toContain("native ABI");
+    expect(returnType.stderr).toContain("return array type");
+
+    const variable = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          readonly values: number[]
+        }
+      `,
+    }));
+    expect(variable.status).not.toBe(0);
+    expect(variable.stderr).toContain("native ABI");
+    expect(variable.stderr).toContain("extern variable");
+  });
+
   test("rejects aggregate use after ownership moved through retained callees and unknown calls", () => {
     const retainedByKnownCallee = runCompiler(createProject({
       "main.io": `

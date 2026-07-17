@@ -1424,21 +1424,41 @@ uint8[1080, 1920, 4] -> [8294400 x i8]
 
 ### 8. C ABI interop rules for arrays
 
-Need rules for exporting/importing arrays.
+Current rule:
+
+``` txt
+arrays do not cross extern native ABI by value implicitly
+```
+
+Yogi rejects `extern ... from "lib"` members that use dynamic arrays,
+fixed arrays, fixed-shape arrays, or tuples by value.
 
 Example:
 
 ``` ts
-export function process(matrix: number[4, 4]): void
+extern native from "./libnative.a" {
+    process(values: number[]): void
+}
+// error: array native ABI is not implicit in Yogi
 ```
 
-Open questions:
+Reason:
 
 ``` txt
-Should fixed arrays pass by value?
-Should large fixed arrays pass by pointer?
-Should dynamic arrays pass by descriptor?
-Should fixed-shape views pass as pointer + shape?
+T[] may be a runtime descriptor with adaptive storage
+T[N] and T[N, M] currently still lower through runtime array descriptors
+tuples are aggregate array-like values, not a C ABI layout promise
+```
+
+The future ABI must be explicit about representation:
+
+``` txt
+native pointer
+runtime descriptor
+copy-in/copy-out temporary
+fixed-shape raw LLVM value
+pointer + length
+pointer + shape
 ```
 
 Recommended direction:
@@ -1736,6 +1756,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Address-of dynamic array cells: &values[i]
 ✅ Pointer indexing read/write mutates caller storage
 ✅ Adaptive dynamic array storage selection: contiguous fast path vs pointer-safe chunked mode
+✅ Extern native ABI rejects arrays/tuples by value
 ✅ Normal array parameters use local/value semantics
 ✅ Pointer partial views: ptr<number[2, 3]>[0] -> ptr<number[3]>
 ✅ Borrow summaries for ptr<T> parameter-derived returns
@@ -2788,6 +2809,14 @@ deeper rest binding patterns
 This is a major future area because pointer-safe chunked dynamic storage
 is not automatically equivalent to a native contiguous `T*`.
 
+Current implemented policy:
+
+``` txt
+extern native ABI rejects arrays/tuples by value
+array literals lower through yogi_array_create_with_storage
+storage mode is explicit in IR: contiguous_fast_path or pointer_safe_chunked_mode
+```
+
 Define:
 
 ``` txt
@@ -3021,6 +3050,7 @@ readonly propagation from the original owner
 ✅ Address-of dynamic array cells: &values[i]
 ✅ Pointer indexing read/write mutates caller storage
 ✅ Adaptive dynamic-array storage: contiguous fast path vs pointer-safe mode
+✅ Extern native ABI rejects arrays/tuples by value
 ✅ Lazy runtime promotion to pointer-safe storage
 ✅ Pointer partial views
 ✅ General dereference syntax: *p and (*p) = value
@@ -3060,7 +3090,7 @@ readonly propagation from the original owner
 ⬜ Dynamic shaped arrays: Array<T, Rank>
 ⬜ Dynamic shaped views/slices
 ⬜ Native fixed-shape ABI without runtime descriptor
-⬜ C ABI / FFI rules for arrays
+⬜ Full C ABI / FFI rules for arrays
 ⬜ Contiguous materialization policy for pointer-safe chunked arrays
 ⬜ Lazy iterator objects
 ⬜ Object stringification inside arrays
@@ -3080,7 +3110,7 @@ readonly propagation from the original owner
 2. Automatic Array View Escape and Lifetime Analysis
 3. Array Copy, Move, and Ownership Semantics
 4. Union Array Runtime and Narrowing Semantics
-5. Array Native ABI and Contiguous Interop
+5. Full Array Native ABI and Contiguous Interop
 6. Array Bounds-Check Elimination and Loop Optimization
 7. Dynamic Shaped Arrays and Runtime Rank Metadata
 8. Lazy Array Iterators

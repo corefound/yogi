@@ -24,6 +24,7 @@ language support.
 | Player Scoreboard | `tests/programs/player_scoreboard.cmake` | Implemented | Exercises functions returning pointers into dynamic array struct fields, pointer mutation, `push`, pointer-array iteration, LLVM lowering, object generation, linking, and runtime execution |
 | Matrix Report | `tests/programs/matrix_report.cmake` | Implemented | Exercises fixed-shape matrix row views, returned/materialized views, value-parameter isolation, global view retention, LLVM lowering, object generation, linking, and runtime execution |
 | Sales Destructuring Report | `tests/programs/sales_destructuring_report.cmake` | Implemented | Exercises array destructuring, rest bindings, tuple-rest annotations, `entries()` destructuring, structs, functions, LLVM lowering, object generation, linking, and runtime execution |
+| Array Storage Policy Report | `tests/programs/array_storage_policy_report.cmake` | Implemented | Exercises contiguous vs pointer-safe array storage policy, interior pointers, fixed-shape indexing, functions, LLVM IR storage markers, object generation, linking, and runtime execution |
 
 ## Planned Program Tests
 
