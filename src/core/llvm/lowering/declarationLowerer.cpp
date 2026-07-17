@@ -89,7 +89,7 @@ namespace yogi::core::llvm::internal {
 	void VariableLowerer::lowerVariable(const Yogi::Sir::VariableDeclaration *variable) {
 		auto *type = types.lower(variable->type());
 		const auto name = fbString(variable->name());
-		const auto isGlobalVariable = context.globals.contains(name);
+		const auto isGlobalVariable = variable->scope_id() == 0 && context.globals.contains(name);
 		const auto isAggregateType = [](const Yogi::Sir::TypeRef *typeRef) {
 			if (!typeRef) {
 				return false;

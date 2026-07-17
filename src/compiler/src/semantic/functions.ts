@@ -591,21 +591,56 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 : false;
         }
 
-        public promoteBorrowedViewSourceNameForEscape(sourceName: string, reason: string): boolean {
+        public promoteBorrowedViewSourceNameForEscape(
+            sourceName: string,
+            reason: string,
+            visited: Set<string> = new Set(),
+        ): boolean {
+            if (visited.has(sourceName)) {
+                return false;
+            }
+
+            visited.add(sourceName);
             const sourceSymbol = sourceName ? this.resolveSymbol(sourceName) : null;
 
             if (!sourceSymbol || sourceSymbol.storage !== Kinds.Storage.stack) {
                 return false;
             }
 
+            let promoted = false;
             sourceSymbol.escapes = true;
             sourceSymbol.borrowedViewOwnerPromoted = true;
             sourceSymbol.borrowedViewOwnerPromotionReasons = [
                 ...(sourceSymbol.borrowedViewOwnerPromotionReasons ?? []),
                 reason,
             ];
+            promoted = true;
 
-            return true;
+            const nestedSources = [
+                sourceSymbol.borrowedViewSourceName,
+                ...(sourceSymbol.borrowedViewGraphSourceNames ?? []),
+            ].filter((name): name is string => typeof name === "string" && name.length > 0);
+
+            for (const nestedSourceName of nestedSources) {
+                if (this.promoteBorrowedViewSourceNameForEscape(nestedSourceName, reason, visited)) {
+                    promoted = true;
+                }
+            }
+
+            for (const symbolId of sourceSymbol.borrowedViewGraphAggregateSymbolIds ?? []) {
+                const nestedSymbol = this.getSymbolById(symbolId);
+                if (!nestedSymbol || !this.isAggregateType(nestedSymbol.type)) {
+                    continue;
+                }
+
+                if (nestedSymbol.storage === Kinds.Storage.stack) {
+                    nestedSymbol.escapes = true;
+                    nestedSymbol.borrowedViewGraphEscaped = true;
+                    promoted = true;
+                }
+            }
+
+            return promoted;
         }
 
         public rejectEscapingLocalFixedShapeView(value: any, node: any): void {

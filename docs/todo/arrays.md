@@ -1667,6 +1667,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Owner promotion/lifetime extension for direct borrowed views escaping through storage/member stores
 ✅ Owner promotion through escaping nested object/array literal graphs
 ✅ Owner promotion through local object graph identifiers that escape later
+✅ Transitive owner promotion for escaped nested fixed-shape borrowed view chains
 ✅ Captured borrowed views in immediate inline callbacks can escape safely to global storage
 ✅ Explicit .copy() for owned slice/view copies
 ✅ Array element return unboxing for primitive contexts

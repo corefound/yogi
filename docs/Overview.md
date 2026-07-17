@@ -22,6 +22,7 @@ language support.
 | Inventory Manager | `tests/programs/inventory_manager.cmake` | Implemented | Exercises structs, dynamic arrays, array callbacks, loops, mutation, functions, arithmetic, control flow, LLVM lowering, object generation, linking, and runtime execution |
 | Tagged User Cleanup | `tests/programs/tagged_user_cleanup.cmake` | Implemented | Exercises `ptr<User[]>` parameters, pointer/value `for...of` iteration, string tags, struct mutation, `splice`, `.length` on pointer arrays, LLVM lowering, object generation, linking, and runtime execution |
 | Player Scoreboard | `tests/programs/player_scoreboard.cmake` | Implemented | Exercises functions returning pointers into dynamic array struct fields, pointer mutation, `push`, pointer-array iteration, LLVM lowering, object generation, linking, and runtime execution |
+| Matrix Report | `tests/programs/matrix_report.cmake` | Implemented | Exercises fixed-shape matrix row views, returned/materialized views, value-parameter isolation, global view retention, LLVM lowering, object generation, linking, and runtime execution |
 
 ## Planned Program Tests
 

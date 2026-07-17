@@ -492,6 +492,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_array_view_lifetime_analysis
+                        pipeline-array-view-lifetime-analysis
+                        tests/runtime/sessions/02-variables-aggregates/array_view_lifetime_analysis.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_pointer_core
                         pipeline-pointer-core
                         tests/runtime/sessions/02-variables-aggregates/pointer_core.cmake
@@ -711,6 +717,12 @@ if(BUILD_TESTING)
                         yogi_program_player_scoreboard
                         program-player-scoreboard
                         tests/programs/player_scoreboard.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_matrix_report
+                        program-matrix-report
+                        tests/programs/matrix_report.cmake
                 )
         endif()
 endif()

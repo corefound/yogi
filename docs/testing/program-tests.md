@@ -46,6 +46,7 @@ Each test should:
 | Inventory Manager | `tests/programs/inventory_manager.cmake` | Implemented | structs, arrays, struct arrays, functions, `for`, `for...of`, callbacks, mutation, arithmetic, control flow, LLVM/runtime execution |
 | Tagged User Cleanup | `tests/programs/tagged_user_cleanup.cmake` | Implemented | `ptr<User[]>` parameters, value and pointer iteration over array pointers, string equality, boolean negation, dynamic array `splice`, struct mutation, `.length`, LLVM/runtime execution |
 | Player Scoreboard | `tests/programs/player_scoreboard.cmake` | Implemented | returned pointers into dynamic array cells, struct field pointer mutation, `push`, value iteration over `ptr<Player[]>`, function calls, LLVM/runtime execution |
+| Matrix Report | `tests/programs/matrix_report.cmake` | Implemented | fixed-shape matrix row views, returned/materialized views, global view retention, value-parameter isolation, LLVM/runtime execution |
 
 ## Rules
 

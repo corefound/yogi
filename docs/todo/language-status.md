@@ -170,6 +170,7 @@ without re-auditing the whole compiler.
 - [x] Inventory Manager Program Test
 - [x] Tagged User Cleanup Program Test
 - [x] Player Scoreboard Program Test
+- [x] Matrix Report Program Test
 - [ ] Contact Manager Program Test
 - [ ] Matrix Operations Program Test
 - [ ] Graph Traversal Program Tests
