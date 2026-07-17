@@ -116,6 +116,46 @@ must not mutate an existing Yogi string buffer in place.
 
 See `docs/lots/71-mutable-native-string-abi-policy.md` for the full policy.
 
+## Native ABI Ownership Contracts
+
+Extern function signatures can declare ownership contracts with JSDoc-style
+`@abi` metadata:
+
+```ts
+extern native from "./libnative.a" {
+    /** @abi param values borrowed */
+    process(values: string[]): void
+
+    /** @abi return native-owned free=destroyName */
+    getName(): string
+
+    destroyName(value: string): void
+}
+```
+
+Supported forms:
+
+```txt
+@abi param <name> borrowed
+@abi param <name> copy-back
+@abi param <name> native-owned free=<externFunctionName>
+@abi param <name> runtime-owned
+@abi return borrowed
+@abi return native-owned free=<externFunctionName>
+@abi return runtime-owned
+```
+
+Rules:
+
+- A parameter contract must reference an existing parameter.
+- `copy-back` requires a pointer parameter.
+- `native-owned` requires `free=<externFunctionName>`.
+- The free function must be declared in the same extern block.
+- Return contracts cannot be attached to `void` functions.
+
+These contracts are parsed and semantically validated today. Runtime behavior
+for advanced modes is implemented in future lots.
+
 For struct arrays, the C struct must match Yogi field order and use `double`
 for every field:
 

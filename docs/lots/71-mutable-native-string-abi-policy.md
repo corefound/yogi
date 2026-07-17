@@ -176,8 +176,6 @@ Before enabling `ptr<string[]>`, Yogi needs:
 
 ## Next
 
-The next implementation lot can either:
-
-- add source syntax/metadata for native string ownership modes, or
-- keep `ptr<string[]>` rejected and move to another ABI-safe feature such as
-  nested/resource-owning struct ABI policy.
+The next implementation lot should consume the `@abi` ownership metadata in the
+backend/runtime, or keep `ptr<string[]>` rejected and move to another ABI-safe
+feature such as nested/resource-owning struct ABI policy.

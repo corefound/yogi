@@ -22,6 +22,15 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             const externPath = this.getExternPathText(node.path);
             const members = node.members ?? [];
 
+            const parentMemberNames = members.map((member: any) => this.getExternNameText(member.name));
+            for (const member of members) {
+                Object.defineProperty(member, "parentMemberNames", {
+                    value: parentMemberNames,
+                    enumerable: false,
+                    configurable: true,
+                });
+            }
+
             this.externDeclarationDiagnostics(node, name, externPath, members, source);
             this.registerExternalLink({
                 kind: this.getExternLinkKind(externPath),
@@ -91,17 +100,28 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             const parameters = member.parameters ?? [];
             const returnType = this.normalizeExternType(member.returnType);
 
+            for (const parameter of parameters) {
+                Object.defineProperty(parameter, "parentMemberNames", {
+                    value: member.parentMemberNames ?? [],
+                    enumerable: false,
+                    configurable: true,
+                });
+            }
+
+            const abiContracts = this.normalizeExternAbiContracts(member, parameters, returnType);
+
             this.externFunctionDiagnostics(member, name, parameters, returnType, declarationSource);
 
             return {
                 kind: Kinds.Sir.ExternFunction,
                 name,
                 parameters: parameters.map((parameter: any) => {
-                    return this.visitExternParameter(parameter, member.raw ?? member.source ?? declarationSource);
+                    return this.visitExternParameter(parameter, member.source ?? member.raw ?? declarationSource);
                 }),
                 returnType,
+                abiContracts,
                 optional: Boolean(member.optional),
-                source: member.raw ?? member.source ?? "",
+                source: member.source ?? member.raw ?? "",
                 position: member.position,
             };
         }
@@ -211,10 +231,21 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             type: any,
             declarationSource: string,
         ): void {
-            const source = member.raw ?? member.source ?? declarationSource;
+            const source = member.source ?? member.raw ?? declarationSource;
 
             if (!name) {
                 this.throwError("extern variable is missing a name", member.position, source, member);
+            }
+
+            if ((member.abiContracts ?? []).length > 0) {
+                member.arrowLength = name.length || 1;
+                this.throwError(
+                    `extern variable ${Helpers.RED}'${name}'${Helpers.RESET} cannot declare native ABI ownership contracts`,
+                    member.position,
+                    source,
+                    member,
+                    "  = use @abi contracts on extern function signatures only",
+                );
             }
 
             if (member.optional) {
@@ -247,7 +278,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             returnType: any,
             declarationSource: string,
         ): void {
-            const source = member.raw ?? member.source ?? declarationSource;
+            const source = member.source ?? member.raw ?? declarationSource;
 
             if (!name) {
                 this.throwError("extern function is missing a name", member.position, source, member);
@@ -300,6 +331,8 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
 
                 parameterNames.add(parameterName);
             }
+
+            this.externAbiContractDiagnostics(member, name, parameters, returnType, source);
         }
 
         public externParameterDiagnostics(parameter: any, name: string, type: any, functionSource: string): void {
@@ -359,6 +392,214 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             }
 
             return this.toSerializableType(type);
+        }
+
+        public normalizeExternAbiContracts(member: any, parameters: any[], returnType: any): any {
+            const contracts = member.abiContracts ?? [];
+            const parameterContracts = contracts
+                .filter((contract: any) => contract.target === "parameter")
+                .map((contract: any) => ({
+                    target: "parameter",
+                    name: contract.parameterName,
+                    mode: contract.mode,
+                    owner: contract.owner ?? null,
+                    freeFunction: contract.freeFunction ?? null,
+                    source: contract.raw,
+                    position: contract.position,
+                }));
+
+            const returnContract = contracts.find((contract: any) => contract.target === "return");
+
+            return {
+                parameters: parameterContracts,
+                returnValue: returnContract
+                    ? {
+                        target: "return",
+                        mode: returnContract.mode,
+                        owner: returnContract.owner ?? null,
+                        freeFunction: returnContract.freeFunction ?? null,
+                        source: returnContract.raw,
+                        position: returnContract.position,
+                    }
+                    : null,
+            };
+        }
+
+        public externAbiContractDiagnostics(
+            member: any,
+            functionName: string,
+            parameters: any[],
+            returnType: any,
+            source: string,
+        ): void {
+            const contracts = member.abiContracts ?? [];
+            if (!contracts.length) {
+                return;
+            }
+
+            const parameterMap = new Map<string, any>();
+            for (const parameter of parameters) {
+                parameterMap.set(this.getExternNameText(parameter.name), parameter);
+            }
+
+            const seenTargets = new Set<string>();
+            const validParameterModes = new Set(["borrowed", "copy-back", "native-owned", "runtime-owned"]);
+            const validReturnModes = new Set(["borrowed", "native-owned", "runtime-owned"]);
+
+            for (const contract of contracts) {
+                if (contract.target !== "parameter" && contract.target !== "return") {
+                    this.throwExternAbiContractError(
+                        contract,
+                        source,
+                        `native ABI contract ${Helpers.RED}'${contract.raw || "@abi"}'${Helpers.RESET} must target a parameter or return value`,
+                        "  = supported forms: @abi param <name> borrowed, @abi param <name> copy-back, @abi return native-owned free=<function>",
+                    );
+                }
+
+                const targetKey = contract.target === "parameter"
+                    ? `parameter:${contract.parameterName}`
+                    : "return";
+
+                if (seenTargets.has(targetKey)) {
+                    this.throwExternAbiContractError(
+                        contract,
+                        source,
+                        `native ABI contract for ${Helpers.RED}'${targetKey.replace("parameter:", "")}'${Helpers.RESET} is declared multiple times`,
+                    );
+                }
+
+                seenTargets.add(targetKey);
+
+                if (contract.target === "parameter") {
+                    this.externAbiParameterContractDiagnostics(contract, parameterMap, source, validParameterModes);
+                    continue;
+                }
+
+                this.externAbiReturnContractDiagnostics(
+                    contract,
+                    functionName,
+                    returnType,
+                    source,
+                    validReturnModes,
+                    member,
+                );
+            }
+        }
+
+        public externAbiParameterContractDiagnostics(
+            contract: any,
+            parameterMap: Map<string, any>,
+            source: string,
+            validModes: Set<string>,
+        ): void {
+            const parameterName = contract.parameterName ?? "";
+            const parameter = parameterMap.get(parameterName);
+
+            if (!parameter) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native ABI contract references unknown parameter ${Helpers.RED}'${parameterName || "<missing>"}'${Helpers.RESET}`,
+                );
+            }
+
+            if (!validModes.has(contract.mode)) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} uses unsupported mode ${Helpers.RED}'${contract.mode ?? "<missing>"}'${Helpers.RESET}`,
+                    "  = supported parameter modes: borrowed, copy-back, native-owned, runtime-owned",
+                );
+            }
+
+            const parameterType = this.resolveType(parameter.type);
+            const isPointer = parameterType?.kind === Kinds.Types.PointerType;
+
+            if (contract.mode === "copy-back" && !isPointer) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `copy-back native ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} requires a pointer type`,
+                    "  = copy-back means native writes through a pointer and Yogi copies/adopts the result after the call",
+                );
+            }
+
+            if ((contract.mode === "native-owned" || contract.owner === "native") && !contract.freeFunction) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native-owned ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} requires a free function`,
+                    "  = write free=<externFunctionName> in the @abi contract",
+                );
+            }
+
+            if (contract.freeFunction && !this.externMemberNames(parameter).has(contract.freeFunction)) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} references unknown free function ${Helpers.RED}'${contract.freeFunction}'${Helpers.RESET}`,
+                    "  = declare the free function in the same extern block",
+                );
+            }
+        }
+
+        public externAbiReturnContractDiagnostics(
+            contract: any,
+            functionName: string,
+            returnType: any,
+            source: string,
+            validModes: Set<string>,
+            member: any,
+        ): void {
+            if (!validModes.has(contract.mode)) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native ABI return contract for function ${Helpers.RED}'${functionName}'${Helpers.RESET} uses unsupported mode ${Helpers.RED}'${contract.mode ?? "<missing>"}'${Helpers.RESET}`,
+                    "  = supported return modes: borrowed, native-owned, runtime-owned",
+                );
+            }
+
+            if (this.resolveType(returnType)?.kind === Kinds.Types.VoidType) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native ABI return contract cannot be attached to void function ${Helpers.RED}'${functionName}'${Helpers.RESET}`,
+                );
+            }
+
+            if ((contract.mode === "native-owned" || contract.owner === "native") && !contract.freeFunction) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native-owned return contract for function ${Helpers.RED}'${functionName}'${Helpers.RESET} requires a free function`,
+                    "  = write free=<externFunctionName> in the @abi return contract",
+                );
+            }
+
+            if (contract.freeFunction && !this.externMemberNames(member).has(contract.freeFunction)) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native ABI return contract references unknown free function ${Helpers.RED}'${contract.freeFunction}'${Helpers.RESET}`,
+                    "  = declare the free function in the same extern block",
+                );
+            }
+        }
+
+        public throwExternAbiContractError(contract: any, source: string, message: string, hint?: string): void {
+            contract.arrowLength = contract.raw?.length ?? 1;
+            this.throwError(
+                message,
+                contract.position,
+                source,
+                contract,
+                hint,
+            );
+        }
+
+        public externMemberNames(member: any): Set<string> {
+            return new Set(member.parentMemberNames ?? []);
         }
 
         public isSupportedExternParameterType(type: any): boolean {

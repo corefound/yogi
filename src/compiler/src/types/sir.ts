@@ -467,11 +467,40 @@ export type SemanticExternParameter = {
     position: SourcePosition;
 };
 
+export type SemanticExternAbiParameterContract = {
+    target: "parameter";
+    name: string;
+    mode: "borrowed" | "copy-back" | "native-owned" | "runtime-owned";
+    owner?: "native" | "runtime" | null;
+    freeFunction?: string | null;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticExternAbiReturnContract = {
+    target: "return";
+    mode: "borrowed" | "native-owned" | "runtime-owned";
+    owner?: "native" | "runtime" | null;
+    freeFunction?: string | null;
+    source?: string;
+    position?: SourcePosition;
+};
+
+export type SemanticExternAbiContract =
+    | SemanticExternAbiParameterContract
+    | SemanticExternAbiReturnContract;
+
+export type SemanticExternAbiContracts = {
+    parameters: SemanticExternAbiParameterContract[];
+    returnValue?: SemanticExternAbiReturnContract | null;
+};
+
 export type SemanticExternFunction = {
     kind: "ExternFunction";
     name: string;
     parameters: SemanticExternParameter[];
     returnType: SemanticType;
+    abiContracts?: SemanticExternAbiContracts;
     optional: boolean;
     source: string;
     position: SourcePosition;

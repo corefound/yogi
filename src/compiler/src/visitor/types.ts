@@ -274,7 +274,9 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                 type: this.visitType(node.type),
                 optional: !!node.questionToken,
                 readonly: this.hasModifier(node, ts.SyntaxKind.ReadonlyKeyword),
+                abiContracts: this.visitNativeAbiContracts(node),
                 raw: node.getText(),
+                source: node.getFullText(this.sourceFile).trim(),
                 position: this.getNodePosistion(node),
             };
         }
@@ -287,9 +289,102 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                 parameters: node.parameters.map((param) => this.visitParameter(param)),
                 returnType: this.visitType(node.type),
                 optional: !!node.questionToken,
+                abiContracts: this.visitNativeAbiContracts(node),
                 raw: node.getText(),
+                source: node.getFullText(this.sourceFile).trim(),
                 position: this.getNodePosistion(node),
             };
+        }
+
+        visitNativeAbiContracts(node: ts.Node): any[] {
+            return ts.getJSDocTags(node)
+                .filter((tag) => tag.tagName.getText(this.sourceFile) === "abi")
+                .map((tag) => this.visitNativeAbiContract(tag));
+        }
+
+        visitNativeAbiContract(tag: ts.JSDocTag): any {
+            const raw = tag.getText(this.sourceFile).replace(/^@abi\s*/, "").trim();
+            const tokens = raw.split(/\s+/).filter(Boolean);
+            const targetToken = tokens.shift() ?? "";
+            const target = targetToken === "param" || targetToken === "parameter"
+                ? "parameter"
+                : targetToken === "return"
+                    ? "return"
+                    : "unknown";
+            const contract: any = {
+                kind: "NativeAbiContract",
+                target,
+                mode: null,
+                owner: null,
+                freeFunction: null,
+                raw,
+                position: this.getNodePosistion(tag),
+            };
+
+            if (target === "parameter") {
+                contract.parameterName = tokens.shift() ?? "";
+            }
+
+            for (let index = 0; index < tokens.length; ++index) {
+                const token = tokens[index];
+                const normalized = token.toLowerCase().replaceAll("_", "-");
+
+                if (normalized === "borrowed") {
+                    contract.mode = "borrowed";
+                    continue;
+                }
+
+                if (normalized === "copy-back" || normalized === "copyback") {
+                    contract.mode = "copy-back";
+                    continue;
+                }
+
+                if (normalized === "native-owned") {
+                    contract.mode = "native-owned";
+                    contract.owner = "native";
+                    continue;
+                }
+
+                if (normalized === "runtime-owned") {
+                    contract.mode = "runtime-owned";
+                    contract.owner = "runtime";
+                    continue;
+                }
+
+                if (normalized === "owned") {
+                    contract.mode = "owned";
+                    continue;
+                }
+
+                if (normalized.startsWith("by=")) {
+                    contract.owner = token.slice(token.indexOf("=") + 1);
+                    continue;
+                }
+
+                if (normalized === "by" && tokens[index + 1]) {
+                    contract.owner = tokens[++index];
+                    continue;
+                }
+
+                if (normalized.startsWith("free=")) {
+                    contract.freeFunction = token.slice(token.indexOf("=") + 1);
+                    continue;
+                }
+
+                if (normalized === "free" && tokens[index + 1]) {
+                    contract.freeFunction = tokens[++index];
+                }
+            }
+
+            if (contract.mode === "owned" && contract.owner === "native") {
+                contract.mode = "native-owned";
+            }
+
+            if (contract.mode === "owned" && contract.owner === "runtime") {
+                contract.mode = "runtime-owned";
+            }
+
+            return contract;
         }
 
         visitCallSignature(node: ts.CallSignatureDeclaration) {

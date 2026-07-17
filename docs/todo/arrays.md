@@ -3099,9 +3099,11 @@ readonly propagation from the original owner
 ✅ Numeric array native ABI via temporary contiguous buffers
 ✅ String array native ABI via temporary `const char**` buffers
 ✅ Mutable native string ABI ownership policy documented
+✅ Native ABI ownership contracts parsed and semantically validated
 ✅ Plain numeric struct array native ABI via temporary contiguous buffers
 ⬜ Native fixed-shape LLVM `[N x T]` value ABI without runtime array descriptor
 ⬜ Mutable string array native ABI
+⬜ Backend/runtime consumption of native ABI ownership contracts
 ⬜ Resource-owning/nested struct array native ABI marshalling
 ⬜ Native retention/async FFI pointer policy
 ⬜ Lazy iterator objects

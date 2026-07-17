@@ -864,6 +864,85 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(variable.stderr).toContain("extern variable");
   });
 
+  test("supports native ABI ownership contracts on extern function signatures", () => {
+    const valid = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param values borrowed */
+          process(values: string[]): void
+
+          /** @abi return native-owned free=destroyName */
+          getName(): string
+
+          destroyName(value: string): void
+        }
+      `,
+    }));
+    expect(valid.status).toBe(0);
+    expect(valid.stderr).toBe("");
+
+    const unknownParameter = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param missing borrowed */
+          process(values: string[]): void
+        }
+      `,
+    }));
+    expect(unknownParameter.status).not.toBe(0);
+    expect(unknownParameter.stderr).toContain("unknown parameter");
+    expect(unknownParameter.stderr).toContain("missing");
+
+    const duplicateContract = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /**
+           * @abi param values borrowed
+           * @abi param values copy-back
+           */
+          process(values: ptr<number[]>): void
+        }
+      `,
+    }));
+    expect(duplicateContract.status).not.toBe(0);
+    expect(duplicateContract.stderr).toContain("declared multiple times");
+    expect(duplicateContract.stderr).toContain("values");
+
+    const missingFree = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi return native-owned */
+          getName(): string
+        }
+      `,
+    }));
+    expect(missingFree.status).not.toBe(0);
+    expect(missingFree.stderr).toContain("requires a free function");
+
+    const unknownFree = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi return native-owned free=destroyName */
+          getName(): string
+        }
+      `,
+    }));
+    expect(unknownFree.status).not.toBe(0);
+    expect(unknownFree.stderr).toContain("unknown free function");
+    expect(unknownFree.stderr).toContain("destroyName");
+
+    const copyBackNonPointer = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param values copy-back */
+          process(values: string[]): void
+        }
+      `,
+    }));
+    expect(copyBackNonPointer.status).not.toBe(0);
+    expect(copyBackNonPointer.stderr).toContain("requires a pointer type");
+  });
+
   test("rejects aggregate use after ownership moved through retained callees and unknown calls", () => {
     const retainedByKnownCallee = runCompiler(createProject({
       "main.io": `
