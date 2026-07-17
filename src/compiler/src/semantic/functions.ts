@@ -990,6 +990,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     parameterIndex: -1,
                     readonlyFollowsParameter: false,
                     viewShape: [],
+                    accessPath: [],
                 },
             };
         }
@@ -1458,6 +1459,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 parameterIndex: -1,
                 readonlyFollowsParameter: false,
                 viewShape: [],
+                accessPath: [],
             };
             const returnStatements = this.findFunctionReturnStatements(functionNode.body);
             const borrowedReturns = returnStatements
@@ -1495,7 +1497,20 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
-            return first;
+            const sameAccessPath = borrowedReturns.every((summary: any) => {
+                const accessPath = summary.accessPath ?? [];
+                const firstAccessPath = first.accessPath ?? [];
+
+                return (
+                    accessPath.length === firstAccessPath.length &&
+                    accessPath.every((part: string, index: number) => part === firstAccessPath[index])
+                );
+            });
+
+            return {
+                ...first,
+                accessPath: sameAccessPath ? first.accessPath ?? [] : ["[?]"],
+            };
         }
 
         public getReturnBorrowFromValue(value: any, functionNode: any): Types.Sir.SemanticReturnBorrowSummary | null {
@@ -1535,6 +1550,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 parameterIndex,
                 readonlyFollowsParameter: true,
                 viewShape: this.borrowedReturnViewShape(value.type),
+                accessPath: this.pointerReturnAccessPath(value),
             };
         }
 
@@ -1555,6 +1571,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 parameterIndex,
                 readonlyFollowsParameter: true,
                 viewShape: this.borrowedReturnViewShape(value.type),
+                accessPath: this.pointerReturnAccessPath(value),
             };
         }
 
@@ -1575,6 +1592,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 parameterIndex,
                 readonlyFollowsParameter: true,
                 viewShape: this.borrowedReturnViewShape(value.type),
+                accessPath: this.aggregateReturnAccessPath(value),
             };
         }
 
@@ -1598,7 +1616,65 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 parameterIndex,
                 readonlyFollowsParameter: true,
                 viewShape: this.borrowedReturnViewShape(value.type),
+                accessPath: [
+                    ...this.pointerReturnAccessPath(argument),
+                    ...(callBorrow.accessPath ?? []),
+                ],
             };
+        }
+
+        public pointerReturnAccessPath(value: any): string[] {
+            if (!value) return [];
+
+            if (Array.isArray(value.pointerAccessPath)) {
+                return [...value.pointerAccessPath];
+            }
+
+            if (Array.isArray(value.accessPath)) {
+                return [...value.accessPath];
+            }
+
+            if (value.kind === Kinds.Expressions.CallExpression) {
+                const callBorrow = value.effectSummary?.returnBorrow;
+                if (callBorrow?.ownership === "borrowed") {
+                    const argument = value.arguments?.[callBorrow.parameterIndex];
+                    return [
+                        ...this.pointerReturnAccessPath(argument),
+                        ...(callBorrow.accessPath ?? []),
+                    ];
+                }
+            }
+
+            if (
+                value.kind === Kinds.Expressions.PropertyAccessExpression ||
+                value.kind === Kinds.Expressions.ElementAccessExpression
+            ) {
+                return this.aggregateReturnAccessPath(value);
+            }
+
+            if (value.kind === Kinds.Expressions.AddressOfExpression) {
+                return this.pointerReturnAccessPath(value.target);
+            }
+
+            if (value.kind === Kinds.Expressions.DereferenceExpression) {
+                return this.pointerReturnAccessPath(value.target);
+            }
+
+            return [];
+        }
+
+        public aggregateReturnAccessPath(value: any): string[] {
+            if (!value) return [];
+
+            if (Array.isArray(value.pointerAccessPath)) {
+                return [...value.pointerAccessPath];
+            }
+
+            if (Array.isArray(value.accessPath)) {
+                return [...value.accessPath];
+            }
+
+            return [];
         }
 
         public functionParameterIndex(functionNode: any, name: string | null): number {

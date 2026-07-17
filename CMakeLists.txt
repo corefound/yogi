@@ -706,6 +706,12 @@ if(BUILD_TESTING)
                         program-tagged-user-cleanup
                         tests/programs/tagged_user_cleanup.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_player_scoreboard
+                        program-player-scoreboard
+                        tests/programs/player_scoreboard.cmake
+                )
         endif()
 endif()
 

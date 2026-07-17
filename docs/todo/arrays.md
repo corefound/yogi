@@ -1703,6 +1703,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Normal T[] parameters do not invalidate caller pointers under current value semantics
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
+✅ Pointer-return provenance from ptr<T[]> parameters into dynamic array cells
 ✅ ptr<T[]> readonly .length access
 ✅ for-of value/pointer iteration over ptr<T[]>
 ✅ Dynamic array iteration and structural mutation semantics
@@ -2987,6 +2988,7 @@ readonly propagation from the original owner
 ✅ Normal T[] parameters preserve current local/value semantics
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
+✅ Pointer-return provenance from ptr<T[]> parameters into dynamic array cells
 ✅ ptr<T[]> readonly .length access
 ✅ for-of value/pointer iteration over ptr<T[]>
 ✅ Final JavaScript-compatible array method policy audit

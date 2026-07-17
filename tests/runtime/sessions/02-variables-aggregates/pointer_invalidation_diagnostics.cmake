@@ -175,6 +175,30 @@ expect_run(
 	"99\n99\n"
 )
 
+expect_run(
+	"returned_dynamic_array_field_pointer_mutates_source"
+	"${USER_STRUCT}function firstAge(users: ptr<User[]>): ptr<number> {\n    return &users[0].age\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = firstAge(&users)\nage = 99\nprint(users[0].age)\nprint(users[1].age)\n"
+	"99\n30\n"
+)
+
+expect_run(
+	"forwarded_dynamic_array_field_pointer_mutates_source"
+	"${USER_STRUCT}function firstAge(users: ptr<User[]>): ptr<number> {\n    return &users[0].age\n}\n\nfunction forwardFirstAge(users: ptr<User[]>): ptr<number> {\n    return firstAge(users)\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = forwardFirstAge(&users)\nage = 88\nprint(users[0].age)\n"
+	"88\n"
+)
+
+expect_invalid(
+	"returned_dynamic_array_field_pointer_removed_slot"
+	"${USER_STRUCT}function firstAge(users: ptr<User[]>): ptr<number> {\n    return &users[0].age\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = firstAge(&users)\nusers.splice(0, 1)\nage = 99\n"
+	"pointer .*age.*used after its target dynamic array element .*users\\[0\\]\\.age.*was removed by .*splice"
+)
+
+expect_invalid(
+	"forwarded_dynamic_array_field_pointer_removed_slot"
+	"${USER_STRUCT}function firstAge(users: ptr<User[]>): ptr<number> {\n    return &users[0].age\n}\n\nfunction forwardFirstAge(users: ptr<User[]>): ptr<number> {\n    return firstAge(users)\n}\n\nlet users: User[] = [{ age: 20 }, { age: 30 }]\nlet age: ptr<number> = forwardFirstAge(&users)\nusers.splice(0, 1)\nprint(age)\n"
+	"pointer .*age.*used after its target dynamic array element .*users\\[0\\]\\.age.*was removed by .*splice"
+)
+
 expect_invalid(
 	"reject_readonly_root_push"
 	"${USER_STRUCT}const users: User[] = [{ age: 20 }]\nusers.push({ age: 30 })\n"

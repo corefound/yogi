@@ -1,5 +1,5 @@
 import { BaseSemantic, Constructor } from "./base";
-import { Kinds } from "../helpers/types";
+import { Kinds, Types } from "../helpers/types";
 import { Helpers } from "../helpers";
 
 export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
@@ -427,7 +427,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 )
                 : null;
             const borrowedReturnPointerInfo = borrowedReturnArgument && returnIsPointer
-                ? this.borrowedPointerReturnInfo(borrowedReturnArgument)
+                ? this.borrowedPointerReturnInfo(borrowedReturnArgument, returnBorrow)
                 : null;
 
             return {
@@ -4754,7 +4754,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             };
         }
 
-        public borrowedPointerReturnInfo(argument: any): {
+        public borrowedPointerReturnInfo(
+            argument: any,
+            returnBorrow?: Types.Sir.SemanticReturnBorrowSummary,
+        ): {
             rootName: string | null;
             rootSymbolId?: number;
             accessPath: string[];
@@ -4784,7 +4787,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     argument.pointerRootSymbolId ??
                     argument.rootSymbolId ??
                     rootSymbol?.id,
-                accessPath: argument.pointerAccessPath ?? argument.accessPath ?? [],
+                accessPath: [
+                    ...(argument.pointerAccessPath ?? argument.accessPath ?? []),
+                    ...(returnBorrow?.accessPath ?? []),
+                ],
                 permission: argument.pointerPermission ?? argument.permission,
             };
         }

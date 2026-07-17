@@ -121,6 +121,7 @@ export class BaseSemantic {
                 parameterIndex: -1,
                 readonlyFollowsParameter: false,
                 viewShape: [],
+                accessPath: [],
             },
         };
 

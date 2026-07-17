@@ -150,6 +150,10 @@ export type SemanticCallExpression = {
     borrowedView?: boolean;
     borrowedViewReadonly?: boolean;
     borrowedViewSourceName?: string | null;
+    pointerRootName?: string | null;
+    pointerRootSymbolId?: number;
+    pointerAccessPath?: string[];
+    pointerPermission?: "mutable" | "readonly";
     source?: string;
     position?: SourcePosition;
 };
@@ -432,6 +436,7 @@ export type SemanticReturnBorrowSummary = {
     parameterIndex: number;
     readonlyFollowsParameter: boolean;
     viewShape?: number[];
+    accessPath?: string[];
 };
 
 export type SemanticFunctionDeclaration = {

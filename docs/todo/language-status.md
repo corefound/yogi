@@ -125,8 +125,8 @@ without re-auditing the whole compiler.
 - [x] Dynamic array assignment performs in-place slot replacement: preserved indexes keep pointer identity, removed indexes invalidate pointers
 - [x] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage selected by semantic analysis
 - [x] Runtime migration from contiguous to pointer-safe storage when an interior pointer cell is requested after allocation
+- [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
-- [ ] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions
@@ -169,6 +169,7 @@ without re-auditing the whole compiler.
 - [x] Program Tests category for complete Yogi programs
 - [x] Inventory Manager Program Test
 - [x] Tagged User Cleanup Program Test
+- [x] Player Scoreboard Program Test
 - [ ] Contact Manager Program Test
 - [ ] Matrix Operations Program Test
 - [ ] Graph Traversal Program Tests
