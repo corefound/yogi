@@ -932,7 +932,7 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(movedInLoop.stderr).toContain("local");
   });
 
-  test("rejects rest destructuring until aggregate copying exists", () => {
+  test("supports array rest destructuring and still rejects object rest", () => {
     const objectRest = runCompiler(createProject({
       "main.io": `
         let { name, ...rest }: { name: string, age: number } = { name: "Ana", age: 20 }
@@ -944,10 +944,11 @@ describe("Yogi frontend semantic pipeline", () => {
     const arrayRest = runCompiler(createProject({
       "main.io": `
         let [first, ...rest]: number[] = [1, 2, 3]
+        let second: number = rest[0]
       `,
     }));
-    expect(arrayRest.status).not.toBe(0);
-    expect(arrayRest.stderr).toContain("array rest bindings");
+    expect(arrayRest.status).toBe(0);
+    expect(arrayRest.stderr).toBe("");
   });
 
   test("keeps TypeScript switch block scoping and default fallthrough behavior", () => {

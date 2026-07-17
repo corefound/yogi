@@ -99,6 +99,7 @@ without re-auditing the whole compiler.
 - [x] Common non-callback array methods
 - [x] Callback array methods
 - [x] Local captures for immediate inline array callbacks
+- [x] Array destructuring declarations, holes, rest bindings, tuple-rest annotations, and `for...of` destructuring
 - [x] Depth-aware semantic result typing for `flat(depth)` with known literal depth
 - [x] Iterator protocol support for arrays
 - [x] Array print support
@@ -171,6 +172,7 @@ without re-auditing the whole compiler.
 - [x] Tagged User Cleanup Program Test
 - [x] Player Scoreboard Program Test
 - [x] Matrix Report Program Test
+- [x] Sales Destructuring Report Program Test
 - [ ] Contact Manager Program Test
 - [ ] Matrix Operations Program Test
 - [ ] Graph Traversal Program Tests

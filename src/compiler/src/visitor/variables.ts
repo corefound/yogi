@@ -222,6 +222,17 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 }];
             }
 
+            if (!declaration.type || declaredType?.kind === Kinds.Types.UnTyped) {
+                return [{
+                    kind: Kinds.Statements.VariableDeclaration,
+                    ...base,
+                    name: declaration.name.getText(),
+                    type: declaredType,
+                    value: this.visitNode(init),
+                    source: declaration.getText(),
+                }];
+            }
+
             const object = {
                 ...this.visitNode(init),
                 declaredType,
@@ -295,7 +306,26 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
                 }
 
                 if (ts.isBindingElement(element) && element.dotDotDotToken) {
-                    throw new Error("array rest bindings are not supported yet");
+                    if (index !== pattern.elements.length - 1) {
+                        throw new Error("array rest bindings must be the last element in the binding pattern");
+                    }
+
+                    if (!ts.isIdentifier(element.name)) {
+                        throw new Error("array rest bindings currently require an identifier binding");
+                    }
+
+                    const bindingType = this.getArrayRestBindingType(declaredType, index);
+                    const value = this.createArrayRestBindingValue(object, index, element);
+
+                    return [{
+                        kind: Kinds.Statements.VariableDeclaration,
+                        ...base,
+                        name: element.name.getText(),
+                        type: bindingType,
+                        value,
+                        source: element.getText(),
+                        position: this.getNodePosistion(element),
+                    }];
                 }
 
                 const bindingName = ts.isBindingElement(element) ? element.name : element;
@@ -348,6 +378,35 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             });
         }
 
+        public createArrayRestBindingValue(object: any, index: number, element: ts.BindingElement): any {
+            const receiver = { ...object };
+            delete receiver.declaredType;
+
+            const receiverSource = receiver.source ?? "value";
+
+            return {
+                kind: Kinds.Expressions.CallExpression,
+                callee: {
+                    kind: Kinds.Expressions.PropertyAccessExpression,
+                    object: receiver,
+                    property: "slice",
+                    optional: false,
+                    source: `${receiverSource}.slice`,
+                    position: this.getNodePosistion(element),
+                },
+                arguments: [{
+                    kind: Kinds.Literals.NumberLiteral,
+                    type: "number",
+                    value: index,
+                    source: String(index),
+                    position: this.getNodePosistion(element),
+                }],
+                source: `${receiverSource}.slice(${index})`,
+                fullSource: element.getText(),
+                position: this.getNodePosistion(element),
+            };
+        }
+
         public getObjectBindingPropertyType(type: any, propertyName: string): any {
             const members = type?.members ?? type?.body?.members ?? [];
             const property = members.find((member: any) => {
@@ -381,6 +440,51 @@ export function VariableVisitor<TBase extends Constructor<BaseVisitor>>(base: TB
             return {
                 kind: Kinds.Types.UnknownType,
                 raw: "unknown",
+            };
+        }
+
+        public getArrayRestBindingType(type: any, index: number): any {
+            if (type?.kind === Kinds.Types.ArrayType) {
+                return type;
+            }
+
+            if (type?.kind === Kinds.Types.TupleType) {
+                const explicitRestType = type.elements?.[index];
+
+                if (explicitRestType?.kind === Kinds.Types.ArrayType) {
+                    return explicitRestType;
+                }
+
+                const remainingTypes = (type.elements ?? []).slice(index);
+                const elementType = remainingTypes.length === 1
+                    ? remainingTypes[0]
+                    : remainingTypes.length > 1
+                        ? {
+                            kind: Kinds.Types.UnionType,
+                            types: remainingTypes,
+                            raw: remainingTypes.map((item: any) => item.raw ?? "unknown").join(" | "),
+                        }
+                        : {
+                            kind: Kinds.Types.NeverType,
+                            raw: "never",
+                        };
+
+                return {
+                    kind: Kinds.Types.ArrayType,
+                    elementType,
+                    readonly: false,
+                    raw: `${elementType.raw ?? "unknown"}[]`,
+                };
+            }
+
+            return {
+                kind: Kinds.Types.ArrayType,
+                elementType: {
+                    kind: Kinds.Types.UnknownType,
+                    raw: "unknown",
+                },
+                readonly: false,
+                raw: "unknown[]",
             };
         }
 

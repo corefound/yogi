@@ -555,6 +555,27 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                     };
                 }
 
+                case ts.SyntaxKind.RestType: {
+                    const rest = node as ts.RestTypeNode;
+                    const restType = this.visitType(rest.type);
+
+                    if (restType?.kind === Kinds.Types.ArrayType) {
+                        return {
+                            ...restType,
+                            raw: restType.raw ?? rest.getText().replace(/^\.\.\./, ""),
+                            position: this.getNodePosistion(node),
+                        };
+                    }
+
+                    return {
+                        kind: Kinds.Types.ArrayType,
+                        elementType: restType,
+                        readonly: false,
+                        raw: `${restType?.raw ?? "unknown"}[]`,
+                        position: this.getNodePosistion(node),
+                    };
+                }
+
                 case ts.SyntaxKind.UnionType: {
                     const union = node as ts.UnionTypeNode;
 

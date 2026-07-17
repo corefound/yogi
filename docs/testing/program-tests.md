@@ -47,6 +47,7 @@ Each test should:
 | Tagged User Cleanup | `tests/programs/tagged_user_cleanup.cmake` | Implemented | `ptr<User[]>` parameters, value and pointer iteration over array pointers, string equality, boolean negation, dynamic array `splice`, struct mutation, `.length`, LLVM/runtime execution |
 | Player Scoreboard | `tests/programs/player_scoreboard.cmake` | Implemented | returned pointers into dynamic array cells, struct field pointer mutation, `push`, value iteration over `ptr<Player[]>`, function calls, LLVM/runtime execution |
 | Matrix Report | `tests/programs/matrix_report.cmake` | Implemented | fixed-shape matrix row views, returned/materialized views, global view retention, value-parameter isolation, LLVM/runtime execution |
+| Sales Destructuring Report | `tests/programs/sales_destructuring_report.cmake` | Implemented | array destructuring, rest bindings, tuple-rest annotations, `entries()` destructuring, structs, function calls, LLVM/runtime execution |
 
 ## Rules
 

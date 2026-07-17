@@ -1051,7 +1051,7 @@ let copy: number[3] = matrix[1].copy()
 
 ### 5. Spread operator for arrays
 
-Planned support:
+Implemented support:
 
 ``` ts
 let a: number[] = [1, 2]
@@ -1097,6 +1097,49 @@ let b: number[3] = [0, ...a]
 ```
 
 Spread should create a new array/copy, not a borrowed view.
+
+------------------------------------------------------------------------
+
+### Array destructuring and rest bindings
+
+Array destructuring declarations are lowered to normal explicitly typed
+bindings before semantic serialization.
+
+``` ts
+let values: number[] = [10, 20, 30, 40]
+let [first, second, ...tail]: number[] = values
+
+print(first)   // 10
+print(second)  // 20
+print(tail[0]) // 30
+```
+
+Rest bindings are implemented as `slice(index)` and therefore create a new
+dynamic array for the remaining elements.
+
+Tuple-rest annotations are also accepted:
+
+``` ts
+let [head, ...rest]: [number, ...number[]] = values
+```
+
+Rules:
+
+``` txt
+destructuring declarations still require an explicit type annotation
+rest bindings must be the final binding in the pattern
+rest bindings currently require an identifier name
+array holes are allowed and skip the corresponding index
+nested array/object binding patterns are supported for non-rest bindings
+```
+
+`for...of` destructuring uses the same expansion path:
+
+``` ts
+for (let [index, value]: [number, number] of values.entries()) {
+    print(index + value)
+}
+```
 
 ------------------------------------------------------------------------
 
@@ -1678,6 +1721,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Block-bodied inline arrow callbacks
 ✅ Comparator overloads for sort and toSorted
 ✅ Array spread in dynamic/fixed/tuple/union contexts
+✅ Array destructuring declarations, holes, rest bindings, and for-of destructuring
 ✅ Local capture/closure semantics for immediate inline callbacks
 ✅ Persistent closure-captured borrowed views are rejected with semantic diagnostics until closure runtime exists
 ✅ Direct string extraction from struct-held string[] through provably in-bounds .at()
@@ -2718,15 +2762,23 @@ ABI behavior
 
 ## 10. Rest and Destructuring
 
-Spread is implemented. Future syntax/semantic work can cover:
+Implemented:
 
 ``` txt
-rest bindings
-array destructuring
-nested destructuring
+array destructuring declarations
+array holes in binding patterns
+rest bindings lowered through slice(index)
+tuple-rest annotations such as [number, ...number[]]
+for-of destructuring through the same expansion path
+```
+
+Future syntax/semantic work can cover:
+
+``` txt
 ownership/copy behavior
 fixed-length validation
 dynamic-to-fixed restrictions
+deeper rest binding patterns
 ```
 
 ------------------------------------------------------------------------
@@ -2954,6 +3006,7 @@ readonly propagation from the original owner
 ✅ Block-bodied inline arrow callbacks
 ✅ Comparator overloads for sort and toSorted
 ✅ Array spread in dynamic/fixed/tuple/union contexts
+✅ Array destructuring declarations, holes, rest bindings, and for-of destructuring
 ✅ Local capture/closure semantics for immediate inline callbacks
 ✅ Persistent closure-captured borrowed views are rejected with semantic diagnostics until closure runtime exists
 ✅ Direct string extraction from struct-held string[] through provably in-bounds .at()
@@ -3004,7 +3057,6 @@ readonly propagation from the original owner
 ⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
 ⬜ Broader array copy/move/ownership semantics
 ⬜ Union-array runtime/narrowing completion
-⬜ Array rest/destructuring
 ⬜ Dynamic shaped arrays: Array<T, Rank>
 ⬜ Dynamic shaped views/slices
 ⬜ Native fixed-shape ABI without runtime descriptor
@@ -3028,13 +3080,12 @@ readonly propagation from the original owner
 2. Automatic Array View Escape and Lifetime Analysis
 3. Array Copy, Move, and Ownership Semantics
 4. Union Array Runtime and Narrowing Semantics
-5. Array Rest and Destructuring Semantics
-6. Array Native ABI and Contiguous Interop
-7. Array Bounds-Check Elimination and Loop Optimization
-8. Dynamic Shaped Arrays and Runtime Rank Metadata
-9. Lazy Array Iterators
-10. Array Diagnostics and Runtime Formatting Polish
-11. Concurrent Array Ownership and Mutation
+5. Array Native ABI and Contiguous Interop
+6. Array Bounds-Check Elimination and Loop Optimization
+7. Dynamic Shaped Arrays and Runtime Rank Metadata
+8. Lazy Array Iterators
+9. Array Diagnostics and Runtime Formatting Polish
+10. Concurrent Array Ownership and Mutation
 ```
 
 ------------------------------------------------------------------------

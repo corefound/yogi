@@ -546,6 +546,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_array_destructuring
+                        pipeline-array-destructuring
+                        tests/runtime/sessions/02-variables-aggregates/array_destructuring.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_print_collections
                         pipeline-print-collections
                         tests/runtime/sessions/02-variables-aggregates/print_collections.cmake
@@ -723,6 +729,12 @@ if(BUILD_TESTING)
                         yogi_program_matrix_report
                         program-matrix-report
                         tests/programs/matrix_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_sales_destructuring_report
+                        program-sales-destructuring-report
+                        tests/programs/sales_destructuring_report.cmake
                 )
         endif()
 endif()
