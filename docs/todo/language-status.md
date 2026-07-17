@@ -114,13 +114,14 @@ without re-auditing the whole compiler.
 - [x] Pointer-safe dynamic array `push` while a live internal pointer exists
 - [x] Dynamic array mutating methods keep JavaScript-style surface while tracking element identity
 - [x] Runtime pointer validity checks for dynamic array slots removed by `pop`, `shift`, and `splice`
+- [x] Nested dynamic-array pointer chains such as `&matrix[0][1]`
+- [x] Compile-time diagnostics for provably invalidated nested dynamic-array pointer use
 - [x] Pointer identity preservation across `unshift`, `reverse`, `sort`, `fill`, and `copyWithin`
 - [x] Copy-returning array methods do not invalidate original dynamic array pointers
 - [x] Pointer rebind and scope-exit updates for dynamic array invalidation diagnostics
 - [x] Dynamic array assignment performs in-place slot replacement: preserved indexes keep pointer identity, removed indexes invalidate pointers
 - [x] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage selected by semantic analysis
 - [x] Runtime migration from contiguous to pointer-safe storage when an interior pointer cell is requested after allocation
-- [ ] Compile-time diagnostics for provably invalidated dynamic-array pointer use after removal
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Interprocedural lifetime summaries for borrowed views

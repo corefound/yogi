@@ -570,6 +570,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_nested_dynamic_array_pointer_chains
+                        pipeline-nested-dynamic-array-pointer-chains
+                        tests/runtime/sessions/02-variables-aggregates/nested_dynamic_array_pointer_chains.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_persistent_closure_captures
                         pipeline-array-persistent-closure-captures
                         tests/runtime/sessions/02-variables-aggregates/array_persistent_closure_captures.cmake

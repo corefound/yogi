@@ -1675,12 +1675,13 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Dynamic array iteration and structural mutation semantics
 ✅ Final JavaScript-compatible array method policy audit
 ✅ Final callback ownership/borrow semantics
+✅ Nested dynamic-array ownership and pointer chains
 ```
 
 ### Next Lots
 
 ``` txt
-⬜ Nested dynamic-array ownership and pointer chains
+⬜ Fixed-array and multidimensional matrix completion
 ```
 
 ### Future Work
@@ -2163,6 +2164,7 @@ implemented.
 ✅ reorder operations preserve identity
 ✅ projected pointers through dynamic array cells
 ✅ whole-array assignment as in-place slot replacement
+✅ nested dynamic-array pointer chains
 ✅ runtime invalid-pointer detection
 ✅ compile-time diagnostics for provable invalidation
 ✅ branch-sensitive invalidation merging
@@ -2935,12 +2937,12 @@ readonly propagation from the original owner
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
 ✅ Final JavaScript-compatible array method policy audit
 ✅ Final callback ownership/borrow semantics
+✅ Nested dynamic-array ownership and pointer chains
 ```
 
 ## Remaining
 
 ``` txt
-⬜ Nested dynamic-array ownership and pointer chains
 ⬜ Fixed-array and multidimensional matrix completion
 ⬜ Real persistent closure runtime for captured borrowed views
 ⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
@@ -2966,19 +2968,17 @@ readonly propagation from the original owner
 # Recommended Future Lot Order
 
 ``` txt
-1. Array Callback Ownership and Borrow Semantics
-2. Nested Dynamic Array Ownership and Pointer Chains
-3. Fixed Arrays and Multidimensional Matrix Completion
-4. Automatic Array View Escape and Lifetime Analysis
-5. Array Copy, Move, and Ownership Semantics
-6. Union Array Runtime and Narrowing Semantics
-7. Array Rest and Destructuring Semantics
-8. Array Native ABI and Contiguous Interop
-9. Array Bounds-Check Elimination and Loop Optimization
-10. Dynamic Shaped Arrays and Runtime Rank Metadata
-11. Lazy Array Iterators
-12. Array Diagnostics and Runtime Formatting Polish
-13. Concurrent Array Ownership and Mutation
+1. Fixed Arrays and Multidimensional Matrix Completion
+2. Automatic Array View Escape and Lifetime Analysis
+3. Array Copy, Move, and Ownership Semantics
+4. Union Array Runtime and Narrowing Semantics
+5. Array Rest and Destructuring Semantics
+6. Array Native ABI and Contiguous Interop
+7. Array Bounds-Check Elimination and Loop Optimization
+8. Dynamic Shaped Arrays and Runtime Rank Metadata
+9. Lazy Array Iterators
+10. Array Diagnostics and Runtime Formatting Polish
+11. Concurrent Array Ownership and Mutation
 ```
 
 ------------------------------------------------------------------------

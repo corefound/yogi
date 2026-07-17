@@ -23,6 +23,11 @@ type LivePointerProvenance = {
     };
 };
 
+type DynamicArrayLengthState = {
+    roots: Map<number, number | null>;
+    paths: Map<string, number | null>;
+};
+
 export function applySemanticMixins<TBase extends Constructor>(Base: TBase, ...mixins: MixinFunction[]): TBase | any {
     return mixins.reduce((current, mixin) => mixin(current), Base);
 }
@@ -52,6 +57,7 @@ export class BaseSemantic {
     public symbolsById: Map<number, Types.SymbolInfo> = new Map();
     public livePointerProvenance: Map<number, LivePointerProvenance> = new Map();
     public dynamicArrayKnownLengths: Map<number, number | null> = new Map();
+    public dynamicArrayKnownPathLengths: Map<string, number | null> = new Map();
 
     constructor(ast: Types.Ast[]) {
         this.ast = ast;
@@ -1566,6 +1572,14 @@ export class BaseSemantic {
         this.dynamicArrayKnownLengths.set(symbol.id, length);
     }
 
+    public dynamicArrayPathKey(symbol: Types.SymbolInfo | null | undefined, accessPath: string[] = []): string | null {
+        if (!symbol || accessPath.length === 0) {
+            return null;
+        }
+
+        return `${symbol.id}:${accessPath.join("")}`;
+    }
+
     public knownDynamicArrayLength(symbol: Types.SymbolInfo | null | undefined): number | null {
         if (!symbol || !this.isDynamicArrayType(symbol.declaredType ?? symbol.type)) {
             return null;
@@ -1577,6 +1591,56 @@ export class BaseSemantic {
 
         const literalLength = this.arrayLiteralLength(symbol.node);
         this.dynamicArrayKnownLengths.set(symbol.id, literalLength);
+        return literalLength;
+    }
+
+    public setKnownDynamicArrayPathLength(
+        symbol: Types.SymbolInfo | null | undefined,
+        accessPath: string[] = [],
+        length: number | null,
+    ): void {
+        if (!symbol || !this.isDynamicArrayType(symbol.declaredType ?? symbol.type)) {
+            return;
+        }
+
+        if (accessPath.length === 0) {
+            this.setKnownDynamicArrayLength(symbol, length);
+            return;
+        }
+
+        const key = this.dynamicArrayPathKey(symbol, accessPath);
+        if (key) {
+            this.dynamicArrayKnownPathLengths.set(key, length);
+        }
+    }
+
+    public knownDynamicArrayPathLength(
+        symbol: Types.SymbolInfo | null | undefined,
+        accessPath: string[] = [],
+        literalNode?: any,
+    ): number | null {
+        if (!symbol || !this.isDynamicArrayType(symbol.declaredType ?? symbol.type)) {
+            return null;
+        }
+
+        if (accessPath.length === 0) {
+            return this.knownDynamicArrayLength(symbol);
+        }
+
+        const key = this.dynamicArrayPathKey(symbol, accessPath);
+        if (!key) {
+            return null;
+        }
+
+        if (this.dynamicArrayKnownPathLengths.has(key)) {
+            return this.dynamicArrayKnownPathLengths.get(key) ?? null;
+        }
+
+        const literalLength = this.arrayLiteralLength(literalNode);
+        if (literalLength !== null) {
+            this.dynamicArrayKnownPathLengths.set(key, literalLength);
+        }
+
         return literalLength;
     }
 
@@ -1597,6 +1661,23 @@ export class BaseSemantic {
         this.setKnownDynamicArrayLength(symbol, updater(this.knownDynamicArrayLength(symbol)));
     }
 
+    public updateKnownDynamicArrayPathLength(
+        symbol: Types.SymbolInfo | null | undefined,
+        accessPath: string[] = [],
+        updater: (length: number | null) => number | null,
+        literalNode?: any,
+    ): void {
+        if (!symbol || !this.isDynamicArrayType(symbol.declaredType ?? symbol.type)) {
+            return;
+        }
+
+        this.setKnownDynamicArrayPathLength(
+            symbol,
+            accessPath,
+            updater(this.knownDynamicArrayPathLength(symbol, accessPath, literalNode)),
+        );
+    }
+
     public markDynamicArrayPointersRemovedByIndex(
         rootName: string | null | undefined,
         rootSymbol: Types.SymbolInfo | null | undefined,
@@ -1605,6 +1686,7 @@ export class BaseSemantic {
         context: any,
         isRemovedIndex: (index: number) => boolean,
         maybe = false,
+        containerPath: string[] = [],
     ): void {
         if (!rootName || !rootSymbol || !this.isDynamicArrayType(rootSymbol.declaredType ?? rootSymbol.type)) {
             return;
@@ -1621,15 +1703,64 @@ export class BaseSemantic {
                 continue;
             }
 
-            const index = this.firstDynamicArrayIndexFromAccessPath(provenance.accessPath);
+            const index = this.dynamicArrayIndexAfterContainerPath(provenance.accessPath, containerPath);
             if (index === null || !isRemovedIndex(index)) {
                 continue;
             }
 
             const path = `${provenance.rootName}${provenance.accessPath.join("")}`;
+            const container = `${rootName}${containerPath.join("")}`;
             provenance.invalidated = {
                 operation,
-                reason: `slot ${index} in '${rootName}' was removed; pointer '${provenance.pointerName}' still points to '${path}'`,
+                reason: `slot ${index} in '${container}' was removed; pointer '${provenance.pointerName}' still points to '${path}'`,
+                source,
+                position: context?.position,
+                maybe,
+            };
+        }
+    }
+
+    public markDynamicArrayNestedPointersRemovedByPath(
+        rootName: string | null | undefined,
+        rootSymbol: Types.SymbolInfo | null | undefined,
+        containerPath: string[],
+        operation: string,
+        source: string,
+        context: any,
+        maybe = false,
+    ): void {
+        if (
+            !rootName ||
+            !rootSymbol ||
+            containerPath.length === 0 ||
+            !this.isDynamicArrayType(rootSymbol.declaredType ?? rootSymbol.type)
+        ) {
+            return;
+        }
+
+        for (const provenance of this.livePointerProvenance.values()) {
+            if (
+                provenance.invalidated ||
+                (
+                    provenance.rootSymbolId !== rootSymbol.id &&
+                    provenance.rootName !== rootName
+                )
+            ) {
+                continue;
+            }
+
+            if (
+                provenance.accessPath.length <= containerPath.length ||
+                !this.accessPathStartsWith(provenance.accessPath, containerPath)
+            ) {
+                continue;
+            }
+
+            const path = `${provenance.rootName}${provenance.accessPath.join("")}`;
+            const container = `${rootName}${containerPath.join("")}`;
+            provenance.invalidated = {
+                operation,
+                reason: `storage under '${container}' was replaced; pointer '${provenance.pointerName}' still points to '${path}'`,
                 source,
                 position: context?.position,
                 maybe,
@@ -1649,7 +1780,8 @@ export class BaseSemantic {
             return false;
         }
 
-        const knownLength = this.knownDynamicArrayLength(rootSymbol);
+        const containerPath = effect.containerPath ?? [];
+        const knownLength = this.knownDynamicArrayPathLength(rootSymbol, containerPath);
         const maybe = effect.maybe === true;
 
         switch (effect.kind) {
@@ -1662,6 +1794,7 @@ export class BaseSemantic {
                     context,
                     (index) => index === 0,
                     maybe,
+                    effect.containerPath ?? [],
                 );
                 return true;
 
@@ -1679,6 +1812,7 @@ export class BaseSemantic {
                     context,
                     (index) => index === removedIndex,
                     maybe,
+                    effect.containerPath ?? [],
                 );
                 return true;
             }
@@ -1718,6 +1852,7 @@ export class BaseSemantic {
                             : index < start + deleteCount;
                     },
                     maybe,
+                    effect.containerPath ?? [],
                 );
                 return true;
             }
@@ -1735,6 +1870,7 @@ export class BaseSemantic {
                     context,
                     (index) => index >= effect.newLength,
                     maybe,
+                    effect.containerPath ?? [],
                 );
                 return true;
             }
@@ -1818,42 +1954,54 @@ export class BaseSemantic {
         this.livePointerProvenance = merged;
     }
 
-    public captureDynamicArrayLengthState(): Map<number, number | null> {
-        return new Map(this.dynamicArrayKnownLengths);
+    public captureDynamicArrayLengthState(): DynamicArrayLengthState {
+        return {
+            roots: new Map(this.dynamicArrayKnownLengths),
+            paths: new Map(this.dynamicArrayKnownPathLengths),
+        };
     }
 
-    public restoreDynamicArrayLengthState(snapshot: Map<number, number | null>): void {
-        this.dynamicArrayKnownLengths = new Map(snapshot);
+    public restoreDynamicArrayLengthState(snapshot: DynamicArrayLengthState): void {
+        this.dynamicArrayKnownLengths = new Map(snapshot.roots);
+        this.dynamicArrayKnownPathLengths = new Map(snapshot.paths);
     }
 
     public mergeDynamicArrayLengthState(
-        ...snapshots: Array<Map<number, number | null> | null | undefined>
+        ...snapshots: Array<DynamicArrayLengthState | null | undefined>
     ): void {
-        const reachable = snapshots.filter((snapshot): snapshot is Map<number, number | null> => !!snapshot);
+        const reachable = snapshots.filter((snapshot): snapshot is DynamicArrayLengthState => !!snapshot);
 
         if (reachable.length === 0) {
             this.dynamicArrayKnownLengths.clear();
+            this.dynamicArrayKnownPathLengths.clear();
             return;
         }
 
-        const ids = new Set<number>();
-        reachable.forEach((snapshot) => {
-            snapshot.forEach((_, id) => ids.add(id));
+        this.dynamicArrayKnownLengths = this.mergeKnownLengthMaps(reachable.map((snapshot) => snapshot.roots));
+        this.dynamicArrayKnownPathLengths = this.mergeKnownLengthMaps(reachable.map((snapshot) => snapshot.paths));
+    }
+
+    public mergeKnownLengthMaps<TKey>(
+        maps: Array<Map<TKey, number | null>>,
+    ): Map<TKey, number | null> {
+        const keys = new Set<TKey>();
+        maps.forEach((map) => {
+            map.forEach((_, key) => keys.add(key));
         });
 
-        const merged = new Map<number, number | null>();
+        const merged = new Map<TKey, number | null>();
 
-        for (const id of ids) {
-            const values = reachable.map((snapshot) =>
-                snapshot.has(id) ? snapshot.get(id) ?? null : null,
+        for (const key of keys) {
+            const values = maps.map((map) =>
+                map.has(key) ? map.get(key) ?? null : null,
             );
             const first = values[0];
             const allSame = values.every((value) => value === first);
 
-            merged.set(id, allSame ? first : null);
+            merged.set(key, allSame ? first : null);
         }
 
-        this.dynamicArrayKnownLengths = merged;
+        return merged;
     }
 
     public clonePointerProvenance(provenance: LivePointerProvenance): LivePointerProvenance {
@@ -1917,6 +2065,31 @@ export class BaseSemantic {
 
         const value = Number(first.slice(1, -1).trim());
         return Number.isInteger(value) ? value : null;
+    }
+
+    public dynamicArrayIndexAfterContainerPath(accessPath: string[], containerPath: string[] = []): number | null {
+        if (!this.accessPathStartsWith(accessPath, containerPath)) {
+            return null;
+        }
+
+        return this.dynamicArrayIndexFromPathPart(accessPath[containerPath.length]);
+    }
+
+    public dynamicArrayIndexFromPathPart(part: string | null | undefined): number | null {
+        if (!part || !/^\[\s*-?\d+\s*\]$/.test(part)) {
+            return null;
+        }
+
+        const value = Number(part.slice(1, -1).trim());
+        return Number.isInteger(value) ? value : null;
+    }
+
+    public accessPathStartsWith(accessPath: string[], prefix: string[]): boolean {
+        if (prefix.length > accessPath.length) {
+            return false;
+        }
+
+        return prefix.every((part, index) => accessPath[index] === part);
     }
 
     public forgetPointerProvenance(symbol: Types.SymbolInfo | null | undefined): void {
