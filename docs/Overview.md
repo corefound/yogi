@@ -20,6 +20,7 @@ language support.
 | Program | File | Status | Notes |
 |---|---|---|---|
 | Inventory Manager | `tests/programs/inventory_manager.cmake` | Implemented | Exercises structs, dynamic arrays, array callbacks, loops, mutation, functions, arithmetic, control flow, LLVM lowering, object generation, linking, and runtime execution |
+| Tagged User Cleanup | `tests/programs/tagged_user_cleanup.cmake` | Implemented | Exercises `ptr<User[]>` parameters, pointer/value `for...of` iteration, string tags, struct mutation, `splice`, `.length` on pointer arrays, LLVM lowering, object generation, linking, and runtime execution |
 
 ## Planned Program Tests
 
@@ -55,4 +56,3 @@ Yogi currently focuses on:
 The language deliberately does not copy every TypeScript semantic behavior.
 Yogi keeps TypeScript-like syntax where useful, but applies stricter compiler
 and runtime rules.
-

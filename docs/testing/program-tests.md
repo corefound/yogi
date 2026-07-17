@@ -44,6 +44,7 @@ Each test should:
 | Program | Test | Status | Coverage |
 |---|---|---|---|
 | Inventory Manager | `tests/programs/inventory_manager.cmake` | Implemented | structs, arrays, struct arrays, functions, `for`, `for...of`, callbacks, mutation, arithmetic, control flow, LLVM/runtime execution |
+| Tagged User Cleanup | `tests/programs/tagged_user_cleanup.cmake` | Implemented | `ptr<User[]>` parameters, value and pointer iteration over array pointers, string equality, boolean negation, dynamic array `splice`, struct mutation, `.length`, LLVM/runtime execution |
 
 ## Rules
 
@@ -77,4 +78,6 @@ Examples:
 - new control-flow behavior should appear inside an algorithm
 
 Program Tests should grow with the language instead of staying as tiny examples.
-
+They do not need to wait for an entire feature family to be finished; add one
+when the implemented subset can form a coherent program that a user might
+actually write.

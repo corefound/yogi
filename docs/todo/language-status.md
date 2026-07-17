@@ -168,6 +168,7 @@ without re-auditing the whole compiler.
 - [x] Focused runtime pipeline tests by language area
 - [x] Program Tests category for complete Yogi programs
 - [x] Inventory Manager Program Test
+- [x] Tagged User Cleanup Program Test
 - [ ] Contact Manager Program Test
 - [ ] Matrix Operations Program Test
 - [ ] Graph Traversal Program Tests

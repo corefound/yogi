@@ -700,6 +700,12 @@ if(BUILD_TESTING)
                         program-inventory-manager
                         tests/programs/inventory_manager.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_tagged_user_cleanup
+                        program-tagged-user-cleanup
+                        tests/programs/tagged_user_cleanup.cmake
+                )
         endif()
 endif()
 
