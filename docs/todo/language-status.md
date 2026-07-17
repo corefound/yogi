@@ -104,6 +104,8 @@ without re-auditing the whole compiler.
 - [x] Array print support
 - [x] Const/readonly propagation through borrowed fixed-shape views
 - [x] General array pointer indexing beyond scalar literal `0`
+- [x] `ptr<T[]>` readonly `.length` access
+- [x] `for-of` value/pointer iteration over `ptr<T[]>`
 - [x] Pointer partial views such as `ptr<number[2, 3]>[0] -> ptr<number[3]>`
 - [x] Borrow summaries adjusted for `ptr<T>` parameter-derived returns
 - [x] Semantic rejection for returning pointer views derived from local storage

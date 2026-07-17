@@ -504,6 +504,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_pointer_array_for_of_iteration
+                        pipeline-pointer-array-for-of-iteration
+                        tests/runtime/sessions/02-variables-aggregates/pointer_array_for_of_iteration.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_pointer_addressable_projections
                         pipeline-pointer-addressable-projections
                         tests/runtime/sessions/02-variables-aggregates/pointer_addressable_projections.cmake

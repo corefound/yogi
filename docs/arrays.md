@@ -1703,6 +1703,8 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ Normal T[] parameters do not invalidate caller pointers under current value semantics
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
+✅ ptr<T[]> readonly .length access
+✅ for-of value/pointer iteration over ptr<T[]>
 ✅ Dynamic array iteration and structural mutation semantics
 ✅ Final JavaScript-compatible array method policy audit
 ✅ Final callback ownership/borrow semantics
@@ -2148,11 +2150,31 @@ Pointer-based array parameters such as `ptr<T[]>` can mutate caller
 storage, and their summaries propagate corresponding invalidation
 effects.
 
+`ptr<T[]>` also exposes readonly `.length`, so loops can inspect the
+current caller-owned array descriptor without trying to read a struct
+field from the pointee.
+
 Example conceptually:
 
 ``` ts
 function removeFirst(users: ptr<User[]>): void {
     users.shift()
+}
+```
+
+Pointer array parameters support both value and pointer iteration:
+
+``` ts
+function scan(users: ptr<User[]>): void {
+    for (let user: User of users) {
+        print(user.score)
+    }
+}
+
+function mutate(users: ptr<User[]>): void {
+    for (let user: ptr<User> of users) {
+        user.score = user.score + 1
+    }
 }
 ```
 
@@ -2965,6 +2987,8 @@ readonly propagation from the original owner
 ✅ Normal T[] parameters preserve current local/value semantics
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
+✅ ptr<T[]> readonly .length access
+✅ for-of value/pointer iteration over ptr<T[]>
 ✅ Final JavaScript-compatible array method policy audit
 ✅ Final callback ownership/borrow semantics
 ✅ Nested dynamic-array ownership and pointer chains

@@ -3203,6 +3203,31 @@ namespace yogi::core::llvm::internal {
 			return cast(asNumber, targetType, targetSemanticType, access->type());
 		}
 
+		if (propertyName == "length" && objectKind == Yogi::Sir::TypeKind_pointer_type) {
+			const auto *pointeeSemanticType = objectSemanticType && objectSemanticType->element_type()
+				? objectSemanticType->element_type()
+				: nullptr;
+			const auto pointeeKind = resolvedTypeKind(pointeeSemanticType);
+
+			if (
+				pointeeKind == Yogi::Sir::TypeKind_array_type ||
+				pointeeKind == Yogi::Sir::TypeKind_tuple_type
+			) {
+				auto *pointer = lower(access->object(), opaquePointer(), objectSemanticType);
+				auto *array = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
+				auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+				auto *asNumber = context.builder.CreateUIToFP(
+					length,
+					::llvm::Type::getDoubleTy(context.llvmContext),
+					"ptr.array.length"
+				);
+				const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
+				auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+
+				return cast(asNumber, targetType, targetSemanticType, access->type());
+			}
+		}
+
 		if (propertyName == "length" && objectKind == Yogi::Sir::TypeKind_string_type) {
 			auto *text = lower(access->object(), opaquePointer(), objectSemanticType);
 			auto *length = callRuntime("yogi_string_length", ::llvm::Type::getInt64Ty(context.llvmContext), {text});

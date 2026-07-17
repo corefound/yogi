@@ -2533,8 +2533,20 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 if (node.operator === "!" && operand?.type?.kind === Kinds.Types.BooleanType) {
                     return {
-                        ...node,
-                        operand,
+                        kind: Kinds.Expressions.BinaryExpression,
+                        operator: "==",
+                        left: operand,
+                        right: {
+                            kind: Kinds.Literals.BooleanLiteral,
+                            type: { kind: Kinds.Types.BooleanType, raw: "boolean" },
+                            value: false,
+                            raw: "false",
+                            source: "false",
+                            position: node.position,
+                        },
+                        source: node.source,
+                        fullSource: node.fullSource ?? node.source,
+                        position: node.position,
                         type: { kind: Kinds.Types.BooleanType, raw: "boolean" },
                     };
                 }
@@ -2970,6 +2982,24 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 const pointee = objectType.elementType ?? objectType.pointee;
                 const resolvedPointee = this.resolveType(pointee);
+                if (
+                    node.property === "length" &&
+                    (
+                        resolvedPointee?.kind === Kinds.Types.ArrayType ||
+                        resolvedPointee?.kind === Kinds.Types.TupleType
+                    )
+                ) {
+                    return {
+                        ...node,
+                        object,
+                        type: {
+                            kind: Kinds.Types.NumberType,
+                            raw: "number",
+                        },
+                        readonly: true,
+                    };
+                }
+
                 const pointeeIsStruct =
                     resolvedPointee?.kind === Kinds.Types.StructDeclaration ||
                     resolvedPointee?.kind === "StructDeclaration";
