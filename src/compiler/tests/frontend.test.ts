@@ -771,18 +771,18 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
-  test("rejects implicit array by-value types in extern native ABI declarations", () => {
+  test("supports numeric array extern native ABI declarations and rejects unsafe array ABI shapes", () => {
     const parameter = runCompiler(createProject({
       "main.io": `
         extern native from "./libnative.a" {
           process(values: number[]): void
+          normalize(values: ptr<number[]>): void
+          fixed(values: number[4]): number
         }
       `,
     }));
-    expect(parameter.status).not.toBe(0);
-    expect(parameter.stderr).toContain("native ABI");
-    expect(parameter.stderr).toContain("array type");
-    expect(parameter.stderr).toContain("values");
+    expect(parameter.status).toBe(0);
+    expect(parameter.stderr).toBe("");
 
     const returnType = runCompiler(createProject({
       "main.io": `
@@ -794,6 +794,28 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(returnType.status).not.toBe(0);
     expect(returnType.stderr).toContain("native ABI");
     expect(returnType.stderr).toContain("return array type");
+
+    const stringArray = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          process(values: string[]): void
+        }
+      `,
+    }));
+    expect(stringArray.status).not.toBe(0);
+    expect(stringArray.stderr).toContain("native ABI");
+    expect(stringArray.stderr).toContain("values");
+
+    const nestedArray = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          process(values: number[][]): void
+        }
+      `,
+    }));
+    expect(nestedArray.status).not.toBe(0);
+    expect(nestedArray.stderr).toContain("native ABI");
+    expect(nestedArray.stderr).toContain("values");
 
     const variable = runCompiler(createProject({
       "main.io": `

@@ -358,30 +358,44 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 };
             }
 
-            return {
-                kind: type.kind,
-                raw: type.raw ?? "unknown",
-                position: type.position,
-            };
+            return this.toSerializableType(type);
         }
 
         public isSupportedExternParameterType(type: any): boolean {
-            return (
-                type?.kind === Kinds.Types.StringType ||
-                type?.kind === Kinds.Types.NumberType ||
-                type?.kind === Kinds.Types.BooleanType
-            );
+            const resolved = this.resolveType(type);
+
+            if (
+                resolved?.kind === Kinds.Types.StringType ||
+                resolved?.kind === Kinds.Types.NumberType ||
+                resolved?.kind === Kinds.Types.BooleanType
+            ) {
+                return true;
+            }
+
+            if (resolved?.kind === Kinds.Types.ArrayType || resolved?.kind === Kinds.Types.TupleType) {
+                return this.isExternNativeArrayAbiType(resolved);
+            }
+
+            if (resolved?.kind === Kinds.Types.PointerType) {
+                const pointee = this.resolveType(resolved.elementType ?? resolved.pointee ?? resolved.pointeeType);
+
+                if (pointee?.kind === Kinds.Types.ArrayType || pointee?.kind === Kinds.Types.TupleType) {
+                    return this.isExternNativeArrayAbiType(pointee);
+                }
+            }
+
+            return false;
         }
 
         public isSupportedExternReturnType(type: any): boolean {
             return (
-                this.isSupportedExternParameterType(type) ||
-                type?.kind === Kinds.Types.VoidType
+                this.isExternNativeScalarType(type) ||
+                this.resolveType(type)?.kind === Kinds.Types.VoidType
             );
         }
 
         public isSupportedExternVariableType(type: any): boolean {
-            return this.isSupportedExternParameterType(type);
+            return this.isExternNativeScalarType(type);
         }
 
         public throwExternArrayAbiError(kind: "parameter" | "return type" | "variable", name: string, type: any, node: any, source: string): void {
@@ -389,26 +403,70 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 return;
             }
 
-            const label =
-                kind === "return type"
-                    ? `extern function ${Helpers.RED}'${name}'${Helpers.RESET} cannot return array type`
-                    : `extern ${kind} ${Helpers.RED}'${name}'${Helpers.RESET} cannot use array type`;
+            if (kind === "parameter" && this.isSupportedExternParameterType(type)) {
+                return;
+            }
+
+            const label = kind === "return type"
+                ? `extern function ${Helpers.RED}'${name}'${Helpers.RESET} cannot return array type`
+                : `extern ${kind} ${Helpers.RED}'${name}'${Helpers.RESET} cannot use array type`;
 
             node.arrowLength = type?.raw?.length ?? name.length ?? 1;
             this.throwError(
-                `${label} ${Helpers.RED}'${type?.raw ?? "array"}'${Helpers.RESET} across native ABI by value`,
+                `${label} ${Helpers.RED}'${type?.raw ?? "array"}'${Helpers.RESET} across native ABI`,
                 type?.position ?? node.position,
                 source,
                 node,
-                "  = array native ABI is not implicit in Yogi\n  = use an explicit pointer or descriptor boundary when that ABI is modeled",
+                "  = supported array ABI today is number[] / fixed number arrays, or ptr<number[]> for mutable borrowed buffers\n  = string arrays, nested dynamic arrays, tuple returns, and non-marshallable struct arrays are rejected",
             );
         }
 
         public isExternArrayAbiType(type: any): boolean {
+            const resolved = this.resolveType(type);
+            const pointee = resolved?.kind === Kinds.Types.PointerType
+                ? this.resolveType(resolved.elementType ?? resolved.pointee ?? resolved.pointeeType)
+                : null;
+
             return (
-                type?.kind === Kinds.Types.ArrayType ||
-                type?.kind === Kinds.Types.TupleType
+                resolved?.kind === Kinds.Types.ArrayType ||
+                resolved?.kind === Kinds.Types.TupleType ||
+                pointee?.kind === Kinds.Types.ArrayType ||
+                pointee?.kind === Kinds.Types.TupleType
             );
+        }
+
+        public isExternNativeScalarType(type: any): boolean {
+            const resolved = this.resolveType(type);
+
+            return (
+                resolved?.kind === Kinds.Types.StringType ||
+                resolved?.kind === Kinds.Types.NumberType ||
+                resolved?.kind === Kinds.Types.BooleanType
+            );
+        }
+
+        public isExternNativeArrayAbiType(type: any): boolean {
+            const resolved = this.resolveType(type);
+
+            if (!resolved) {
+                return false;
+            }
+
+            if (resolved.kind === Kinds.Types.TupleType) {
+                return false;
+            }
+
+            if (resolved.kind !== Kinds.Types.ArrayType) {
+                return false;
+            }
+
+            const elementType = this.resolveType(resolved.elementType);
+
+            if (!elementType || elementType.kind !== Kinds.Types.NumberType) {
+                return false;
+            }
+
+            return true;
         }
 
         public isSupportedExternPath(externPath: string): boolean {

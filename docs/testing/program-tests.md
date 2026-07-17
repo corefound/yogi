@@ -49,6 +49,7 @@ Each test should:
 | Matrix Report | `tests/programs/matrix_report.cmake` | Implemented | fixed-shape matrix row views, returned/materialized views, global view retention, value-parameter isolation, LLVM/runtime execution |
 | Sales Destructuring Report | `tests/programs/sales_destructuring_report.cmake` | Implemented | array destructuring, rest bindings, tuple-rest annotations, `entries()` destructuring, structs, function calls, LLVM/runtime execution |
 | Array Storage Policy Report | `tests/programs/array_storage_policy_report.cmake` | Implemented | contiguous vs pointer-safe array storage, live interior pointers, fixed-shape indexing, functions, LLVM/runtime execution |
+| Native Signal Processor | `tests/programs/native_signal_processor.cmake` | Implemented | extern native numeric array ABI, temporary contiguous buffers, mutable copy-back through `ptr<number[]>`, fixed-shape matrix dimensions, static native library linking, LLVM/runtime execution |
 
 ## Rules
 

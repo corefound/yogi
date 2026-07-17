@@ -194,11 +194,100 @@ namespace yogi::core::llvm::internal {
 
 		std::vector<::llvm::Value *> arguments;
 		std::vector<::llvm::Type *> argumentTypes;
+		struct NativeArrayCleanup {
+			::llvm::Value *array;
+			::llvm::Value *buffer;
+			::llvm::Value *length;
+			bool copyBack;
+		};
+		std::vector<NativeArrayCleanup> nativeArrayCleanups;
+		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
+		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
+		const auto nativeArrayElementType = [&](const Yogi::Sir::TypeRef *type) -> const Yogi::Sir::TypeRef * {
+			if (!type) {
+				return nullptr;
+			}
+
+			if (resolvedTypeKind(type) != Yogi::Sir::TypeKind_array_type) {
+				return nullptr;
+			}
+
+			return type->element_type();
+		};
+		const auto isNativeNumberArray = [&](const Yogi::Sir::TypeRef *type) {
+			const auto *elementType = nativeArrayElementType(type);
+			return elementType && resolvedTypeKind(elementType) == Yogi::Sir::TypeKind_number_type;
+		};
+		const auto appendNativeArrayDimensions = [&](const Yogi::Sir::TypeRef *arrayType, ::llvm::Value *length) {
+			const auto shape = fixedShape(arrayType);
+
+			if (arrayType && arrayType->fixed() && shape.size() > 1) {
+				for (const auto dimension: shape) {
+					arguments.push_back(::llvm::ConstantInt::get(
+						integerType,
+						static_cast<uint64_t>(dimension < 0 ? 0 : dimension)
+					));
+					argumentTypes.push_back(integerType);
+				}
+				return;
+			}
+
+			arguments.push_back(length);
+			argumentTypes.push_back(integerType);
+		};
+		const auto appendNativeNumberArrayArgument = [&](
+			const Yogi::Sir::ValueRef *argument,
+			const Yogi::Sir::TypeRef *argumentSemanticType,
+			const Yogi::Sir::TypeRef *arrayType,
+			bool mutableBorrow
+		) {
+			::llvm::Value *array = nullptr;
+
+			if (mutableBorrow) {
+				auto *pointer = lower(argument, opaquePointer(), argumentSemanticType);
+				array = lowerPointerArrayDescriptor(pointer, arrayType);
+			} else {
+				array = lower(argument, opaquePointer(), argumentSemanticType);
+			}
+
+			auto *length = callRuntime("yogi_array_length", integerType, {array});
+			auto *buffer = callRuntime("yogi_array_native_number_buffer", opaquePointer(), {array});
+			arguments.push_back(buffer);
+			argumentTypes.push_back(opaquePointer());
+			appendNativeArrayDimensions(arrayType, length);
+			nativeArrayCleanups.push_back({array, buffer, length, mutableBorrow});
+		};
 
 		if (call->arguments()) {
 			for (flatbuffers::uoffset_t index = 0; index < call->arguments()->size(); ++index) {
 				const auto *argument = call->arguments()->Get(index);
 				const auto *argumentSemanticType = valueSemanticType(argument);
+				const auto argumentKind = resolvedTypeKind(argumentSemanticType);
+				const auto *pointeeType =
+					argumentKind == Yogi::Sir::TypeKind_pointer_type && argumentSemanticType
+						? argumentSemanticType->element_type()
+						: nullptr;
+				const auto pointeeKind = resolvedTypeKind(pointeeType);
+
+				if (
+					call->external() &&
+					pointeeType &&
+					pointeeKind == Yogi::Sir::TypeKind_array_type &&
+					isNativeNumberArray(pointeeType)
+				) {
+					appendNativeNumberArrayArgument(argument, argumentSemanticType, pointeeType, true);
+					continue;
+				}
+
+				if (
+					call->external() &&
+					argumentKind == Yogi::Sir::TypeKind_array_type &&
+					isNativeNumberArray(argumentSemanticType)
+				) {
+					appendNativeNumberArrayArgument(argument, argumentSemanticType, argumentSemanticType, false);
+					continue;
+				}
+
 				auto *argumentType = types.lower(argumentSemanticType);
 				auto *argumentValue = lower(argument, argumentType, argumentSemanticType);
 				arguments.push_back(argumentValue);
@@ -222,8 +311,11 @@ namespace yogi::core::llvm::internal {
 		std::string functionName;
 
 		if (call->external()) {
-			if (const auto *identifier = call->callee() ? call->callee()->identifier() : nullptr) {
-				functionName = fbString(identifier->name());
+			functionName = fbString(call->linkage_name());
+			if (functionName.empty()) {
+				if (const auto *identifier = call->callee() ? call->callee()->identifier() : nullptr) {
+					functionName = fbString(identifier->name());
+				}
 			}
 		}
 
@@ -245,11 +337,28 @@ namespace yogi::core::llvm::internal {
 			);
 		}
 
+		const auto emitNativeArrayCleanups = [&]() {
+			for (auto it = nativeArrayCleanups.rbegin(); it != nativeArrayCleanups.rend(); ++it) {
+				if (it->copyBack) {
+					callRuntime(
+						"yogi_array_native_number_buffer_copy_back",
+						voidType,
+						{it->array, it->buffer, it->length}
+					);
+				}
+
+				callRuntime("yogi_array_native_buffer_destroy", voidType, {it->buffer});
+			}
+		};
+
 		if (returnType->isVoidTy()) {
-			return context.builder.CreateCall(function, arguments);
+			auto *result = context.builder.CreateCall(function, arguments);
+			emitNativeArrayCleanups();
+			return result;
 		}
 
 		auto *result = context.builder.CreateCall(function, arguments, sanitizeSymbol(functionName) + ".call");
+		emitNativeArrayCleanups();
 		return cast(result, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
 	}
 

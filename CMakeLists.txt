@@ -748,6 +748,12 @@ if(BUILD_TESTING)
                         program-array-storage-policy-report
                         tests/programs/array_storage_policy_report.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_native_signal_processor
+                        program-native-signal-processor
+                        tests/programs/native_signal_processor.cmake
+                )
         endif()
 endif()
 

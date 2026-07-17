@@ -1424,51 +1424,42 @@ uint8[1080, 1920, 4] -> [8294400 x i8]
 
 ### 8. C ABI interop rules for arrays
 
-Current rule:
+Current implemented rule:
 
 ``` txt
-arrays do not cross extern native ABI by value implicitly
+Yogi arrays never expose the internal runtime descriptor as native ABI.
+ABI-safe numeric arrays are materialized as temporary contiguous buffers.
 ```
 
-Yogi rejects `extern ... from "lib"` members that use dynamic arrays,
-fixed arrays, fixed-shape arrays, or tuples by value.
-
-Example:
+Supported extern parameter shapes today:
 
 ``` ts
 extern native from "./libnative.a" {
-    process(values: number[]): void
+    sum(values: number[]): number              // double* + length
+    normalize(values: ptr<number[]>): void     // double* + length, then copy back
+    filter(values: number[4]): number          // double* + length
+    transform(matrix: ptr<number[2, 3]>): void // double* + rows + columns, then copy back
 }
-// error: array native ABI is not implicit in Yogi
 ```
 
-Reason:
+Dynamic `number[]` by value is a read-only borrowed native buffer.
+`ptr<number[]>` and `ptr<number[N, M]>` are mutable borrowed native buffers.
+After the native call returns, Yogi copies modified values back into the
+existing Yogi array slots so pointer identity is preserved.
+
+Rejected shapes:
 
 ``` txt
-T[] may be a runtime descriptor with adaptive storage
-T[N] and T[N, M] currently still lower through runtime array descriptors
-tuples are aggregate array-like values, not a C ABI layout promise
+string[]
+number[][]
+tuples across extern returns
+array extern variables
+arrays of structs until a stable struct marshalling layout is implemented
 ```
 
-The future ABI must be explicit about representation:
-
-``` txt
-native pointer
-runtime descriptor
-copy-in/copy-out temporary
-fixed-shape raw LLVM value
-pointer + length
-pointer + shape
-```
-
-Recommended direction:
-
-``` txt
-small fixed-shape arrays: native flat representation when practical
-large fixed-shape arrays: pointer/view
-dynamic arrays: descriptor
-external C ABI: explicit pointer or descriptor rules
-```
+The backend currently materializes temporary native buffers for the C ABI.
+That is an implementation detail, not a promise that every dynamic array is
+stored as `T*` internally.
 
 ------------------------------------------------------------------------
 
@@ -2812,21 +2803,19 @@ is not automatically equivalent to a native contiguous `T*`.
 Current implemented policy:
 
 ``` txt
-extern native ABI rejects arrays/tuples by value
+extern native ABI supports ABI-safe numeric array parameters
+number[] passes as double* + length
+ptr<number[]> passes as double* + length with copy-back
+number[N, M] passes as double* + dimensions
 array literals lower through yogi_array_create_with_storage
 storage mode is explicit in IR: contiguous_fast_path or pointer_safe_chunked_mode
 ```
 
-Define:
+Still to define:
 
 ``` txt
-dynamic array ABI
-fixed array ABI
-fixed-shape matrix ABI
 array-of-struct ABI
 string array ABI
-temporary contiguous materialization
-copy-in/copy-out
 native retention of pointers
 ownership transfer
 mutability
@@ -3089,9 +3078,11 @@ readonly propagation from the original owner
 ⬜ Union-array runtime/narrowing completion
 ⬜ Dynamic shaped arrays: Array<T, Rank>
 ⬜ Dynamic shaped views/slices
-⬜ Native fixed-shape ABI without runtime descriptor
-⬜ Full C ABI / FFI rules for arrays
-⬜ Contiguous materialization policy for pointer-safe chunked arrays
+✅ Numeric array native ABI via temporary contiguous buffers
+⬜ Native fixed-shape LLVM `[N x T]` value ABI without runtime array descriptor
+⬜ Array-of-struct native ABI marshalling
+⬜ String array native ABI marshalling
+⬜ Native retention/async FFI pointer policy
 ⬜ Lazy iterator objects
 ⬜ Object stringification inside arrays
 ⬜ Bounds-check elimination and loop optimization
@@ -3110,7 +3101,7 @@ readonly propagation from the original owner
 2. Automatic Array View Escape and Lifetime Analysis
 3. Array Copy, Move, and Ownership Semantics
 4. Union Array Runtime and Narrowing Semantics
-5. Full Array Native ABI and Contiguous Interop
+5. Array-of-struct and string-array native ABI marshalling
 6. Array Bounds-Check Elimination and Loop Optimization
 7. Dynamic Shaped Arrays and Runtime Rank Metadata
 8. Lazy Array Iterators

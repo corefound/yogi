@@ -25,6 +25,7 @@ language support.
 | Matrix Report | `tests/programs/matrix_report.cmake` | Implemented | Exercises fixed-shape matrix row views, returned/materialized views, value-parameter isolation, global view retention, LLVM lowering, object generation, linking, and runtime execution |
 | Sales Destructuring Report | `tests/programs/sales_destructuring_report.cmake` | Implemented | Exercises array destructuring, rest bindings, tuple-rest annotations, `entries()` destructuring, structs, functions, LLVM lowering, object generation, linking, and runtime execution |
 | Array Storage Policy Report | `tests/programs/array_storage_policy_report.cmake` | Implemented | Exercises contiguous vs pointer-safe array storage policy, interior pointers, fixed-shape indexing, functions, LLVM IR storage markers, object generation, linking, and runtime execution |
+| Native Signal Processor | `tests/programs/native_signal_processor.cmake` | Implemented | Exercises extern native numeric array ABI, temporary contiguous buffers, mutable copy-back through `ptr<number[]>`, fixed-shape matrix ABI dimensions, LLD linking with a static native library, LLVM IR generation, object generation, and runtime execution |
 
 ## Planned Program Tests
 

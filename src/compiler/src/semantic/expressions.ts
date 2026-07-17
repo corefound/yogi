@@ -149,6 +149,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
         public visitCallExpression(node: any): any {
             if (node.callee?.kind === Kinds.Expressions.PropertyAccessExpression) {
+                const externCall = this.tryVisitExternMemberCall(node);
+                if (externCall) {
+                    return externCall;
+                }
+
                 return this.visitBuiltinMethodCall(node);
             }
 
@@ -452,6 +457,182 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 pointerRootSymbolId: borrowedReturnPointerInfo?.rootSymbolId,
                 pointerAccessPath: borrowedReturnPointerInfo?.accessPath ?? [],
                 pointerPermission: borrowedReturnPointerInfo?.permission,
+            };
+        }
+
+        public tryVisitExternMemberCall(node: any): any | null {
+            const rawCallee = node.callee;
+            const receiver = rawCallee?.object;
+            const externName =
+                receiver?.name ??
+                receiver?.value ??
+                receiver?.raw ??
+                "";
+
+            if (!externName) {
+                return null;
+            }
+
+            const externSymbol = this.resolveSymbol(externName);
+            if (!externSymbol || externSymbol.kind !== Kinds.ScopeSymbols.Extern) {
+                return null;
+            }
+
+            const methodName = rawCallee.property ?? rawCallee.name ?? "";
+            const externFunction = (externSymbol.node?.functions ?? []).find((fn: any) => fn.name === methodName);
+
+            if (!externFunction) {
+                rawCallee.arrowLength = methodName?.length ?? rawCallee.source?.length ?? 1;
+                this.throwError(
+                    `extern ${Helpers.BLUE}'${externName}'${Helpers.RESET} has no function ` +
+                    `${Helpers.RED}'${methodName}'${Helpers.RESET}`,
+                    rawCallee.position ?? node.position,
+                    node.fullSource ?? node.source,
+                    rawCallee,
+                );
+            }
+
+            const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
+            const parameters = externFunction.parameters ?? [];
+
+            if (args.length !== parameters.length) {
+                node.arrowLength = node.source?.length ?? methodName?.length ?? 1;
+                this.throwError(
+                    `extern function ${Helpers.BLUE}'${externName}.${methodName}'${Helpers.RESET} expects ` +
+                    `${Helpers.BLUE}'${parameters.length}'${Helpers.RESET} argument(s), got ` +
+                    `${Helpers.RED}'${args.length}'${Helpers.RESET}`,
+                    node.position,
+                    node.fullSource ?? node.source,
+                    node,
+                );
+            }
+
+            const argumentEffects = args.map((argument: any, index: number) => {
+                const expectedType = parameters[index]?.type;
+                const expectedResolved = this.resolveType(expectedType);
+                const actualType = argument?.type;
+                const source = node.fullSource ?? node.source;
+                const expectedPointee = expectedResolved?.kind === Kinds.Types.PointerType
+                    ? this.pointerPointeeType(expectedResolved)
+                    : null;
+                const expectedIsMutableNativeArray =
+                    expectedPointee?.kind === Kinds.Types.ArrayType ||
+                    expectedPointee?.kind === Kinds.Types.TupleType;
+
+                if (this.isPointerType(actualType)) {
+                    this.assertPointerTargetUsable(argument, source);
+                }
+
+                if (expectedIsMutableNativeArray) {
+                    if (!this.isPointerType(actualType) || !this.isTypeAssignable(expectedType, actualType)) {
+                        argument.arrowLength = argument.source?.length ?? 1;
+                        this.throwError(
+                            `argument ${Helpers.BLUE}'${index + 1}'${Helpers.RESET} of ` +
+                            `${Helpers.BLUE}'${externName}.${methodName}'${Helpers.RESET} must be ` +
+                            `${Helpers.BLUE}'${expectedType?.raw ?? "ptr<array>"}'${Helpers.RESET}, got ` +
+                            `${Helpers.RED}'${actualType?.raw ?? "unknown"}'${Helpers.RESET}`,
+                            argument.position ?? node.position,
+                            source,
+                            argument,
+                        );
+                    }
+
+                    if (argument?.pointerPermission === "readonly") {
+                        argument.arrowLength = argument.source?.length ?? 1;
+                        this.throwError(
+                            `extern function ${Helpers.BLUE}'${externName}.${methodName}'${Helpers.RESET} may mutate ` +
+                            `${Helpers.RED}'${argument.source ?? "readonly pointer"}'${Helpers.RESET}`,
+                            argument.position ?? node.position,
+                            source,
+                            argument,
+                        );
+                    }
+
+                    return {
+                        index,
+                        escapes: false,
+                        mutates: true,
+                        consumes: false,
+                    };
+                }
+
+                let validatedByAggregate = false;
+                if (
+                    argument?.kind === Kinds.Collections.ArrayExpression &&
+                    (
+                        expectedResolved?.kind === Kinds.Types.ArrayType ||
+                        expectedResolved?.kind === Kinds.Types.TupleType
+                    )
+                ) {
+                    this.validateAggregateAssignment(
+                        expectedType,
+                        argument,
+                        { name: `argument ${index + 1} of '${externName}.${methodName}'`, position: argument.position },
+                        source,
+                    );
+                    validatedByAggregate = true;
+                }
+
+                if (!validatedByAggregate && !this.isTypeAssignable(expectedType, actualType)) {
+                    argument.arrowLength = argument.source?.length ?? 1;
+                    this.throwError(
+                        `argument ${Helpers.BLUE}'${index + 1}'${Helpers.RESET} of ` +
+                        `${Helpers.BLUE}'${externName}.${methodName}'${Helpers.RESET} must be ` +
+                        `${Helpers.BLUE}'${expectedType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
+                        `${Helpers.RED}'${actualType?.raw ?? "unknown"}'${Helpers.RESET}`,
+                        argument.position ?? node.position,
+                        source,
+                        argument,
+                    );
+                }
+
+                return {
+                    index,
+                    escapes: false,
+                    mutates: false,
+                    consumes: false,
+                };
+            });
+
+            const returnType = this.toSerializableType(externFunction.returnType ?? {
+                kind: Kinds.Types.UnknownType,
+                raw: "unknown",
+            });
+            const functionType = this.toSerializableType({
+                kind: Kinds.Types.FunctionType,
+                raw: `${externName}.${methodName}`,
+                parameters,
+                returnType,
+            });
+            const callee = {
+                kind: Kinds.Expressions.IdentifierExpression,
+                name: methodName,
+                value: methodName,
+                raw: methodName,
+                source: rawCallee.source ?? methodName,
+                position: rawCallee.position ?? node.position,
+                type: functionType,
+            };
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.CallExpression,
+                callee,
+                arguments: args,
+                argumentEffects,
+                type: returnType,
+                symbolId: externSymbol.id,
+                linkageName: methodName,
+                qualifiedName: `${externName}.${methodName}`,
+                external: true,
+                effectSummary: {
+                    parameterEffects: argumentEffects.map((effect: any) => ({
+                        escapes: effect.escapes,
+                        mutates: effect.mutates,
+                        consumes: effect.consumes,
+                    })),
+                },
+                builtinMethod: null,
             };
         }
 

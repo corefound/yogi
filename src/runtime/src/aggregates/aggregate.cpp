@@ -2109,6 +2109,41 @@ const char *yogi_array_storage_mode(void *array) {
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->storageModeName();
 }
 
+void *yogi_array_native_number_buffer(void *array) {
+	const auto length = yogi_array_length(array);
+	auto *buffer = static_cast<double *>(
+		yogi::runtime::MemoryManager::allocate(sizeof(double) * static_cast<std::size_t>(length), "native number array buffer")
+	);
+
+	for (unsigned long long index = 0; index < length; ++index) {
+		buffer[index] = yogi_any_to_number(yogi_array_get(array, index));
+	}
+
+	return buffer;
+}
+
+void yogi_array_native_number_buffer_copy_back(void *array, void *buffer, unsigned long long length) {
+	if (!array || !buffer) {
+		return;
+	}
+
+	auto *values = static_cast<double *>(buffer);
+	const auto arrayLength = yogi_array_length(array);
+	const auto copyLength = std::min(length, arrayLength);
+
+	for (unsigned long long index = 0; index < copyLength; ++index) {
+		yogi_array_set(array, index, yogi_any_from_number(values[index]));
+	}
+}
+
+void yogi_array_native_buffer_destroy(void *buffer) {
+	if (!buffer) {
+		return;
+	}
+
+	yogi::runtime::MemoryManager::deallocate(buffer);
+}
+
 void yogi_array_drop(void *array) {
 	if (!array) {
 		return;

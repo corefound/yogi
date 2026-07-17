@@ -126,11 +126,12 @@ without re-auditing the whole compiler.
 - [x] Dynamic array assignment performs in-place slot replacement: preserved indexes keep pointer identity, removed indexes invalidate pointers
 - [x] Adaptive fast contiguous vs pointer-safe/chunked dynamic array storage selected by semantic analysis
 - [x] Runtime migration from contiguous to pointer-safe storage when an interior pointer cell is requested after allocation
-- [x] Extern native ABI rejects arrays/tuples by value instead of silently lowering unsafe native boundaries
+- [x] Extern native ABI supports numeric arrays through temporary contiguous buffers (`number[]`, `ptr<number[]>`, and fixed-shape numeric arrays)
 - [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
+- [ ] Native array ABI marshalling for strings and ABI-safe structs
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions
 - [ ] Final audit against all JavaScript/TypeScript Array methods
 
