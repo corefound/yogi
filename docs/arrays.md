@@ -852,6 +852,59 @@ Notes:
 
 ------------------------------------------------------------------------
 
+### Array callback ownership and borrow policy
+
+Supported:
+
+-   Callback value parameters are temporary value/borrow inputs.
+-   Callback value parameters are not mutable borrows of the source slot.
+-   Returning an aggregate from `map`, `flatMap`, or `reduce` transfers that
+    aggregate into the method result according to the normal Yogi ownership
+    rules.
+-   Mutating a different captured array from inside a callback is allowed.
+-   Mutating the source array while its callback method is running is rejected
+    by semantic analysis.
+-   The same source-mutation rule applies to `sort` and `toSorted`
+    comparator callbacks.
+
+Example safe callback:
+
+``` ts
+let source: number[] = [1, 2, 3]
+let sink: number[] = []
+
+source.forEach((value: number): void => {
+    sink.push(value * 10)
+})
+```
+
+Example aggregate return:
+
+``` ts
+let values: number[] = [1, 2]
+let pairs: number[][] = values.map((value: number): number[] => {
+    return [value, value + 10]
+})
+```
+
+Rejected:
+
+``` ts
+let values: number[] = [1, 2]
+
+values.forEach((value: number): void => {
+    values.push(value)
+})
+```
+
+Covered by:
+
+``` txt
+tests/runtime/sessions/02-variables-aggregates/array_callback_ownership_borrow.cmake
+```
+
+------------------------------------------------------------------------
+
 ## In Progress / Next Lots
 
 ### 1. Const / readonly propagation into borrowed views
@@ -1621,12 +1674,13 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
 ✅ Dynamic array iteration and structural mutation semantics
 ✅ Final JavaScript-compatible array method policy audit
+✅ Final callback ownership/borrow semantics
 ```
 
 ### Next Lots
 
 ``` txt
-⬜ Final callback ownership/borrow semantics
+⬜ Nested dynamic-array ownership and pointer chains
 ```
 
 ### Future Work
@@ -1652,7 +1706,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ## Recommended Implementation Order
 
 ``` txt
-1. Final callback ownership/borrow semantics
+1. Nested dynamic-array ownership and pointer chains
 2. Real persistent closure runtime for captured borrowed views
 3. Borrow summaries interprocedural for explicit borrowed views if Yogi later adds explicit view types
 4. Escape analysis complete for callback/closure-captured borrowed views
@@ -2386,33 +2440,37 @@ tests/runtime/sessions/02-variables-aggregates/array_method_policy.cmake
 
 ## 4. Array Callback Ownership and Borrow Semantics
 
-Close the ownership model for callback parameters and returns.
+Implemented.
 
 Example:
 
 ``` ts
-users.forEach((user: User): void => {
-    user.age = 50
+let source: number[] = [1, 2, 3]
+let sink: number[] = []
+
+source.forEach((value: number): void => {
+    sink.push(value * 10)
 })
 ```
 
-Define whether callback values are:
+Policy:
 
 ``` txt
-value copies
-borrows
-mutable borrows
-another established Yogi representation
+callback value parameter = temporary value/borrow input
+callback value parameter != mutable borrow of the source slot
+returned aggregate from map/flatMap/reduce = owned by the method result
+different captured array mutation = allowed
+source array mutation during callback = semantic error
 ```
 
-Also cover callbacks that:
+Rejected:
 
-``` txt
-capture outer locals
-return aggregates
-retain values
-escape the immediate loop
-mutate the source array
+``` ts
+let values: number[] = [1, 2]
+
+values.forEach((value: number): void => {
+    values.push(value)
+})
 ```
 
 ------------------------------------------------------------------------
@@ -2876,12 +2934,12 @@ readonly propagation from the original owner
 ✅ Mutating array methods through ptr<T[]>
 ✅ End-to-end caller invalidation through ptr<T[]> parameters
 ✅ Final JavaScript-compatible array method policy audit
+✅ Final callback ownership/borrow semantics
 ```
 
 ## Remaining
 
 ``` txt
-⬜ Final callback ownership/borrow semantics
 ⬜ Nested dynamic-array ownership and pointer chains
 ⬜ Fixed-array and multidimensional matrix completion
 ⬜ Real persistent closure runtime for captured borrowed views

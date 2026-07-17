@@ -1811,6 +1811,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
                 }
 
+                this.validateArrayCallbackDoesNotMutateSource(
+                    node,
+                    methodName,
+                    semanticCallback,
+                    symbol,
+                    receiver,
+                    source,
+                );
+
                 args = [semanticCallback];
             }
 
@@ -2134,6 +2143,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 returnType = { kind: Kinds.Types.VoidType, raw: "void" };
             }
 
+            this.validateArrayCallbackDoesNotMutateSource(
+                node,
+                methodName,
+                semanticCallback,
+                symbol,
+                receiver,
+                source,
+            );
+
             return this.createArrayBuiltinCall(
                 node,
                 rawCallee,
@@ -2156,6 +2174,168 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             callback.arrowLength = callbackName?.length ?? 1;
             this.throwError(message, callback.position ?? node.position, source, callback);
+        }
+
+        public validateArrayCallbackDoesNotMutateSource(
+            callNode: any,
+            methodName: string,
+            callback: any,
+            symbol: any,
+            receiver: any,
+            source: string,
+        ): void {
+            const sourceRootName = this.getAggregateRootIdentifier(receiver);
+            const sourceRootSymbolId = this.getAggregateRootSymbolId(receiver);
+
+            if (!sourceRootName && typeof sourceRootSymbolId !== "number") {
+                return;
+            }
+
+            const callbackBody = callback?.kind === Kinds.Functions.FunctionExpression
+                ? callback.body
+                : symbol?.node?.body;
+            const mutation = this.findArrayCallbackSourceMutation(
+                callbackBody,
+                sourceRootName,
+                sourceRootSymbolId,
+            );
+
+            if (!mutation) {
+                return;
+            }
+
+            const target = mutation.node ?? callback ?? callNode;
+            const label = sourceRootName ?? "source";
+            const message =
+                `array method ${Helpers.BLUE}'${methodName}'${Helpers.RESET} callback cannot mutate source array ` +
+                `${Helpers.RED}'${label}'${Helpers.RESET} while it is being iterated`;
+
+            target.arrowLength = target.source?.length ?? target.raw?.length ?? label.length ?? 1;
+            this.throwError(
+                message,
+                target.position ?? callback?.position ?? callNode.position,
+                source,
+                target,
+                "  = callback value parameters are borrowed/value inputs, not mutable source-array borrows\n" +
+                "  = use an explicit loop when the source array must be mutated during iteration",
+            );
+        }
+
+        public findArrayCallbackSourceMutation(
+            node: any,
+            sourceRootName: string | null,
+            sourceRootSymbolId: number | null,
+            visited: Set<any> = new Set(),
+        ): any | null {
+            if (!node || typeof node !== "object") {
+                return null;
+            }
+
+            if (visited.has(node)) {
+                return null;
+            }
+            visited.add(node);
+
+            if (Array.isArray(node)) {
+                for (const item of node) {
+                    const mutation = this.findArrayCallbackSourceMutation(
+                        item,
+                        sourceRootName,
+                        sourceRootSymbolId,
+                        visited,
+                    );
+                    if (mutation) return mutation;
+                }
+                return null;
+            }
+
+            if (node.kind === Kinds.Functions.FunctionExpression) {
+                return null;
+            }
+
+            if (node.kind === Kinds.Expressions.CallExpression) {
+                const methodName = typeof node.builtinMethod === "string" && node.builtinMethod.startsWith("array.")
+                    ? node.builtinMethod.slice("array.".length)
+                    : node.callee?.property;
+                const mutatingMethods = new Set([
+                    "push",
+                    "pop",
+                    "shift",
+                    "unshift",
+                    "reverse",
+                    "fill",
+                    "copyWithin",
+                    "splice",
+                    "sort",
+                ]);
+
+                if (
+                    mutatingMethods.has(methodName) &&
+                    this.expressionMatchesAggregateRoot(
+                        node.callee?.object,
+                        sourceRootName,
+                        sourceRootSymbolId,
+                    )
+                ) {
+                    return { node: node.callee ?? node };
+                }
+            }
+
+            if (
+                node.kind === Kinds.Expressions.AssignmentExpression &&
+                this.expressionMatchesAggregateRoot(
+                    node.left,
+                    sourceRootName,
+                    sourceRootSymbolId,
+                )
+            ) {
+                return { node: node.left ?? node };
+            }
+
+            if (
+                node.kind === "AggregateAssignmentExpression" &&
+                this.expressionMatchesAggregateRoot(
+                    node.target,
+                    sourceRootName,
+                    sourceRootSymbolId,
+                )
+            ) {
+                return { node: node.target ?? node };
+            }
+
+            for (const key of Object.keys(node)) {
+                if (key === "type" || key === "declaredType" || key === "effectSummary") {
+                    continue;
+                }
+
+                const mutation = this.findArrayCallbackSourceMutation(
+                    node[key],
+                    sourceRootName,
+                    sourceRootSymbolId,
+                    visited,
+                );
+                if (mutation) return mutation;
+            }
+
+            return null;
+        }
+
+        public expressionMatchesAggregateRoot(
+            node: any,
+            sourceRootName: string | null,
+            sourceRootSymbolId: number | null,
+        ): boolean {
+            if (!node) {
+                return false;
+            }
+
+            const rootSymbolId = this.getAggregateRootSymbolId(node);
+            if (typeof sourceRootSymbolId === "number" && typeof rootSymbolId === "number") {
+                return sourceRootSymbolId === rootSymbolId;
+            }
+
+            const rootName = this.getAggregateRootIdentifier(node);
+            return !!sourceRootName && rootName === sourceRootName;
         }
 
         public visitInlineCallbackFunctionExpression(callNode: any, methodName: string, callback: any, elementType: any, source: string): any {
@@ -4284,6 +4464,40 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
 	            return null;
 	        }
+
+        public getAggregateRootSymbolId(node: any): number | null {
+            if (!node) return null;
+
+            if (node.kind === Kinds.Expressions.IdentifierExpression) {
+                if (typeof node.symbolId === "number") {
+                    return node.symbolId;
+                }
+
+                const name = node.value ?? node.name ?? node.raw;
+                return name ? this.resolveSymbol(name)?.id ?? null : null;
+            }
+
+            if (
+                node.kind === Kinds.Expressions.PropertyAccessExpression ||
+                node.kind === Kinds.Expressions.ElementAccessExpression
+            ) {
+                return this.getAggregateRootSymbolId(node.object);
+            }
+
+            if (node.kind === Kinds.Expressions.DereferenceExpression) {
+                if (typeof node.rootSymbolId === "number") {
+                    return node.rootSymbolId;
+                }
+
+                if (typeof node.pointerRootSymbolId === "number") {
+                    return node.pointerRootSymbolId;
+                }
+
+                return this.getAggregateRootSymbolId(node.target);
+            }
+
+            return null;
+        }
 
         public borrowedArrayReadonlyInfo(object: any, objectType: any): {
             readonly: boolean;

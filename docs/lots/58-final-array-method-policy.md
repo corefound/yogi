@@ -67,9 +67,7 @@ The suite checks:
 - strict search/join/flat argument diagnostics
 - unsupported method diagnostics
 
-## Remaining Array Work
+## Follow-Up
 
-The next array-focused lot is callback ownership and borrow semantics. The
-method names are available, but Yogi still needs a deeper final answer for
-callback value ownership, mutable borrows, returned aggregates, and source-array
-mutation while callbacks are running.
+Callback ownership and borrow semantics are covered in
+`docs/lots/59-array-callback-ownership-borrow-semantics.md`.

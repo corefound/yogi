@@ -560,6 +560,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_array_callback_ownership_borrow
+                        pipeline-array-callback-ownership-borrow
+                        tests/runtime/sessions/02-variables-aggregates/array_callback_ownership_borrow.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_persistent_closure_captures
                         pipeline-array-persistent-closure-captures
                         tests/runtime/sessions/02-variables-aggregates/array_persistent_closure_captures.cmake
