@@ -132,6 +132,7 @@ without re-auditing the whole compiler.
 - [x] Mutable native string ABI ownership policy is documented before enabling `ptr<string[]>`
 - [x] Extern native ABI ownership contracts are parsed and semantically validated with `@abi` metadata
 - [x] Runtime/backend consumption of `@abi return native-owned free=...` for native `string` returns
+- [x] Runtime/backend consumption of `@abi param name output native-owned free=...` for native `ptr<string>` output parameters
 - [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Interprocedural lifetime summaries for borrowed views
@@ -186,6 +187,7 @@ without re-auditing the whole compiler.
 - [x] Native Reading Calibrator Program Test
 - [x] Native Dictionary Lookup Program Test
 - [x] Native Owned Name Program Test
+- [x] Native Owned Name Output Program Test
 - [ ] Contact Manager Program Test
 - [ ] Matrix Operations Program Test
 - [ ] Graph Traversal Program Tests

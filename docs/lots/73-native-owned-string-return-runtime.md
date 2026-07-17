@@ -55,7 +55,7 @@ Not implemented in this lot:
 
 - `ptr<string[]>`
 - `char**`
-- copy-back string parameters
+- string array copy-back
 - mutable native strings
 - native-owned arrays
 - native-owned non-string resources

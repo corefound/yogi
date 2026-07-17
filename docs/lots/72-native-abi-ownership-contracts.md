@@ -33,7 +33,7 @@ Parameter contracts:
 ```txt
 @abi param <name> borrowed
 @abi param <name> copy-back
-@abi param <name> native-owned free=<externFunctionName>
+@abi param <name> output native-owned free=<externFunctionName>
 @abi param <name> runtime-owned
 ```
 
@@ -60,6 +60,7 @@ Aliases:
 - Only one contract may target the same parameter.
 - Only one return contract is allowed.
 - `copy-back` on a parameter requires a pointer type.
+- `output native-owned` on a parameter currently requires `ptr<string>`.
 - `native-owned` requires a `free=<externFunctionName>` entry.
 - A referenced free function must be declared in the same extern block.
 - Return contracts cannot be attached to `void` functions.
@@ -79,9 +80,11 @@ Current implemented runtime behavior remains:
 - `string[]` by value is read-only and temporary.
 - `string` return with `@abi return native-owned free=...` is copied into a
   Yogi-owned runtime string and the native pointer is freed.
+- `ptr<string>` output parameters with `@abi param name output native-owned free=...`
+  are copied into Yogi-owned runtime strings and the native pointer is freed.
 - `ptr<string[]>` is rejected.
-- native string output parameters still need future implementation before Yogi
-  can safely copy back native-produced memory.
+- native string array output parameters still need future implementation before
+  Yogi can safely copy back native-produced memory.
 
 ## Why This Exists
 
@@ -118,7 +121,7 @@ the ownership rule becomes part of the function signature.
 Future lots can consume this metadata to implement:
 
 - `ptr<string[]>` copy-back
-- output string parameters
+- string array output parameters
 - debug diagnostics for missing frees
 - runtime adapters for library-specific free functions
 - FlatBuffer serialization if/when the backend needs structured contract data

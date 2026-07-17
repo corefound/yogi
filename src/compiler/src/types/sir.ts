@@ -472,6 +472,7 @@ export type SemanticExternAbiParameterContract = {
     name: string;
     mode: "borrowed" | "copy-back" | "native-owned" | "runtime-owned";
     owner?: "native" | "runtime" | null;
+    direction?: "output" | null;
     freeFunction?: string | null;
     source?: string;
     position?: SourcePosition;

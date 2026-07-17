@@ -542,9 +542,28 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 const expectedIsMutableNativeArray =
                     expectedPointee?.kind === Kinds.Types.ArrayType ||
                     expectedPointee?.kind === Kinds.Types.TupleType;
+                const parameterName = parameters[index]?.name;
+                const abiContract = (externFunction.abiContracts?.parameters ?? []).find((contract: any) => {
+                    return contract.name === parameterName;
+                });
+                const expectedIsNativeStringOutput =
+                    abiContract?.direction === "output" &&
+                    (abiContract.mode === "native-owned" || abiContract.owner === "native") &&
+                    expectedPointee?.kind === Kinds.Types.StringType;
 
                 if (this.isPointerType(actualType)) {
                     this.assertPointerTargetUsable(argument, source);
+                }
+
+                if (expectedIsNativeStringOutput && argument?.pointerPermission === "readonly") {
+                    argument.arrowLength = argument.source?.length ?? 1;
+                    this.throwError(
+                        `extern function ${Helpers.BLUE}'${externName}.${methodName}'${Helpers.RESET} writes output string through ` +
+                        `${Helpers.RED}'${argument.source ?? "readonly pointer"}'${Helpers.RESET}`,
+                        argument.position ?? node.position,
+                        source,
+                        argument,
+                    );
                 }
 
                 if (expectedIsMutableNativeArray) {
@@ -613,7 +632,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 return {
                     index,
                     escapes: false,
-                    mutates: false,
+                    mutates: expectedIsNativeStringOutput,
                     consumes: false,
                 };
             });
@@ -629,6 +648,26 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     returnAbiContract.freeFunction
                     ? `native.return.string.native-owned.free=${returnAbiContract.freeFunction}`
                     : null;
+            const nativeOutputBuiltinMethods = (externFunction.abiContracts?.parameters ?? [])
+                .map((contract: any) => {
+                    if (
+                        contract.direction !== "output" ||
+                        (contract.mode !== "native-owned" && contract.owner !== "native") ||
+                        !contract.freeFunction
+                    ) {
+                        return null;
+                    }
+
+                    const parameterIndex = parameters.findIndex((parameter: any) => parameter.name === contract.name);
+                    return parameterIndex >= 0
+                        ? `native.param.${parameterIndex}.string.output.native-owned.free=${contract.freeFunction}`
+                        : null;
+                })
+                .filter(Boolean);
+            const nativeBuiltinMethod = [
+                nativeReturnBuiltinMethod,
+                ...nativeOutputBuiltinMethods,
+            ].filter(Boolean).join("|") || null;
             const functionType = this.toSerializableType({
                 kind: Kinds.Types.FunctionType,
                 raw: `${externName}.${methodName}`,
@@ -663,7 +702,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         consumes: effect.consumes,
                     })),
                 },
-                builtinMethod: nativeReturnBuiltinMethod,
+                builtinMethod: nativeBuiltinMethod,
             };
         }
 

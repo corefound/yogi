@@ -871,6 +871,9 @@ describe("Yogi frontend semantic pipeline", () => {
           /** @abi param values borrowed */
           process(values: string[]): void
 
+          /** @abi param name output native-owned free=destroyName */
+          readName(name: ptr<string>): void
+
           /** @abi return native-owned free=destroyName */
           getName(): string
 
@@ -961,6 +964,63 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(directFreeCall.status).not.toBe(0);
     expect(directFreeCall.stderr).toContain("compiler-managed");
     expect(directFreeCall.stderr).toContain("destroyName");
+
+    const outputWithoutNativeOwned = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param name output borrowed */
+          readName(name: ptr<string>): void
+        }
+      `,
+    }));
+    expect(outputWithoutNativeOwned.status).not.toBe(0);
+    expect(outputWithoutNativeOwned.stderr).toContain("requires an output native-owned ABI contract");
+    expect(outputWithoutNativeOwned.stderr).toContain("name");
+
+    const outputNonPointer = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param name output native-owned free=destroyName */
+          readName(name: string): void
+
+          destroyName(value: string): void
+        }
+      `,
+    }));
+    expect(outputNonPointer.status).not.toBe(0);
+    expect(outputNonPointer.stderr).toContain("requires a pointer type");
+    expect(outputNonPointer.stderr).toContain("name");
+
+    const outputNonStringPointer = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param value output native-owned free=destroyValue */
+          readValue(value: ptr<number>): void
+
+          destroyValue(value: string): void
+        }
+      `,
+    }));
+    expect(outputNonStringPointer.status).not.toBe(0);
+    expect(outputNonStringPointer.stderr).toContain("ptr<string>");
+    expect(outputNonStringPointer.stderr).toContain("value");
+
+    const directOutputFreeCall = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param name output native-owned free=destroyName */
+          readName(name: ptr<string>): void
+
+          destroyName(value: string): void
+        }
+
+        let name: string = "Yogi"
+        native.destroyName(name)
+      `,
+    }));
+    expect(directOutputFreeCall.status).not.toBe(0);
+    expect(directOutputFreeCall.stderr).toContain("compiler-managed");
+    expect(directOutputFreeCall.stderr).toContain("destroyName");
 
     const copyBackNonPointer = runCompiler(createProject({
       "main.io": `

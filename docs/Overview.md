@@ -29,6 +29,7 @@ language support.
 | Native Reading Calibrator | `tests/programs/native_reading_calibrator.cmake` | Implemented | Exercises extern native plain numeric struct array ABI, `Struct* + length` marshalling, mutable copy-back through `ptr<Struct[]>`, static native library linking, LLVM IR generation, object generation, and runtime execution |
 | Native Dictionary Lookup | `tests/programs/native_dictionary_lookup.cmake` | Implemented | Exercises extern native `string[]` ABI, temporary `const char** + length` marshalling, native lookup, original array preservation, static native library linking, LLVM IR generation, object generation, and runtime execution |
 | Native Owned Name | `tests/programs/native_owned_name.cmake` | Implemented | Exercises `@abi return native-owned free=...` for native `string` returns, automatic copy into Yogi-owned strings, native free invocation, static native library linking, LLVM IR generation, object generation, and runtime execution |
+| Native Owned Name Output | `tests/programs/native_owned_name_output.cmake` | Implemented | Exercises `@abi param name output native-owned free=...`, native `char**` output slots, automatic copy into Yogi-owned strings, native free invocation, pointer write-back, LLVM IR generation, object generation, and runtime execution |
 
 ## Planned Program Tests
 

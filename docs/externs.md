@@ -103,7 +103,7 @@ strings across the Native ABI.
 |---|---|---|---|
 | Input string | Supported | `const char*` or `const char** + length` | Native borrows read-only during the call. |
 | Native-owned output string return | Supported | `char*` return plus `@abi return native-owned free=...` | Yogi copies to a runtime-owned string, then calls the declared native free function. |
-| Output string parameter | Not implemented | future `char** out` or owned handle | Native must declare how Yogi receives and frees produced text. |
+| Output string parameter | Supported for native-owned single string | `char**` output plus `@abi param name output native-owned free=...` | Yogi passes a temporary output slot, copies the native string, frees it, then writes a runtime-owned string through `ptr<string>`. |
 | In/out string | Not implemented | future `char** + length` or descriptor | Native replacement needs explicit copy-back and free rules. |
 
 `ptr<string[]>` remains rejected because it would let native code replace string
@@ -130,6 +130,9 @@ extern native from "./libnative.a" {
     /** @abi return native-owned free=destroyName */
     getName(): string
 
+    /** @abi param name output native-owned free=destroyName */
+    readName(name: ptr<string>): void
+
     destroyName(value: string): void
 }
 ```
@@ -139,7 +142,7 @@ Supported forms:
 ```txt
 @abi param <name> borrowed
 @abi param <name> copy-back
-@abi param <name> native-owned free=<externFunctionName>
+@abi param <name> output native-owned free=<externFunctionName>
 @abi param <name> runtime-owned
 @abi return borrowed
 @abi return native-owned free=<externFunctionName>
@@ -150,13 +153,15 @@ Rules:
 
 - A parameter contract must reference an existing parameter.
 - `copy-back` requires a pointer parameter.
+- `output native-owned` currently requires `ptr<string>`.
 - `native-owned` requires `free=<externFunctionName>`.
 - The free function must be declared in the same extern block.
 - Return contracts cannot be attached to `void` functions.
 
 These contracts are parsed and semantically validated today. Runtime behavior
 is currently implemented for `string` returns with
-`@abi return native-owned free=<externFunctionName>`.
+`@abi return native-owned free=<externFunctionName>` and output `ptr<string>`
+parameters with `@abi param <name> output native-owned free=<externFunctionName>`.
 
 For native-owned `string` returns, the backend generates:
 
@@ -165,6 +170,16 @@ call native function
 copy native char* into a Yogi runtime string
 call the declared native free function
 return the Yogi-owned string
+```
+
+For native-owned output `ptr<string>` parameters, the backend generates:
+
+```txt
+allocate temporary native char* output slot
+call native function with char**
+copy native char* into a Yogi runtime string
+call the declared native free function
+write the copied string through ptr<string>
 ```
 
 Native-owned return contracts on non-string types are rejected until those

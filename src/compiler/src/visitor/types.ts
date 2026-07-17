@@ -316,6 +316,7 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
                 target,
                 mode: null,
                 owner: null,
+                direction: null,
                 freeFunction: null,
                 raw,
                 position: this.getNodePosistion(tag),
@@ -336,6 +337,11 @@ export function TypesVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase
 
                 if (normalized === "copy-back" || normalized === "copyback") {
                     contract.mode = "copy-back";
+                    continue;
+                }
+
+                if (normalized === "output" || normalized === "out") {
+                    contract.direction = "output";
                     continue;
                 }
 

@@ -772,6 +772,12 @@ if(BUILD_TESTING)
                         program-native-owned-name
                         tests/programs/native_owned_name.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_native_owned_name_output
+                        program-native-owned-name-output
+                        tests/programs/native_owned_name_output.cmake
+                )
         endif()
 endif()
 

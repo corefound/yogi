@@ -46,19 +46,86 @@ namespace yogi::core::llvm::internal {
 			return "";
 		}
 
+		std::vector<std::string> nativeAbiMetadataParts(const Yogi::Sir::CallExpression *call) {
+			std::vector<std::string> parts;
+
+			if (!call || !call->external()) {
+				return parts;
+			}
+
+			const auto metadata = fbString(call->builtin_method());
+			std::size_t start = 0;
+
+			while (start <= metadata.size()) {
+				const auto end = metadata.find('|', start);
+				const auto part = metadata.substr(start, end == std::string::npos ? std::string::npos : end - start);
+				if (!part.empty()) {
+					parts.push_back(part);
+				}
+
+				if (end == std::string::npos) {
+					break;
+				}
+
+				start = end + 1;
+			}
+
+			return parts;
+		}
+
 		std::string nativeOwnedStringReturnFreeFunction(const Yogi::Sir::CallExpression *call) {
 			static const std::string prefix = "native.return.string.native-owned.free=";
 
-			if (!call || !call->external()) {
-				return "";
+			for (const auto &part: nativeAbiMetadataParts(call)) {
+				if (part.rfind(prefix, 0) == 0) {
+					return part.substr(prefix.size());
+				}
 			}
 
-			const auto method = fbString(call->builtin_method());
-			if (method.rfind(prefix, 0) != 0) {
-				return "";
+			return "";
+		}
+
+		std::map<flatbuffers::uoffset_t, std::string> nativeOwnedStringOutputFreeFunctions(
+			const Yogi::Sir::CallExpression *call
+		) {
+			static const std::string prefix = "native.param.";
+			static const std::string suffix = ".string.output.native-owned.free=";
+			std::map<flatbuffers::uoffset_t, std::string> result;
+
+			for (const auto &part: nativeAbiMetadataParts(call)) {
+				if (part.rfind(prefix, 0) != 0) {
+					continue;
+				}
+
+				const auto rest = part.substr(prefix.size());
+				const auto suffixPosition = rest.find(suffix);
+				if (suffixPosition == std::string::npos || suffixPosition == 0) {
+					continue;
+				}
+
+				std::size_t index = 0;
+				bool validIndex = true;
+				for (std::size_t offset = 0; offset < suffixPosition; ++offset) {
+					const auto digit = rest[offset];
+					if (digit < '0' || digit > '9') {
+						validIndex = false;
+						break;
+					}
+
+					index = (index * 10) + static_cast<std::size_t>(digit - '0');
+				}
+
+				if (!validIndex) {
+					continue;
+				}
+
+				const auto freeFunction = rest.substr(suffixPosition + suffix.size());
+				if (!freeFunction.empty()) {
+					result[static_cast<flatbuffers::uoffset_t>(index)] = freeFunction;
+				}
 			}
 
-			return method.substr(prefix.size());
+			return result;
 		}
 	}
 
@@ -223,9 +290,17 @@ namespace yogi::core::llvm::internal {
 			const Yogi::Sir::TypeRef *elementType;
 			::llvm::StructType *structType;
 		};
+		struct NativeStringOutput {
+			::llvm::Value *yogiPointer;
+			::llvm::Value *nativeSlot;
+			std::string freeFunction;
+			const Yogi::Sir::TypeRef *pointeeType;
+		};
 		std::vector<NativeArrayCleanup> nativeArrayCleanups;
 		std::vector<NativeStructArrayCopyBack> nativeStructArrayCopyBacks;
 		std::vector<::llvm::Value *> nativeStringArrayCleanups;
+		std::vector<NativeStringOutput> nativeStringOutputs;
+		const auto nativeStringOutputFreeFunctions = nativeOwnedStringOutputFreeFunctions(call);
 		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
 		const auto nativeArrayElementType = [&](const Yogi::Sir::TypeRef *type) -> const Yogi::Sir::TypeRef * {
@@ -424,6 +499,26 @@ namespace yogi::core::llvm::internal {
 						? argumentSemanticType->element_type()
 						: nullptr;
 				const auto pointeeKind = resolvedTypeKind(pointeeType);
+				const auto outputIt = nativeStringOutputFreeFunctions.find(index);
+
+				if (call->external() && outputIt != nativeStringOutputFreeFunctions.end()) {
+					auto *yogiPointer = lower(argument, opaquePointer(), argumentSemanticType);
+					auto *nativeSlot = context.builder.CreateAlloca(
+						opaquePointer(),
+						nullptr,
+						"native.string.output.slot"
+					);
+					context.builder.CreateStore(::llvm::ConstantPointerNull::get(opaquePointer()), nativeSlot);
+					arguments.push_back(nativeSlot);
+					argumentTypes.push_back(opaquePointer());
+					nativeStringOutputs.push_back({
+						yogiPointer,
+						nativeSlot,
+						outputIt->second,
+						pointeeType,
+					});
+					continue;
+				}
 
 				if (
 					call->external() &&
@@ -526,6 +621,35 @@ namespace yogi::core::llvm::internal {
 			);
 		}
 
+		const auto nativeFreeFunction = [&](const std::string &name) {
+			auto *freeFunction = context.module->getFunction(name);
+
+			if (!freeFunction) {
+				auto *freeFunctionType = ::llvm::FunctionType::get(voidType, {opaquePointer()}, false);
+				freeFunction = ::llvm::Function::Create(
+					freeFunctionType,
+					::llvm::Function::ExternalLinkage,
+					name,
+					context.module.get()
+				);
+			}
+
+			return freeFunction;
+		};
+
+		const auto emitNativeStringOutputCopies = [&]() {
+			for (auto it = nativeStringOutputs.rbegin(); it != nativeStringOutputs.rend(); ++it) {
+				auto *nativeValue = context.builder.CreateLoad(
+					opaquePointer(),
+					it->nativeSlot,
+					"native.string.output.value"
+				);
+				auto *yogiString = callRuntime("yogi_string_from_native_owned", opaquePointer(), {nativeValue});
+				context.builder.CreateCall(nativeFreeFunction(it->freeFunction), {nativeValue});
+				lowerPointerWrite(it->yogiPointer, yogiString, it->pointeeType, it->pointeeType);
+			}
+		};
+
 		const auto emitNativeArrayCleanups = [&]() {
 			for (auto it = nativeStructArrayCopyBacks.rbegin(); it != nativeStructArrayCopyBacks.rend(); ++it) {
 				emitStructArrayCopyBack(it->array, it->buffer, it->length, it->elementType, it->structType);
@@ -550,6 +674,7 @@ namespace yogi::core::llvm::internal {
 
 		if (returnType->isVoidTy()) {
 			auto *result = context.builder.CreateCall(function, arguments);
+			emitNativeStringOutputCopies();
 			emitNativeArrayCleanups();
 			return result;
 		}
@@ -558,23 +683,13 @@ namespace yogi::core::llvm::internal {
 
 		if (!nativeReturnFreeFunction.empty()) {
 			auto *yogiString = callRuntime("yogi_string_from_native_owned", opaquePointer(), {result});
-			auto *freeFunction = context.module->getFunction(nativeReturnFreeFunction);
-
-			if (!freeFunction) {
-				auto *freeFunctionType = ::llvm::FunctionType::get(voidType, {opaquePointer()}, false);
-				freeFunction = ::llvm::Function::Create(
-					freeFunctionType,
-					::llvm::Function::ExternalLinkage,
-					nativeReturnFreeFunction,
-					context.module.get()
-				);
-			}
-
-			context.builder.CreateCall(freeFunction, {result});
+			context.builder.CreateCall(nativeFreeFunction(nativeReturnFreeFunction), {result});
+			emitNativeStringOutputCopies();
 			emitNativeArrayCleanups();
 			return cast(yogiString, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
 		}
 
+		emitNativeStringOutputCopies();
 		emitNativeArrayCleanups();
 		return cast(result, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
 	}
@@ -2227,6 +2342,35 @@ namespace yogi::core::llvm::internal {
 			pointeeSemanticType,
 			sourceSemanticType
 		);
+
+		if (
+			resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_string_type &&
+			storedValue->getType()->isPointerTy()
+		) {
+			auto *previousValue = context.builder.CreateLoad(
+				storedValue->getType(),
+				pointer,
+				"ptr.write.string.previous"
+			);
+			auto *hasPrevious = context.builder.CreateIsNotNull(previousValue, "ptr.write.string.has_previous");
+			auto *isReplacement = context.builder.CreateICmpNE(previousValue, storedValue, "ptr.write.string.replacement");
+			auto *shouldDestroyPrevious = context.builder.CreateAnd(
+				hasPrevious,
+				isReplacement,
+				"ptr.write.string.should_destroy"
+			);
+			auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.write.string.destroy", function);
+			auto *rawStoreBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.write.string.store", function);
+
+			context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, rawStoreBlock);
+
+			context.builder.SetInsertPoint(destroyBlock);
+			destroyEscapedAggregate(pointeeSemanticType, previousValue);
+			context.builder.CreateBr(rawStoreBlock);
+
+			context.builder.SetInsertPoint(rawStoreBlock);
+		}
+
 		context.builder.CreateStore(storedValue, pointer);
 		context.builder.CreateBr(mergeBlock);
 

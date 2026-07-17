@@ -330,6 +330,29 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 }
 
                 parameterNames.add(parameterName);
+
+                const pointeeType = this.pointerPointeeType(parameter.type);
+                if (this.resolveType(pointeeType)?.kind === Kinds.Types.StringType) {
+                    const contract = (member.abiContracts ?? []).find((candidate: any) => {
+                        return candidate.target === "parameter" &&
+                            candidate.parameterName === parameterName;
+                    });
+                    const isSupportedOutput =
+                        contract?.direction === "output" &&
+                        (contract.mode === "native-owned" || contract.owner === "native");
+
+                    if (!isSupportedOutput) {
+                        parameter.arrowLength = parameter.type?.raw?.length ?? parameterName.length ?? 1;
+                        this.throwError(
+                            `extern parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} with type ` +
+                            `${Helpers.RED}'${parameter.type?.raw ?? "ptr<string>"}'${Helpers.RESET} requires an output native-owned ABI contract`,
+                            parameter.type?.position ?? parameter.position,
+                            source,
+                            parameter,
+                            "  = write @abi param <name> output native-owned free=<externFunctionName>",
+                        );
+                    }
+                }
             }
 
             this.externAbiContractDiagnostics(member, name, parameters, returnType, source);
@@ -403,6 +426,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                     name: contract.parameterName,
                     mode: contract.mode,
                     owner: contract.owner ?? null,
+                    direction: contract.direction ?? null,
                     freeFunction: contract.freeFunction ?? null,
                     source: contract.raw,
                     position: contract.position,
@@ -452,7 +476,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                         contract,
                         source,
                         `native ABI contract ${Helpers.RED}'${contract.raw || "@abi"}'${Helpers.RESET} must target a parameter or return value`,
-                        "  = supported forms: @abi param <name> borrowed, @abi param <name> copy-back, @abi return native-owned free=<function>",
+                        "  = supported forms: @abi param <name> borrowed, @abi param <name> copy-back, @abi param <name> output native-owned free=<function>, @abi return native-owned free=<function>",
                     );
                 }
 
@@ -514,6 +538,8 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
 
             const parameterType = this.resolveType(parameter.type);
             const isPointer = parameterType?.kind === Kinds.Types.PointerType;
+            const pointeeType = this.pointerPointeeType(parameter.type);
+            const isOutput = contract.direction === "output";
 
             if (contract.mode === "copy-back" && !isPointer) {
                 this.throwExternAbiContractError(
@@ -521,6 +547,42 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                     source,
                     `copy-back native ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} requires a pointer type`,
                     "  = copy-back means native writes through a pointer and Yogi copies/adopts the result after the call",
+                );
+            }
+
+            if (isOutput && (contract.mode !== "native-owned" && contract.owner !== "native")) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `output native ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} must be native-owned`,
+                    "  = supported output form today is @abi param <name> output native-owned free=<externFunctionName>",
+                );
+            }
+
+            if ((contract.mode === "native-owned" || contract.owner === "native") && !isOutput) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native-owned ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} requires output direction`,
+                    "  = write @abi param <name> output native-owned free=<externFunctionName>",
+                );
+            }
+
+            if (isOutput && !isPointer) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `output native ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} requires a pointer type`,
+                    "  = native writes through the pointer and Yogi adopts the copied result after the call",
+                );
+            }
+
+            if (isOutput && this.resolveType(pointeeType)?.kind !== Kinds.Types.StringType) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `output native-owned ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} currently supports only ${Helpers.BLUE}'ptr<string>'${Helpers.RESET}`,
+                    "  = arrays, char**, and multi-level pointers belong to future native ABI lots",
                 );
             }
 
@@ -631,6 +693,10 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
 
             if (resolved?.kind === Kinds.Types.PointerType) {
                 const pointee = this.resolveType(resolved.elementType ?? resolved.pointee ?? resolved.pointeeType);
+
+                if (pointee?.kind === Kinds.Types.StringType) {
+                    return true;
+                }
 
                 if (pointee?.kind === Kinds.Types.ArrayType || pointee?.kind === Kinds.Types.TupleType) {
                     return this.isExternNativeMutableArrayAbiType(pointee);
