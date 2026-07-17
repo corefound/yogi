@@ -102,7 +102,8 @@ strings across the Native ABI.
 | Mode | Current Status | Native Shape | Rule |
 |---|---|---|---|
 | Input string | Supported | `const char*` or `const char** + length` | Native borrows read-only during the call. |
-| Output string | Not implemented | future `char** out` or owned handle | Native must declare how Yogi receives and frees produced text. |
+| Native-owned output string return | Supported | `char*` return plus `@abi return native-owned free=...` | Yogi copies to a runtime-owned string, then calls the declared native free function. |
+| Output string parameter | Not implemented | future `char** out` or owned handle | Native must declare how Yogi receives and frees produced text. |
 | In/out string | Not implemented | future `char** + length` or descriptor | Native replacement needs explicit copy-back and free rules. |
 
 `ptr<string[]>` remains rejected because it would let native code replace string
@@ -154,7 +155,24 @@ Rules:
 - Return contracts cannot be attached to `void` functions.
 
 These contracts are parsed and semantically validated today. Runtime behavior
-for advanced modes is implemented in future lots.
+is currently implemented for `string` returns with
+`@abi return native-owned free=<externFunctionName>`.
+
+For native-owned `string` returns, the backend generates:
+
+```txt
+call native function
+copy native char* into a Yogi runtime string
+call the declared native free function
+return the Yogi-owned string
+```
+
+Native-owned return contracts on non-string types are rejected until those
+resource ownership flows have their own ABI implementation lots.
+
+The declared free function is compiler-managed. User code must not call it
+directly because it expects the original native pointer, not a Yogi-owned
+runtime string.
 
 For struct arrays, the C struct must match Yogi field order and use `double`
 for every field:

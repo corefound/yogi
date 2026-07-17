@@ -919,6 +919,20 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(missingFree.status).not.toBe(0);
     expect(missingFree.stderr).toContain("requires a free function");
 
+    const nonStringNativeOwnedReturn = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi return native-owned free=destroyNumber */
+          getNumber(): number
+
+          destroyNumber(value: number): void
+        }
+      `,
+    }));
+    expect(nonStringNativeOwnedReturn.status).not.toBe(0);
+    expect(nonStringNativeOwnedReturn.stderr).toContain("supported only");
+    expect(nonStringNativeOwnedReturn.stderr).toContain("string");
+
     const unknownFree = runCompiler(createProject({
       "main.io": `
         extern native from "./libnative.a" {
@@ -930,6 +944,23 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(unknownFree.status).not.toBe(0);
     expect(unknownFree.stderr).toContain("unknown free function");
     expect(unknownFree.stderr).toContain("destroyName");
+
+    const directFreeCall = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi return native-owned free=destroyName */
+          getName(): string
+
+          destroyName(value: string): void
+        }
+
+        let name: string = "Yogi"
+        native.destroyName(name)
+      `,
+    }));
+    expect(directFreeCall.status).not.toBe(0);
+    expect(directFreeCall.stderr).toContain("compiler-managed");
+    expect(directFreeCall.stderr).toContain("destroyName");
 
     const copyBackNonPointer = runCompiler(createProject({
       "main.io": `

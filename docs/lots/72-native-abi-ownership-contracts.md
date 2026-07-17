@@ -70,14 +70,18 @@ Aliases:
 This lot parses and validates ownership contracts in the frontend semantic
 pipeline.
 
-It does not yet change LLVM lowering or runtime behavior.
+Lot 73 consumes the native-owned string return contract in LLVM lowering and the
+runtime. Other ownership modes remain design metadata until their dedicated
+implementation lots.
 
 Current implemented runtime behavior remains:
 
 - `string[]` by value is read-only and temporary.
+- `string` return with `@abi return native-owned free=...` is copied into a
+  Yogi-owned runtime string and the native pointer is freed.
 - `ptr<string[]>` is rejected.
-- native string returns still need a future implementation lot before Yogi can
-  safely own/free native-produced memory.
+- native string output parameters still need future implementation before Yogi
+  can safely copy back native-produced memory.
 
 ## Why This Exists
 
@@ -113,7 +117,6 @@ the ownership rule becomes part of the function signature.
 
 Future lots can consume this metadata to implement:
 
-- native-owned string returns
 - `ptr<string[]>` copy-back
 - output string parameters
 - debug diagnostics for missing frees

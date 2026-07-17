@@ -14,6 +14,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <vector>
 
@@ -43,6 +44,21 @@ namespace yogi::core::llvm::internal {
 			}
 
 			return "";
+		}
+
+		std::string nativeOwnedStringReturnFreeFunction(const Yogi::Sir::CallExpression *call) {
+			static const std::string prefix = "native.return.string.native-owned.free=";
+
+			if (!call || !call->external()) {
+				return "";
+			}
+
+			const auto method = fbString(call->builtin_method());
+			if (method.rfind(prefix, 0) != 0) {
+				return "";
+			}
+
+			return method.substr(prefix.size());
 		}
 	}
 
@@ -480,6 +496,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		auto *returnType = types.lower(call->type());
+		const auto nativeReturnFreeFunction = nativeOwnedStringReturnFreeFunction(call);
 		std::string functionName;
 
 		if (call->external()) {
@@ -538,6 +555,26 @@ namespace yogi::core::llvm::internal {
 		}
 
 		auto *result = context.builder.CreateCall(function, arguments, sanitizeSymbol(functionName) + ".call");
+
+		if (!nativeReturnFreeFunction.empty()) {
+			auto *yogiString = callRuntime("yogi_string_from_native_owned", opaquePointer(), {result});
+			auto *freeFunction = context.module->getFunction(nativeReturnFreeFunction);
+
+			if (!freeFunction) {
+				auto *freeFunctionType = ::llvm::FunctionType::get(voidType, {opaquePointer()}, false);
+				freeFunction = ::llvm::Function::Create(
+					freeFunctionType,
+					::llvm::Function::ExternalLinkage,
+					nativeReturnFreeFunction,
+					context.module.get()
+				);
+			}
+
+			context.builder.CreateCall(freeFunction, {result});
+			emitNativeArrayCleanups();
+			return cast(yogiString, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
+		}
+
 		emitNativeArrayCleanups();
 		return cast(result, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
 	}

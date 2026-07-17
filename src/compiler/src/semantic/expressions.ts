@@ -492,6 +492,30 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 );
             }
 
+            const abiFreeFunctionOwner = (externSymbol.node?.functions ?? []).find((fn: any) => {
+                if (fn.name === methodName) {
+                    return false;
+                }
+
+                const returnFreeFunction = fn.abiContracts?.returnValue?.freeFunction;
+                const parameterFreeFunction = (fn.abiContracts?.parameters ?? []).find((contract: any) => {
+                    return contract.freeFunction === methodName;
+                });
+
+                return returnFreeFunction === methodName || parameterFreeFunction;
+            });
+
+            if (abiFreeFunctionOwner) {
+                rawCallee.arrowLength = methodName?.length ?? rawCallee.source?.length ?? 1;
+                this.throwError(
+                    `native ABI free function ${Helpers.RED}'${externName}.${methodName}'${Helpers.RESET} is compiler-managed`,
+                    rawCallee.position ?? node.position,
+                    node.fullSource ?? node.source,
+                    rawCallee,
+                    `  = it is called automatically for ${Helpers.BLUE}'${externName}.${abiFreeFunctionOwner.name}'${Helpers.RESET}`,
+                );
+            }
+
             const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
             const parameters = externFunction.parameters ?? [];
 
@@ -598,6 +622,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 kind: Kinds.Types.UnknownType,
                 raw: "unknown",
             });
+            const returnAbiContract = externFunction.abiContracts?.returnValue ?? null;
+            const nativeReturnBuiltinMethod =
+                returnAbiContract &&
+                    (returnAbiContract.mode === "native-owned" || returnAbiContract.owner === "native") &&
+                    returnAbiContract.freeFunction
+                    ? `native.return.string.native-owned.free=${returnAbiContract.freeFunction}`
+                    : null;
             const functionType = this.toSerializableType({
                 kind: Kinds.Types.FunctionType,
                 raw: `${externName}.${methodName}`,
@@ -632,7 +663,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         consumes: effect.consumes,
                     })),
                 },
-                builtinMethod: null,
+                builtinMethod: nativeReturnBuiltinMethod,
             };
         }
 

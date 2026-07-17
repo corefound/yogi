@@ -285,6 +285,14 @@ const char *yogi_string_from_boolean(bool value) {
 	return result;
 }
 
+const char *yogi_string_from_native_owned(const char *value) {
+	if (!value) {
+		yogi::runtime::RuntimeError::abortInvalidPointer("native-owned string return was null");
+	}
+
+	return copyRuntimeString(value, std::strlen(value));
+}
+
 const char *yogi_string_slice(const char *value, double start, double end) {
 	const auto *text = safeString(value);
 	const auto length = std::strlen(text);

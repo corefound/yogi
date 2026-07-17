@@ -577,6 +577,18 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 );
             }
 
+            if (
+                (contract.mode === "native-owned" || contract.owner === "native") &&
+                this.resolveType(returnType)?.kind !== Kinds.Types.StringType
+            ) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `native-owned return contracts are currently supported only for ${Helpers.BLUE}'string'${Helpers.RESET} returns`,
+                    "  = other native-owned resources need a dedicated ABI lot before they can cross the boundary safely",
+                );
+            }
+
             if (contract.freeFunction && !this.externMemberNames(member).has(contract.freeFunction)) {
                 this.throwExternAbiContractError(
                     contract,

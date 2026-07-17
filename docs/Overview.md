@@ -28,6 +28,7 @@ language support.
 | Native Signal Processor | `tests/programs/native_signal_processor.cmake` | Implemented | Exercises extern native numeric array ABI, temporary contiguous buffers, mutable copy-back through `ptr<number[]>`, fixed-shape matrix ABI dimensions, LLD linking with a static native library, LLVM IR generation, object generation, and runtime execution |
 | Native Reading Calibrator | `tests/programs/native_reading_calibrator.cmake` | Implemented | Exercises extern native plain numeric struct array ABI, `Struct* + length` marshalling, mutable copy-back through `ptr<Struct[]>`, static native library linking, LLVM IR generation, object generation, and runtime execution |
 | Native Dictionary Lookup | `tests/programs/native_dictionary_lookup.cmake` | Implemented | Exercises extern native `string[]` ABI, temporary `const char** + length` marshalling, native lookup, original array preservation, static native library linking, LLVM IR generation, object generation, and runtime execution |
+| Native Owned Name | `tests/programs/native_owned_name.cmake` | Implemented | Exercises `@abi return native-owned free=...` for native `string` returns, automatic copy into Yogi-owned strings, native free invocation, static native library linking, LLVM IR generation, object generation, and runtime execution |
 
 ## Planned Program Tests
 

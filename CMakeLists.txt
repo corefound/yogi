@@ -766,6 +766,12 @@ if(BUILD_TESTING)
                         program-native-dictionary-lookup
                         tests/programs/native_dictionary_lookup.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_native_owned_name
+                        program-native-owned-name
+                        tests/programs/native_owned_name.cmake
+                )
         endif()
 endif()
 

@@ -47,6 +47,7 @@ const char *yogi_string_at(const char *value, unsigned long long index);
 const char *yogi_string_concat(const char *left, const char *right);
 const char *yogi_string_from_number(double value);
 const char *yogi_string_from_boolean(bool value);
+const char *yogi_string_from_native_owned(const char *value);
 const char *yogi_string_slice(const char *value, double start, double end);
 const char *yogi_string_substring(const char *value, double start, double end);
 bool yogi_string_includes(const char *value, const char *search, double position);
