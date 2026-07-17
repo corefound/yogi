@@ -1428,7 +1428,8 @@ Current implemented rule:
 
 ``` txt
 Yogi arrays never expose the internal runtime descriptor as native ABI.
-ABI-safe numeric arrays are materialized as temporary contiguous buffers.
+ABI-safe numeric arrays and plain numeric struct arrays are materialized
+as temporary contiguous buffers.
 ```
 
 Supported extern parameter shapes today:
@@ -1439,13 +1440,20 @@ extern native from "./libnative.a" {
     normalize(values: ptr<number[]>): void     // double* + length, then copy back
     filter(values: number[4]): number          // double* + length
     transform(matrix: ptr<number[2, 3]>): void // double* + rows + columns, then copy back
+    score(readings: Reading[]): number         // Reading* + length
+    calibrate(readings: ptr<Reading[]>): void  // Reading* + length, then copy back
 }
 ```
 
 Dynamic `number[]` by value is a read-only borrowed native buffer.
-`ptr<number[]>` and `ptr<number[N, M]>` are mutable borrowed native buffers.
+Plain numeric `Struct[]` behaves the same with a native C struct pointer.
+`ptr<number[]>`, `ptr<number[N, M]>`, and `ptr<Struct[]>` are mutable borrowed native buffers.
 After the native call returns, Yogi copies modified values back into the
 existing Yogi array slots so pointer identity is preserved.
+
+Struct array ABI is intentionally strict. A native ABI-safe struct must be a
+real Yogi `struct` whose fields are all required `number` fields, in declaration
+order. That maps to a C struct made of `double` fields in the same order.
 
 Rejected shapes:
 
@@ -1454,7 +1462,7 @@ string[]
 number[][]
 tuples across extern returns
 array extern variables
-arrays of structs until a stable struct marshalling layout is implemented
+struct arrays with `string`, array, optional, nested, boolean, or resource-owning fields
 ```
 
 The backend currently materializes temporary native buffers for the C ABI.
@@ -2803,10 +2811,11 @@ is not automatically equivalent to a native contiguous `T*`.
 Current implemented policy:
 
 ``` txt
-extern native ABI supports ABI-safe numeric array parameters
+extern native ABI supports ABI-safe numeric and plain numeric struct array parameters
 number[] passes as double* + length
 ptr<number[]> passes as double* + length with copy-back
 number[N, M] passes as double* + dimensions
+Struct[] passes as Struct* + length for plain numeric structs
 array literals lower through yogi_array_create_with_storage
 storage mode is explicit in IR: contiguous_fast_path or pointer_safe_chunked_mode
 ```
@@ -2814,12 +2823,12 @@ storage mode is explicit in IR: contiguous_fast_path or pointer_safe_chunked_mod
 Still to define:
 
 ``` txt
-array-of-struct ABI
 string array ABI
 native retention of pointers
 ownership transfer
 mutability
 length/capacity descriptors
+struct arrays with resource-owning fields
 ```
 
 ------------------------------------------------------------------------
@@ -3079,9 +3088,10 @@ readonly propagation from the original owner
 ⬜ Dynamic shaped arrays: Array<T, Rank>
 ⬜ Dynamic shaped views/slices
 ✅ Numeric array native ABI via temporary contiguous buffers
+✅ Plain numeric struct array native ABI via temporary contiguous buffers
 ⬜ Native fixed-shape LLVM `[N x T]` value ABI without runtime array descriptor
-⬜ Array-of-struct native ABI marshalling
 ⬜ String array native ABI marshalling
+⬜ Resource-owning/nested struct array native ABI marshalling
 ⬜ Native retention/async FFI pointer policy
 ⬜ Lazy iterator objects
 ⬜ Object stringification inside arrays
@@ -3101,7 +3111,7 @@ readonly propagation from the original owner
 2. Automatic Array View Escape and Lifetime Analysis
 3. Array Copy, Move, and Ownership Semantics
 4. Union Array Runtime and Narrowing Semantics
-5. Array-of-struct and string-array native ABI marshalling
+5. String-array and resource-owning struct native ABI marshalling
 6. Array Bounds-Check Elimination and Loop Optimization
 7. Dynamic Shaped Arrays and Runtime Rank Metadata
 8. Lazy Array Iterators

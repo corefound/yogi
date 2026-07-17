@@ -774,10 +774,17 @@ describe("Yogi frontend semantic pipeline", () => {
   test("supports numeric array extern native ABI declarations and rejects unsafe array ABI shapes", () => {
     const parameter = runCompiler(createProject({
       "main.io": `
+        struct Reading {
+          score: number
+          weight: number
+        }
+
         extern native from "./libnative.a" {
           process(values: number[]): void
           normalize(values: ptr<number[]>): void
           fixed(values: number[4]): number
+          readings(values: Reading[]): number
+          mutateReadings(values: ptr<Reading[]>): void
         }
       `,
     }));
@@ -816,6 +823,22 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(nestedArray.status).not.toBe(0);
     expect(nestedArray.stderr).toContain("native ABI");
     expect(nestedArray.stderr).toContain("values");
+
+    const structWithStringField = runCompiler(createProject({
+      "main.io": `
+        struct User {
+          id: number
+          name: string
+        }
+
+        extern native from "./libnative.a" {
+          process(values: User[]): void
+        }
+      `,
+    }));
+    expect(structWithStringField.status).not.toBe(0);
+    expect(structWithStringField.stderr).toContain("native ABI");
+    expect(structWithStringField.stderr).toContain("values");
 
     const variable = runCompiler(createProject({
       "main.io": `

@@ -48,6 +48,25 @@ void transformMatrix(double *values, uint64_t rows, uint64_t columns) {
 		}
 	}
 }
+
+typedef struct {
+	double score;
+	double weight;
+} NativeReading;
+
+double weightedScore(NativeReading *readings, uint64_t length) {
+	double total = 0.0;
+	for (uint64_t index = 0; index < length; ++index) {
+		total += readings[index].score * readings[index].weight;
+	}
+	return total;
+}
+
+void boostReadings(NativeReading *readings, uint64_t length) {
+	for (uint64_t index = 0; index < length; ++index) {
+		readings[index].score += readings[index].weight;
+	}
+}
 ]=])
 
 execute_process(
@@ -76,11 +95,18 @@ endif()
 
 set(SOURCE "${TEST_WORK_DIR}/main.ts")
 file(WRITE "${SOURCE}" [=[
+struct Reading {
+    score: number
+    weight: number
+}
+
 extern native from "./libnative_array.a" {
     sumValues(values: number[]): number
     incrementValues(values: ptr<number[]>): void
     sumFixed(values: number[4]): number
     transformMatrix(values: ptr<number[2, 3]>): void
+    weightedScore(readings: Reading[]): number
+    boostReadings(readings: ptr<Reading[]>): void
 }
 
 let samples: number[] = [1, 2, 3, 4]
@@ -88,6 +114,10 @@ let coefficients: number[4] = [2, 4, 6, 8]
 let matrix: number[2, 3] = [
     [1, 2, 3],
     [4, 5, 6]
+]
+let readings: Reading[] = [
+    { score: 2, weight: 10 },
+    { score: 3, weight: 20 }
 ]
 
 print(native.sumValues(samples))
@@ -99,6 +129,10 @@ native.transformMatrix(&matrix)
 print(matrix[0, 2])
 print(matrix[1, 0])
 print(matrix[1, 2])
+print(native.weightedScore(readings))
+native.boostReadings(&readings)
+print(readings[0].score)
+print(readings[1].score)
 ]=])
 
 execute_process(
@@ -130,7 +164,9 @@ foreach(symbol
 		yogi_array_native_buffer_destroy
 		sumValues
 		incrementValues
-		transformMatrix)
+		transformMatrix
+		weightedScore
+		boostReadings)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected array native ABI IR to contain ${symbol}")
 	endif()
@@ -148,7 +184,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "array native ABI executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "10\n11\n14\n20\n5\n104\n108\n")
+set(expected_stdout "10\n11\n14\n20\n5\n104\n108\n80\n12\n23\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array native ABI executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
@@ -187,6 +223,12 @@ expect_invalid(
 expect_invalid(
 	"extern_nested_dynamic_array_parameter"
 	"extern native from \"./libnative_array.a\" {\n    process(values: number[][]): void\n}\n"
+	"native ABI"
+)
+
+expect_invalid(
+	"extern_struct_string_array_parameter"
+	"struct User {\n    id: number\n    name: string\n}\n\nextern native from \"./libnative_array.a\" {\n    process(values: User[]): void\n}\n"
 	"native ABI"
 )
 

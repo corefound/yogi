@@ -200,7 +200,15 @@ namespace yogi::core::llvm::internal {
 			::llvm::Value *length;
 			bool copyBack;
 		};
+		struct NativeStructArrayCopyBack {
+			::llvm::Value *array;
+			::llvm::Value *buffer;
+			::llvm::Value *length;
+			const Yogi::Sir::TypeRef *elementType;
+			::llvm::StructType *structType;
+		};
 		std::vector<NativeArrayCleanup> nativeArrayCleanups;
+		std::vector<NativeStructArrayCopyBack> nativeStructArrayCopyBacks;
 		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
 		const auto nativeArrayElementType = [&](const Yogi::Sir::TypeRef *type) -> const Yogi::Sir::TypeRef * {
@@ -217,6 +225,25 @@ namespace yogi::core::llvm::internal {
 		const auto isNativeNumberArray = [&](const Yogi::Sir::TypeRef *type) {
 			const auto *elementType = nativeArrayElementType(type);
 			return elementType && resolvedTypeKind(elementType) == Yogi::Sir::TypeKind_number_type;
+		};
+		const auto nativeStructArrayName = [&](const Yogi::Sir::TypeRef *type) {
+			const auto *elementType = nativeArrayElementType(type);
+			if (!elementType) {
+				return std::string();
+			}
+
+			const auto name = structTypeName(elementType);
+			if (name.empty() || !context.structTypes.contains(name) || !context.structFields.contains(name)) {
+				return std::string();
+			}
+
+			for (const auto &field: context.structFields[name]) {
+				if (resolvedTypeKind(field.type) != Yogi::Sir::TypeKind_number_type) {
+					return std::string();
+				}
+			}
+
+			return name;
 		};
 		const auto appendNativeArrayDimensions = [&](const Yogi::Sir::TypeRef *arrayType, ::llvm::Value *length) {
 			const auto shape = fixedShape(arrayType);
@@ -257,6 +284,101 @@ namespace yogi::core::llvm::internal {
 			appendNativeArrayDimensions(arrayType, length);
 			nativeArrayCleanups.push_back({array, buffer, length, mutableBorrow});
 		};
+		const auto emitStructArrayCopyBack = [&](
+			::llvm::Value *array,
+			::llvm::Value *buffer,
+			::llvm::Value *length,
+			const Yogi::Sir::TypeRef *elementType,
+			::llvm::StructType *structType
+		) {
+			auto *function = context.builder.GetInsertBlock()->getParent();
+			auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.copyback.cond", function);
+			auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.copyback.body", function);
+			auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.copyback.done", function);
+			auto *indexSlot = context.builder.CreateAlloca(integerType, nullptr, "native.struct.copyback.index");
+			context.builder.CreateStore(::llvm::ConstantInt::get(integerType, 0), indexSlot);
+			context.builder.CreateBr(conditionBlock);
+
+			context.builder.SetInsertPoint(conditionBlock);
+			auto *index = context.builder.CreateLoad(integerType, indexSlot, "native.struct.copyback.i");
+			auto *hasMore = context.builder.CreateICmpULT(index, length, "native.struct.copyback.more");
+			context.builder.CreateCondBr(hasMore, bodyBlock, afterBlock);
+
+			context.builder.SetInsertPoint(bodyBlock);
+			auto *slot = context.builder.CreateGEP(structType, buffer, index, "native.struct.copyback.slot");
+			auto *structValue = context.builder.CreateLoad(structType, slot, "native.struct.copyback.value");
+			auto *boxedValue = boxAny(structValue, elementType);
+			callRuntime("yogi_array_set", voidType, {array, index, boxedValue});
+			auto *nextIndex = context.builder.CreateAdd(
+				index,
+				::llvm::ConstantInt::get(integerType, 1),
+				"native.struct.copyback.next"
+			);
+			context.builder.CreateStore(nextIndex, indexSlot);
+			context.builder.CreateBr(conditionBlock);
+
+			context.builder.SetInsertPoint(afterBlock);
+		};
+		const auto appendNativeStructArrayArgument = [&](
+			const Yogi::Sir::ValueRef *argument,
+			const Yogi::Sir::TypeRef *argumentSemanticType,
+			const Yogi::Sir::TypeRef *arrayType,
+			const std::string &structName,
+			bool mutableBorrow
+		) {
+			::llvm::Value *array = nullptr;
+
+			if (mutableBorrow) {
+				auto *pointer = lower(argument, opaquePointer(), argumentSemanticType);
+				array = lowerPointerArrayDescriptor(pointer, arrayType);
+			} else {
+				array = lower(argument, opaquePointer(), argumentSemanticType);
+			}
+
+			auto *length = callRuntime("yogi_array_length", integerType, {array});
+			auto *structType = context.structTypes[structName];
+			auto *buffer = context.builder.CreateAlloca(structType, length, "native.struct.array.buffer");
+			auto *function = context.builder.GetInsertBlock()->getParent();
+			auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.fill.cond", function);
+			auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.fill.body", function);
+			auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.fill.done", function);
+			auto *indexSlot = context.builder.CreateAlloca(integerType, nullptr, "native.struct.fill.index");
+			context.builder.CreateStore(::llvm::ConstantInt::get(integerType, 0), indexSlot);
+			context.builder.CreateBr(conditionBlock);
+
+			context.builder.SetInsertPoint(conditionBlock);
+			auto *index = context.builder.CreateLoad(integerType, indexSlot, "native.struct.fill.i");
+			auto *hasMore = context.builder.CreateICmpULT(index, length, "native.struct.fill.more");
+			context.builder.CreateCondBr(hasMore, bodyBlock, afterBlock);
+
+			context.builder.SetInsertPoint(bodyBlock);
+			auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
+			auto *structValue = unboxAny(boxedElement, nativeArrayElementType(arrayType));
+			auto *slot = context.builder.CreateGEP(structType, buffer, index, "native.struct.fill.slot");
+			context.builder.CreateStore(structValue, slot);
+			auto *nextIndex = context.builder.CreateAdd(
+				index,
+				::llvm::ConstantInt::get(integerType, 1),
+				"native.struct.fill.next"
+			);
+			context.builder.CreateStore(nextIndex, indexSlot);
+			context.builder.CreateBr(conditionBlock);
+
+			context.builder.SetInsertPoint(afterBlock);
+			arguments.push_back(buffer);
+			argumentTypes.push_back(opaquePointer());
+			appendNativeArrayDimensions(arrayType, length);
+
+			if (mutableBorrow) {
+				nativeStructArrayCopyBacks.push_back({
+					array,
+					buffer,
+					length,
+					nativeArrayElementType(arrayType),
+					structType,
+				});
+			}
+		};
 
 		if (call->arguments()) {
 			for (flatbuffers::uoffset_t index = 0; index < call->arguments()->size(); ++index) {
@@ -281,11 +403,34 @@ namespace yogi::core::llvm::internal {
 
 				if (
 					call->external() &&
+					pointeeType &&
+					pointeeKind == Yogi::Sir::TypeKind_array_type
+				) {
+					const auto structName = nativeStructArrayName(pointeeType);
+					if (!structName.empty()) {
+						appendNativeStructArrayArgument(argument, argumentSemanticType, pointeeType, structName, true);
+						continue;
+					}
+				}
+
+				if (
+					call->external() &&
 					argumentKind == Yogi::Sir::TypeKind_array_type &&
 					isNativeNumberArray(argumentSemanticType)
 				) {
 					appendNativeNumberArrayArgument(argument, argumentSemanticType, argumentSemanticType, false);
 					continue;
+				}
+
+				if (
+					call->external() &&
+					argumentKind == Yogi::Sir::TypeKind_array_type
+				) {
+					const auto structName = nativeStructArrayName(argumentSemanticType);
+					if (!structName.empty()) {
+						appendNativeStructArrayArgument(argument, argumentSemanticType, argumentSemanticType, structName, false);
+						continue;
+					}
 				}
 
 				auto *argumentType = types.lower(argumentSemanticType);
@@ -338,6 +483,10 @@ namespace yogi::core::llvm::internal {
 		}
 
 		const auto emitNativeArrayCleanups = [&]() {
+			for (auto it = nativeStructArrayCopyBacks.rbegin(); it != nativeStructArrayCopyBacks.rend(); ++it) {
+				emitStructArrayCopyBack(it->array, it->buffer, it->length, it->elementType, it->structType);
+			}
+
 			for (auto it = nativeArrayCleanups.rbegin(); it != nativeArrayCleanups.rend(); ++it) {
 				if (it->copyBack) {
 					callRuntime(

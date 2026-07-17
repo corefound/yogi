@@ -28,7 +28,7 @@ Primitive function parameter and return types are stable ABI surface:
 Arrays use an explicit native bridge instead of exposing the internal
 Yogi descriptor.
 
-Supported numeric array parameter shapes:
+Supported numeric and plain numeric struct array parameter shapes:
 
 ``` ts
 extern native from "./libnative.a" {
@@ -36,18 +36,21 @@ extern native from "./libnative.a" {
     normalize(values: ptr<number[]>): void     // C: double*, uint64_t length, copy-back
     dot(values: number[4]): number             // C: double*, uint64_t length
     transform(matrix: ptr<number[2, 3]>): void // C: double*, uint64_t rows, uint64_t columns
+    score(readings: Reading[]): number         // C: Reading*, uint64_t length
+    calibrate(readings: ptr<Reading[]>): void  // C: Reading*, uint64_t length, copy-back
 }
 ```
 
 Rules:
 
 -   `number[]` is borrowed read-only by native code.
--   `ptr<number[]>` and `ptr<number[N, M]>` are borrowed mutable by native code.
+-   Plain numeric `Struct[]` is borrowed read-only by native code.
+-   `ptr<number[]>`, `ptr<number[N, M]>`, and `ptr<Struct[]>` are borrowed mutable by native code.
 -   Mutable native calls copy modified values back into the existing Yogi array slots.
 -   Native code must not retain the pointer after the call returns.
 -   Native code must not structurally resize the array.
 -   `string[]`, nested dynamic arrays, array extern variables, and array returns are rejected.
--   Arrays of structs are rejected until a stable struct marshalling layout exists.
+-   Struct array ABI currently requires every struct field to be a required `number` field.
 
 ## Link Inputs
 
@@ -74,12 +77,31 @@ ptr<number[]>     -> double* data, uint64_t length, copy-back after call
 number[N]         -> double* data, uint64_t length
 number[N, M]      -> double* data, uint64_t N, uint64_t M
 ptr<number[N, M]> -> double* data, uint64_t N, uint64_t M, copy-back after call
+Struct[]          -> Struct* data, uint64_t length
+ptr<Struct[]>     -> Struct* data, uint64_t length, copy-back after call
 ```
 
 This does not mean a Yogi dynamic array is stored internally as `double*`.
 The runtime may use pointer-safe storage for arrays with live internal pointers.
 For native calls, Yogi materializes a temporary contiguous buffer and destroys
 that buffer after the synchronous call returns.
+
+For struct arrays, the C struct must match Yogi field order and use `double`
+for every field:
+
+``` ts
+struct Reading {
+    value: number
+    offset: number
+}
+```
+
+``` c
+typedef struct {
+    double value;
+    double offset;
+} Reading;
+```
 
 ------------------------------------------------------------------------
 

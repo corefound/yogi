@@ -462,11 +462,44 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
 
             const elementType = this.resolveType(resolved.elementType);
 
-            if (!elementType || elementType.kind !== Kinds.Types.NumberType) {
+            if (!elementType) {
                 return false;
             }
 
-            return true;
+            if (elementType.kind === Kinds.Types.NumberType) {
+                return true;
+            }
+
+            return this.isExternNativePlainStructType(resolved.elementType);
+        }
+
+        public isExternNativePlainStructType(type: any): boolean {
+            const resolved = this.resolveType(type);
+
+            if (
+                resolved?.kind !== Kinds.Types.StructDeclaration &&
+                resolved?.kind !== "StructDeclaration"
+            ) {
+                return false;
+            }
+
+            if (resolved.isScalar === true) {
+                return false;
+            }
+
+            const fields = resolved.fields ?? [];
+            if (!fields.length) {
+                return false;
+            }
+
+            return fields.every((field: any) => {
+                if (field.optional === true) {
+                    return false;
+                }
+
+                const fieldType = this.resolveType(field.type);
+                return fieldType?.kind === Kinds.Types.NumberType;
+            });
         }
 
         public isSupportedExternPath(externPath: string): boolean {

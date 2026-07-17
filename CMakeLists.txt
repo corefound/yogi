@@ -754,6 +754,12 @@ if(BUILD_TESTING)
                         program-native-signal-processor
                         tests/programs/native_signal_processor.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_native_reading_calibrator
+                        program-native-reading-calibrator
+                        tests/programs/native_reading_calibrator.cmake
+                )
         endif()
 endif()
 
