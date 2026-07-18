@@ -52,14 +52,22 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node.declare === true ||
                 node.ambient === true;
             const lifetime = this.getVariableLifetime(node, type, isAmbient);
-            this.assertNoResourceOwningStructValueCopy(
-                value,
-                source,
-                node,
-                `initialize variable '${node.name}' from`,
-            );
+            if (
+                !this.isMoveCallExpression(value) &&
+                value?.kind !== Kinds.Expressions.CallExpression
+            ) {
+                this.assertNoResourceOwningStructValueCopy(
+                    value,
+                    source,
+                    node,
+                    `initialize variable '${node.name}' from`,
+                );
+            }
             const nativeResourceFieldOwnership = this.collectNativeResourceFieldOwnership(value);
-            const nativeResourceFieldDestructors = nativeResourceFieldOwnership.destructors;
+            const nativeResourceFieldDestructors = {
+                ...nativeResourceFieldOwnership.destructors,
+                ...this.nativeResourceFieldDestructorsFromExpression(value),
+            };
 
             if (Object.keys(nativeResourceFieldDestructors).length > 0) {
                 if (!this.isStructResolvedType(type)) {

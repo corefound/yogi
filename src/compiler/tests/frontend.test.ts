@@ -1264,6 +1264,129 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(printStruct.stderr).toBe("");
   });
 
+  test("supports explicit move for resource-owning structs in declarations and returns", () => {
+    const sharedSource = `
+        struct NativeResource {
+          value: number
+        }
+
+        struct Holder {
+          resource: ptr<NativeResource>
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): void
+        }
+    `;
+
+    const moveDeclaration = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          let next: Holder = move(holder)
+          print(next)
+        }
+      `,
+    }));
+    expect(moveDeclaration.status).toBe(0);
+    expect(moveDeclaration.stderr).toBe("");
+
+    const moveReturn = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function make(): Holder {
+          let holder: Holder = { resource: native.create() }
+          return move(holder)
+        }
+
+        function run(): void {
+          let result: Holder = make()
+          print(result)
+        }
+      `,
+    }));
+    expect(moveReturn.status).toBe(0);
+    expect(moveReturn.stderr).toBe("");
+
+    const movePlainStruct = runCompiler(createProject({
+      "main.io": `
+        struct Point {
+          x: number
+        }
+
+        function run(): void {
+          let point: Point = { x: 1 }
+          let next: Point = move(point)
+        }
+      `,
+    }));
+    expect(movePlainStruct.status).not.toBe(0);
+    expect(movePlainStruct.stderr).toContain("move() currently requires");
+
+    const moveConst = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          const holder: Holder = { resource: native.create() }
+          let next: Holder = move(holder)
+        }
+      `,
+    }));
+    expect(moveConst.status).not.toBe(0);
+    expect(moveConst.stderr).toContain("declared as const");
+
+    const useAfterMove = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          let next: Holder = move(holder)
+          print(holder)
+        }
+      `,
+    }));
+    expect(useAfterMove.status).not.toBe(0);
+    expect(useAfterMove.stderr).toContain("cannot use aggregate");
+    expect(useAfterMove.stderr).toContain("after it was moved");
+
+    const wholeAssignmentMove = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          let target: Holder = { resource: native.create() }
+          let source: Holder = { resource: native.create() }
+          target = move(source)
+        }
+      `,
+    }));
+    expect(wholeAssignmentMove.status).not.toBe(0);
+    expect(wholeAssignmentMove.stderr).toContain("whole-struct replacement");
+
+    const passMovedStruct = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function inspect(holder: Holder): void {
+        }
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          inspect(move(holder))
+        }
+      `,
+    }));
+    expect(passMovedStruct.status).not.toBe(0);
+    expect(passMovedStruct.stderr).toContain("cannot pass argument");
+    expect(passMovedStruct.stderr).toContain("resource-owning struct");
+  });
+
   test("rejects aggregate use after ownership moved through retained callees and unknown calls", () => {
     const retainedByKnownCallee = runCompiler(createProject({
       "main.io": `

@@ -195,6 +195,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.throwError(message, node.position, node.fullSource ?? node.source, node);
             }
 
+            if (calleeName === "move") {
+                return this.visitMoveCallExpression(node, callee, args, symbol);
+            }
+
             for (let index = 0; index < args.length; index++) {
                 const expectedType = parameters[index]?.type;
                 const pointerPointeeType = this.pointerPointeeType(args[index]?.type);
@@ -313,6 +317,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 kind: Kinds.Types.UnknownType,
                 raw: "unknown",
             });
+            const nativeResourceFieldDestructors =
+                symbol.returnsNativeResourceFieldDestructors ??
+                symbol.node?.returnsNativeResourceFieldDestructors ??
+                undefined;
             const returnIsPointer = this.isPointerType(returnType);
             const effectSummary = symbol.effectSummary ?? symbol.node?.effectSummary ?? null;
             const external = symbol.ambient === true || symbol.declare === true || !effectSummary;
@@ -469,6 +477,77 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 pointerRootSymbolId: borrowedReturnPointerInfo?.rootSymbolId,
                 pointerAccessPath: borrowedReturnPointerInfo?.accessPath ?? [],
                 pointerPermission: borrowedReturnPointerInfo?.permission,
+                nativeResourceFieldDestructors,
+            };
+        }
+
+        public visitMoveCallExpression(node: any, callee: any, args: any[], symbol: any): any {
+            const source = node.fullSource ?? node.source;
+            const argument = args[0];
+            const argumentName = this.getIdentifierName(argument);
+            const argumentSymbol = argumentName ? this.resolveSymbol(argumentName) : null;
+
+            if (
+                !argument ||
+                argument.kind !== Kinds.Expressions.IdentifierExpression ||
+                !argumentSymbol ||
+                !this.isStructResolvedType(argumentSymbol.type) ||
+                !this.hasNativeResourceFieldOwnership(argumentSymbol)
+            ) {
+                const target = argument ?? node;
+                target.arrowLength = argument?.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `move() currently requires a resource-owning struct variable`,
+                    argument?.position ?? node.position,
+                    source,
+                    target,
+                    "  = use move(holder) only after a real struct owns native resource field(s)",
+                );
+            }
+
+            if (argumentSymbol.mutable !== true) {
+                argument.arrowLength = argument.source?.length ?? argumentName?.length ?? 1;
+                this.throwError(
+                    `cannot move ${Helpers.RED}'${argumentName}'${Helpers.RESET} because it was declared as const`,
+                    argument.position ?? node.position,
+                    source,
+                    argument,
+                    "  = moving consumes ownership from the source binding, so the source must be declared with let",
+                );
+            }
+
+            const nativeResourceFieldDestructors = {
+                ...(argumentSymbol.nativeResourceFieldDestructors ?? {}),
+            };
+
+            this.markAggregateExpressionMoved(
+                argument,
+                `it was explicitly moved with move(${argumentName})`,
+                argument,
+            );
+
+            return {
+                ...node,
+                kind: Kinds.Expressions.CallExpression,
+                callee,
+                arguments: args,
+                argumentEffects: [
+                    {
+                        index: 0,
+                        escapes: false,
+                        mutates: false,
+                        consumes: true,
+                    },
+                ],
+                type: argument.type,
+                symbolId: symbol.id,
+                linkageName: symbol.linkageName ?? null,
+                qualifiedName: symbol.qualifiedName,
+                external: false,
+                effectSummary: symbol.effectSummary ?? symbol.node?.effectSummary ?? null,
+                builtinMethod: "move",
+                nativeResourceFieldDestructors,
+                moveSourceName: argumentName,
             };
         }
 
@@ -4216,6 +4295,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         if (
                             this.hasNativeResourceFieldOwnership(symbol) ||
                             this.resourceOwningStructSymbolFromExpression(right) ||
+                            this.isMoveCallExpression(right) ||
                             Object.keys(rightResourceFields.destructors).length > 0
                         ) {
                             right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
@@ -4224,7 +4304,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 right.position ?? node.position,
                                 context.fullSource ?? node.fullSource ?? node.source,
                                 right,
-                                "  = whole-struct replacement with native resource fields needs explicit move/copy policy\n  = assign individual resource fields instead",
+                                "  = whole-struct replacement with native resource fields still needs its own replacement policy\n  = use 'let next: Struct = move(source)' or 'return move(source)' for now",
                             );
                         }
 

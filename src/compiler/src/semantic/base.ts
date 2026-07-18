@@ -79,11 +79,31 @@ export class BaseSemantic {
             kind: Kinds.Types.VoidType,
             raw: "void",
         };
-        const printNode = {
+        const createBuiltinFunctionNode = (
+            name: string,
+            builtinMethod: string,
+            params: any[],
+            returnType: any,
+        ) => ({
             kind: Kinds.Functions.FunctionDeclaration,
-            name: "print",
-            builtinMethod: "print",
-            params: [
+            name,
+            builtinMethod,
+            params,
+            returnType,
+            type: {
+                kind: Kinds.Types.FunctionType,
+                raw: `(${params.map((param: any) => param.source).join(", ")}) => ${returnType.raw}`,
+                parameters: params.map((param: any) => ({
+                    name: param.name,
+                    type: param.type,
+                })),
+                returnType,
+            },
+        });
+        const printNode = createBuiltinFunctionNode(
+            "print",
+            "print",
+            [
                 {
                     kind: Kinds.Functions.FunctionParameter,
                     name: "value",
@@ -91,20 +111,22 @@ export class BaseSemantic {
                     source: "value: any",
                 },
             ],
-            returnType: voidType,
-            type: {
-                kind: Kinds.Types.FunctionType,
-                raw: "(value: any) => void",
-                parameters: [
-                    {
-                        name: "value",
-                        type: anyType,
-                    },
-                ],
-                returnType: voidType,
-            },
-        };
-        const effectSummary: Types.Sir.SemanticFunctionEffectSummary = {
+            voidType,
+        );
+        const moveNode = createBuiltinFunctionNode(
+            "move",
+            "move",
+            [
+                {
+                    kind: Kinds.Functions.FunctionParameter,
+                    name: "value",
+                    type: anyType,
+                    source: "value: any",
+                },
+            ],
+            anyType,
+        );
+        const createEffectSummary = (consumes = false): Types.Sir.SemanticFunctionEffectSummary => ({
             parameterEffects: [
                 {
                     index: 0,
@@ -112,7 +134,7 @@ export class BaseSemantic {
                     stores: false,
                     escapes: false,
                     mutates: false,
-                    consumes: false,
+                    consumes,
                 },
             ],
             returnsAggregate: false,
@@ -123,24 +145,27 @@ export class BaseSemantic {
                 viewShape: [],
                 accessPath: [],
             },
-        };
-
-        const symbol = this.defineSymbol({
-            kind: Kinds.ScopeSymbols.Function,
-            name: "print",
-            linkageName: null,
-            qualifiedName: "@builtin:print",
-            type: printNode.type,
-            mutable: false,
-            trusted: true,
-            effectSummary,
-            node: {
-                ...printNode,
-                effectSummary,
-            },
         });
 
-        this.functionEffectSummaries.set(symbol.id, effectSummary);
+        for (const [node, consumes] of [[printNode, false], [moveNode, true]] as const) {
+            const effectSummary = createEffectSummary(consumes);
+            const symbol = this.defineSymbol({
+                kind: Kinds.ScopeSymbols.Function,
+                name: node.name,
+                linkageName: null,
+                qualifiedName: `@builtin:${node.name}`,
+                type: node.type,
+                mutable: false,
+                trusted: true,
+                effectSummary,
+                node: {
+                    ...node,
+                    effectSummary,
+                },
+            });
+
+            this.functionEffectSummaries.set(symbol.id, effectSummary);
+        }
     }
 
     public createSymbolId() {
@@ -2334,6 +2359,45 @@ export class BaseSemantic {
             Object.keys(symbol.nativeResourceFieldDestructors).length > 0;
     }
 
+    public isMoveCallExpression(node: any): boolean {
+        return node?.kind === Kinds.Expressions.CallExpression &&
+            node.builtinMethod === "move";
+    }
+
+    public nativeResourceFieldDestructorsFromExpression(node: any): Record<string, string> {
+        if (!node) {
+            return {};
+        }
+
+        if (node.nativeResourceFieldDestructors) {
+            return { ...node.nativeResourceFieldDestructors };
+        }
+
+        if (node.kind === Kinds.Expressions.IdentifierExpression) {
+            const name = this.getIdentifierName(node);
+            const symbol = name ? this.resolveSymbol(name) : null;
+            return symbol?.nativeResourceFieldDestructors
+                ? { ...symbol.nativeResourceFieldDestructors }
+                : {};
+        }
+
+        if (node.kind === Kinds.Expressions.CallExpression) {
+            const calleeName =
+                node.callee?.value ??
+                node.callee?.name ??
+                node.callee?.raw;
+            const symbol = calleeName ? this.resolveSymbol(calleeName) : null;
+            const destructors =
+                symbol?.returnsNativeResourceFieldDestructors ??
+                symbol?.node?.returnsNativeResourceFieldDestructors ??
+                {};
+
+            return { ...destructors };
+        }
+
+        return {};
+    }
+
     public resourceOwningStructSymbolFromExpression(node: any): Types.SymbolInfo | null {
         if (!node || node.kind !== Kinds.Expressions.IdentifierExpression) {
             return null;
@@ -2356,12 +2420,15 @@ export class BaseSemantic {
         action: string,
     ): void {
         const symbol = this.resourceOwningStructSymbolFromExpression(node);
-        if (!symbol) {
+        const destructors = symbol?.nativeResourceFieldDestructors ??
+            this.nativeResourceFieldDestructorsFromExpression(node);
+
+        if (Object.keys(destructors).length === 0) {
             return;
         }
 
-        const name = this.getIdentifierName(node) ?? symbol.name;
-        const fields = Object.keys(symbol.nativeResourceFieldDestructors ?? {});
+        const name = this.getIdentifierName(node) ?? node?.source ?? symbol?.name ?? "value";
+        const fields = Object.keys(destructors);
         const fieldList = fields.length ? fields.join(", ") : "native resource field";
 
         node.arrowLength = node.source?.length ?? name.length ?? 1;
@@ -2370,7 +2437,7 @@ export class BaseSemantic {
             node.position ?? context?.position,
             source,
             node,
-            `  = owned native resource field(s): ${fieldList}\n  = pass '&${name}' to borrow the struct, or move individual resource fields explicitly`,
+            `  = owned native resource field(s): ${fieldList}\n  = pass '&${name}' to borrow the struct, or use move(...) only in a declaration/return for now`,
         );
     }
 

@@ -118,13 +118,22 @@ not an ownership transfer.
 
 ## Current Limitations
 
-- No explicit `move(holder)` syntax yet.
 - No copy constructor or clone policy for resource-owning structs yet.
-- Returning whole resource-owning structs needs an explicit move policy.
+- Whole-struct reassignment replacement still needs a dedicated replacement
+  policy.
 - Passing resource-owning structs by value needs explicit move/copy semantics.
 - Module/global resource-owning structs remain unsupported until module cleanup
   has field-aware native resource scheduling.
 - Runtime object/dictionary resource-field ownership remains unsupported.
+
+Lot 79 adds the first explicit whole-value move shape:
+
+```ts
+let next: Holder = move(holder)
+return move(holder)
+```
+
+That support is intentionally separate from implicit copying.
 
 ## Tests
 

@@ -85,10 +85,14 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             };
 
             const effectSummary = this.analyzeAggregateEscapes(functionContext);
+            const returnsNativeResourceFieldDestructors =
+                this.inferNativeResourceFieldReturnDestructors(functionContext);
             symbol.effectSummary = effectSummary;
+            symbol.returnsNativeResourceFieldDestructors = returnsNativeResourceFieldDestructors;
             symbol.node = {
                 ...functionContext,
                 effectSummary,
+                returnsNativeResourceFieldDestructors,
             };
             this.functionEffectSummaries.set(symbol.id, effectSummary);
             this.validateFunctionReturnType(functionContext);
@@ -115,6 +119,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 params,
                 body,
                 effectSummary,
+                returnsNativeResourceFieldDestructors,
             };
         }
 
@@ -209,15 +214,27 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node.fullSource ?? node.source,
                 node,
             );
-            this.assertNoResourceOwningStructValueCopy(
-                value,
-                node.fullSource ?? node.source,
-                node,
-                "return",
-            );
+            if (
+                !this.isMoveCallExpression(value) &&
+                value?.kind !== Kinds.Expressions.CallExpression
+            ) {
+                this.assertNoResourceOwningStructValueCopy(
+                    value,
+                    node.fullSource ?? node.source,
+                    node,
+                    "return",
+                );
+            }
 
-            const returnedResourceFields = this.collectNativeResourceFieldOwnership(value);
-            if (Object.keys(returnedResourceFields.destructors).length > 0) {
+            const returnedResourceFields = {
+                ...this.collectNativeResourceFieldOwnership(value).destructors,
+                ...this.nativeResourceFieldDestructorsFromExpression(value),
+            };
+            if (
+                Object.keys(returnedResourceFields).length > 0 &&
+                !this.isMoveCallExpression(value) &&
+                value?.kind !== Kinds.Expressions.CallExpression
+            ) {
                 value.arrowLength = value.source?.length ?? node.source?.length ?? 1;
                 this.throwError(
                     `cannot return resource-owning struct literal by value`,
@@ -264,6 +281,48 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 kind: Kinds.Statements.ReturnStatement,
                 value,
             };
+        }
+
+        public inferNativeResourceFieldReturnDestructors(functionNode: any): Record<string, string> | undefined {
+            const returnStatements = this.findFunctionReturnStatements(functionNode.body);
+            const resourceReturns: Array<{ node: any; destructors: Record<string, string> }> = [];
+            const nonResourceAggregateReturns: any[] = [];
+
+            for (const statement of returnStatements) {
+                const value = statement.value;
+                if (!value || !this.isAggregateType(value.type)) {
+                    continue;
+                }
+
+                const destructors = this.nativeResourceFieldDestructorsFromExpression(value);
+                if (Object.keys(destructors).length > 0) {
+                    resourceReturns.push({ node: statement, destructors });
+                    continue;
+                }
+
+                if (this.isStructResolvedType(value.type)) {
+                    nonResourceAggregateReturns.push(statement);
+                }
+            }
+
+            if (resourceReturns.length === 0) {
+                return undefined;
+            }
+
+            if (nonResourceAggregateReturns.length > 0) {
+                const statement = nonResourceAggregateReturns[0];
+                const value = statement.value ?? statement;
+                value.arrowLength = value.source?.length ?? statement.source?.length ?? 1;
+                this.throwError(
+                    `function ${Helpers.RED}'${functionNode.name}'${Helpers.RESET} mixes resource-owning and non-resource struct returns`,
+                    value.position ?? statement.position ?? functionNode.position,
+                    functionNode.fullSource ?? functionNode.source,
+                    value,
+                    "  = every returned struct value must follow the same native resource ownership policy",
+                );
+            }
+
+            return resourceReturns[0].destructors;
         }
 
         public materializeBorrowedViewForEscape(value: any, source: string, node: any): any {

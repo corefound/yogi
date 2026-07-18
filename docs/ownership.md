@@ -306,13 +306,25 @@ print(resource) // error
 The ownership model is intentionally small. It does not yet implement:
 
 - A full borrow checker.
-- Explicit `move` or `consume` syntax.
+- A general `consume` syntax.
 - Shared ownership or reference counting.
 - Closure capture summaries.
 - More method-call summaries beyond the implemented `scores.push(value)`.
 - Resource-field ownership for runtime object/dictionary aggregates.
 - Explicit copy/move constructors for whole resource-owning structs.
-- Returning or passing whole resource-owning structs by value.
+- Whole-struct reassignment replacement for resource-owning structs.
+- Passing whole resource-owning structs by value.
+
+Resource-owning structs do support explicit ownership transfer in two forms:
+
+```ts
+let next: Holder = move(holder)
+return move(holder)
+```
+
+`move(holder)` consumes the source binding, moves its resource-field cleanup
+metadata to the new owner, and prevents the original binding from being used or
+destroyed afterward.
 
 The current model is enough to make function boundaries safe for direct
 function calls while preserving stack-first local aggregates whenever the callee

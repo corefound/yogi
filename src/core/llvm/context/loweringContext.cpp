@@ -243,6 +243,19 @@ namespace yogi::core::llvm::internal {
 		nativeResourceFieldDestructors[owner][fieldPath] = destroyFunction;
 	}
 
+	void ModuleLoweringContext::registerNativeResourceFieldOwners(
+		const std::string &owner,
+		const std::map<std::string, std::string> &destroyFunctions
+	) {
+		if (owner.empty() || destroyFunctions.empty()) {
+			return;
+		}
+
+		for (const auto &[fieldPath, destroyFunction]: destroyFunctions) {
+			registerNativeResourceFieldOwner(owner, fieldPath, destroyFunction);
+		}
+	}
+
 	std::optional<std::string> ModuleLoweringContext::nativeResourceFieldDestroyFunction(
 		const std::string &owner,
 		const std::string &fieldPath
@@ -262,6 +275,15 @@ namespace yogi::core::llvm::internal {
 			: std::optional<std::string>(field->second);
 	}
 
+	std::map<std::string, std::string> ModuleLoweringContext::nativeResourceFieldDestroyFunctions(
+		const std::string &owner
+	) const {
+		const auto fields = nativeResourceFieldDestructors.find(owner);
+		return fields == nativeResourceFieldDestructors.end()
+			? std::map<std::string, std::string>()
+			: fields->second;
+	}
+
 	void ModuleLoweringContext::clearNativeResourceFieldOwner(
 		const std::string &owner,
 		const std::string &fieldPath
@@ -275,6 +297,31 @@ namespace yogi::core::llvm::internal {
 		if (owners->second.empty()) {
 			nativeResourceFieldDestructors.erase(owners);
 		}
+	}
+
+	void ModuleLoweringContext::clearNativeResourceFieldOwners(const std::string &owner) {
+		if (owner.empty()) {
+			return;
+		}
+
+		nativeResourceFieldDestructors.erase(owner);
+	}
+
+	void ModuleLoweringContext::moveNativeResourceFieldOwners(
+		const std::string &source,
+		const std::string &target
+	) {
+		if (source.empty() || target.empty() || source == target) {
+			return;
+		}
+
+		const auto fields = nativeResourceFieldDestroyFunctions(source);
+		if (fields.empty()) {
+			return;
+		}
+
+		clearNativeResourceFieldOwners(source);
+		registerNativeResourceFieldOwners(target, fields);
 	}
 
 	void ModuleLoweringContext::aliasAggregateOwner(

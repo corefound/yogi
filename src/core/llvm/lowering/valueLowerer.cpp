@@ -383,6 +383,15 @@ namespace yogi::core::llvm::internal {
 			return lowerPrintCall(call, expectedType, expectedSemanticType);
 		}
 
+		if (fbString(call->builtin_method()) == "move") {
+			const auto *argument = call->arguments() && call->arguments()->size() > 0
+				? call->arguments()->Get(0)
+				: nullptr;
+			return argument
+				? lower(argument, expectedType, expectedSemanticType)
+				: types.zero(expectedType);
+		}
+
 		if (call->callee() && call->callee()->property_access()) {
 			return lowerBuiltinMethodCall(call, expectedType, expectedSemanticType);
 		}

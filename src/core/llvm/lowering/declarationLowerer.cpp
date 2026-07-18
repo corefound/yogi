@@ -12,6 +12,7 @@
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Type.h>
 
+#include <map>
 #include <optional>
 
 namespace yogi::core::llvm::internal {
@@ -84,6 +85,140 @@ namespace yogi::core::llvm::internal {
 				: std::nullopt;
 		}
 
+		bool isMoveCall(const Yogi::Sir::ValueRef *value) {
+			const auto *call = value ? value->call() : nullptr;
+			return call && fbString(call->builtin_method()) == "move";
+		}
+
+		std::string moveSourceName(const Yogi::Sir::ValueRef *value) {
+			const auto *call = value ? value->call() : nullptr;
+			if (!call || fbString(call->builtin_method()) != "move" || !call->arguments() || call->arguments()->size() == 0) {
+				return "";
+			}
+
+			const auto *argument = call->arguments()->Get(0);
+			const auto *identifier = argument ? argument->identifier() : nullptr;
+			return identifier ? fbString(identifier->name()) : "";
+		}
+
+		using NativeResourceFieldMap = std::map<std::string, std::string>;
+
+		NativeResourceFieldMap prefixedNativeResourceFields(
+			const NativeResourceFieldMap &fields,
+			const std::string &prefix
+		) {
+			if (prefix.empty()) {
+				return fields;
+			}
+
+			NativeResourceFieldMap result;
+			for (const auto &[fieldPath, destroyFunction]: fields) {
+				result[prefix + "." + fieldPath] = destroyFunction;
+			}
+
+			return result;
+		}
+
+		void mergeNativeResourceFields(
+			NativeResourceFieldMap &target,
+			const NativeResourceFieldMap &source
+		) {
+			for (const auto &[fieldPath, destroyFunction]: source) {
+				target[fieldPath] = destroyFunction;
+			}
+		}
+
+		std::optional<std::string> nativeResourceOwnerDestructorFromValueForInference(
+			const Yogi::Sir::ValueRef *value,
+			const ModuleLoweringContext &context,
+			const std::map<std::string, std::string> &localPointerDestructors
+		) {
+			const auto direct = nativeResourceDestructorFromValue(value, context);
+			if (!direct.empty()) {
+				return direct;
+			}
+
+			const auto *identifier = value ? value->identifier() : nullptr;
+			if (!identifier) {
+				return std::nullopt;
+			}
+
+			const auto source = localPointerDestructors.find(fbString(identifier->name()));
+			return source == localPointerDestructors.end()
+				? std::nullopt
+				: std::optional<std::string>(source->second);
+		}
+
+		NativeResourceFieldMap nativeResourceStructFieldsFromValue(
+			const Yogi::Sir::ValueRef *value,
+			const ModuleLoweringContext &context,
+			const std::map<std::string, std::string> &localPointerDestructors,
+			const std::map<std::string, NativeResourceFieldMap> &localStructFields,
+			const std::string &prefix = ""
+		) {
+			NativeResourceFieldMap result;
+
+			if (!value) {
+				return result;
+			}
+
+			if (isMoveCall(value)) {
+				const auto sourceName = moveSourceName(value);
+				const auto source = localStructFields.find(sourceName);
+				return source == localStructFields.end()
+					? result
+					: prefixedNativeResourceFields(source->second, prefix);
+			}
+
+			if (const auto *identifier = value->identifier()) {
+				const auto source = localStructFields.find(fbString(identifier->name()));
+				return source == localStructFields.end()
+					? result
+					: prefixedNativeResourceFields(source->second, prefix);
+			}
+
+			if (const auto *call = value->call()) {
+				const auto summary = context.nativeResourceStructReturnDestructors.find(fbString(call->qualified_name()));
+				return summary == context.nativeResourceStructReturnDestructors.end()
+					? result
+					: prefixedNativeResourceFields(summary->second, prefix);
+			}
+
+			const auto *object = value->object();
+			if (!object || !object->properties()) {
+				return result;
+			}
+
+			for (const auto *property: *object->properties()) {
+				const auto fieldName = fbString(property->key());
+				const auto fieldPath = prefix.empty()
+					? fieldName
+					: prefix + "." + fieldName;
+				const auto destructor = nativeResourceOwnerDestructorFromValueForInference(
+					property->value(),
+					context,
+					localPointerDestructors
+				);
+
+				if (destructor) {
+					result[fieldPath] = *destructor;
+				}
+
+				mergeNativeResourceFields(
+					result,
+					nativeResourceStructFieldsFromValue(
+						property->value(),
+						context,
+						localPointerDestructors,
+						localStructFields,
+						fieldPath
+					)
+				);
+			}
+
+			return result;
+		}
+
 		void registerNativeResourceStructFields(
 			const std::string &owner,
 			const Yogi::Sir::ValueRef *value,
@@ -92,6 +227,21 @@ namespace yogi::core::llvm::internal {
 		) {
 			const auto *object = value ? value->object() : nullptr;
 			if (!object || !object->properties()) {
+				if (isMoveCall(value)) {
+					const auto source = moveSourceName(value);
+					context.moveNativeResourceFieldOwners(source, owner);
+					context.deactivateAggregateOwner(source);
+					return;
+				}
+
+				const auto *call = value ? value->call() : nullptr;
+				if (call) {
+					const auto summary = context.nativeResourceStructReturnDestructors.find(fbString(call->qualified_name()));
+					if (summary != context.nativeResourceStructReturnDestructors.end()) {
+						context.registerNativeResourceFieldOwners(owner, summary->second);
+					}
+				}
+
 				return;
 			}
 
@@ -194,6 +344,116 @@ namespace yogi::core::llvm::internal {
 			}
 
 			return "";
+		}
+
+		std::optional<NativeResourceFieldMap> inferNativeResourceStructReturnFromBlock(
+			const Yogi::Sir::BlockStatement *block,
+			const ModuleLoweringContext &context,
+			std::map<std::string, std::string> localPointerDestructors,
+			std::map<std::string, NativeResourceFieldMap> localStructFields
+		) {
+			if (!block || !block->statements()) {
+				return std::nullopt;
+			}
+
+			for (const auto *statement: *block->statements()) {
+				if (const auto *variable = statement->value_as_VariableDeclaration()) {
+					const auto name = fbString(variable->name());
+					auto pointerDestructor = nativeResourceDestructorFromValue(variable->value(), context);
+
+					if (pointerDestructor.empty()) {
+						const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr;
+						if (identifier) {
+							const auto source = localPointerDestructors.find(fbString(identifier->name()));
+							if (source != localPointerDestructors.end()) {
+								pointerDestructor = source->second;
+							}
+						}
+					}
+
+					if (!pointerDestructor.empty() && isPointerType(variable->type())) {
+						localPointerDestructors[name] = pointerDestructor;
+					}
+
+					const auto fields = nativeResourceStructFieldsFromValue(
+						variable->value(),
+						context,
+						localPointerDestructors,
+						localStructFields
+					);
+					if (!fields.empty()) {
+						localStructFields[name] = fields;
+					}
+					continue;
+				}
+
+				if (const auto *returnStatement = statement->value_as_ReturnStatement()) {
+					const auto fields = nativeResourceStructFieldsFromValue(
+						returnStatement->value(),
+						context,
+						localPointerDestructors,
+						localStructFields
+					);
+					if (!fields.empty()) {
+						return fields;
+					}
+					continue;
+				}
+
+				if (const auto *nested = statement->value_as_BlockStatement()) {
+					auto result = inferNativeResourceStructReturnFromBlock(
+						nested,
+						context,
+						localPointerDestructors,
+						localStructFields
+					);
+					if (result && !result->empty()) {
+						return result;
+					}
+					continue;
+				}
+
+				if (const auto *ifStatement = statement->value_as_IfStatement()) {
+					auto thenResult = inferNativeResourceStructReturnFromBlock(
+						ifStatement->then_block(),
+						context,
+						localPointerDestructors,
+						localStructFields
+					);
+					if (thenResult && !thenResult->empty()) {
+						return thenResult;
+					}
+
+					auto elseResult = inferNativeResourceStructReturnFromBlock(
+						ifStatement->else_block(),
+						context,
+						localPointerDestructors,
+						localStructFields
+					);
+					if (elseResult && !elseResult->empty()) {
+						return elseResult;
+					}
+				}
+			}
+
+			return std::nullopt;
+		}
+
+		NativeResourceFieldMap inferFunctionNativeResourceStructReturnDestructors(
+			const Yogi::Sir::FunctionDeclaration *function,
+			const ModuleLoweringContext &context
+		) {
+			if (!function || !function->body()) {
+				return {};
+			}
+
+			const auto result = inferNativeResourceStructReturnFromBlock(
+				function->body(),
+				context,
+				{},
+				{}
+			);
+			return result.value_or(NativeResourceFieldMap{});
 		}
 	}
 
@@ -460,19 +720,42 @@ namespace yogi::core::llvm::internal {
 	}
 
 	void FunctionLowerer::lowerFunctions() {
-		for (const auto *node: *context.sirModule->nodes()) {
-			if (const auto *function = node->value_as_FunctionDeclaration()) {
-				const auto destructor = inferFunctionNativeResourceReturnDestructor(function, context);
-				if (!destructor.empty()) {
-					context.nativeResourceReturnDestructors[fbString(function->qualified_name())] = destructor;
-				}
-			}
-		}
+		std::vector<const Yogi::Sir::FunctionDeclaration *> functions;
 
 		for (const auto *node: *context.sirModule->nodes()) {
 			if (const auto *function = node->value_as_FunctionDeclaration()) {
-				lowerFunction(function);
+				functions.push_back(function);
 			}
+		}
+
+		for (std::size_t pass = 0; pass < functions.size(); ++pass) {
+			bool changed = false;
+
+			for (const auto *function: functions) {
+				const auto qualifiedName = fbString(function->qualified_name());
+				const auto destructor = inferFunctionNativeResourceReturnDestructor(function, context);
+				if (!destructor.empty() && context.nativeResourceReturnDestructors[qualifiedName] != destructor) {
+					context.nativeResourceReturnDestructors[qualifiedName] = destructor;
+					changed = true;
+				}
+
+				const auto structDestructors = inferFunctionNativeResourceStructReturnDestructors(function, context);
+				if (
+					!structDestructors.empty() &&
+					context.nativeResourceStructReturnDestructors[qualifiedName] != structDestructors
+				) {
+					context.nativeResourceStructReturnDestructors[qualifiedName] = structDestructors;
+					changed = true;
+				}
+			}
+
+			if (!changed) {
+				break;
+			}
+		}
+
+		for (const auto *function: functions) {
+			lowerFunction(function);
 		}
 	}
 

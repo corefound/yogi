@@ -19,6 +19,20 @@ namespace yogi::core::llvm::internal {
 			return identifier ? fbString(identifier->name()) : "";
 		}
 
+		std::string movedIdentifierName(const Yogi::Sir::ValueRef *value) {
+			const auto *call = value ? value->call() : nullptr;
+			if (
+				!call ||
+				fbString(call->builtin_method()) != "move" ||
+				!call->arguments() ||
+				call->arguments()->size() == 0
+			) {
+				return identifierName(value);
+			}
+
+			return identifierName(call->arguments()->Get(0));
+		}
+
 		struct OwnershipState {
 			std::map<std::string, ::llvm::AllocaInst *> locals;
 			std::map<std::string, const Yogi::Sir::TypeRef *> localTypes;
@@ -491,7 +505,7 @@ namespace yogi::core::llvm::internal {
 		}
 		context.popMemorySourceLocation();
 
-		const auto returnedName = identifierName(statement->value());
+		const auto returnedName = movedIdentifierName(statement->value());
 		if (!returnedName.empty()) {
 			context.deactivateAggregateOwner(returnedName);
 		}

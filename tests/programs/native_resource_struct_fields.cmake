@@ -143,6 +143,20 @@ function replaceNestedField(): void {
     nested.holder.resource = algorithm.create(7)
 }
 
+function localMove(): void {
+    let first: Holder = { resource: algorithm.create(8) }
+    let second: Holder = move(first)
+}
+
+function makeMoved(): Holder {
+    let holder: Holder = { resource: algorithm.create(9) }
+    return move(holder)
+}
+
+function returnedMove(): void {
+    let holder: Holder = makeMoved()
+}
+
 fromLocal()
 print(algorithm.destroyedCount())
 print(algorithm.orderAt(0))
@@ -163,6 +177,14 @@ print(algorithm.destroyedCount())
 replaceNestedField()
 print(algorithm.orderAt(5))
 print(algorithm.orderAt(6))
+print(algorithm.destroyedCount())
+
+localMove()
+print(algorithm.orderAt(7))
+print(algorithm.destroyedCount())
+
+returnedMove()
+print(algorithm.orderAt(8))
 print(algorithm.destroyedCount())
 ]=])
 
@@ -207,7 +229,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "native resource struct field executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n1\n2\n2\n3\n4\n4\n5\n5\n6\n7\n7\n")
+set(expected_stdout "1\n1\n2\n2\n3\n4\n4\n5\n5\n6\n7\n7\n8\n8\n9\n9\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "native resource struct field printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

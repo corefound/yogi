@@ -317,9 +317,17 @@ Pointer fields that did not receive native ownership metadata are treated as raw
 or borrowed pointers and are not destroyed automatically.
 
 Resource-owning structs are not implicitly copyable. Yogi rejects whole-struct
-copies, whole-struct reassignment, return-by-value, and normal by-value user
-function calls while a struct owns native resource fields. Borrow the existing
-struct explicitly with `&holder`, or replace individual resource fields.
+copies, whole-struct reassignment, and normal by-value user function calls while
+a struct owns native resource fields. Borrow the existing struct explicitly with
+`&holder`, replace individual resource fields, or transfer the whole value with
+`move(holder)` in a declaration or return:
+
+```ts
+let next: Holder = move(holder)
+return move(holder)
+```
+
+After `move(holder)`, the old `holder` binding is consumed and cannot be used.
 
 For struct arrays, the C struct must match Yogi field order and use `double`
 for every field:
