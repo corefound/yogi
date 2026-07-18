@@ -71,14 +71,6 @@ static endModule(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static finishModuleBuffer(builder:flatbuffers.Builder, offset:flatbuffers.Offset) {
-  builder.finish(offset);
-}
-
-static finishSizePrefixedModuleBuffer(builder:flatbuffers.Builder, offset:flatbuffers.Offset) {
-  builder.finish(offset, undefined, true);
-}
-
 static createModule(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset, nodesOffset:flatbuffers.Offset):flatbuffers.Offset {
   Module.startModule(builder);
   Module.addSourcePath(builder, sourcePathOffset);

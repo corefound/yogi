@@ -141,6 +141,9 @@ struct ElementAccessExpressionBuilder;
 struct AddressOfExpression;
 struct AddressOfExpressionBuilder;
 
+struct DereferenceExpression;
+struct DereferenceExpressionBuilder;
+
 struct AggregateAssignmentExpression;
 struct AggregateAssignmentExpressionBuilder;
 
@@ -2798,8 +2801,9 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_PROPERTY_ACCESS = 24,
     VT_ELEMENT_ACCESS = 26,
     VT_ADDRESS_OF = 28,
-    VT_AGGREGATE_ASSIGNMENT = 30,
-    VT_FUNCTION_EXPRESSION = 32
+    VT_DEREFERENCE = 30,
+    VT_AGGREGATE_ASSIGNMENT = 32,
+    VT_FUNCTION_EXPRESSION = 34
   };
   const ::flatbuffers::String *kind() const {
     return GetPointer<const ::flatbuffers::String *>(VT_KIND);
@@ -2840,6 +2844,9 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::AddressOfExpression *address_of() const {
     return GetPointer<const Yogi::Sir::AddressOfExpression *>(VT_ADDRESS_OF);
   }
+  const Yogi::Sir::DereferenceExpression *dereference() const {
+    return GetPointer<const Yogi::Sir::DereferenceExpression *>(VT_DEREFERENCE);
+  }
   const Yogi::Sir::AggregateAssignmentExpression *aggregate_assignment() const {
     return GetPointer<const Yogi::Sir::AggregateAssignmentExpression *>(VT_AGGREGATE_ASSIGNMENT);
   }
@@ -2875,6 +2882,8 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyTable(element_access()) &&
            VerifyOffset(verifier, VT_ADDRESS_OF) &&
            verifier.VerifyTable(address_of()) &&
+           VerifyOffset(verifier, VT_DEREFERENCE) &&
+           verifier.VerifyTable(dereference()) &&
            VerifyOffset(verifier, VT_AGGREGATE_ASSIGNMENT) &&
            verifier.VerifyTable(aggregate_assignment()) &&
            VerifyOffset(verifier, VT_FUNCTION_EXPRESSION) &&
@@ -2926,6 +2935,9 @@ struct ValueRefBuilder {
   void add_address_of(::flatbuffers::Offset<Yogi::Sir::AddressOfExpression> address_of) {
     fbb_.AddOffset(ValueRef::VT_ADDRESS_OF, address_of);
   }
+  void add_dereference(::flatbuffers::Offset<Yogi::Sir::DereferenceExpression> dereference) {
+    fbb_.AddOffset(ValueRef::VT_DEREFERENCE, dereference);
+  }
   void add_aggregate_assignment(::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment) {
     fbb_.AddOffset(ValueRef::VT_AGGREGATE_ASSIGNMENT, aggregate_assignment);
   }
@@ -2958,11 +2970,13 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRef(
     ::flatbuffers::Offset<Yogi::Sir::PropertyAccessExpression> property_access = 0,
     ::flatbuffers::Offset<Yogi::Sir::ElementAccessExpression> element_access = 0,
     ::flatbuffers::Offset<Yogi::Sir::AddressOfExpression> address_of = 0,
+    ::flatbuffers::Offset<Yogi::Sir::DereferenceExpression> dereference = 0,
     ::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment = 0,
     ::flatbuffers::Offset<Yogi::Sir::FunctionExpression> function_expression = 0) {
   ValueRefBuilder builder_(_fbb);
   builder_.add_function_expression(function_expression);
   builder_.add_aggregate_assignment(aggregate_assignment);
+  builder_.add_dereference(dereference);
   builder_.add_address_of(address_of);
   builder_.add_element_access(element_access);
   builder_.add_property_access(property_access);
@@ -2994,6 +3008,7 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
     ::flatbuffers::Offset<Yogi::Sir::PropertyAccessExpression> property_access = 0,
     ::flatbuffers::Offset<Yogi::Sir::ElementAccessExpression> element_access = 0,
     ::flatbuffers::Offset<Yogi::Sir::AddressOfExpression> address_of = 0,
+    ::flatbuffers::Offset<Yogi::Sir::DereferenceExpression> dereference = 0,
     ::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment = 0,
     ::flatbuffers::Offset<Yogi::Sir::FunctionExpression> function_expression = 0) {
   auto kind__ = kind ? _fbb.CreateString(kind) : 0;
@@ -3012,6 +3027,7 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
       property_access,
       element_access,
       address_of,
+      dereference,
       aggregate_assignment,
       function_expression);
 }
@@ -3712,7 +3728,8 @@ struct ArrayExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_ELEMENTS = 4,
     VT_TYPE = 6,
     VT_SOURCE = 8,
-    VT_POSITION = 10
+    VT_POSITION = 10,
+    VT_STORAGE_MODE = 12
   };
   const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *elements() const {
     return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *>(VT_ELEMENTS);
@@ -3726,6 +3743,9 @@ struct ArrayExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Yogi::Sir::SourcePosition *position() const {
     return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
   }
+  const ::flatbuffers::String *storage_mode() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_STORAGE_MODE);
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -3738,6 +3758,8 @@ struct ArrayExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyString(source()) &&
            VerifyOffset(verifier, VT_POSITION) &&
            verifier.VerifyTable(position()) &&
+           VerifyOffset(verifier, VT_STORAGE_MODE) &&
+           verifier.VerifyString(storage_mode()) &&
            verifier.EndTable();
   }
 };
@@ -3758,6 +3780,9 @@ struct ArrayExpressionBuilder {
   void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
     fbb_.AddOffset(ArrayExpression::VT_POSITION, position);
   }
+  void add_storage_mode(::flatbuffers::Offset<::flatbuffers::String> storage_mode) {
+    fbb_.AddOffset(ArrayExpression::VT_STORAGE_MODE, storage_mode);
+  }
   explicit ArrayExpressionBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -3774,8 +3799,10 @@ inline ::flatbuffers::Offset<ArrayExpression> CreateArrayExpression(
     ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>> elements = 0,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source = 0,
-    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> storage_mode = 0) {
   ArrayExpressionBuilder builder_(_fbb);
+  builder_.add_storage_mode(storage_mode);
   builder_.add_position(position);
   builder_.add_source(source);
   builder_.add_type(type);
@@ -3788,15 +3815,18 @@ inline ::flatbuffers::Offset<ArrayExpression> CreateArrayExpressionDirect(
     const std::vector<::flatbuffers::Offset<Yogi::Sir::ValueRef>> *elements = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
     const char *source = nullptr,
-    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    const char *storage_mode = nullptr) {
   auto elements__ = elements ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ValueRef>>(*elements) : 0;
   auto source__ = source ? _fbb.CreateString(source) : 0;
+  auto storage_mode__ = storage_mode ? _fbb.CreateString(storage_mode) : 0;
   return Yogi::Sir::CreateArrayExpression(
       _fbb,
       elements__,
       type,
       source__,
-      position);
+      position,
+      storage_mode__);
 }
 
 struct ObjectProperty FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
@@ -4356,6 +4386,152 @@ inline ::flatbuffers::Offset<AddressOfExpression> CreateAddressOfExpressionDirec
   auto access_path__ = access_path ? _fbb.CreateVector<::flatbuffers::Offset<::flatbuffers::String>>(*access_path) : 0;
   auto permission__ = permission ? _fbb.CreateString(permission) : 0;
   return Yogi::Sir::CreateAddressOfExpression(
+      _fbb,
+      target,
+      type,
+      source__,
+      position,
+      root_symbol_id,
+      root_name__,
+      access_path__,
+      permission__);
+}
+
+struct DereferenceExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef DereferenceExpressionBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_TARGET = 4,
+    VT_TYPE = 6,
+    VT_SOURCE = 8,
+    VT_POSITION = 10,
+    VT_ROOT_SYMBOL_ID = 12,
+    VT_ROOT_NAME = 14,
+    VT_ACCESS_PATH = 16,
+    VT_PERMISSION = 18
+  };
+  const Yogi::Sir::ValueRef *target() const {
+    return GetPointer<const Yogi::Sir::ValueRef *>(VT_TARGET);
+  }
+  const Yogi::Sir::TypeRef *type() const {
+    return GetPointer<const Yogi::Sir::TypeRef *>(VT_TYPE);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  int32_t root_symbol_id() const {
+    return GetField<int32_t>(VT_ROOT_SYMBOL_ID, -1);
+  }
+  const ::flatbuffers::String *root_name() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_ROOT_NAME);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *access_path() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *>(VT_ACCESS_PATH);
+  }
+  const ::flatbuffers::String *permission() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_PERMISSION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_TARGET) &&
+           verifier.VerifyTable(target()) &&
+           VerifyOffset(verifier, VT_TYPE) &&
+           verifier.VerifyTable(type()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           VerifyField<int32_t>(verifier, VT_ROOT_SYMBOL_ID, 4) &&
+           VerifyOffset(verifier, VT_ROOT_NAME) &&
+           verifier.VerifyString(root_name()) &&
+           VerifyOffset(verifier, VT_ACCESS_PATH) &&
+           verifier.VerifyVector(access_path()) &&
+           verifier.VerifyVectorOfStrings(access_path()) &&
+           VerifyOffset(verifier, VT_PERMISSION) &&
+           verifier.VerifyString(permission()) &&
+           verifier.EndTable();
+  }
+};
+
+struct DereferenceExpressionBuilder {
+  typedef DereferenceExpression Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_target(::flatbuffers::Offset<Yogi::Sir::ValueRef> target) {
+    fbb_.AddOffset(DereferenceExpression::VT_TARGET, target);
+  }
+  void add_type(::flatbuffers::Offset<Yogi::Sir::TypeRef> type) {
+    fbb_.AddOffset(DereferenceExpression::VT_TYPE, type);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(DereferenceExpression::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(DereferenceExpression::VT_POSITION, position);
+  }
+  void add_root_symbol_id(int32_t root_symbol_id) {
+    fbb_.AddElement<int32_t>(DereferenceExpression::VT_ROOT_SYMBOL_ID, root_symbol_id, -1);
+  }
+  void add_root_name(::flatbuffers::Offset<::flatbuffers::String> root_name) {
+    fbb_.AddOffset(DereferenceExpression::VT_ROOT_NAME, root_name);
+  }
+  void add_access_path(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> access_path) {
+    fbb_.AddOffset(DereferenceExpression::VT_ACCESS_PATH, access_path);
+  }
+  void add_permission(::flatbuffers::Offset<::flatbuffers::String> permission) {
+    fbb_.AddOffset(DereferenceExpression::VT_PERMISSION, permission);
+  }
+  explicit DereferenceExpressionBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<DereferenceExpression> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<DereferenceExpression>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<DereferenceExpression> CreateDereferenceExpression(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> target = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    int32_t root_symbol_id = -1,
+    ::flatbuffers::Offset<::flatbuffers::String> root_name = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> access_path = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> permission = 0) {
+  DereferenceExpressionBuilder builder_(_fbb);
+  builder_.add_permission(permission);
+  builder_.add_access_path(access_path);
+  builder_.add_root_name(root_name);
+  builder_.add_root_symbol_id(root_symbol_id);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_type(type);
+  builder_.add_target(target);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<DereferenceExpression> CreateDereferenceExpressionDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<Yogi::Sir::ValueRef> target = 0,
+    ::flatbuffers::Offset<Yogi::Sir::TypeRef> type = 0,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0,
+    int32_t root_symbol_id = -1,
+    const char *root_name = nullptr,
+    const std::vector<::flatbuffers::Offset<::flatbuffers::String>> *access_path = nullptr,
+    const char *permission = nullptr) {
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  auto root_name__ = root_name ? _fbb.CreateString(root_name) : 0;
+  auto access_path__ = access_path ? _fbb.CreateVector<::flatbuffers::Offset<::flatbuffers::String>>(*access_path) : 0;
+  auto permission__ = permission ? _fbb.CreateString(permission) : 0;
+  return Yogi::Sir::CreateDereferenceExpression(
       _fbb,
       target,
       type,
