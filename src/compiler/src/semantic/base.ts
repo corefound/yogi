@@ -2647,6 +2647,7 @@ export class BaseSemantic {
             pointerRootSymbolId: symbol.pointerRootSymbolId,
             pointerAccessPath: symbol.pointerAccessPath ?? [],
             pointerPermission: symbol.pointerPermission,
+            nativeResourceDestructor: symbol.nativeResourceDestructor ?? symbol.node?.nativeResourceDestructor ?? null,
             borrowedView: symbol.borrowedView === true || symbol.node?.borrowedView === true,
             borrowedViewReadonly: symbol.borrowedViewReadonly === true || symbol.node?.borrowedViewReadonly === true,
             borrowedViewSourceName:

@@ -135,12 +135,17 @@ without re-auditing the whole compiler.
 - [x] Runtime/backend consumption of `@abi param name output native-owned free=...` for native `ptr<string>` output parameters
 - [x] Runtime/backend consumption of `@abi return runtime-owned` for native `string` returns
 - [x] Runtime/backend consumption of `@abi param name output runtime-owned` for native `ptr<string>` output parameters
+- [x] Native extern destructor RAII through `destructor(resource: ptr<void>): void`
+- [x] Native pointer resource returns with destructor-associated cleanup metadata
+- [x] Native resource cleanup on normal scope exit, early return, reverse order, reassignment, return transfer, and null skip
 - [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Native array ABI marshalling for mutable strings, nested structs, and resource-owning structs
-- [ ] Runtime/backend consumption of native ABI ownership contracts beyond single-string returns and output parameters
+- [ ] Native resource fields inside Yogi aggregates and structs
+- [ ] `ptr<string[]>` native ABI ownership/copy-back after the extern destructor model is extended to resource arrays
+- [ ] Runtime/backend consumption of native ABI ownership contracts beyond single-string returns/output parameters and basic extern-destructor resources
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions
 - [ ] Final audit against all JavaScript/TypeScript Array methods
 
@@ -190,6 +195,8 @@ without re-auditing the whole compiler.
 - [x] Native Dictionary Lookup Program Test
 - [x] Native Owned Name Program Test
 - [x] Native Owned Name Output Program Test
+- [x] Native Runtime Owned Name Program Test
+- [x] Native Extern Destructor Program Tests
 - [ ] Contact Manager Program Test
 - [ ] Matrix Operations Program Test
 - [ ] Graph Traversal Program Tests

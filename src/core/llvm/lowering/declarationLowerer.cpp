@@ -15,6 +15,72 @@
 namespace yogi::core::llvm::internal {
 
 	namespace {
+		std::vector<std::string> nativeAbiMetadataParts(const std::string &metadata) {
+			std::vector<std::string> parts;
+			std::size_t start = 0;
+
+			while (start <= metadata.size()) {
+				const auto end = metadata.find('|', start);
+				const auto part = metadata.substr(start, end == std::string::npos ? std::string::npos : end - start);
+				if (!part.empty()) {
+					parts.push_back(part);
+				}
+
+				if (end == std::string::npos) {
+					break;
+				}
+
+				start = end + 1;
+			}
+
+			return parts;
+		}
+
+		std::string nativeResourceDestructorFromBuiltinMethod(const flatbuffers::String *metadata) {
+			static const std::string prefix = "native.return.resource.destructor=";
+
+			for (const auto &part: nativeAbiMetadataParts(fbString(metadata))) {
+				if (part.rfind(prefix, 0) == 0) {
+					return part.substr(prefix.size());
+				}
+			}
+
+			return "";
+		}
+
+		std::string nativeResourceDestructorFromValue(
+			const Yogi::Sir::ValueRef *value,
+			const ModuleLoweringContext &context
+		) {
+			const auto *call = value ? value->call() : nullptr;
+			if (!call) {
+				return "";
+			}
+
+			const auto direct = nativeResourceDestructorFromBuiltinMethod(call->builtin_method());
+			if (!direct.empty()) {
+				return direct;
+			}
+
+			const auto qualifiedName = fbString(call->qualified_name());
+			const auto summary = context.nativeResourceReturnDestructors.find(qualifiedName);
+			return summary == context.nativeResourceReturnDestructors.end() ? "" : summary->second;
+		}
+
+		bool isPointerType(const Yogi::Sir::TypeRef *type) {
+			const auto *current = type;
+
+			while (
+				current &&
+				current->kind() == Yogi::Sir::TypeKind_type_reference &&
+				current->resolved()
+			) {
+				current = current->resolved();
+			}
+
+			return current && current->kind() == Yogi::Sir::TypeKind_pointer_type;
+		}
+
 		std::string aggregateRootIdentifier(const Yogi::Sir::ValueRef *value) {
 			if (!value) {
 				return "";
@@ -30,6 +96,54 @@ namespace yogi::core::llvm::internal {
 
 			if (const auto *access = value->property_access()) {
 				return aggregateRootIdentifier(access->object());
+			}
+
+			return "";
+		}
+
+		std::string inferFunctionNativeResourceReturnDestructor(
+			const Yogi::Sir::FunctionDeclaration *function,
+			const ModuleLoweringContext &context
+		) {
+			if (!function || !isPointerType(function->return_type()) || !function->body() || !function->body()->statements()) {
+				return "";
+			}
+
+			std::map<std::string, std::string> localDestructors;
+
+			for (const auto *statement: *function->body()->statements()) {
+				if (const auto *variable = statement->value_as_VariableDeclaration()) {
+					const auto destructor = nativeResourceDestructorFromValue(variable->value(), context);
+					if (!destructor.empty()) {
+						localDestructors[fbString(variable->name())] = destructor;
+						continue;
+					}
+
+					if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
+						const auto source = localDestructors.find(fbString(identifier->name()));
+						if (source != localDestructors.end()) {
+							localDestructors[fbString(variable->name())] = source->second;
+						}
+					}
+					continue;
+				}
+
+				const auto *returnStatement = statement->value_as_ReturnStatement();
+				if (!returnStatement) {
+					continue;
+				}
+
+				const auto direct = nativeResourceDestructorFromValue(returnStatement->value(), context);
+				if (!direct.empty()) {
+					return direct;
+				}
+
+				if (const auto *identifier = returnStatement->value() ? returnStatement->value()->identifier() : nullptr) {
+					const auto source = localDestructors.find(fbString(identifier->name()));
+					if (source != localDestructors.end()) {
+						return source->second;
+					}
+				}
 			}
 
 			return "";
@@ -166,6 +280,12 @@ namespace yogi::core::llvm::internal {
 			!isGlobalVariable &&
 			fbString(variable->storage()) == "stack" &&
 			isStructType;
+		const auto nativeResourceDestructor = nativeResourceDestructorFromValue(variable->value(), context);
+		const auto isLocalNativeResource =
+			!isGlobalVariable &&
+			fbString(variable->storage()) == "stack" &&
+			isPointerType(variable->type()) &&
+			!nativeResourceDestructor.empty();
 		const auto shouldRetainEscapedGraph =
 			!isGlobalVariable &&
 			variable->escapes() &&
@@ -202,6 +322,29 @@ namespace yogi::core::llvm::internal {
 		context.locals[name] = slot;
 		context.localTypes[name] = variable->type();
 		context.localTypeKinds[name] = variable->type()->kind();
+
+		if (isLocalNativeResource) {
+			context.registerNativeResourceOwner(
+				name,
+				variable->symbol_id(),
+				initializer,
+				slot,
+				nativeResourceDestructor
+			);
+		} else if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
+			const auto sourceName = fbString(identifier->name());
+			const auto sourceDestructor = context.nativeResourceDestroyFunction(sourceName);
+			if (sourceDestructor && isPointerType(variable->type())) {
+				context.deactivateAggregateOwner(sourceName);
+				context.registerNativeResourceOwner(
+					name,
+					variable->symbol_id(),
+					initializer,
+					slot,
+					*sourceDestructor
+				);
+			}
+		}
 
 		if (isLocalStackAggregate) {
 			context.registerAggregateOwner(
@@ -269,6 +412,15 @@ namespace yogi::core::llvm::internal {
 	}
 
 	void FunctionLowerer::lowerFunctions() {
+		for (const auto *node: *context.sirModule->nodes()) {
+			if (const auto *function = node->value_as_FunctionDeclaration()) {
+				const auto destructor = inferFunctionNativeResourceReturnDestructor(function, context);
+				if (!destructor.empty()) {
+					context.nativeResourceReturnDestructors[fbString(function->qualified_name())] = destructor;
+				}
+			}
+		}
+
 		for (const auto *node: *context.sirModule->nodes()) {
 			if (const auto *function = node->value_as_FunctionDeclaration()) {
 				lowerFunction(function);

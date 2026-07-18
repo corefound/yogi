@@ -128,6 +128,7 @@ export type SymbolInfo = {
     pointerRootSymbolId?: number;
     pointerAccessPath?: string[];
     pointerPermission?: "mutable" | "readonly";
+    nativeResourceDestructor?: string | null;
     dynamicArrayStorageMode?: "contiguous_fast_path" | "pointer_safe_chunked_mode";
     dynamicArrayStorageReasons?: string[];
     moved?: boolean;

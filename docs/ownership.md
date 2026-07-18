@@ -189,6 +189,39 @@ borrows. Aggregate arguments are marked as escaping conservatively.
 
 This can keep values alive longer than necessary, but it is safe.
 
+## Native Extern Destructor RAII
+
+Native `extern` blocks can define one compiler-managed destructor:
+
+```ts
+extern algorithm from "./algorithm.a" {
+    create(): ptr<NativeResource>
+    destructor(resource: ptr<void>): void
+}
+```
+
+Values returned as `ptr<T>` from that extern block become native resources owned
+by Yogi. Yogi decides when the resource lifetime ends. The native library decides
+how the resource is actually destroyed.
+
+Local native resources participate in the same RAII cleanup scheduling used for
+aggregates:
+
+- Normal scope exit calls the extern destructor.
+- Early `return` calls the destructor before returning.
+- Multiple resources are destroyed in reverse creation order.
+- Reassignment destroys the old owned resource before overwriting the slot.
+- Returning the resource moves ownership to the caller.
+- Null resource pointers are skipped.
+
+This is distinct from `runtime-owned` strings. Runtime-owned values are already
+managed by Yogi's runtime. Extern-destructor-owned values are lifetime-managed by
+Yogi, but destruction is delegated to the native library.
+
+Examples using `kind`, `switch`, `malloc`, `free`, `new`, `delete`, `fclose`, or
+custom allocators are illustrative only. Yogi does not require any specific
+native resource layout or cleanup strategy.
+
 ## Current Limitations
 
 The ownership model is intentionally small. It does not yet implement:
@@ -198,7 +231,8 @@ The ownership model is intentionally small. It does not yet implement:
 - Shared ownership or reference counting.
 - Closure capture summaries.
 - More method-call summaries beyond the implemented `scores.push(value)`.
-- Loops with break/continue cleanup edges.
+- Full resource-field ownership when native resources are stored inside Yogi
+  aggregates.
 
 The current model is enough to make function boundaries safe for direct
 function calls while preserving stack-first local aggregates whenever the callee

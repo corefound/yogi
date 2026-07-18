@@ -492,6 +492,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 );
             }
 
+            if (methodName === "destructor") {
+                rawCallee.arrowLength = methodName?.length ?? rawCallee.source?.length ?? 1;
+                this.throwError(
+                    `extern destructor ${Helpers.RED}'${externName}.${methodName}'${Helpers.RESET} is compiler-managed`,
+                    rawCallee.position ?? node.position,
+                    node.fullSource ?? node.source,
+                    rawCallee,
+                    "  = Yogi emits native resource cleanup automatically at the end of the owning lifetime",
+                );
+            }
+
             const abiFreeFunctionOwner = (externSymbol.node?.functions ?? []).find((fn: any) => {
                 if (fn.name === methodName) {
                     return false;
@@ -647,6 +658,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 raw: "unknown",
             });
             const returnAbiContract = externFunction.abiContracts?.returnValue ?? null;
+            const externDestructor = (externSymbol.node?.functions ?? []).find((fn: any) => fn.name === "destructor");
+            const nativeResourceReturnBuiltinMethod =
+                externDestructor &&
+                methodName !== "destructor" &&
+                this.resolveType(returnType)?.kind === Kinds.Types.PointerType
+                    ? `native.return.resource.destructor=${externDestructor.name}`
+                    : null;
             const returnIsNativeOwned =
                 returnAbiContract &&
                 (returnAbiContract.mode === "native-owned" || returnAbiContract.owner === "native");
@@ -683,6 +701,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 .filter(Boolean);
             const nativeBuiltinMethod = [
                 nativeReturnBuiltinMethod,
+                nativeResourceReturnBuiltinMethod,
                 ...nativeOutputBuiltinMethods,
             ].filter(Boolean).join("|") || null;
             const functionType = this.toSerializableType({
@@ -720,6 +739,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     })),
                 },
                 builtinMethod: nativeBuiltinMethod,
+                nativeResourceDestructor: nativeResourceReturnBuiltinMethod ? externDestructor.name : null,
             };
         }
 

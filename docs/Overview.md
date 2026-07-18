@@ -31,6 +31,9 @@ language support.
 | Native Owned Name | `tests/programs/native_owned_name.cmake` | Implemented | Exercises `@abi return native-owned free=...` for native `string` returns, automatic copy into Yogi-owned strings, native free invocation, static native library linking, LLVM IR generation, object generation, and runtime execution |
 | Native Owned Name Output | `tests/programs/native_owned_name_output.cmake` | Implemented | Exercises `@abi param name output native-owned free=...`, native `char**` output slots, automatic copy into Yogi-owned strings, native free invocation, pointer write-back, LLVM IR generation, object generation, and runtime execution |
 | Native Runtime Owned Name | `tests/programs/native_runtime_owned_name.cmake` | Implemented | Exercises `@abi return runtime-owned` and `@abi param name output runtime-owned`, runtime-owned string validation/adoption, native output slots, LLVM IR generation, object generation, and runtime execution |
+| Native Extern Destructor C | `tests/programs/native_extern_destructor_c.cmake` | Implemented | Exercises native `destructor(resource: ptr<void>): void`, automatic RAII cleanup, early return, reverse destruction order, reassignment cleanup, return transfer, null cleanup skip, LLVM IR generation, linking, and runtime execution |
+| Native Extern Destructor C++ | `tests/programs/native_extern_destructor_cpp.cmake` | Implemented | Exercises native resources created with C++ `new` and cleaned through `delete` in an extern destructor |
+| Native Extern Destructor Missing Symbol | `tests/programs/native_extern_destructor_missing_symbol.cmake` | Implemented | Verifies that declaring an extern destructor without exporting the native symbol fails during linking |
 
 ## Planned Program Tests
 

@@ -198,6 +198,38 @@ namespace yogi::core::llvm::internal {
 		});
 	}
 
+	void ModuleLoweringContext::registerNativeResourceOwner(
+		const std::string &name,
+		int symbolId,
+		::llvm::Value *value,
+		::llvm::Value *cleanupSlot,
+		const std::string &destroyFunction
+	) {
+		aggregateAliases[name] = name;
+
+		for (auto &cleanup: localAggregateCleanups) {
+			if (cleanup.owner == name && !cleanup.runtimeDestroyFunction.empty()) {
+				cleanup.symbolId = symbolId;
+				cleanup.value = value;
+				cleanup.cleanupSlot = cleanupSlot;
+				cleanup.runtimeDestroyFunction = destroyFunction;
+				cleanup.active = true;
+				return;
+			}
+		}
+
+		localAggregateCleanups.push_back({
+			name,
+			symbolId,
+			nullptr,
+			value,
+			false,
+			true,
+			cleanupSlot,
+			destroyFunction,
+		});
+	}
+
 	void ModuleLoweringContext::aliasAggregateOwner(
 		const std::string &alias,
 		const std::string &source
@@ -223,6 +255,26 @@ namespace yogi::core::llvm::internal {
 			}
 
 			current = alias->second;
+		}
+
+		return std::nullopt;
+	}
+
+	std::optional<std::string> ModuleLoweringContext::nativeResourceDestroyFunction(const std::string &name) const {
+		const auto owner = resolveAggregateOwner(name);
+		if (!owner) {
+			return std::nullopt;
+		}
+
+		for (const auto &cleanup: localAggregateCleanups) {
+			if (
+				cleanup.active &&
+				cleanup.owner == *owner &&
+				cleanup.type == nullptr &&
+				!cleanup.runtimeDestroyFunction.empty()
+			) {
+				return cleanup.runtimeDestroyFunction;
+			}
 		}
 
 		return std::nullopt;

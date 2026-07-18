@@ -784,6 +784,24 @@ if(BUILD_TESTING)
                         program-native-runtime-owned-name
                         tests/programs/native_runtime_owned_name.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_native_extern_destructor_c
+                        program-native-extern-destructor-c
+                        tests/programs/native_extern_destructor_c.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_native_extern_destructor_cpp
+                        program-native-extern-destructor-cpp
+                        tests/programs/native_extern_destructor_cpp.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_native_extern_destructor_missing_symbol
+                        program-native-extern-destructor-missing-symbol
+                        tests/programs/native_extern_destructor_missing_symbol.cmake
+                )
         endif()
 endif()
 

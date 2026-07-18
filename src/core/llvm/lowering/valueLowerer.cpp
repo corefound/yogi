@@ -181,6 +181,31 @@ namespace yogi::core::llvm::internal {
 
 			return result;
 		}
+
+		std::string nativeResourceReturnDestructorFunction(
+			const Yogi::Sir::CallExpression *call,
+			const ModuleLoweringContext &context
+		) {
+			static const std::string prefix = "native.return.resource.destructor=";
+
+			for (const auto &part: nativeAbiMetadataParts(call)) {
+				if (part.rfind(prefix, 0) == 0) {
+					return part.substr(prefix.size());
+				}
+			}
+
+			const auto qualifiedName = fbString(call ? call->qualified_name() : nullptr);
+			const auto summary = context.nativeResourceReturnDestructors.find(qualifiedName);
+			return summary == context.nativeResourceReturnDestructors.end() ? "" : summary->second;
+		}
+
+		std::string nativeResourceReturnDestructorFunction(
+			const Yogi::Sir::ValueRef *value,
+			const ModuleLoweringContext &context
+		) {
+			const auto *call = value ? value->call() : nullptr;
+			return call ? nativeResourceReturnDestructorFunction(call, context) : "";
+		}
 	}
 
 	ValueLowerer::ValueLowerer(ModuleLoweringContext &context, TypeLowerer &types)
@@ -4283,6 +4308,76 @@ namespace yogi::core::llvm::internal {
 			targetSemanticType,
 			targetSemanticType
 		);
+		const auto nativeResourceDestructor = nativeResourceReturnDestructorFunction(assignment->right(), context);
+		std::optional<std::string> movedNativeResourceDestructor;
+		std::string movedNativeResourceName;
+
+		if (const auto *rightIdentifier = assignment->right() ? assignment->right()->identifier() : nullptr) {
+			movedNativeResourceName = fbString(rightIdentifier->name());
+			movedNativeResourceDestructor = context.nativeResourceDestroyFunction(movedNativeResourceName);
+		}
+
+		const auto nextNativeResourceDestructor = !nativeResourceDestructor.empty()
+			? std::optional<std::string>(nativeResourceDestructor)
+			: movedNativeResourceDestructor;
+		bool transferredNativeResource = false;
+
+		if (!targetIsGlobal && targetType->isPointerTy()) {
+			const auto currentNativeResourceDestructor = context.nativeResourceDestroyFunction(name);
+
+			if (currentNativeResourceDestructor) {
+				auto *previousValue = context.builder.CreateLoad(
+					targetType,
+					target,
+					sanitizeSymbol(name) + ".native.previous"
+				);
+				auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
+				auto *isReplacement = context.builder.CreateICmpNE(previousValue, value);
+				auto *shouldDestroyPrevious = context.builder.CreateAnd(
+					hasPrevious,
+					isReplacement,
+					sanitizeSymbol(name) + ".native.should_destroy"
+				);
+				auto *function = context.builder.GetInsertBlock()->getParent();
+				auto *destroyBlock = ::llvm::BasicBlock::Create(
+					context.llvmContext,
+					sanitizeSymbol(name) + ".native.replace.destroy",
+					function
+				);
+				auto *storeBlock = ::llvm::BasicBlock::Create(
+					context.llvmContext,
+					sanitizeSymbol(name) + ".native.replace.store",
+					function
+				);
+
+				context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, storeBlock);
+				context.builder.SetInsertPoint(destroyBlock);
+				auto *destroy = context.runtimeFunction(
+					*currentNativeResourceDestructor,
+					::llvm::Type::getVoidTy(context.llvmContext),
+					{::llvm::PointerType::getUnqual(context.llvmContext)}
+				);
+				context.builder.CreateCall(destroy, {previousValue});
+				context.builder.CreateBr(storeBlock);
+				context.builder.SetInsertPoint(storeBlock);
+			}
+
+			if (nextNativeResourceDestructor) {
+				if (!movedNativeResourceName.empty()) {
+					context.deactivateAggregateOwner(movedNativeResourceName);
+				}
+				context.registerNativeResourceOwner(
+					name,
+					assignment->left()->symbol_id(),
+					value,
+					target,
+					*nextNativeResourceDestructor
+				);
+				transferredNativeResource = true;
+			} else if (currentNativeResourceDestructor) {
+				context.deactivateAggregateOwner(name);
+			}
+		}
 
 		const auto targetIsAggregate =
 			targetKind == Yogi::Sir::TypeKind_array_type ||
@@ -4375,7 +4470,8 @@ namespace yogi::core::llvm::internal {
 			if (!rightName.empty()) {
 				context.deactivateAggregateOwner(rightName);
 			}
-		} else if (const auto *rightIdentifier = assignment->right() ? assignment->right()->identifier() : nullptr) {
+		} else if (!transferredNativeResource && assignment->right() && assignment->right()->identifier()) {
+			const auto *rightIdentifier = assignment->right()->identifier();
 			context.aliasAggregateOwner(name, fbString(rightIdentifier->name()));
 		}
 

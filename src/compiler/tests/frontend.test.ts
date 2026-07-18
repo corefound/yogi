@@ -1023,6 +1023,101 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(runtimeOwnedOutputWithoutDirection.stderr).toContain("requires an output ownership ABI contract");
     expect(runtimeOwnedOutputWithoutDirection.stderr).toContain("name");
 
+    const destructorNoParameters = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(): void
+        }
+      `,
+    }));
+    expect(destructorNoParameters.status).not.toBe(0);
+    expect(destructorNoParameters.stderr).toContain("destructor must declare exactly one parameter");
+
+    const destructorBadReturn = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): number
+        }
+      `,
+    }));
+    expect(destructorBadReturn.status).not.toBe(0);
+    expect(destructorBadReturn.stderr).toContain("destructor must return");
+    expect(destructorBadReturn.stderr).toContain("void");
+
+    const destructorBadParameter = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: string): void
+        }
+      `,
+    }));
+    expect(destructorBadParameter.status).not.toBe(0);
+    expect(destructorBadParameter.stderr).toContain("destructor parameter must be");
+    expect(destructorBadParameter.stderr).toContain("ptr<void>");
+
+    const destructorTooManyParameters = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(a: ptr<void>, b: ptr<void>): void
+        }
+      `,
+    }));
+    expect(destructorTooManyParameters.status).not.toBe(0);
+    expect(destructorTooManyParameters.stderr).toContain("destructor must declare exactly one parameter");
+
+    const pointerReturnWithoutDestructor = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+        }
+      `,
+    }));
+    expect(pointerReturnWithoutDestructor.status).not.toBe(0);
+    expect(pointerReturnWithoutDestructor.stderr).toContain("has no destructor");
+
+    const manualDestructorCall = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): void
+        }
+
+        let resource: ptr<NativeResource> = native.create()
+        native.destructor(resource)
+      `,
+    }));
+    expect(manualDestructorCall.status).not.toBe(0);
+    expect(manualDestructorCall.stderr).toContain("compiler-managed");
+    expect(manualDestructorCall.stderr).toContain("destructor");
+
     const outputNonPointer = runCompiler(createProject({
       "main.io": `
         extern native from "./libnative.a" {

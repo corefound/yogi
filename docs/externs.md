@@ -63,6 +63,9 @@ Supported external file forms include:
 
 -   `.a`
 -   `.dylib`
+-   `.so`
+-   `.dll`
+-   `.lib`
 -   `.o`
 -   `.asm`
 
@@ -204,6 +207,87 @@ resource ownership flows have their own ABI implementation lots.
 The declared free function is compiler-managed. User code must not call it
 directly because it expects the original native pointer, not a Yogi-owned
 runtime string.
+
+## Native Extern Destructor RAII
+
+An `extern` block can declare one compiler-managed native destructor:
+
+```ts
+struct NativeResource {
+    kind: i32
+    value: ptr<string>
+}
+
+extern algorithm from "./algorithm.a" {
+    create(): ptr<NativeResource>
+    clone(resource: ptr<NativeResource>): ptr<NativeResource>
+    open(path: string): ptr<NativeResource>
+
+    destructor(resource: ptr<void>): void
+}
+```
+
+The rule is:
+
+```txt
+Yogi decides when to destroy.
+The native library decides how to destroy.
+```
+
+Every `ptr<T>` returned by functions in that extern block is treated as a native
+resource owned by Yogi. Yogi records the destructor associated with the produced
+value and emits the destructor automatically at the end of the owning lifetime.
+
+The required destructor signature is exactly:
+
+```ts
+destructor(resource: ptr<void>): void
+```
+
+Rules:
+
+- Only one `destructor` function may appear in an extern block.
+- The destructor must have exactly one parameter.
+- The parameter must be `ptr<void>`.
+- The return type must be `void`.
+- User code cannot call `externName.destructor(...)` manually.
+- Yogi converts `ptr<T>` to `ptr<void>` only for this compiler-generated ABI call.
+- If the linked native library does not export the destructor symbol, linking
+  fails with a native symbol error.
+
+Cleanup is RAII-style:
+
+```ts
+function process(): void {
+    const resource: ptr<NativeResource> = algorithm.create()
+    use(resource)
+}
+```
+
+Conceptually lowers to:
+
+```ts
+function process(): void {
+    const resource: ptr<NativeResource> = algorithm.create()
+    use(resource)
+    algorithm.destructor(resource)
+}
+```
+
+The cleanup is emitted on normal scope exit and on early `return`. Local
+resources are destroyed in reverse creation order. Reassignment destroys the old
+owned resource before the variable is overwritten. Returning a resource transfers
+ownership to the caller.
+
+`runtime-owned` is a different model. Runtime-owned strings are already managed
+by the Yogi runtime and are validated with `yogi_string_require_runtime_owned`.
+Extern-destructor-owned values are owned by Yogi for lifetime purposes, but the
+native library owns the actual destruction strategy.
+
+The examples using `kind`, `switch`, `malloc`, `free`, `new`, `delete`,
+`fclose`, or custom allocators are illustrative only. Yogi does not require any
+specific native resource layout or cleanup strategy. The native developer
+defines the resource representation and destructor behavior.
 
 For struct arrays, the C struct must match Yogi field order and use `double`
 for every field:

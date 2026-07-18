@@ -4,7 +4,7 @@ import { Helpers } from "../helpers";
 import { Kinds } from "../helpers/types";
 import { LinkKind } from "../fbs";
 
-const SUPPORTED_EXTERN_EXTENSIONS = new Set([".a", ".dylib", ".o", ".asm"]);
+const SUPPORTED_EXTERN_EXTENSIONS = new Set([".a", ".dylib", ".so", ".dll", ".lib", ".o", ".asm"]);
 
 export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
@@ -316,6 +316,26 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 );
             }
 
+            if (name === "destructor") {
+                this.externDestructorDiagnostics(member, parameters, returnType, source);
+            }
+
+            if (
+                name !== "destructor" &&
+                this.resolveType(returnType)?.kind === Kinds.Types.PointerType &&
+                !(member.parentMemberNames ?? []).includes("destructor")
+            ) {
+                member.arrowLength = member.returnType?.raw?.length ?? name.length ?? 1;
+                this.throwError(
+                    `extern function ${Helpers.RED}'${name}'${Helpers.RESET} returns native pointer resource ` +
+                    `${Helpers.RED}'${returnType?.raw ?? "ptr<T>"}'${Helpers.RESET} but its extern block has no destructor`,
+                    member.returnType?.position ?? member.position,
+                    source,
+                    member.returnType ?? member,
+                    "  = declare destructor(resource: ptr<void>): void in the same extern block",
+                );
+            }
+
             const parameterNames = new Set<string>();
             for (const parameter of parameters) {
                 const parameterName = this.getExternNameText(parameter.name);
@@ -361,6 +381,64 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             }
 
             this.externAbiContractDiagnostics(member, name, parameters, returnType, source);
+        }
+
+        public externDestructorDiagnostics(
+            member: any,
+            parameters: any[],
+            returnType: any,
+            source: string,
+        ): void {
+            if ((member.abiContracts ?? []).length > 0) {
+                member.arrowLength = member.name?.raw?.length ?? "destructor".length;
+                this.throwError(
+                    `extern destructor cannot declare native ABI ownership contracts`,
+                    member.position,
+                    source,
+                    member,
+                );
+            }
+
+            if (parameters.length !== 1) {
+                member.arrowLength = member.source?.length ?? member.raw?.length ?? "destructor".length;
+                this.throwError(
+                    `extern destructor must declare exactly one parameter`,
+                    member.position,
+                    source,
+                    member,
+                    "  = expected signature: destructor(resource: ptr<void>): void",
+                );
+            }
+
+            const parameter = parameters[0];
+            const parameterType = parameter?.type;
+            const resolvedParameter = this.resolveType(parameterType);
+            const pointeeType = this.pointerPointeeType(parameterType);
+            const isVoidPointer =
+                resolvedParameter?.kind === Kinds.Types.PointerType &&
+                this.resolveType(pointeeType)?.kind === Kinds.Types.VoidType;
+
+            if (!isVoidPointer) {
+                parameter.arrowLength = parameterType?.raw?.length ?? parameter?.source?.length ?? 1;
+                this.throwError(
+                    `extern destructor parameter must be ${Helpers.BLUE}'ptr<void>'${Helpers.RESET}`,
+                    parameterType?.position ?? parameter?.position ?? member.position,
+                    source,
+                    parameter ?? member,
+                    "  = expected signature: destructor(resource: ptr<void>): void",
+                );
+            }
+
+            if (this.resolveType(returnType)?.kind !== Kinds.Types.VoidType) {
+                member.arrowLength = member.returnType?.raw?.length ?? "destructor".length;
+                this.throwError(
+                    `extern destructor must return ${Helpers.BLUE}'void'${Helpers.RESET}`,
+                    member.returnType?.position ?? member.position,
+                    source,
+                    member.returnType ?? member,
+                    "  = expected signature: destructor(resource: ptr<void>): void",
+                );
+            }
         }
 
         public externParameterDiagnostics(parameter: any, name: string, type: any, functionSource: string): void {
@@ -723,6 +801,10 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             if (resolved?.kind === Kinds.Types.PointerType) {
                 const pointee = this.resolveType(resolved.elementType ?? resolved.pointee ?? resolved.pointeeType);
 
+                if (pointee?.kind === Kinds.Types.VoidType) {
+                    return true;
+                }
+
                 if (pointee?.kind === Kinds.Types.StringType) {
                     return true;
                 }
@@ -738,6 +820,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
         public isSupportedExternReturnType(type: any): boolean {
             return (
                 this.isExternNativeScalarType(type) ||
+                this.resolveType(type)?.kind === Kinds.Types.PointerType ||
                 this.resolveType(type)?.kind === Kinds.Types.VoidType
             );
         }

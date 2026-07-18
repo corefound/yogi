@@ -78,6 +78,14 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     pointerPermission: value.pointerPermission,
                 }
                 : {};
+            const initializerSymbol = value?.kind === Kinds.Expressions.IdentifierExpression
+                ? this.resolveSymbol(value.name ?? value.value ?? value.raw)
+                : null;
+            const nativeResourceDestructor =
+                value?.nativeResourceDestructor ??
+                initializerSymbol?.nativeResourceDestructor ??
+                initializerSymbol?.node?.nativeResourceDestructor ??
+                null;
 
             const symbol = this.defineSymbol({
                 kind: Kinds.ScopeSymbols.Variable,
@@ -97,6 +105,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 borrowedViewSourceName,
                 borrowedViewGraphSourceNames: borrowedViewGraph.sourceNames,
                 borrowedViewGraphAggregateSymbolIds: borrowedViewGraph.aggregateSymbolIds,
+                nativeResourceDestructor,
                 ...pointerProvenance,
 
                 declare: isAmbient,
@@ -144,6 +153,7 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
                 trusted,
                 value: runtimeValue,
+                nativeResourceDestructor,
                 ...pointerProvenance,
             };
         }

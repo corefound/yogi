@@ -688,7 +688,10 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             if (
                 !rootSymbol ||
                 rootSymbol.kind === Kinds.ScopeSymbols.Parameter ||
-                rootSymbol.storage !== Kinds.Storage.stack
+                rootSymbol.storage !== Kinds.Storage.stack ||
+                value.nativeResourceDestructor ||
+                rootSymbol.nativeResourceDestructor ||
+                rootSymbol.node?.nativeResourceDestructor
             ) {
                 return;
             }
