@@ -214,6 +214,22 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node.fullSource ?? node.source,
                 node,
             );
+            value = this.materializeResourceTransfersInStructConstruction(
+                value,
+                expectedReturnType,
+                node,
+                node.fullSource ?? node.source,
+                "return value",
+            );
+
+            if (this.resourceOwningStructSymbolFromExpression(value)) {
+                value = this.createInternalMoveExpression(
+                    value,
+                    "it was returned and ownership moved to the caller",
+                    node,
+                );
+            }
+
             if (
                 !this.isMoveCallExpression(value) &&
                 value?.kind !== Kinds.Expressions.CallExpression
@@ -226,24 +242,22 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
+            const returnedResourceFieldOwnership = this.collectNativeResourceFieldOwnership(value);
             const returnedResourceFields = {
-                ...this.collectNativeResourceFieldOwnership(value).destructors,
+                ...returnedResourceFieldOwnership.destructors,
                 ...this.nativeResourceFieldDestructorsFromExpression(value),
             };
-            if (
-                Object.keys(returnedResourceFields).length > 0 &&
-                !this.isMoveCallExpression(value) &&
-                value?.kind !== Kinds.Expressions.CallExpression
-            ) {
-                value.arrowLength = value.source?.length ?? node.source?.length ?? 1;
-                this.throwError(
-                    `cannot return resource-owning struct literal by value`,
-                    value.position ?? node.position,
-                    node.fullSource ?? node.source,
-                    value,
-                    "  = returning whole structs with native resource fields needs an explicit move policy",
-                );
+            if (Object.keys(returnedResourceFields).length > 0) {
+                value.nativeResourceFieldDestructors = { ...returnedResourceFields };
+                for (const movedSymbol of returnedResourceFieldOwnership.movedSymbols) {
+                    this.markNativeResourceSymbolMoved(
+                        movedSymbol,
+                        "it was returned inside native resource field(s)",
+                        value,
+                    );
+                }
             }
+
             this.rejectReturningLocalPointerDerivedValue(value, node);
             this.rejectReturningLocalDereferencedAggregate(value, node);
 
@@ -294,7 +308,10 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                     continue;
                 }
 
-                const destructors = this.nativeResourceFieldDestructorsFromExpression(value);
+                const destructors = {
+                    ...this.collectNativeResourceFieldOwnership(value).destructors,
+                    ...this.nativeResourceFieldDestructorsFromExpression(value),
+                };
                 if (Object.keys(destructors).length > 0) {
                     resourceReturns.push({ node: statement, destructors });
                     continue;

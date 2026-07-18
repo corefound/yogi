@@ -35,6 +35,37 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const context = { ...node, value };
             const { trusted } = this.declarationVariableDiagnostics(context);
             const type = declaredType;
+            const isAmbient =
+                node.declare === true ||
+                node.ambient === true;
+            const lifetime = this.getVariableLifetime(node, type, isAmbient);
+            value = this.materializeResourceTransfersInStructConstruction(
+                value,
+                type,
+                node,
+                source,
+                node.name,
+            );
+
+            if (this.resourceOwningStructSymbolFromExpression(value)) {
+                if (lifetime.storage === Kinds.Storage.global) {
+                    value.arrowLength = value.source?.length ?? node.name?.length ?? 1;
+                    this.throwError(
+                        `cannot transfer resource-owning struct into module/global storage ${Helpers.RED}'${node.name}'${Helpers.RESET} yet`,
+                        value.position ?? node.position,
+                        source,
+                        value,
+                        "  = module/global resource-owning structs still need field-aware module cleanup",
+                    );
+                }
+
+                value = this.createInternalMoveExpression(
+                    value,
+                    `it was initialized into '${node.name}'`,
+                    node,
+                );
+            }
+
             const runtimeValue = this.createRuntimeInitializerValue(value, type);
 
             const linkageName = node.export
@@ -48,10 +79,6 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
             const flagName = this.getDeclarationFlagName(node.flag);
 
-            const isAmbient =
-                node.declare === true ||
-                node.ambient === true;
-            const lifetime = this.getVariableLifetime(node, type, isAmbient);
             if (
                 !this.isMoveCallExpression(value) &&
                 value?.kind !== Kinds.Expressions.CallExpression

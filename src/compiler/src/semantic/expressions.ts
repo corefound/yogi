@@ -157,6 +157,18 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 return this.visitBuiltinMethodCall(node);
             }
 
+            const rawCalleeName = node.callee?.value ?? node.callee?.name ?? node.callee?.raw;
+            if (rawCalleeName === "move") {
+                node.callee.arrowLength = rawCalleeName.length;
+                this.throwError(
+                    `${Helpers.RED}'move'${Helpers.RESET} is a compiler-internal ownership operation, not a callable function`,
+                    node.callee.position ?? node.position,
+                    node.fullSource ?? node.source,
+                    node.callee,
+                    "  = write the value normally; the compiler transfers ownership automatically when needed",
+                );
+            }
+
             const callee = this.visitNode(node.callee);
             const args = (node.arguments ?? []).map((argument: any) => this.visitNode(argument));
             for (const argument of args) {
@@ -175,6 +187,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             }
 
             const calleeName = callee.value ?? callee.name ?? callee.raw;
+            if (calleeName === "move") {
+                callee.arrowLength = calleeName?.length ?? 1;
+                this.throwError(
+                    `${Helpers.RED}'move'${Helpers.RESET} is a compiler-internal ownership operation, not a callable function`,
+                    callee.position ?? node.position,
+                    node.fullSource ?? node.source,
+                    callee,
+                    "  = write the value normally; the compiler transfers ownership automatically when needed",
+                );
+            }
+
             const symbol = this.resolveSymbol(calleeName);
 
             if (!symbol || symbol.kind !== Kinds.ScopeSymbols.Function) {
@@ -193,10 +216,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 node.arrowLength = node.source?.length ?? calleeName?.length ?? 1;
                 this.throwError(message, node.position, node.fullSource ?? node.source, node);
-            }
-
-            if (calleeName === "move") {
-                return this.visitMoveCallExpression(node, callee, args, symbol);
             }
 
             for (let index = 0; index < args.length; index++) {
@@ -226,16 +245,32 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.assertPointerTargetUsable(args[index], node.fullSource ?? node.source);
                 }
 
+                args[index] = this.materializeResourceTransfersInStructConstruction(
+                    args[index],
+                    expectedType,
+                    node,
+                    node.fullSource ?? node.source,
+                    `argument ${index + 1} of '${calleeName}'`,
+                );
+
                 if (
                     calleeName !== "print" &&
                     !this.isPointerType(expectedType)
                 ) {
-                    this.assertNoResourceOwningStructValueCopy(
-                        args[index],
-                        node.fullSource ?? node.source,
-                        node,
-                        `pass argument ${index + 1} to '${calleeName}'`,
-                    );
+                    if (this.resourceOwningStructSymbolFromExpression(args[index])) {
+                        args[index] = this.createInternalMoveExpression(
+                            args[index],
+                            `it was passed by value to '${calleeName}'`,
+                            node,
+                        );
+                    } else {
+                        this.assertNoResourceOwningStructValueCopy(
+                            args[index],
+                            node.fullSource ?? node.source,
+                            node,
+                            `pass argument ${index + 1} to '${calleeName}'`,
+                        );
+                    }
                 }
 
                 if (this.rejectsImplicitObjectContractConversion(expectedType, args[index])) {
@@ -414,7 +449,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     index,
                     escapes: external ? this.isAggregateType(parameters[index]?.type) : effect?.escapes === true,
                     mutates: effect?.mutates === true,
-                    consumes: effect?.consumes === true,
+                    consumes: effect?.consumes === true || this.isMoveCallExpression(args[index]),
                 };
             });
 
@@ -478,76 +513,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 pointerAccessPath: borrowedReturnPointerInfo?.accessPath ?? [],
                 pointerPermission: borrowedReturnPointerInfo?.permission,
                 nativeResourceFieldDestructors,
-            };
-        }
-
-        public visitMoveCallExpression(node: any, callee: any, args: any[], symbol: any): any {
-            const source = node.fullSource ?? node.source;
-            const argument = args[0];
-            const argumentName = this.getIdentifierName(argument);
-            const argumentSymbol = argumentName ? this.resolveSymbol(argumentName) : null;
-
-            if (
-                !argument ||
-                argument.kind !== Kinds.Expressions.IdentifierExpression ||
-                !argumentSymbol ||
-                !this.isStructResolvedType(argumentSymbol.type) ||
-                !this.hasNativeResourceFieldOwnership(argumentSymbol)
-            ) {
-                const target = argument ?? node;
-                target.arrowLength = argument?.source?.length ?? node.source?.length ?? 1;
-                this.throwError(
-                    `move() currently requires a resource-owning struct variable`,
-                    argument?.position ?? node.position,
-                    source,
-                    target,
-                    "  = use move(holder) only after a real struct owns native resource field(s)",
-                );
-            }
-
-            if (argumentSymbol.mutable !== true) {
-                argument.arrowLength = argument.source?.length ?? argumentName?.length ?? 1;
-                this.throwError(
-                    `cannot move ${Helpers.RED}'${argumentName}'${Helpers.RESET} because it was declared as const`,
-                    argument.position ?? node.position,
-                    source,
-                    argument,
-                    "  = moving consumes ownership from the source binding, so the source must be declared with let",
-                );
-            }
-
-            const nativeResourceFieldDestructors = {
-                ...(argumentSymbol.nativeResourceFieldDestructors ?? {}),
-            };
-
-            this.markAggregateExpressionMoved(
-                argument,
-                `it was explicitly moved with move(${argumentName})`,
-                argument,
-            );
-
-            return {
-                ...node,
-                kind: Kinds.Expressions.CallExpression,
-                callee,
-                arguments: args,
-                argumentEffects: [
-                    {
-                        index: 0,
-                        escapes: false,
-                        mutates: false,
-                        consumes: true,
-                    },
-                ],
-                type: argument.type,
-                symbolId: symbol.id,
-                linkageName: symbol.linkageName ?? null,
-                qualifiedName: symbol.qualifiedName,
-                external: false,
-                effectSummary: symbol.effectSummary ?? symbol.node?.effectSummary ?? null,
-                builtinMethod: "move",
-                nativeResourceFieldDestructors,
-                moveSourceName: argumentName,
             };
         }
 
@@ -1050,7 +1015,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             // Validate argument type matches element type
             const elementType = receiverType.elementType;
-            const actualType = args[0]?.type;
+            let pushedArgument = args[0];
+            const actualType = pushedArgument?.type;
 
             if (!this.isTypeAssignable(elementType, actualType)) {
                 const message =
@@ -1058,8 +1024,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     `${Helpers.BLUE}'${elementType?.raw ?? "unknown"}'${Helpers.RESET}, got ` +
                     `${Helpers.RED}'${actualType?.raw ?? "unknown"}'${Helpers.RESET}`;
 
-                args[0].arrowLength = args[0].source?.length ?? 1;
-                this.throwError(message, args[0].position ?? node.position, source, args[0]);
+                pushedArgument.arrowLength = pushedArgument.source?.length ?? 1;
+                this.throwError(message, pushedArgument.position ?? node.position, source, pushedArgument);
+            }
+
+            if (this.resourceOwningStructSymbolFromExpression(pushedArgument)) {
+                pushedArgument = this.createInternalMoveExpression(
+                    pushedArgument,
+                    `it was pushed into array '${pushOwner.rootName ?? receiver.source ?? "array"}'`,
+                    node,
+                );
+                args[0] = pushedArgument;
             }
 
             this.updateKnownDynamicArrayPathLength(symbol, pushOwner.accessPath, (length) =>
@@ -1084,7 +1059,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         index: 0,
                         escapes: false,
                         mutates: true,
-                        consumes: false,
+                        consumes: this.isMoveCallExpression(pushedArgument),
                     },
                 ],
                 type: {
@@ -1183,13 +1158,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 receiver,
             );
 
-            // pop() returns T | undefined
+            // pop() returns T when the compiler knows the array is non-empty.
             const elementType = receiverType.elementType;
-            const returnType = {
-                kind: Kinds.Types.UnionType,
-                types: [elementType, { kind: Kinds.Types.UndefinedType, raw: "undefined" }],
-                raw: `${elementType?.raw ?? "unknown"} | undefined`,
-            };
+            const returnType = typeof knownLength === "number" && knownLength > 0
+                ? elementType
+                : {
+                    kind: Kinds.Types.UnionType,
+                    types: [elementType, { kind: Kinds.Types.UndefinedType, raw: "undefined" }],
+                    raw: `${elementType?.raw ?? "unknown"} | undefined`,
+                };
 
             return {
                 ...node,
@@ -1852,6 +1829,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             const shiftOwner = this.dynamicArrayReceiverOwner(receiver);
             const { rootName: root, symbol } = shiftOwner;
+            const knownLength = this.knownDynamicArrayPathLength(symbol, shiftOwner.accessPath, receiver);
             this.markDynamicArrayPointersRemovedByIndex(
                 root,
                 symbol,
@@ -1867,12 +1845,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 receiver,
             );
 
+            const elementType = this.arrayReadableElementType(receiverType);
+            const returnType = typeof knownLength === "number" && knownLength > 0
+                ? elementType
+                : this.arrayElementOrUndefinedType(receiverType);
+
             return this.createArrayBuiltinCall(
                 node,
                 rawCallee,
                 receiver,
                 args,
-                this.arrayElementOrUndefinedType(receiverType),
+                returnType,
                 methodName,
             );
         }
@@ -2117,8 +2100,16 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             }
 
             const elementType = this.arrayReadableElementType(receiverType);
-            args.slice(2).forEach((argument: any) => {
+            args.slice(2).forEach((argument: any, offset: number) => {
                 this.validateArrayElementValue(node, methodName, argument, elementType, source, "insert value");
+                const index = offset + 2;
+                if (mutating && this.resourceOwningStructSymbolFromExpression(argument)) {
+                    args[index] = this.createInternalMoveExpression(
+                        argument,
+                        `it was inserted into array '${this.dynamicArrayReceiverOwner(receiver).rootName ?? receiver.source ?? "array"}' by splice()`,
+                        node,
+                    );
+                }
             });
 
             if (mutating) {
@@ -4273,6 +4264,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             rightType = right.type;
                         }
 
+                        right = this.materializeResourceTransfersInStructConstruction(
+                            right,
+                            assignmentType,
+                            node,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            identifierName,
+                        );
+                        rightType = right.type;
+
                         trackDynamicArrayReplacement(identifierName, symbol, assignmentType, right, left);
 
                         if (!this.isTypeAssignable(assignmentType, rightType)) {
@@ -4291,6 +4291,38 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
+                        if (this.resourceOwningStructSymbolFromExpression(right)) {
+                            if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
+                                right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
+                                this.throwError(
+                                    `cannot transfer resource-owning struct into module/global storage ${Helpers.RED}'${identifierName}'${Helpers.RESET} yet`,
+                                    right.position ?? node.position,
+                                    context.fullSource ?? node.fullSource ?? node.source,
+                                    right,
+                                    "  = module/global resource-owning structs still need field-aware module cleanup",
+                                );
+                            }
+
+                            const sourceName = this.getIdentifierName(right);
+                            if (sourceName === identifierName) {
+                                right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
+                                this.throwError(
+                                    `cannot transfer resource-owning struct ${Helpers.RED}'${identifierName}'${Helpers.RESET} into itself`,
+                                    right.position ?? node.position,
+                                    context.fullSource ?? node.fullSource ?? node.source,
+                                    right,
+                                    "  = self-transfer would destroy and replace the same owner",
+                                );
+                            }
+
+                            right = this.createInternalMoveExpression(
+                                right,
+                                `ownership was reassigned to '${identifierName}'`,
+                                node,
+                            );
+                            rightType = right.type;
+                        }
+
                         const rightResourceFields = this.collectNativeResourceFieldOwnership(right);
                         const rightTransferResourceFields = {
                             ...rightResourceFields.destructors,
@@ -4303,7 +4335,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 (
                                     right?.kind === Kinds.Expressions.CallExpression &&
                                     Object.keys(this.nativeResourceFieldDestructorsFromExpression(right)).length > 0
-                                )
+                                ) ||
+                                Object.keys(rightResourceFields.destructors).length > 0
                             ) &&
                             Object.keys(rightTransferResourceFields).length > 0;
 
@@ -4332,6 +4365,13 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             }
 
                             symbol.nativeResourceFieldDestructors = { ...rightTransferResourceFields };
+                            for (const movedSymbol of rightResourceFields.movedSymbols) {
+                                this.markNativeResourceSymbolMoved(
+                                    movedSymbol,
+                                    `it was stored in native resource field(s) of '${identifierName}'`,
+                                    right,
+                                );
+                            }
                         }
 
                         if (
@@ -4349,7 +4389,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 right.position ?? node.position,
                                 context.fullSource ?? node.fullSource ?? node.source,
                                 right,
-                                "  = use 'target = move(source)' or assign individual resource fields explicitly",
+                                `  = assign a resource-owning value directly to transfer ownership, or pass '&${identifierName}' when only borrowing is intended`,
                             );
                         }
 

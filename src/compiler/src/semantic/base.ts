@@ -113,20 +113,7 @@ export class BaseSemantic {
             ],
             voidType,
         );
-        const moveNode = createBuiltinFunctionNode(
-            "move",
-            "move",
-            [
-                {
-                    kind: Kinds.Functions.FunctionParameter,
-                    name: "value",
-                    type: anyType,
-                    source: "value: any",
-                },
-            ],
-            anyType,
-        );
-        const createEffectSummary = (consumes = false): Types.Sir.SemanticFunctionEffectSummary => ({
+        const createEffectSummary = (): Types.Sir.SemanticFunctionEffectSummary => ({
             parameterEffects: [
                 {
                     index: 0,
@@ -134,7 +121,7 @@ export class BaseSemantic {
                     stores: false,
                     escapes: false,
                     mutates: false,
-                    consumes,
+                    consumes: false,
                 },
             ],
             returnsAggregate: false,
@@ -147,25 +134,23 @@ export class BaseSemantic {
             },
         });
 
-        for (const [node, consumes] of [[printNode, false], [moveNode, true]] as const) {
-            const effectSummary = createEffectSummary(consumes);
-            const symbol = this.defineSymbol({
-                kind: Kinds.ScopeSymbols.Function,
-                name: node.name,
-                linkageName: null,
-                qualifiedName: `@builtin:${node.name}`,
-                type: node.type,
-                mutable: false,
-                trusted: true,
+        const effectSummary = createEffectSummary();
+        const symbol = this.defineSymbol({
+            kind: Kinds.ScopeSymbols.Function,
+            name: printNode.name,
+            linkageName: null,
+            qualifiedName: `@builtin:${printNode.name}`,
+            type: printNode.type,
+            mutable: false,
+            trusted: true,
+            effectSummary,
+            node: {
+                ...printNode,
                 effectSummary,
-                node: {
-                    ...node,
-                    effectSummary,
-                },
-            });
+            },
+        });
 
-            this.functionEffectSummaries.set(symbol.id, effectSummary);
-        }
+        this.functionEffectSummaries.set(symbol.id, effectSummary);
     }
 
     public createSymbolId() {
@@ -2346,6 +2331,11 @@ export class BaseSemantic {
                 }
             }
 
+            const resourceStructFields = this.nativeResourceFieldDestructorsFromExpression(property.value);
+            for (const [nestedFieldPath, destructor] of Object.entries(resourceStructFields)) {
+                result.destructors[`${fieldPath}.${nestedFieldPath}`] = destructor;
+            }
+
             const nested = this.collectNativeResourceFieldOwnership(property.value, fieldPath);
             Object.assign(result.destructors, nested.destructors);
             result.movedSymbols.push(...nested.movedSymbols);
@@ -2362,6 +2352,145 @@ export class BaseSemantic {
     public isMoveCallExpression(node: any): boolean {
         return node?.kind === Kinds.Expressions.CallExpression &&
             node.builtinMethod === "move";
+    }
+
+    public createInternalMoveExpression(argument: any, reason: string, context: any): any {
+        const argumentName = this.getIdentifierName(argument);
+        const argumentSymbol = argumentName ? this.resolveSymbol(argumentName) : null;
+
+        if (
+            !argument ||
+            argument.kind !== Kinds.Expressions.IdentifierExpression ||
+            !argumentSymbol ||
+            !this.isStructResolvedType(argumentSymbol.type) ||
+            !this.hasNativeResourceFieldOwnership(argumentSymbol)
+        ) {
+            return argument;
+        }
+
+        if (argumentSymbol.mutable !== true) {
+            argument.arrowLength = argument.source?.length ?? argumentName?.length ?? 1;
+            this.throwError(
+                `cannot transfer ownership from ${Helpers.RED}'${argumentName}'${Helpers.RESET} because it was declared as const`,
+                argument.position ?? context?.position,
+                context?.fullSource ?? context?.source ?? argument.fullSource ?? argument.source,
+                argument,
+                "  = ownership transfer consumes the source binding, so the source must be declared with let",
+            );
+        }
+
+        const nativeResourceFieldDestructors = {
+            ...(argumentSymbol.nativeResourceFieldDestructors ?? {}),
+        };
+        const nativeResourceFieldMetadata = Object.entries(nativeResourceFieldDestructors)
+            .map(([fieldPath, destroyFunction]) => `native.resource.field.${fieldPath}=${destroyFunction}`)
+            .join("|");
+
+        this.markAggregateExpressionMoved(argument, reason, context ?? argument);
+
+        return {
+            ...argument,
+            kind: Kinds.Expressions.CallExpression,
+            callee: {
+                kind: Kinds.Expressions.IdentifierExpression,
+                name: "$move",
+                value: "$move",
+                raw: "$move",
+                source: argument.source ?? argumentName ?? "$move",
+                position: argument.position,
+                type: {
+                    kind: Kinds.Types.FunctionType,
+                    raw: "internal move",
+                    parameters: [{ name: "value", type: argument.type }],
+                    returnType: argument.type,
+                },
+            },
+            arguments: [argument],
+            argumentEffects: [
+                {
+                    index: 0,
+                    escapes: false,
+                    mutates: false,
+                    consumes: true,
+                },
+            ],
+            type: argument.type,
+            symbolId: -1,
+            linkageName: nativeResourceFieldMetadata,
+            qualifiedName: "@internal:move",
+            external: false,
+            effectSummary: null,
+            builtinMethod: "move",
+            nativeResourceFieldDestructors,
+            moveSourceName: argumentName,
+            internal: true,
+        };
+    }
+
+    public materializeResourceTransfersInStructConstruction(
+        value: any,
+        expectedType: any,
+        context: any,
+        source: string,
+        ownerLabel: string,
+    ): any {
+        if (!value || value.kind !== Kinds.Collections.DictionaryExpression || !expectedType) {
+            return value;
+        }
+
+        const resolvedExpected = this.resolveType(expectedType);
+        if (!this.isStructResolvedType(resolvedExpected) && !this.isObjectLikeType(resolvedExpected)) {
+            return value;
+        }
+
+        const expectedProperties = this.objectPropertyMap(resolvedExpected);
+        let changed = false;
+        const properties = (value.properties ?? []).map((property: any) => {
+            const name = property.key ?? property.name;
+            const expectedProperty = name ? expectedProperties.get(String(name)) : null;
+            let propertyValue = property.value;
+
+            if (!expectedProperty || !propertyValue) {
+                return property;
+            }
+
+            if (this.resourceOwningStructSymbolFromExpression(propertyValue)) {
+                propertyValue = this.createInternalMoveExpression(
+                    propertyValue,
+                    `it was stored into '${ownerLabel}.${String(name)}'`,
+                    propertyValue,
+                );
+                changed = true;
+            } else if (propertyValue.kind === Kinds.Collections.DictionaryExpression) {
+                const prepared = this.materializeResourceTransfersInStructConstruction(
+                    propertyValue,
+                    expectedProperty.type,
+                    context,
+                    source,
+                    `${ownerLabel}.${String(name)}`,
+                );
+
+                if (prepared !== propertyValue) {
+                    propertyValue = prepared;
+                    changed = true;
+                }
+            }
+
+            return propertyValue === property.value
+                ? property
+                : {
+                    ...property,
+                    value: propertyValue,
+                    type: propertyValue?.type ?? property.type,
+                };
+        });
+
+        return changed
+            ? {
+                ...value,
+                properties,
+            }
+            : value;
     }
 
     public nativeResourceFieldDestructorsFromExpression(node: any): Record<string, string> {
@@ -2437,7 +2566,7 @@ export class BaseSemantic {
             node.position ?? context?.position,
             source,
             node,
-            `  = owned native resource field(s): ${fieldList}\n  = pass '&${name}' to borrow the struct, or use move(...) in a declaration, return, or assignment`,
+            `  = owned native resource field(s): ${fieldList}\n  = pass '&${name}' to borrow the struct, or use the value directly in a consuming context to transfer ownership`,
         );
     }
 

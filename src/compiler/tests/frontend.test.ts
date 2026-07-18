@@ -1175,7 +1175,7 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(copyBackNonPointer.stderr).toContain("requires a pointer type");
   });
 
-  test("tracks native resources moved into struct fields and rejects implicit struct copies", () => {
+  test("tracks native resources moved into struct fields and transfers resource structs automatically", () => {
     const sharedSource = `
         struct NativeResource {
           value: number
@@ -1201,9 +1201,8 @@ describe("Yogi frontend semantic pipeline", () => {
         }
       `,
     }));
-    expect(copyStruct.status).not.toBe(0);
-    expect(copyStruct.stderr).toContain("cannot initialize variable");
-    expect(copyStruct.stderr).toContain("resource-owning struct");
+    expect(copyStruct.status).toBe(0);
+    expect(copyStruct.stderr).toBe("");
 
     const returnStruct = runCompiler(createProject({
       "main.io": `
@@ -1215,8 +1214,8 @@ describe("Yogi frontend semantic pipeline", () => {
         }
       `,
     }));
-    expect(returnStruct.status).not.toBe(0);
-    expect(returnStruct.stderr).toContain("cannot return resource-owning struct");
+    expect(returnStruct.status).toBe(0);
+    expect(returnStruct.stderr).toBe("");
 
     const passStruct = runCompiler(createProject({
       "main.io": `
@@ -1231,9 +1230,8 @@ describe("Yogi frontend semantic pipeline", () => {
         }
       `,
     }));
-    expect(passStruct.status).not.toBe(0);
-    expect(passStruct.stderr).toContain("cannot pass argument");
-    expect(passStruct.stderr).toContain("resource-owning struct");
+    expect(passStruct.status).toBe(0);
+    expect(passStruct.stderr).toBe("");
 
     const useMovedResource = runCompiler(createProject({
       "main.io": `
@@ -1264,7 +1262,7 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(printStruct.stderr).toBe("");
   });
 
-  test("supports explicit move for resource-owning structs in declarations and returns", () => {
+  test("infers resource-owning struct transfers in consuming contexts", () => {
     const sharedSource = `
         struct NativeResource {
           value: number
@@ -1286,7 +1284,7 @@ describe("Yogi frontend semantic pipeline", () => {
 
         function run(): void {
           let holder: Holder = { resource: native.create() }
-          let next: Holder = move(holder)
+          let next: Holder = holder
           print(next)
         }
       `,
@@ -1300,7 +1298,7 @@ describe("Yogi frontend semantic pipeline", () => {
 
         function make(): Holder {
           let holder: Holder = { resource: native.create() }
-          return move(holder)
+          return holder
         }
 
         function run(): void {
@@ -1320,12 +1318,12 @@ describe("Yogi frontend semantic pipeline", () => {
 
         function run(): void {
           let point: Point = { x: 1 }
-          let next: Point = move(point)
+          let next: Point = point
         }
       `,
     }));
-    expect(movePlainStruct.status).not.toBe(0);
-    expect(movePlainStruct.stderr).toContain("move() currently requires");
+    expect(movePlainStruct.status).toBe(0);
+    expect(movePlainStruct.stderr).toBe("");
 
     const moveConst = runCompiler(createProject({
       "main.io": `
@@ -1333,7 +1331,7 @@ describe("Yogi frontend semantic pipeline", () => {
 
         function run(): void {
           const holder: Holder = { resource: native.create() }
-          let next: Holder = move(holder)
+          let next: Holder = holder
         }
       `,
     }));
@@ -1346,7 +1344,7 @@ describe("Yogi frontend semantic pipeline", () => {
 
         function run(): void {
           let holder: Holder = { resource: native.create() }
-          let next: Holder = move(holder)
+          let next: Holder = holder
           print(holder)
         }
       `,
@@ -1362,7 +1360,7 @@ describe("Yogi frontend semantic pipeline", () => {
         function run(): void {
           let target: Holder = { resource: native.create() }
           let source: Holder = { resource: native.create() }
-          target = move(source)
+          target = source
         }
       `,
     }));
@@ -1375,7 +1373,7 @@ describe("Yogi frontend semantic pipeline", () => {
 
         function make(): Holder {
           let holder: Holder = { resource: native.create() }
-          return move(holder)
+          return holder
         }
 
         function run(): void {
@@ -1394,12 +1392,12 @@ describe("Yogi frontend semantic pipeline", () => {
 
         function run(): void {
           let holder: Holder = { resource: native.create() }
-          holder = move(holder)
+          holder = holder
         }
       `,
     }));
     expect(selfMove.status).not.toBe(0);
-    expect(selfMove.stderr).toContain("cannot move");
+    expect(selfMove.stderr).toContain("cannot transfer");
     expect(selfMove.stderr).toContain("into itself");
 
     const passMovedStruct = runCompiler(createProject({
@@ -1411,13 +1409,46 @@ describe("Yogi frontend semantic pipeline", () => {
 
         function run(): void {
           let holder: Holder = { resource: native.create() }
-          inspect(move(holder))
+          inspect(holder)
+          print(holder)
         }
       `,
     }));
     expect(passMovedStruct.status).not.toBe(0);
-    expect(passMovedStruct.stderr).toContain("cannot pass argument");
-    expect(passMovedStruct.stderr).toContain("resource-owning struct");
+    expect(passMovedStruct.stderr).toContain("cannot use aggregate");
+    expect(passMovedStruct.stderr).toContain("after it was moved");
+
+    const publicMoveCall = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          let next: Holder = move(holder)
+        }
+      `,
+    }));
+    expect(publicMoveCall.status).not.toBe(0);
+    expect(publicMoveCall.stderr).toContain("compiler-internal ownership operation");
+
+    const nestedConstructionMove = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        struct Nested {
+          holder: Holder
+        }
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          let nested: Nested = { holder: holder }
+          print(holder)
+        }
+      `,
+    }));
+    expect(nestedConstructionMove.status).not.toBe(0);
+    expect(nestedConstructionMove.stderr).toContain("cannot use aggregate");
+    expect(nestedConstructionMove.stderr).toContain("after it was moved");
   });
 
   test("rejects aggregate use after ownership moved through retained callees and unknown calls", () => {
