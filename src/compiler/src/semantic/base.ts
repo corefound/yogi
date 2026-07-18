@@ -2437,7 +2437,7 @@ export class BaseSemantic {
             node.position ?? context?.position,
             source,
             node,
-            `  = owned native resource field(s): ${fieldList}\n  = pass '&${name}' to borrow the struct, or use move(...) only in a declaration/return for now`,
+            `  = owned native resource field(s): ${fieldList}\n  = pass '&${name}' to borrow the struct, or use move(...) in a declaration, return, or assignment`,
         );
     }
 

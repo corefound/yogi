@@ -119,8 +119,9 @@ not an ownership transfer.
 ## Current Limitations
 
 - No copy constructor or clone policy for resource-owning structs yet.
-- Whole-struct reassignment replacement still needs a dedicated replacement
-  policy.
+- Whole-struct reassignment is supported only through explicit
+  `target = move(source)` or resource-owning function returns. Object-literal
+  replacement still needs a dedicated policy.
 - Passing resource-owning structs by value needs explicit move/copy semantics.
 - Module/global resource-owning structs remain unsupported until module cleanup
   has field-aware native resource scheduling.

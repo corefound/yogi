@@ -42,11 +42,12 @@ without re-auditing the whole compiler.
 - [x] Struct LLVM lowering as real named LLVM structs
 - [x] Struct runtime validation failure hook
 - [x] Explicit `move(holder)` transfer for resource-owning structs in declarations and returns
+- [x] Explicit `target = move(source)` replacement for local resource-owning structs
 - [ ] Higher-order type machinery such as mapped, conditional, infer, and keyof-style type operators
 - [ ] Function-value model for interface/type behavior contracts
 - [ ] Explicit runtime conversion API for non-literal `number` to fixed-width numeric structs
 - [ ] Explicit copy/clone policy for resource-owning structs
-- [ ] Whole-struct reassignment replacement policy for resource-owning structs
+- [ ] Whole-struct object-literal replacement policy for resource-owning structs
 - [ ] Explicit adapter/copy semantics for resource-owning structs crossing interface/type contract boundaries
 
 ## Arrays
@@ -143,6 +144,7 @@ without re-auditing the whole compiler.
 - [x] Native resource fields inside real Yogi structs with field-path cleanup and reassignment cleanup
 - [x] Semantic rejection for implicit copy, return, whole assignment, and by-value calls of resource-owning structs
 - [x] Explicit `move(holder)` transfer for resource-owning structs in declarations and returns
+- [x] Explicit `target = move(source)` replacement for local resource-owning structs
 - [x] Semantic use-after-move rejection for native resource bindings moved into struct fields
 - [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added

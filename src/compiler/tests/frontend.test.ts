@@ -1366,8 +1366,41 @@ describe("Yogi frontend semantic pipeline", () => {
         }
       `,
     }));
-    expect(wholeAssignmentMove.status).not.toBe(0);
-    expect(wholeAssignmentMove.stderr).toContain("whole-struct replacement");
+    expect(wholeAssignmentMove.status).toBe(0);
+    expect(wholeAssignmentMove.stderr).toBe("");
+
+    const returnedAssignmentMove = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function make(): Holder {
+          let holder: Holder = { resource: native.create() }
+          return move(holder)
+        }
+
+        function run(): void {
+          let target: Holder = { resource: native.create() }
+          target = make()
+          print(target)
+        }
+      `,
+    }));
+    expect(returnedAssignmentMove.status).toBe(0);
+    expect(returnedAssignmentMove.stderr).toBe("");
+
+    const selfMove = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          holder = move(holder)
+        }
+      `,
+    }));
+    expect(selfMove.status).not.toBe(0);
+    expect(selfMove.stderr).toContain("cannot move");
+    expect(selfMove.stderr).toContain("into itself");
 
     const passMovedStruct = runCompiler(createProject({
       "main.io": `

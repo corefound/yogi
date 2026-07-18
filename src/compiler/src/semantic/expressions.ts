@@ -4292,11 +4292,56 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         }
 
                         const rightResourceFields = this.collectNativeResourceFieldOwnership(right);
+                        const rightTransferResourceFields = {
+                            ...rightResourceFields.destructors,
+                            ...this.nativeResourceFieldDestructorsFromExpression(right),
+                        };
+                        const isResourceStructTransferAssignment =
+                            this.isStructResolvedType(assignmentType) &&
+                            (
+                                this.isMoveCallExpression(right) ||
+                                (
+                                    right?.kind === Kinds.Expressions.CallExpression &&
+                                    Object.keys(this.nativeResourceFieldDestructorsFromExpression(right)).length > 0
+                                )
+                            ) &&
+                            Object.keys(rightTransferResourceFields).length > 0;
+
+                        if (isResourceStructTransferAssignment) {
+                            if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
+                                right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
+                                this.throwError(
+                                    `cannot move resource-owning struct into module/global storage ${Helpers.RED}'${identifierName}'${Helpers.RESET} yet`,
+                                    right.position ?? node.position,
+                                    context.fullSource ?? node.fullSource ?? node.source,
+                                    right,
+                                    "  = module/global resource-owning structs still need field-aware module cleanup",
+                                );
+                            }
+
+                            const moveSourceName = right.moveSourceName;
+                            if (moveSourceName === identifierName) {
+                                right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
+                                this.throwError(
+                                    `cannot move resource-owning struct ${Helpers.RED}'${identifierName}'${Helpers.RESET} into itself`,
+                                    right.position ?? node.position,
+                                    context.fullSource ?? node.fullSource ?? node.source,
+                                    right,
+                                    "  = self-move would destroy and replace the same owner",
+                                );
+                            }
+
+                            symbol.nativeResourceFieldDestructors = { ...rightTransferResourceFields };
+                        }
+
                         if (
-                            this.hasNativeResourceFieldOwnership(symbol) ||
-                            this.resourceOwningStructSymbolFromExpression(right) ||
-                            this.isMoveCallExpression(right) ||
-                            Object.keys(rightResourceFields.destructors).length > 0
+                            !isResourceStructTransferAssignment &&
+                            (
+                                this.hasNativeResourceFieldOwnership(symbol) ||
+                                this.resourceOwningStructSymbolFromExpression(right) ||
+                                this.isMoveCallExpression(right) ||
+                                Object.keys(rightResourceFields.destructors).length > 0
+                            )
                         ) {
                             right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
                             this.throwError(
@@ -4304,7 +4349,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                                 right.position ?? node.position,
                                 context.fullSource ?? node.fullSource ?? node.source,
                                 right,
-                                "  = whole-struct replacement with native resource fields still needs its own replacement policy\n  = use 'let next: Struct = move(source)' or 'return move(source)' for now",
+                                "  = use 'target = move(source)' or assign individual resource fields explicitly",
                             );
                         }
 

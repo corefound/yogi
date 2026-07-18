@@ -320,11 +320,14 @@ Resource-owning structs do support explicit ownership transfer in two forms:
 ```ts
 let next: Holder = move(holder)
 return move(holder)
+target = move(holder)
+target = makeHolder()
 ```
 
 `move(holder)` consumes the source binding, moves its resource-field cleanup
 metadata to the new owner, and prevents the original binding from being used or
-destroyed afterward.
+destroyed afterward. For assignment, the previous resource fields owned by the
+target are destroyed before the new owner metadata is installed.
 
 The current model is enough to make function boundaries safe for direct
 function calls while preserving stack-first local aggregates whenever the callee

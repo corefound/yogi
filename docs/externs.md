@@ -320,14 +320,17 @@ Resource-owning structs are not implicitly copyable. Yogi rejects whole-struct
 copies, whole-struct reassignment, and normal by-value user function calls while
 a struct owns native resource fields. Borrow the existing struct explicitly with
 `&holder`, replace individual resource fields, or transfer the whole value with
-`move(holder)` in a declaration or return:
+`move(holder)` in a declaration, return, or assignment:
 
 ```ts
 let next: Holder = move(holder)
 return move(holder)
+target = move(holder)
 ```
 
 After `move(holder)`, the old `holder` binding is consumed and cannot be used.
+On assignment, the previous target resource fields are destroyed before the new
+owner is stored.
 
 For struct arrays, the C struct must match Yogi field order and use `double`
 for every field:

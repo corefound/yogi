@@ -95,15 +95,14 @@ const holder: Holder = {
 let next: Holder = move(holder) // error
 ```
 
-Whole-struct reassignment remains rejected:
+Lot 80 adds whole-struct reassignment with explicit move:
 
 ```ts
-target = move(source) // error for now
+target = move(source)
 ```
 
-That case needs a separate replacement policy because the previous target may
-already own resource fields that must be destroyed before the new value is
-stored.
+The previous target owner is destroyed first, then cleanup metadata moves from
+`source` to `target`.
 
 Passing resource-owning structs by value remains rejected:
 
@@ -136,7 +135,7 @@ Frontend tests cover:
 - moving a non-resource struct rejection
 - moving a const resource-owning struct rejection
 - use-after-move rejection
-- whole-struct reassignment with `move(...)` rejection
+- whole-struct reassignment with `move(...)` support
 
 Program tests cover:
 
@@ -146,7 +145,6 @@ Program tests cover:
 
 ## Remaining Work
 
-- Whole-struct replacement with `target = move(source)`.
 - Explicit copy/clone policy for resource-owning structs.
 - Passing `move(holder)` into by-value function parameters.
 - Module/global resource-owning struct storage.

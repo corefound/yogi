@@ -239,6 +239,40 @@ namespace yogi::core::llvm::internal {
 				? std::nullopt
 				: context.nativeResourceDestroyFunction(sourceName);
 		}
+
+		bool isMoveCall(const Yogi::Sir::ValueRef *value) {
+			const auto *call = value ? value->call() : nullptr;
+			return call && fbString(call->builtin_method()) == "move";
+		}
+
+		std::string moveSourceName(const Yogi::Sir::ValueRef *value) {
+			const auto *call = value ? value->call() : nullptr;
+			if (
+				!call ||
+				fbString(call->builtin_method()) != "move" ||
+				!call->arguments() ||
+				call->arguments()->size() == 0
+			) {
+				return "";
+			}
+
+			return identifierName(call->arguments()->Get(0));
+		}
+
+		std::map<std::string, std::string> nativeResourceStructReturnFieldDestructors(
+			const Yogi::Sir::ValueRef *value,
+			const ModuleLoweringContext &context
+		) {
+			const auto *call = value ? value->call() : nullptr;
+			if (!call || isMoveCall(value)) {
+				return {};
+			}
+
+			const auto summary = context.nativeResourceStructReturnDestructors.find(fbString(call->qualified_name()));
+			return summary == context.nativeResourceStructReturnDestructors.end()
+				? std::map<std::string, std::string>()
+				: summary->second;
+		}
 	}
 
 	ValueLowerer::ValueLowerer(ModuleLoweringContext &context, TypeLowerer &types)
@@ -4574,6 +4608,33 @@ namespace yogi::core::llvm::internal {
 				transferredNativeResource = true;
 			} else if (currentNativeResourceDestructor) {
 				context.deactivateAggregateOwner(name);
+			}
+		}
+
+		const auto structMoveSourceName = moveSourceName(assignment->right());
+		const auto structReturnFieldDestructors = nativeResourceStructReturnFieldDestructors(
+			assignment->right(),
+			context
+		);
+		const auto isLocalResourceStructReplacement =
+			!targetIsGlobal &&
+			!structTypeName(targetSemanticType).empty() &&
+			(!structMoveSourceName.empty() || !structReturnFieldDestructors.empty());
+
+		if (isLocalResourceStructReplacement) {
+			auto *previousValue = context.builder.CreateLoad(
+				targetType,
+				target,
+				sanitizeSymbol(name) + ".struct.previous"
+			);
+			destroyNativeResourceStructFields(name, targetSemanticType, previousValue);
+			context.clearNativeResourceFieldOwners(name);
+
+			if (!structMoveSourceName.empty()) {
+				context.moveNativeResourceFieldOwners(structMoveSourceName, name);
+				context.deactivateAggregateOwner(structMoveSourceName);
+			} else {
+				context.registerNativeResourceFieldOwners(name, structReturnFieldDestructors);
 			}
 		}
 
