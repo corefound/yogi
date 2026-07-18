@@ -209,6 +209,24 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node.fullSource ?? node.source,
                 node,
             );
+            this.assertNoResourceOwningStructValueCopy(
+                value,
+                node.fullSource ?? node.source,
+                node,
+                "return",
+            );
+
+            const returnedResourceFields = this.collectNativeResourceFieldOwnership(value);
+            if (Object.keys(returnedResourceFields.destructors).length > 0) {
+                value.arrowLength = value.source?.length ?? node.source?.length ?? 1;
+                this.throwError(
+                    `cannot return resource-owning struct literal by value`,
+                    value.position ?? node.position,
+                    node.fullSource ?? node.source,
+                    value,
+                    "  = returning whole structs with native resource fields needs an explicit move policy",
+                );
+            }
             this.rejectReturningLocalPointerDerivedValue(value, node);
             this.rejectReturningLocalDereferencedAggregate(value, node);
 

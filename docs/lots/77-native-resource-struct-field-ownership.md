@@ -138,7 +138,8 @@ Covered scenarios:
 
 ## Current Limitations
 
-- Returning a whole resource-owning struct across function boundaries still
-  needs explicit copy/move constructor policy.
+- Returning, copying, assigning, or passing a whole resource-owning struct by
+  value is rejected by Lot 78 until explicit move/copy constructor policy
+  exists.
 - Interface/type adapter copies for resource-owning structs remain pending.
 - Native ABI marshalling for arrays of resource-owning structs remains pending.

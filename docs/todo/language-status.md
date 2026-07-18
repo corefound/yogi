@@ -139,6 +139,8 @@ without re-auditing the whole compiler.
 - [x] Native pointer resource returns with destructor-associated cleanup metadata
 - [x] Native resource cleanup on normal scope exit, early return, reverse order, reassignment, return transfer, and null skip
 - [x] Native resource fields inside real Yogi structs with field-path cleanup and reassignment cleanup
+- [x] Semantic rejection for implicit copy, return, whole assignment, and by-value calls of resource-owning structs
+- [x] Semantic use-after-move rejection for native resource bindings moved into struct fields
 - [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Interprocedural lifetime summaries for borrowed views

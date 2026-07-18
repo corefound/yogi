@@ -264,6 +264,43 @@ holder.resource = algorithm.create(2)
 Pointer fields without native resource metadata remain borrowed/raw pointers and
 are not destroyed automatically.
 
+### Copy Policy
+
+Resource-owning structs are not implicitly copyable yet.
+
+These shapes are rejected:
+
+```ts
+let holder: Holder = { resource: algorithm.create(1) }
+let copy: Holder = holder
+
+function make(): Holder {
+    return holder
+}
+
+inspect(holder)
+holder = { resource: algorithm.create(2) }
+```
+
+Use an explicit pointer borrow when a function only needs to inspect or mutate
+the existing struct:
+
+```ts
+inspect(&holder)
+```
+
+`print(holder)` remains allowed as a debug/read operation.
+
+If a local native resource is moved into a struct field, the source binding is
+considered moved:
+
+```ts
+let resource: ptr<NativeResource> = algorithm.create(1)
+let holder: Holder = { resource: resource }
+
+print(resource) // error
+```
+
 ## Current Limitations
 
 The ownership model is intentionally small. It does not yet implement:
@@ -275,6 +312,7 @@ The ownership model is intentionally small. It does not yet implement:
 - More method-call summaries beyond the implemented `scores.push(value)`.
 - Resource-field ownership for runtime object/dictionary aggregates.
 - Explicit copy/move constructors for whole resource-owning structs.
+- Returning or passing whole resource-owning structs by value.
 
 The current model is enough to make function boundaries safe for direct
 function calls while preserving stack-first local aggregates whenever the callee

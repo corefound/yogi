@@ -1175,6 +1175,95 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(copyBackNonPointer.stderr).toContain("requires a pointer type");
   });
 
+  test("tracks native resources moved into struct fields and rejects implicit struct copies", () => {
+    const sharedSource = `
+        struct NativeResource {
+          value: number
+        }
+
+        struct Holder {
+          resource: ptr<NativeResource>
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): void
+        }
+    `;
+
+    const copyStruct = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          let copy: Holder = holder
+        }
+      `,
+    }));
+    expect(copyStruct.status).not.toBe(0);
+    expect(copyStruct.stderr).toContain("cannot initialize variable");
+    expect(copyStruct.stderr).toContain("resource-owning struct");
+
+    const returnStruct = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function make(): Holder {
+          let holder: Holder = { resource: native.create() }
+          return holder
+        }
+      `,
+    }));
+    expect(returnStruct.status).not.toBe(0);
+    expect(returnStruct.stderr).toContain("cannot return resource-owning struct");
+
+    const passStruct = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function inspect(holder: Holder): void {
+        }
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          inspect(holder)
+        }
+      `,
+    }));
+    expect(passStruct.status).not.toBe(0);
+    expect(passStruct.stderr).toContain("cannot pass argument");
+    expect(passStruct.stderr).toContain("resource-owning struct");
+
+    const useMovedResource = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          let resource: ptr<NativeResource> = native.create()
+          let holder: Holder = { resource: resource }
+          print(resource)
+        }
+      `,
+    }));
+    expect(useMovedResource.status).not.toBe(0);
+    expect(useMovedResource.stderr).toContain("cannot use native resource");
+    expect(useMovedResource.stderr).toContain("after ownership was moved");
+
+    const printStruct = runCompiler(createProject({
+      "main.io": `
+        ${sharedSource}
+
+        function run(): void {
+          let holder: Holder = { resource: native.create() }
+          print(holder)
+        }
+      `,
+    }));
+    expect(printStruct.status).toBe(0);
+    expect(printStruct.stderr).toBe("");
+  });
+
   test("rejects aggregate use after ownership moved through retained callees and unknown calls", () => {
     const retainedByKnownCallee = runCompiler(createProject({
       "main.io": `

@@ -222,6 +222,18 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.assertPointerTargetUsable(args[index], node.fullSource ?? node.source);
                 }
 
+                if (
+                    calleeName !== "print" &&
+                    !this.isPointerType(expectedType)
+                ) {
+                    this.assertNoResourceOwningStructValueCopy(
+                        args[index],
+                        node.fullSource ?? node.source,
+                        node,
+                        `pass argument ${index + 1} to '${calleeName}'`,
+                    );
+                }
+
                 if (this.rejectsImplicitObjectContractConversion(expectedType, args[index])) {
                     this.throwImplicitObjectContractConversionError(
                         expectedType,
@@ -4200,6 +4212,22 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                         }
 
+                        const rightResourceFields = this.collectNativeResourceFieldOwnership(right);
+                        if (
+                            this.hasNativeResourceFieldOwnership(symbol) ||
+                            this.resourceOwningStructSymbolFromExpression(right) ||
+                            Object.keys(rightResourceFields.destructors).length > 0
+                        ) {
+                            right.arrowLength = right.source?.length ?? right.raw?.length ?? 1;
+                            this.throwError(
+                                `cannot assign resource-owning struct ${Helpers.RED}'${identifierName}'${Helpers.RESET} by value`,
+                                right.position ?? node.position,
+                                context.fullSource ?? node.fullSource ?? node.source,
+                                right,
+                                "  = whole-struct replacement with native resource fields needs explicit move/copy policy\n  = assign individual resource fields instead",
+                            );
+                        }
+
                         if (symbol.scopeId === 0 || symbol.storage === Kinds.Storage.global) {
                             right = (this as any).prepareBorrowedViewForEscapingStorage(
                                 right,
@@ -4476,6 +4504,57 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                     right.arrowLength = right.source?.length ?? 1;
                     this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
+                }
+
+                const nativeResourceOwner = this.nativeResourceOwnerFromExpression(right);
+                const fieldPathParts = this.aggregateAccessPath(left);
+                const hasElementPath = fieldPathParts.some((part: string) => part.startsWith("["));
+                const fieldPath = fieldPathParts
+                    .filter((part: string) => part.startsWith("."))
+                    .map((part: string) => part.slice(1))
+                    .join(".");
+
+                if (nativeResourceOwner) {
+                    if (!symbol || !this.isStructResolvedType(symbol.type)) {
+                        right.arrowLength = right.source?.length ?? 1;
+                        this.throwError(
+                            `native resources can only be assigned into real struct fields for now`,
+                            right.position ?? node.position,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            right,
+                            "  = runtime object/dictionary resource-field cleanup is not implemented yet",
+                        );
+                    }
+
+                    if (symbol.storage === Kinds.Storage.global || hasElementPath || !fieldPath) {
+                        right.arrowLength = right.source?.length ?? 1;
+                        this.throwError(
+                            `cannot assign native resource into ${Helpers.RED}'${left.source ?? "field"}'${Helpers.RESET} yet`,
+                            right.position ?? node.position,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            right,
+                            "  = resource-field ownership currently supports direct local struct field paths",
+                        );
+                    }
+
+                    symbol.nativeResourceFieldDestructors ??= {};
+                    symbol.nativeResourceFieldDestructors[fieldPath] = nativeResourceOwner.destructor;
+                    if (nativeResourceOwner.symbol) {
+                        this.markNativeResourceSymbolMoved(
+                            nativeResourceOwner.symbol,
+                            `it was stored in native resource field '${symbol.name}.${fieldPath}'`,
+                            right,
+                        );
+                    }
+                } else if (
+                    symbol?.nativeResourceFieldDestructors &&
+                    fieldPath &&
+                    Object.prototype.hasOwnProperty.call(symbol.nativeResourceFieldDestructors, fieldPath)
+                ) {
+                    delete symbol.nativeResourceFieldDestructors[fieldPath];
+                    if (Object.keys(symbol.nativeResourceFieldDestructors).length === 0) {
+                        symbol.nativeResourceFieldDestructors = undefined;
+                    }
                 }
 
                 if (this.isDynamicArrayType(left.type)) {

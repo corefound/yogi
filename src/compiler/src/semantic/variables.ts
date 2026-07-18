@@ -52,6 +52,38 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node.declare === true ||
                 node.ambient === true;
             const lifetime = this.getVariableLifetime(node, type, isAmbient);
+            this.assertNoResourceOwningStructValueCopy(
+                value,
+                source,
+                node,
+                `initialize variable '${node.name}' from`,
+            );
+            const nativeResourceFieldOwnership = this.collectNativeResourceFieldOwnership(value);
+            const nativeResourceFieldDestructors = nativeResourceFieldOwnership.destructors;
+
+            if (Object.keys(nativeResourceFieldDestructors).length > 0) {
+                if (!this.isStructResolvedType(type)) {
+                    value.arrowLength = value.source?.length ?? node.name?.length ?? 1;
+                    this.throwError(
+                        `native resources can only be stored in real struct fields for now`,
+                        value.position ?? node.position,
+                        source,
+                        value,
+                        "  = runtime object/dictionary resource-field cleanup is not implemented yet",
+                    );
+                }
+
+                if (lifetime.storage === Kinds.Storage.global) {
+                    value.arrowLength = value.source?.length ?? node.name?.length ?? 1;
+                    this.throwError(
+                        `native resource fields in module/global structs are not supported yet`,
+                        value.position ?? node.position,
+                        source,
+                        value,
+                        "  = create the resource-owning struct inside a function scope for now",
+                    );
+                }
+            }
             const borrowedViewSourceName =
                 value?.borrowedViewSourceName ??
                 (value?.borrowedView === true ? (this as any).getAggregateRootIdentifier(value.object) : null);
@@ -106,6 +138,9 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 borrowedViewGraphSourceNames: borrowedViewGraph.sourceNames,
                 borrowedViewGraphAggregateSymbolIds: borrowedViewGraph.aggregateSymbolIds,
                 nativeResourceDestructor,
+                nativeResourceFieldDestructors: Object.keys(nativeResourceFieldDestructors).length > 0
+                    ? nativeResourceFieldDestructors
+                    : undefined,
                 ...pointerProvenance,
 
                 declare: isAmbient,
@@ -122,6 +157,13 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
             );
             this.setKnownDynamicArrayLength(symbol, this.arrayLiteralLength(value));
             this.registerPointerProvenance(symbol, value);
+            for (const movedSymbol of nativeResourceFieldOwnership.movedSymbols) {
+                this.markNativeResourceSymbolMoved(
+                    movedSymbol,
+                    `it was stored in native resource field(s) of '${node.name}'`,
+                    value,
+                );
+            }
 
             if (node.export) {
                 this.exportSymbol(symbol);

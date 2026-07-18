@@ -2268,6 +2268,148 @@ export class BaseSemantic {
         return node.value ?? node.name ?? node.raw ?? null;
     }
 
+    public nativeResourceOwnerFromExpression(node: any): { destructor: string; symbol?: Types.SymbolInfo } | null {
+        if (!node) {
+            return null;
+        }
+
+        if (node.kind === Kinds.Expressions.IdentifierExpression) {
+            const name = this.getIdentifierName(node);
+            const symbol = name ? this.resolveSymbol(name) : null;
+            const destructor =
+                node.nativeResourceDestructor ??
+                symbol?.nativeResourceDestructor ??
+                symbol?.node?.nativeResourceDestructor ??
+                null;
+
+            return destructor ? { destructor, symbol: symbol ?? undefined } : null;
+        }
+
+        if (typeof node.nativeResourceDestructor === "string" && node.nativeResourceDestructor.length > 0) {
+            return { destructor: node.nativeResourceDestructor };
+        }
+
+        return null;
+    }
+
+    public collectNativeResourceFieldOwnership(
+        node: any,
+        prefix = "",
+    ): { destructors: Record<string, string>; movedSymbols: Types.SymbolInfo[] } {
+        const result = {
+            destructors: {} as Record<string, string>,
+            movedSymbols: [] as Types.SymbolInfo[],
+        };
+
+        if (!node || node.kind !== Kinds.Collections.DictionaryExpression) {
+            return result;
+        }
+
+        for (const property of node.properties ?? []) {
+            const name = property.key ?? property.name;
+            if (!name) {
+                continue;
+            }
+
+            const fieldPath = prefix ? `${prefix}.${name}` : String(name);
+            const owner = this.nativeResourceOwnerFromExpression(property.value);
+
+            if (owner) {
+                result.destructors[fieldPath] = owner.destructor;
+                if (owner.symbol) {
+                    result.movedSymbols.push(owner.symbol);
+                }
+            }
+
+            const nested = this.collectNativeResourceFieldOwnership(property.value, fieldPath);
+            Object.assign(result.destructors, nested.destructors);
+            result.movedSymbols.push(...nested.movedSymbols);
+        }
+
+        return result;
+    }
+
+    public hasNativeResourceFieldOwnership(symbol: Types.SymbolInfo | null | undefined): boolean {
+        return !!symbol?.nativeResourceFieldDestructors &&
+            Object.keys(symbol.nativeResourceFieldDestructors).length > 0;
+    }
+
+    public resourceOwningStructSymbolFromExpression(node: any): Types.SymbolInfo | null {
+        if (!node || node.kind !== Kinds.Expressions.IdentifierExpression) {
+            return null;
+        }
+
+        const name = this.getIdentifierName(node);
+        const symbol = name ? this.resolveSymbol(name) : null;
+
+        if (!symbol || !this.isStructResolvedType(symbol.type)) {
+            return null;
+        }
+
+        return this.hasNativeResourceFieldOwnership(symbol) ? symbol : null;
+    }
+
+    public assertNoResourceOwningStructValueCopy(
+        node: any,
+        source: string,
+        context: any,
+        action: string,
+    ): void {
+        const symbol = this.resourceOwningStructSymbolFromExpression(node);
+        if (!symbol) {
+            return;
+        }
+
+        const name = this.getIdentifierName(node) ?? symbol.name;
+        const fields = Object.keys(symbol.nativeResourceFieldDestructors ?? {});
+        const fieldList = fields.length ? fields.join(", ") : "native resource field";
+
+        node.arrowLength = node.source?.length ?? name.length ?? 1;
+        this.throwError(
+            `cannot ${action} resource-owning struct ${Helpers.RED}'${name}'${Helpers.RESET} by value`,
+            node.position ?? context?.position,
+            source,
+            node,
+            `  = owned native resource field(s): ${fieldList}\n  = pass '&${name}' to borrow the struct, or move individual resource fields explicitly`,
+        );
+    }
+
+    public markNativeResourceSymbolMoved(symbol: Types.SymbolInfo, reason: string, context: any): void {
+        if (!symbol.nativeResourceDestructor && !symbol.node?.nativeResourceDestructor) {
+            return;
+        }
+
+        symbol.moved = true;
+        symbol.moveReason = reason;
+        symbol.movePosition = context?.position;
+        symbol.moveSource = context?.source ?? context?.raw ?? context?.fullSource;
+    }
+
+    public assertNativeResourceExpressionUsable(node: any, sourceText?: string): void {
+        if (!node || node.kind !== Kinds.Expressions.IdentifierExpression) {
+            return;
+        }
+
+        const name = this.getIdentifierName(node);
+        const symbol = name ? this.resolveSymbol(name) : null;
+
+        if (!symbol?.moved || (!symbol.nativeResourceDestructor && !symbol.node?.nativeResourceDestructor)) {
+            return;
+        }
+
+        const message =
+            `cannot use native resource ${Helpers.RED}'${name ?? symbol.name}'${Helpers.RESET} after ownership was moved`;
+
+        node.arrowLength = node.source?.length ?? name?.length ?? 1;
+        this.throwError(
+            message,
+            node.position ?? symbol.movePosition,
+            sourceText ?? node.fullSource ?? node.source ?? node.raw ?? symbol.moveSource,
+            node,
+            `  = ${symbol.moveReason ?? "ownership was moved"}`,
+        );
+    }
+
     public getAggregateOwnerSymbol(symbol: Types.SymbolInfo | null | undefined): Types.SymbolInfo | null {
         if (!symbol) return null;
 
@@ -2627,6 +2769,15 @@ export class BaseSemantic {
         }
 
         this.assertAggregateExpressionUsable(
+            {
+                ...node,
+                symbolId: symbol.id,
+                scopeId: symbol.scopeId,
+                type: symbol.type,
+            },
+            node.fullSource ?? node.source ?? node.raw,
+        );
+        this.assertNativeResourceExpressionUsable(
             {
                 ...node,
                 symbolId: symbol.id,
