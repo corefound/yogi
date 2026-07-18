@@ -41,8 +41,8 @@ without re-auditing the whole compiler.
 - [x] Struct SIR FlatBuffer serialization
 - [x] Struct LLVM lowering as real named LLVM structs
 - [x] Struct runtime validation failure hook
-- [x] Explicit `move(holder)` transfer for resource-owning structs in declarations and returns
-- [x] Explicit `target = move(source)` replacement for local resource-owning structs
+- [x] Automatic transfer for resource-owning structs in declarations, returns, assignments, by-value calls, and struct construction
+- [x] Internal-only `$move` SIR operation for resource ownership transfer
 - [ ] Higher-order type machinery such as mapped, conditional, infer, and keyof-style type operators
 - [ ] Function-value model for interface/type behavior contracts
 - [ ] Explicit runtime conversion API for non-literal `number` to fixed-width numeric structs
@@ -142,9 +142,9 @@ without re-auditing the whole compiler.
 - [x] Native pointer resource returns with destructor-associated cleanup metadata
 - [x] Native resource cleanup on normal scope exit, early return, reverse order, reassignment, return transfer, and null skip
 - [x] Native resource fields inside real Yogi structs with field-path cleanup and reassignment cleanup
-- [x] Semantic rejection for implicit copy, return, whole assignment, and by-value calls of resource-owning structs
-- [x] Explicit `move(holder)` transfer for resource-owning structs in declarations and returns
-- [x] Explicit `target = move(source)` replacement for local resource-owning structs
+- [x] Semantic rejection for use-after-transfer of resource-owning structs
+- [x] Automatic transfer for resource-owning structs in declarations, returns, assignments, by-value calls, and struct construction
+- [x] Internal-only `$move` SIR operation for resource ownership transfer
 - [x] Semantic use-after-move rejection for native resource bindings moved into struct fields
 - [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added

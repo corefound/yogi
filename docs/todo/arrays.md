@@ -3085,6 +3085,10 @@ readonly propagation from the original owner
 ✅ Final JavaScript-compatible array method policy audit
 ✅ Final callback ownership/borrow semantics
 ✅ Nested dynamic-array ownership and pointer chains
+✅ Resource-owning struct elements pushed into arrays transfer ownership to the array
+✅ Array cleanup destroys remaining resource-owning struct elements exactly once
+✅ `pop()` / `shift()` transfer owned resource struct elements when the array is proven non-empty
+✅ `splice()` transfers removed resource-owning struct elements into the returned removed-elements array
 ```
 
 ## Remaining

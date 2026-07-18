@@ -1,5 +1,9 @@
 # Lot 80: Resource Struct Move Assignment
 
+Status update: this lot completed assignment support for the move
+infrastructure. Public `move(...)` syntax was superseded by Lot 81; source code
+now uses automatic transfer and the compiler emits `$move` internally.
+
 This lot completes the first replacement policy for structs that own native
 resource fields.
 

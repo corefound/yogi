@@ -1,5 +1,9 @@
 # Lot 79: Explicit Resource Struct Move
 
+Status update: this lot introduced the internal move infrastructure. Public
+`move(...)` syntax was superseded by Lot 81; source code now uses automatic
+transfer and the compiler emits `$move` internally.
+
 This lot adds the first explicit whole-value ownership transfer for structs that
 own native resource fields.
 

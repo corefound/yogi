@@ -58,6 +58,8 @@ Each test should:
 | Native Extern Destructor C | `tests/programs/native_extern_destructor_c.cmake` | Implemented | native resource RAII through `destructor(resource: ptr<void>): void`, normal cleanup, early return cleanup, reverse order, reassignment, return transfer, null skip, LLVM/runtime execution |
 | Native Extern Destructor C++ | `tests/programs/native_extern_destructor_cpp.cmake` | Implemented | native resource created with C++ `new` and destroyed with `delete` through extern destructor RAII |
 | Native Resource Struct Fields | `tests/programs/native_resource_struct_fields.cmake` | Implemented | native resources moved into real struct fields, nested field cleanup, field reassignment cleanup, no double destruction, LLVM/runtime execution |
+| Native Job Ticket Ownership | `tests/programs/native_job_ticket_ownership.cmake` | Implemented | extern native resources, native-owned string returns, automatic resource-owning struct transfer through assignment, return, and by-value calls, native destructor RAII, LLVM/runtime execution |
+| Native Resource Array Ownership | `tests/programs/native_resource_array_ownership.cmake` | Implemented | arrays that own resource-carrying structs, `push` from returned values, `push` from local owned structs, owned `pop`/`shift` extraction, owned `splice` removed-range extraction, discarded `splice` result cleanup, empty-array extraction diagnostics, no double destruction, LLVM/runtime execution |
 | Native Extern Destructor Missing Symbol | `tests/programs/native_extern_destructor_missing_symbol.cmake` | Implemented | negative link test for a declared extern destructor whose native symbol is missing |
 
 ## Rules

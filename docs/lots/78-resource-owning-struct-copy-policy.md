@@ -1,5 +1,9 @@
 # Lot 78: Resource-Owning Struct Copy Policy
 
+Status update: this lot established that resource-owning structs are not
+copyable by value. Lot 81 superseded the public transfer syntax with automatic
+compiler-inferred ownership transfer.
+
 This lot defines the first safe policy for structs that contain owned native
 resources.
 

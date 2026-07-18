@@ -312,22 +312,26 @@ The ownership model is intentionally small. It does not yet implement:
 - More method-call summaries beyond the implemented `scores.push(value)`.
 - Resource-field ownership for runtime object/dictionary aggregates.
 - Explicit copy/move constructors for whole resource-owning structs.
-- Whole-struct reassignment replacement for resource-owning structs.
-- Passing whole resource-owning structs by value.
 
-Resource-owning structs do support explicit ownership transfer in two forms:
+Resource-owning structs transfer ownership automatically in consuming contexts:
 
 ```ts
-let next: Holder = move(holder)
-return move(holder)
-target = move(holder)
+let next: Holder = holder
+return holder
+consume(holder)
+target = holder
 target = makeHolder()
 ```
 
-`move(holder)` consumes the source binding, moves its resource-field cleanup
-metadata to the new owner, and prevents the original binding from being used or
-destroyed afterward. For assignment, the previous resource fields owned by the
-target are destroyed before the new owner metadata is installed.
+If the type is fully copyable, the same syntax remains a normal copy. If the
+type owns native resource fields, the compiler creates an internal move,
+transfers cleanup metadata to the new owner, and prevents the original binding
+from being used or destroyed afterward. For assignment, the previous resource
+fields owned by the target are destroyed before the new owner metadata is
+installed.
+
+`move(...)` is not public Yogi syntax. It remains only as an internal compiler
+operation in SIR/LLVM lowering.
 
 The current model is enough to make function boundaries safe for direct
 function calls while preserving stack-first local aggregates whenever the callee

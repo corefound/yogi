@@ -138,8 +138,8 @@ Covered scenarios:
 
 ## Current Limitations
 
-- Returning, copying, assigning, or passing a whole resource-owning struct by
-  value is rejected by Lot 78 until explicit move/copy constructor policy
-  exists.
+- Returning, assigning, constructing, or passing a whole resource-owning struct
+  by value now transfers ownership automatically as of Lot 81. Plain copying
+  still remains rejected.
 - Interface/type adapter copies for resource-owning structs remain pending.
 - Native ABI marshalling for arrays of resource-owning structs remains pending.
