@@ -24,6 +24,10 @@
 #define YOGI_MACOS_SDK_PATH ""
 #endif
 
+#ifndef YOGI_MACOS_SDK_VERSION
+#define YOGI_MACOS_SDK_VERSION ""
+#endif
+
 #ifndef YOGI_MACOS_DEPLOYMENT_TARGET
 #define YOGI_MACOS_DEPLOYMENT_TARGET "11.0"
 #endif
@@ -200,7 +204,11 @@ namespace yogi::core::llvm {
 				<< " -arch " << hostArch()
 				<< " -platform_version macos "
 				<< quoteArg(YOGI_MACOS_DEPLOYMENT_TARGET)
-				<< " " << quoteArg(YOGI_MACOS_DEPLOYMENT_TARGET);
+				<< " " << quoteArg(
+					std::string(YOGI_MACOS_SDK_VERSION).empty()
+						? std::string(YOGI_MACOS_DEPLOYMENT_TARGET)
+						: std::string(YOGI_MACOS_SDK_VERSION)
+				);
 
 		const std::string sdkPath = YOGI_MACOS_SDK_PATH;
 

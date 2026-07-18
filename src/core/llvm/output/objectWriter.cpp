@@ -13,10 +13,10 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
-#include <llvm/TargetParser/Host.h>
-#include <llvm/TargetParser/Triple.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+
+#include "llvm/target/targetConfig.h"
 
 namespace yogi::core::llvm::internal {
 
@@ -44,7 +44,7 @@ namespace yogi::core::llvm::internal {
 		::llvm::InitializeNativeTargetAsmParser();
 		::llvm::InitializeNativeTargetAsmPrinter();
 
-		::llvm::Triple targetTriple(::llvm::sys::getDefaultTargetTriple());
+		::llvm::Triple targetTriple = configuredTargetTriple();
 		std::string error;
 		const auto *target = ::llvm::TargetRegistry::lookupTarget(targetTriple, error);
 

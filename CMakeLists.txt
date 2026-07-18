@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.20)
 # ============================================================
 # Must be set before project() for macOS builds.
 if(APPLE)
-        set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS deployment target")
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "26.0" CACHE STRING "Minimum macOS deployment target")
 endif()
 
 project(yogi VERSION 0.0.1 LANGUAGES C CXX)
@@ -60,6 +60,29 @@ set(llvm_libs "")
 set(YOGI_LLD_FILENAME "")
 set(YOGI_LD64_LLD_FILENAME "")
 set(YOGI_MACOS_SDK_PATH "")
+set(YOGI_MACOS_SDK_VERSION "")
+
+function(yogi_require_vendored_llvm_tool tool_path tool_name)
+        if(NOT tool_path)
+                message(FATAL_ERROR
+                        "${tool_name} was not found in the vendored LLVM toolchain at ${LLVM_ROOT}/bin. "
+                        "Build LLVM/LLD from tools/llvm-project and install it into ${LLVM_ROOT}."
+                )
+        endif()
+
+        file(REAL_PATH "${tool_path}" YOGI_RESOLVED_TOOL_PATH)
+        file(REAL_PATH "${LLVM_ROOT}" YOGI_RESOLVED_LLVM_ROOT)
+        string(FIND "${YOGI_RESOLVED_TOOL_PATH}" "${YOGI_RESOLVED_LLVM_ROOT}/" YOGI_VENDOR_TOOL_PREFIX)
+
+        if(NOT YOGI_VENDOR_TOOL_PREFIX EQUAL 0)
+                message(FATAL_ERROR
+                        "${tool_name} resolved to ${YOGI_RESOLVED_TOOL_PATH}, which is outside the vendored "
+                        "LLVM toolchain at ${YOGI_RESOLVED_LLVM_ROOT}. Yogi must not use a system LLD."
+                )
+        endif()
+
+        message(STATUS "Using vendored ${tool_name}: ${tool_path}")
+endfunction()
 
 if(NOT YOGI_ENABLE_LLVM STREQUAL "OFF")
         if(EXISTS "${LLVM_ROOT}/lib/cmake/llvm/LLVMConfig.cmake")
@@ -151,10 +174,23 @@ if(NOT YOGI_ENABLE_LLVM STREQUAL "OFF")
                         get_filename_component(YOGI_LD64_LLD_FILENAME "${YOGI_LD64_LLD_EXECUTABLE}" NAME)
                 endif()
 
+                yogi_require_vendored_llvm_tool("${YOGI_LLD_EXECUTABLE}" "ld.lld")
+
+                if(APPLE)
+                        yogi_require_vendored_llvm_tool("${YOGI_LD64_LLD_EXECUTABLE}" "ld64.lld")
+                endif()
+
                 if(APPLE)
                         execute_process(
                                 COMMAND xcrun --show-sdk-path
                                 OUTPUT_VARIABLE YOGI_MACOS_SDK_PATH
+                                OUTPUT_STRIP_TRAILING_WHITESPACE
+                                ERROR_QUIET
+                        )
+
+                        execute_process(
+                                COMMAND xcrun --show-sdk-version
+                                OUTPUT_VARIABLE YOGI_MACOS_SDK_VERSION
                                 OUTPUT_STRIP_TRAILING_WHITESPACE
                                 ERROR_QUIET
                         )
@@ -300,6 +336,7 @@ if(YOGI_LLVM_ENABLED)
                 YOGI_LLD_PATH="${YOGI_LLD_PATH_DEFINE}"
                 YOGI_LD64_LLD_PATH="${YOGI_LD64_LLD_PATH_DEFINE}"
                 YOGI_MACOS_SDK_PATH="${YOGI_MACOS_SDK_PATH}"
+                YOGI_MACOS_SDK_VERSION="${YOGI_MACOS_SDK_VERSION}"
                 YOGI_MACOS_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}"
                 YOGI_RUNTIME_LIBRARY_PATH="${YOGI_RUNTIME_LIBRARY_PATH_DEFINE}"
                 YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH="${YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH_DEFINE}"
@@ -801,6 +838,18 @@ if(BUILD_TESTING)
                         yogi_program_native_resource_struct_fields
                         program-native-resource-struct-fields
                         tests/programs/native_resource_struct_fields.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_native_job_ticket_ownership
+                        program-native-job-ticket-ownership
+                        tests/programs/native_job_ticket_ownership.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_native_resource_array_ownership
+                        program-native-resource-array-ownership
+                        tests/programs/native_resource_array_ownership.cmake
                 )
 
                 add_yogi_program_test(

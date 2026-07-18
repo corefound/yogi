@@ -3,6 +3,8 @@
 
 run: build start
 
+full-build: ts-build fbs-build ts-pkg build
+
 build:
 # 	@rm -rf ./build
 	@cmake -G Ninja -B build && cmake --build build

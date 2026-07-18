@@ -30,7 +30,7 @@ libs/uni-algo/
 src/pack/build/
 src/pack/CMakeFiles/
 ./tests/packages/*
-./inputs/packages/*
+inputs/packages/
 sir.json
 /yogi/
 
