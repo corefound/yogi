@@ -565,6 +565,8 @@ namespace yogi::core::llvm::internal {
 					auto *slot = ::llvm::cast<::llvm::AllocaInst>(cleanup.cleanupSlot);
 					auto *loaded = context.builder.CreateLoad(slot->getAllocatedType(), cleanup.cleanupSlot);
 
+					values.destroyNativeResourceStructFields(cleanup.owner, cleanup.type, loaded);
+
 					if (cleanup.heapOwned) {
 						values.destroyEscapedAggregate(cleanup.type, loaded);
 					} else {
@@ -609,6 +611,10 @@ namespace yogi::core::llvm::internal {
 				context.builder.CreateBr(skipBB);
 				context.builder.SetInsertPoint(skipBB);
 			} else {
+				if (values.isStructType(cleanup.type)) {
+					values.destroyNativeResourceStructFields(cleanup.owner, cleanup.type, cleanup.value);
+				}
+
 				if (cleanup.heapOwned) {
 					values.destroyEscapedAggregate(cleanup.type, cleanup.value);
 				} else {

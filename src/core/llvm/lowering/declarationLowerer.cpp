@@ -12,6 +12,8 @@
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Type.h>
 
+#include <optional>
+
 namespace yogi::core::llvm::internal {
 
 	namespace {
@@ -65,6 +67,51 @@ namespace yogi::core::llvm::internal {
 			const auto qualifiedName = fbString(call->qualified_name());
 			const auto summary = context.nativeResourceReturnDestructors.find(qualifiedName);
 			return summary == context.nativeResourceReturnDestructors.end() ? "" : summary->second;
+		}
+
+		std::optional<std::string> nativeResourceOwnerDestructorFromValue(
+			const Yogi::Sir::ValueRef *value,
+			const ModuleLoweringContext &context
+		) {
+			const auto direct = nativeResourceDestructorFromValue(value, context);
+			if (!direct.empty()) {
+				return direct;
+			}
+
+			const auto *identifier = value ? value->identifier() : nullptr;
+			return identifier
+				? context.nativeResourceDestroyFunction(fbString(identifier->name()))
+				: std::nullopt;
+		}
+
+		void registerNativeResourceStructFields(
+			const std::string &owner,
+			const Yogi::Sir::ValueRef *value,
+			ModuleLoweringContext &context,
+			const std::string &prefix = ""
+		) {
+			const auto *object = value ? value->object() : nullptr;
+			if (!object || !object->properties()) {
+				return;
+			}
+
+			for (const auto *property: *object->properties()) {
+				const auto fieldName = fbString(property->key());
+				const auto fieldPath = prefix.empty()
+					? fieldName
+					: prefix + "." + fieldName;
+				const auto destructor = nativeResourceOwnerDestructorFromValue(property->value(), context);
+
+				if (destructor) {
+					context.registerNativeResourceFieldOwner(owner, fieldPath, *destructor);
+
+					if (const auto *identifier = property->value() ? property->value()->identifier() : nullptr) {
+						context.deactivateAggregateOwner(fbString(identifier->name()));
+					}
+				}
+
+				registerNativeResourceStructFields(owner, property->value(), context, fieldPath);
+			}
 		}
 
 		bool isPointerType(const Yogi::Sir::TypeRef *type) {
@@ -378,6 +425,7 @@ namespace yogi::core::llvm::internal {
 				initializer, false,
 				slot
 			);
+			registerNativeResourceStructFields(name, variable->value(), context);
 		} else if (isAggregateType(variable->type())) {
 			if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
 				context.aliasAggregateOwner(name, fbString(identifier->name()));

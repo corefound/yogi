@@ -798,6 +798,12 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_program_test(
+                        yogi_program_native_resource_struct_fields
+                        program-native-resource-struct-fields
+                        tests/programs/native_resource_struct_fields.cmake
+                )
+
+                add_yogi_program_test(
                         yogi_program_native_extern_destructor_missing_symbol
                         program-native-extern-destructor-missing-symbol
                         tests/programs/native_extern_destructor_missing_symbol.cmake

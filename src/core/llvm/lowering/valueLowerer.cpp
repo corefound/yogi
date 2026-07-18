@@ -46,6 +46,24 @@ namespace yogi::core::llvm::internal {
 			return "";
 		}
 
+		std::string fieldPathKey(const std::vector<std::string> &path) {
+			std::string result;
+
+			for (const auto &part: path) {
+				if (part.empty()) {
+					continue;
+				}
+
+				if (!result.empty()) {
+					result += ".";
+				}
+
+				result += part;
+			}
+
+			return result;
+		}
+
 		std::vector<std::string> nativeAbiMetadataParts(const Yogi::Sir::CallExpression *call) {
 			std::vector<std::string> parts;
 
@@ -205,6 +223,21 @@ namespace yogi::core::llvm::internal {
 		) {
 			const auto *call = value ? value->call() : nullptr;
 			return call ? nativeResourceReturnDestructorFunction(call, context) : "";
+		}
+
+		std::optional<std::string> nativeResourceOwnerDestructorFunction(
+			const Yogi::Sir::ValueRef *value,
+			const ModuleLoweringContext &context
+		) {
+			const auto direct = nativeResourceReturnDestructorFunction(value, context);
+			if (!direct.empty()) {
+				return direct;
+			}
+
+			const auto sourceName = identifierName(value);
+			return sourceName.empty()
+				? std::nullopt
+				: context.nativeResourceDestroyFunction(sourceName);
 		}
 	}
 
@@ -2511,7 +2544,10 @@ namespace yogi::core::llvm::internal {
 				"addr." + sanitizeSymbol(structName) + "." + sanitizeSymbol(field.name)
 			);
 
-			return AddressableSlot{fieldAddress, field.type};
+			auto fieldPath = objectSlot->fieldPath;
+			fieldPath.push_back(field.name);
+
+			return AddressableSlot{fieldAddress, field.type, objectSlot->owner, fieldPath};
 		}
 
 		return std::nullopt;
@@ -2573,10 +2609,10 @@ namespace yogi::core::llvm::internal {
 					sanitizeSymbol(name.empty() ? "struct.ptr" : name) + ".ptr.load"
 				);
 
-				return AddressableSlot{pointer, type->element_type()};
+				return AddressableSlot{pointer, type->element_type(), name, {}};
 			}
 
-			return AddressableSlot{address, type};
+			return AddressableSlot{address, type, name, {}};
 		}
 
 		if (const auto *property = value->property_access()) {
@@ -3409,6 +3445,110 @@ namespace yogi::core::llvm::internal {
 		}
 	}
 
+	void ValueLowerer::destroyNativeResourceStructFields(
+		const std::string &owner,
+		const Yogi::Sir::TypeRef *type,
+		::llvm::Value *value
+	) {
+		if (owner.empty() || !type || !value) {
+			return;
+		}
+
+		const auto fields = context.nativeResourceFieldDestructors.find(owner);
+		if (fields == context.nativeResourceFieldDestructors.end()) {
+			return;
+		}
+
+		for (const auto &[fieldPath, destroyFunction]: fields->second) {
+			const auto parts = [&]() {
+				std::vector<std::string> result;
+				std::size_t start = 0;
+
+				while (start <= fieldPath.size()) {
+					const auto end = fieldPath.find('.', start);
+					const auto part = fieldPath.substr(
+						start,
+						end == std::string::npos ? std::string::npos : end - start
+					);
+					if (!part.empty()) {
+						result.push_back(part);
+					}
+
+					if (end == std::string::npos) {
+						break;
+					}
+
+					start = end + 1;
+				}
+
+				return result;
+			}();
+
+			const auto *currentType = type;
+			auto *currentValue = value;
+			bool validPath = true;
+
+			for (const auto &part: parts) {
+				const auto structName = structTypeName(currentType);
+				if (
+					structName.empty() ||
+					!context.structFields.contains(structName)
+				) {
+					validPath = false;
+					break;
+				}
+
+				const ModuleLoweringContext::StructFieldInfo *matchedField = nullptr;
+				for (const auto &field: context.structFields[structName]) {
+					if (field.name == part) {
+						matchedField = &field;
+						break;
+					}
+				}
+
+				if (!matchedField) {
+					validPath = false;
+					break;
+				}
+
+				currentValue = context.builder.CreateExtractValue(
+					currentValue,
+					{static_cast<unsigned>(matchedField->index)},
+					"native.struct.destroy." + sanitizeSymbol(part)
+				);
+				currentType = matchedField->type;
+			}
+
+			if (!validPath || !currentValue || !currentValue->getType()->isPointerTy()) {
+				continue;
+			}
+
+			auto *isNull = context.builder.CreateIsNull(currentValue);
+			auto *function = context.builder.GetInsertBlock()->getParent();
+			auto *destroyBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				"native.struct.field.destroy",
+				function
+			);
+			auto *skipBlock = ::llvm::BasicBlock::Create(
+				context.llvmContext,
+				"native.struct.field.skip",
+				function
+			);
+			context.builder.CreateCondBr(isNull, skipBlock, destroyBlock);
+			context.builder.SetInsertPoint(destroyBlock);
+
+			auto *destroy = context.runtimeFunction(
+				destroyFunction,
+				::llvm::Type::getVoidTy(context.llvmContext),
+				{::llvm::PointerType::getUnqual(context.llvmContext)}
+			);
+			context.builder.CreateCall(destroy, {currentValue});
+			context.builder.CreateBr(skipBlock);
+			context.builder.SetInsertPoint(skipBlock);
+		}
+	}
+
 	bool ValueLowerer::isStructType(const Yogi::Sir::TypeRef *type) const {
 		return !structTypeName(type).empty();
 	}
@@ -4111,10 +4251,59 @@ namespace yogi::core::llvm::internal {
 					slot->type,
 					rightType
 				);
+				const auto slotPath = fieldPathKey(slot->fieldPath);
+				const auto currentNativeResourceDestructor =
+					context.nativeResourceFieldDestroyFunction(slot->owner, slotPath);
+				const auto nextNativeResourceDestructor =
+					nativeResourceOwnerDestructorFunction(assignment->right(), context);
+
+				if (currentNativeResourceDestructor && fieldValue->getType()->isPointerTy()) {
+					auto *previousValue = context.builder.CreateLoad(
+						types.lower(slot->type),
+						slot->address,
+						"struct.native.previous." + sanitizeSymbol(slotPath)
+					);
+					auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
+					auto *isReplacement = context.builder.CreateICmpNE(previousValue, fieldValue);
+					auto *shouldDestroyPrevious = context.builder.CreateAnd(
+						hasPrevious,
+						isReplacement,
+						"struct.native.should_destroy." + sanitizeSymbol(slotPath)
+					);
+					auto *function = context.builder.GetInsertBlock()->getParent();
+					auto *destroyBlock = ::llvm::BasicBlock::Create(
+						context.llvmContext,
+						"struct.native.replace.destroy",
+						function
+					);
+					auto *storeBlock = ::llvm::BasicBlock::Create(
+						context.llvmContext,
+						"struct.native.replace.store",
+						function
+					);
+
+					context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, storeBlock);
+					context.builder.SetInsertPoint(destroyBlock);
+					auto *destroy = context.runtimeFunction(
+						*currentNativeResourceDestructor,
+						::llvm::Type::getVoidTy(context.llvmContext),
+						{::llvm::PointerType::getUnqual(context.llvmContext)}
+					);
+					context.builder.CreateCall(destroy, {previousValue});
+					context.builder.CreateBr(storeBlock);
+					context.builder.SetInsertPoint(storeBlock);
+				}
 
 				context.builder.CreateStore(fieldValue, slot->address);
 				const auto rightName = identifierName(assignment->right());
-				if (!rightName.empty()) {
+				if (nextNativeResourceDestructor && !slot->owner.empty() && !slotPath.empty()) {
+					if (!rightName.empty()) {
+						context.deactivateAggregateOwner(rightName);
+					}
+					context.registerNativeResourceFieldOwner(slot->owner, slotPath, *nextNativeResourceDestructor);
+				} else if (currentNativeResourceDestructor && !slot->owner.empty() && !slotPath.empty()) {
+					context.clearNativeResourceFieldOwner(slot->owner, slotPath);
+				} else if (!rightName.empty()) {
 					context.deactivateAggregateOwner(rightName);
 				}
 				return cast(fieldValue, types.lower(property->type()), property->type(), slot->type);

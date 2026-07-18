@@ -154,6 +154,7 @@ namespace yogi::core::llvm::internal {
 		localTypeKinds.clear();
 		aggregateAliases.clear();
 		borrowedViewAliases.clear();
+		nativeResourceFieldDestructors.clear();
 		localAggregateCleanups.clear();
 		retainEscapedObjectGraph = false;
 	}
@@ -228,6 +229,52 @@ namespace yogi::core::llvm::internal {
 			cleanupSlot,
 			destroyFunction,
 		});
+	}
+
+	void ModuleLoweringContext::registerNativeResourceFieldOwner(
+		const std::string &owner,
+		const std::string &fieldPath,
+		const std::string &destroyFunction
+	) {
+		if (owner.empty() || fieldPath.empty() || destroyFunction.empty()) {
+			return;
+		}
+
+		nativeResourceFieldDestructors[owner][fieldPath] = destroyFunction;
+	}
+
+	std::optional<std::string> ModuleLoweringContext::nativeResourceFieldDestroyFunction(
+		const std::string &owner,
+		const std::string &fieldPath
+	) const {
+		if (owner.empty() || fieldPath.empty()) {
+			return std::nullopt;
+		}
+
+		const auto owners = nativeResourceFieldDestructors.find(owner);
+		if (owners == nativeResourceFieldDestructors.end()) {
+			return std::nullopt;
+		}
+
+		const auto field = owners->second.find(fieldPath);
+		return field == owners->second.end()
+			? std::nullopt
+			: std::optional<std::string>(field->second);
+	}
+
+	void ModuleLoweringContext::clearNativeResourceFieldOwner(
+		const std::string &owner,
+		const std::string &fieldPath
+	) {
+		const auto owners = nativeResourceFieldDestructors.find(owner);
+		if (owners == nativeResourceFieldDestructors.end()) {
+			return;
+		}
+
+		owners->second.erase(fieldPath);
+		if (owners->second.empty()) {
+			nativeResourceFieldDestructors.erase(owners);
+		}
 	}
 
 	void ModuleLoweringContext::aliasAggregateOwner(

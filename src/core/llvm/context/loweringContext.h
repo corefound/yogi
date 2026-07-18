@@ -92,6 +92,19 @@ namespace yogi::core::llvm::internal {
 				::llvm::Value *cleanupSlot,
 				const std::string &destroyFunction
 			);
+			void registerNativeResourceFieldOwner(
+				const std::string &owner,
+				const std::string &fieldPath,
+				const std::string &destroyFunction
+			);
+			std::optional<std::string> nativeResourceFieldDestroyFunction(
+				const std::string &owner,
+				const std::string &fieldPath
+			) const;
+			void clearNativeResourceFieldOwner(
+				const std::string &owner,
+				const std::string &fieldPath
+			);
 			void aliasAggregateOwner(const std::string &alias, const std::string &source);
 			std::optional<std::string> resolveAggregateOwner(const std::string &name) const;
 			std::optional<std::string> nativeResourceDestroyFunction(const std::string &name) const;
@@ -112,6 +125,7 @@ namespace yogi::core::llvm::internal {
 			std::map<std::string, std::string> aggregateAliases;
 			std::map<std::string, std::string> borrowedViewAliases;
 			std::map<std::string, std::string> nativeResourceReturnDestructors;
+			std::map<std::string, std::map<std::string, std::string>> nativeResourceFieldDestructors;
 			std::vector<LocalAggregateCleanup> localAggregateCleanups;
 			bool retainEscapedObjectGraph = false;
 			int switchBodyDepth = 0;

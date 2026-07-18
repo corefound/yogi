@@ -138,12 +138,13 @@ without re-auditing the whole compiler.
 - [x] Native extern destructor RAII through `destructor(resource: ptr<void>): void`
 - [x] Native pointer resource returns with destructor-associated cleanup metadata
 - [x] Native resource cleanup on normal scope exit, early return, reverse order, reassignment, return transfer, and null skip
+- [x] Native resource fields inside real Yogi structs with field-path cleanup and reassignment cleanup
 - [x] Pointer-return provenance from `ptr<Array>` parameters into dynamic array cells
 - [ ] Pointer invalidation diagnostics for dynamic object structural mutation, if dynamic object storage is added
 - [ ] Interprocedural lifetime summaries for borrowed views
 - [ ] Native LLVM `[N x T]` or equivalent fixed-shape ABI without runtime array descriptor
 - [ ] Native array ABI marshalling for mutable strings, nested structs, and resource-owning structs
-- [ ] Native resource fields inside Yogi aggregates and structs
+- [ ] Native resource fields inside runtime object/dictionary aggregates
 - [ ] `ptr<string[]>` native ABI ownership/copy-back after the extern destructor model is extended to resource arrays
 - [ ] Runtime/backend consumption of native ABI ownership contracts beyond single-string returns/output parameters and basic extern-destructor resources
 - [ ] Dynamic shaped arrays with compile-time rank and runtime dimensions
@@ -197,6 +198,7 @@ without re-auditing the whole compiler.
 - [x] Native Owned Name Output Program Test
 - [x] Native Runtime Owned Name Program Test
 - [x] Native Extern Destructor Program Tests
+- [x] Native Resource Struct Fields Program Test
 - [ ] Contact Manager Program Test
 - [ ] Matrix Operations Program Test
 - [ ] Graph Traversal Program Tests

@@ -63,6 +63,11 @@ namespace yogi::core::llvm::internal {
 			);
 			void dropLocalAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
 			void destroyEscapedAggregate(const Yogi::Sir::TypeRef *type, ::llvm::Value *value);
+			void destroyNativeResourceStructFields(
+				const std::string &owner,
+				const Yogi::Sir::TypeRef *type,
+				::llvm::Value *value
+			);
 			bool isStructType(const Yogi::Sir::TypeRef *type) const;
 			::llvm::Value *cast(
 				::llvm::Value *value,
@@ -77,6 +82,8 @@ namespace yogi::core::llvm::internal {
 			struct AddressableSlot {
 				::llvm::Value *address;
 				const Yogi::Sir::TypeRef *type;
+				std::string owner;
+				std::vector<std::string> fieldPath;
 			};
 
 			::llvm::Value *lowerConstant(

@@ -289,6 +289,33 @@ The examples using `kind`, `switch`, `malloc`, `free`, `new`, `delete`,
 specific native resource layout or cleanup strategy. The native developer
 defines the resource representation and destructor behavior.
 
+Native resources can also be stored in real Yogi struct fields:
+
+```ts
+struct Holder {
+    resource: ptr<NativeResource>
+}
+
+function run(): void {
+    const resource: ptr<NativeResource> = algorithm.create()
+    let holder: Holder = { resource: resource }
+}
+```
+
+The local pointer cleanup moves to `holder.resource`. When `holder` leaves
+scope, Yogi calls the extern destructor for that field. Inline creation and
+nested paths such as `nested.holder.resource` are also tracked.
+
+Field reassignment destroys the old native pointer before the replacement is
+stored:
+
+```ts
+holder.resource = algorithm.open("./data")
+```
+
+Pointer fields that did not receive native ownership metadata are treated as raw
+or borrowed pointers and are not destroyed automatically.
+
 For struct arrays, the C struct must match Yogi field order and use `double`
 for every field:
 

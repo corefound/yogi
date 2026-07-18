@@ -222,6 +222,48 @@ Examples using `kind`, `switch`, `malloc`, `free`, `new`, `delete`, `fclose`, or
 custom allocators are illustrative only. Yogi does not require any specific
 native resource layout or cleanup strategy.
 
+### Struct Field Ownership
+
+Native resources can move into real struct fields:
+
+```ts
+struct NativeResource {
+    id: number
+}
+
+struct Holder {
+    resource: ptr<NativeResource>
+}
+
+function run(): void {
+    const resource: ptr<NativeResource> = algorithm.create(1)
+    let holder: Holder = { resource: resource }
+}
+```
+
+The local `resource` cleanup is deactivated after the move. The field
+`holder.resource` becomes the owner and is destroyed when `holder` leaves scope.
+
+Inline creation also works:
+
+```ts
+let holder: Holder = {
+    resource: algorithm.create(1)
+}
+```
+
+Nested struct paths are tracked, such as `nested.holder.resource`.
+
+Field reassignment destroys the previous owned pointer before storing the new
+one:
+
+```ts
+holder.resource = algorithm.create(2)
+```
+
+Pointer fields without native resource metadata remain borrowed/raw pointers and
+are not destroyed automatically.
+
 ## Current Limitations
 
 The ownership model is intentionally small. It does not yet implement:
@@ -231,8 +273,8 @@ The ownership model is intentionally small. It does not yet implement:
 - Shared ownership or reference counting.
 - Closure capture summaries.
 - More method-call summaries beyond the implemented `scores.push(value)`.
-- Full resource-field ownership when native resources are stored inside Yogi
-  aggregates.
+- Resource-field ownership for runtime object/dictionary aggregates.
+- Explicit copy/move constructors for whole resource-owning structs.
 
 The current model is enough to make function boundaries safe for direct
 function calls while preserving stack-first local aggregates whenever the callee

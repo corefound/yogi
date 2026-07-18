@@ -197,6 +197,6 @@ during linking.
 - Dynamic dispatch of multiple native destructors with identical exported C
   names from separate static libraries still depends on native linker symbol
   rules.
-- Native resources stored inside Yogi aggregates need a later resource-field
-  ownership lot.
+- Native resources stored inside real Yogi struct fields are handled by Lot 77.
+  Resource-owning interface adapters and native arrays remain separate work.
 - This lot does not implement `ptr<string[]>`, `char**`, or native-owned arrays.
