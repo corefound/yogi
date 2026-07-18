@@ -85,6 +85,18 @@ namespace yogi::core::llvm::internal {
 			return "";
 		}
 
+		bool hasRuntimeOwnedStringReturn(const Yogi::Sir::CallExpression *call) {
+			static const std::string marker = "native.return.string.runtime-owned";
+
+			for (const auto &part: nativeAbiMetadataParts(call)) {
+				if (part == marker) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		std::map<flatbuffers::uoffset_t, std::string> nativeOwnedStringOutputFreeFunctions(
 			const Yogi::Sir::CallExpression *call
 		) {
@@ -122,6 +134,48 @@ namespace yogi::core::llvm::internal {
 				const auto freeFunction = rest.substr(suffixPosition + suffix.size());
 				if (!freeFunction.empty()) {
 					result[static_cast<flatbuffers::uoffset_t>(index)] = freeFunction;
+				}
+			}
+
+			return result;
+		}
+
+		std::map<flatbuffers::uoffset_t, bool> runtimeOwnedStringOutputParameters(
+			const Yogi::Sir::CallExpression *call
+		) {
+			static const std::string prefix = "native.param.";
+			static const std::string suffix = ".string.output.runtime-owned";
+			std::map<flatbuffers::uoffset_t, bool> result;
+
+			for (const auto &part: nativeAbiMetadataParts(call)) {
+				if (part.rfind(prefix, 0) != 0) {
+					continue;
+				}
+
+				const auto rest = part.substr(prefix.size());
+				const auto suffixPosition = rest.find(suffix);
+				if (
+					suffixPosition == std::string::npos ||
+					suffixPosition == 0 ||
+					suffixPosition + suffix.size() != rest.size()
+				) {
+					continue;
+				}
+
+				std::size_t index = 0;
+				bool validIndex = true;
+				for (std::size_t offset = 0; offset < suffixPosition; ++offset) {
+					const auto digit = rest[offset];
+					if (digit < '0' || digit > '9') {
+						validIndex = false;
+						break;
+					}
+
+					index = (index * 10) + static_cast<std::size_t>(digit - '0');
+				}
+
+				if (validIndex) {
+					result[static_cast<flatbuffers::uoffset_t>(index)] = true;
 				}
 			}
 
@@ -295,12 +349,14 @@ namespace yogi::core::llvm::internal {
 			::llvm::Value *nativeSlot;
 			std::string freeFunction;
 			const Yogi::Sir::TypeRef *pointeeType;
+			bool runtimeOwned;
 		};
 		std::vector<NativeArrayCleanup> nativeArrayCleanups;
 		std::vector<NativeStructArrayCopyBack> nativeStructArrayCopyBacks;
 		std::vector<::llvm::Value *> nativeStringArrayCleanups;
 		std::vector<NativeStringOutput> nativeStringOutputs;
 		const auto nativeStringOutputFreeFunctions = nativeOwnedStringOutputFreeFunctions(call);
+		const auto runtimeStringOutputParameters = runtimeOwnedStringOutputParameters(call);
 		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
 		const auto nativeArrayElementType = [&](const Yogi::Sir::TypeRef *type) -> const Yogi::Sir::TypeRef * {
@@ -500,8 +556,15 @@ namespace yogi::core::llvm::internal {
 						: nullptr;
 				const auto pointeeKind = resolvedTypeKind(pointeeType);
 				const auto outputIt = nativeStringOutputFreeFunctions.find(index);
+				const auto runtimeOutputIt = runtimeStringOutputParameters.find(index);
 
-				if (call->external() && outputIt != nativeStringOutputFreeFunctions.end()) {
+				if (
+					call->external() &&
+					(
+						outputIt != nativeStringOutputFreeFunctions.end() ||
+						runtimeOutputIt != runtimeStringOutputParameters.end()
+					)
+				) {
 					auto *yogiPointer = lower(argument, opaquePointer(), argumentSemanticType);
 					auto *nativeSlot = context.builder.CreateAlloca(
 						opaquePointer(),
@@ -514,8 +577,9 @@ namespace yogi::core::llvm::internal {
 					nativeStringOutputs.push_back({
 						yogiPointer,
 						nativeSlot,
-						outputIt->second,
+						outputIt != nativeStringOutputFreeFunctions.end() ? outputIt->second : "",
 						pointeeType,
+						runtimeOutputIt != runtimeStringOutputParameters.end(),
 					});
 					continue;
 				}
@@ -592,6 +656,7 @@ namespace yogi::core::llvm::internal {
 
 		auto *returnType = types.lower(call->type());
 		const auto nativeReturnFreeFunction = nativeOwnedStringReturnFreeFunction(call);
+		const auto runtimeOwnedStringReturn = hasRuntimeOwnedStringReturn(call);
 		std::string functionName;
 
 		if (call->external()) {
@@ -644,8 +709,14 @@ namespace yogi::core::llvm::internal {
 					it->nativeSlot,
 					"native.string.output.value"
 				);
-				auto *yogiString = callRuntime("yogi_string_from_native_owned", opaquePointer(), {nativeValue});
-				context.builder.CreateCall(nativeFreeFunction(it->freeFunction), {nativeValue});
+				auto *yogiString = callRuntime(
+					it->runtimeOwned ? "yogi_string_require_runtime_owned" : "yogi_string_from_native_owned",
+					opaquePointer(),
+					{nativeValue}
+				);
+				if (!it->runtimeOwned) {
+					context.builder.CreateCall(nativeFreeFunction(it->freeFunction), {nativeValue});
+				}
 				lowerPointerWrite(it->yogiPointer, yogiString, it->pointeeType, it->pointeeType);
 			}
 		};
@@ -681,9 +752,15 @@ namespace yogi::core::llvm::internal {
 
 		auto *result = context.builder.CreateCall(function, arguments, sanitizeSymbol(functionName) + ".call");
 
-		if (!nativeReturnFreeFunction.empty()) {
-			auto *yogiString = callRuntime("yogi_string_from_native_owned", opaquePointer(), {result});
-			context.builder.CreateCall(nativeFreeFunction(nativeReturnFreeFunction), {result});
+		if (!nativeReturnFreeFunction.empty() || runtimeOwnedStringReturn) {
+			auto *yogiString = callRuntime(
+				runtimeOwnedStringReturn ? "yogi_string_require_runtime_owned" : "yogi_string_from_native_owned",
+				opaquePointer(),
+				{result}
+			);
+			if (!nativeReturnFreeFunction.empty()) {
+				context.builder.CreateCall(nativeFreeFunction(nativeReturnFreeFunction), {result});
+			}
 			emitNativeStringOutputCopies();
 			emitNativeArrayCleanups();
 			return cast(yogiString, expectedType ? expectedType : returnType, expectedSemanticType, call->type());

@@ -54,6 +54,7 @@ Each test should:
 | Native Dictionary Lookup | `tests/programs/native_dictionary_lookup.cmake` | Implemented | extern native `string[]` ABI, temporary `const char** + length` marshalling, native lookup, original array preservation, static native library linking, LLVM/runtime execution |
 | Native Owned Name | `tests/programs/native_owned_name.cmake` | Implemented | extern native `string` return with `@abi return native-owned free=...`, native free invocation, LLVM/runtime execution |
 | Native Owned Name Output | `tests/programs/native_owned_name_output.cmake` | Implemented | extern native `ptr<string>` output parameter with `@abi param name output native-owned free=...`, temporary `char**` output slot, native free invocation, pointer write-back, LLVM/runtime execution |
+| Native Runtime Owned Name | `tests/programs/native_runtime_owned_name.cmake` | Implemented | extern native `string` return and `ptr<string>` output parameter with runtime-owned contracts, runtime string validation/adoption, LLVM/runtime execution |
 
 ## Rules
 

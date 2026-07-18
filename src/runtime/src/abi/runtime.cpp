@@ -114,6 +114,20 @@ namespace {
 		return false;
 	}
 
+	bool isRuntimeString(const char *value) {
+		if (!value) {
+			return false;
+		}
+
+		for (std::size_t index = 0; index < ownedRuntimeStringCount; ++index) {
+			if (ownedRuntimeStrings[index] == value) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	const char *copyRuntimeString(const char *value, std::size_t length) {
 		auto *result = allocateRuntimeString(length);
 		if (length > 0) {
@@ -291,6 +305,18 @@ const char *yogi_string_from_native_owned(const char *value) {
 	}
 
 	return copyRuntimeString(value, std::strlen(value));
+}
+
+const char *yogi_string_require_runtime_owned(const char *value) {
+	if (!value) {
+		yogi::runtime::RuntimeError::abortInvalidPointer("runtime-owned native string was null");
+	}
+
+	if (!isRuntimeString(value)) {
+		yogi::runtime::RuntimeError::abortInvalidPointer("runtime-owned native string was not allocated by Yogi runtime");
+	}
+
+	return value;
 }
 
 const char *yogi_string_slice(const char *value, double start, double end) {

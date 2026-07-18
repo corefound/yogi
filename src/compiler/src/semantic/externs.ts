@@ -339,17 +339,22 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                     });
                     const isSupportedOutput =
                         contract?.direction === "output" &&
-                        (contract.mode === "native-owned" || contract.owner === "native");
+                        (
+                            contract.mode === "native-owned" ||
+                            contract.owner === "native" ||
+                            contract.mode === "runtime-owned" ||
+                            contract.owner === "runtime"
+                        );
 
                     if (!isSupportedOutput) {
                         parameter.arrowLength = parameter.type?.raw?.length ?? parameterName.length ?? 1;
                         this.throwError(
                             `extern parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} with type ` +
-                            `${Helpers.RED}'${parameter.type?.raw ?? "ptr<string>"}'${Helpers.RESET} requires an output native-owned ABI contract`,
+                            `${Helpers.RED}'${parameter.type?.raw ?? "ptr<string>"}'${Helpers.RESET} requires an output ownership ABI contract`,
                             parameter.type?.position ?? parameter.position,
                             source,
                             parameter,
-                            "  = write @abi param <name> output native-owned free=<externFunctionName>",
+                            "  = write @abi param <name> output native-owned free=<externFunctionName> or @abi param <name> output runtime-owned",
                         );
                     }
                 }
@@ -476,7 +481,7 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                         contract,
                         source,
                         `native ABI contract ${Helpers.RED}'${contract.raw || "@abi"}'${Helpers.RESET} must target a parameter or return value`,
-                        "  = supported forms: @abi param <name> borrowed, @abi param <name> copy-back, @abi param <name> output native-owned free=<function>, @abi return native-owned free=<function>",
+                        "  = supported forms: @abi param <name> borrowed, @abi param <name> copy-back, @abi param <name> output native-owned free=<function>, @abi param <name> output runtime-owned, @abi return native-owned free=<function>, @abi return runtime-owned",
                     );
                 }
 
@@ -540,6 +545,9 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             const isPointer = parameterType?.kind === Kinds.Types.PointerType;
             const pointeeType = this.pointerPointeeType(parameter.type);
             const isOutput = contract.direction === "output";
+            const isNativeOwned = contract.mode === "native-owned" || contract.owner === "native";
+            const isRuntimeOwned = contract.mode === "runtime-owned" || contract.owner === "runtime";
+            const isOwned = isNativeOwned || isRuntimeOwned;
 
             if (contract.mode === "copy-back" && !isPointer) {
                 this.throwExternAbiContractError(
@@ -550,21 +558,21 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 );
             }
 
-            if (isOutput && (contract.mode !== "native-owned" && contract.owner !== "native")) {
+            if (isOutput && !isOwned) {
                 this.throwExternAbiContractError(
                     contract,
                     source,
-                    `output native ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} must be native-owned`,
-                    "  = supported output form today is @abi param <name> output native-owned free=<externFunctionName>",
+                    `output native ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} must declare ownership`,
+                    "  = supported output forms are @abi param <name> output native-owned free=<externFunctionName> and @abi param <name> output runtime-owned",
                 );
             }
 
-            if ((contract.mode === "native-owned" || contract.owner === "native") && !isOutput) {
+            if (isOwned && !isOutput) {
                 this.throwExternAbiContractError(
                     contract,
                     source,
-                    `native-owned ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} requires output direction`,
-                    "  = write @abi param <name> output native-owned free=<externFunctionName>",
+                    `owned ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} requires output direction`,
+                    "  = write @abi param <name> output native-owned free=<externFunctionName> or @abi param <name> output runtime-owned",
                 );
             }
 
@@ -581,17 +589,26 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 this.throwExternAbiContractError(
                     contract,
                     source,
-                    `output native-owned ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} currently supports only ${Helpers.BLUE}'ptr<string>'${Helpers.RESET}`,
+                    `output string ownership ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} currently supports only ${Helpers.BLUE}'ptr<string>'${Helpers.RESET}`,
                     "  = arrays, char**, and multi-level pointers belong to future native ABI lots",
                 );
             }
 
-            if ((contract.mode === "native-owned" || contract.owner === "native") && !contract.freeFunction) {
+            if (isNativeOwned && !contract.freeFunction) {
                 this.throwExternAbiContractError(
                     contract,
                     source,
                     `native-owned ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} requires a free function`,
                     "  = write free=<externFunctionName> in the @abi contract",
+                );
+            }
+
+            if (isRuntimeOwned && contract.freeFunction) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `runtime-owned ABI contract for parameter ${Helpers.RED}'${parameterName}'${Helpers.RESET} must not declare a native free function`,
+                    "  = runtime-owned values are already managed by Yogi",
                 );
             }
 
@@ -630,7 +647,10 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 );
             }
 
-            if ((contract.mode === "native-owned" || contract.owner === "native") && !contract.freeFunction) {
+            const isNativeOwned = contract.mode === "native-owned" || contract.owner === "native";
+            const isRuntimeOwned = contract.mode === "runtime-owned" || contract.owner === "runtime";
+
+            if (isNativeOwned && !contract.freeFunction) {
                 this.throwExternAbiContractError(
                     contract,
                     source,
@@ -639,15 +659,24 @@ export function ExternsSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 );
             }
 
+            if (isRuntimeOwned && contract.freeFunction) {
+                this.throwExternAbiContractError(
+                    contract,
+                    source,
+                    `runtime-owned return contract for function ${Helpers.RED}'${functionName}'${Helpers.RESET} must not declare a native free function`,
+                    "  = runtime-owned returns are already managed by Yogi",
+                );
+            }
+
             if (
-                (contract.mode === "native-owned" || contract.owner === "native") &&
+                (isNativeOwned || isRuntimeOwned) &&
                 this.resolveType(returnType)?.kind !== Kinds.Types.StringType
             ) {
                 this.throwExternAbiContractError(
                     contract,
                     source,
-                    `native-owned return contracts are currently supported only for ${Helpers.BLUE}'string'${Helpers.RESET} returns`,
-                    "  = other native-owned resources need a dedicated ABI lot before they can cross the boundary safely",
+                    `owned return contracts are currently supported only for ${Helpers.BLUE}'string'${Helpers.RESET} returns`,
+                    "  = other native ABI resources need a dedicated ABI lot before they can cross the boundary safely",
                 );
             }
 

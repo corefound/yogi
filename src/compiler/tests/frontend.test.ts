@@ -877,6 +877,12 @@ describe("Yogi frontend semantic pipeline", () => {
           /** @abi return native-owned free=destroyName */
           getName(): string
 
+          /** @abi return runtime-owned */
+          getRuntimeName(): string
+
+          /** @abi param runtimeName output runtime-owned */
+          readRuntimeName(runtimeName: ptr<string>): void
+
           destroyName(value: string): void
         }
       `,
@@ -921,6 +927,20 @@ describe("Yogi frontend semantic pipeline", () => {
     }));
     expect(missingFree.status).not.toBe(0);
     expect(missingFree.stderr).toContain("requires a free function");
+
+    const runtimeOwnedReturnWithFree = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi return runtime-owned free=destroyName */
+          getName(): string
+
+          destroyName(value: string): void
+        }
+      `,
+    }));
+    expect(runtimeOwnedReturnWithFree.status).not.toBe(0);
+    expect(runtimeOwnedReturnWithFree.stderr).toContain("runtime-owned return");
+    expect(runtimeOwnedReturnWithFree.stderr).toContain("must not declare a native free function");
 
     const nonStringNativeOwnedReturn = runCompiler(createProject({
       "main.io": `
@@ -974,8 +994,34 @@ describe("Yogi frontend semantic pipeline", () => {
       `,
     }));
     expect(outputWithoutNativeOwned.status).not.toBe(0);
-    expect(outputWithoutNativeOwned.stderr).toContain("requires an output native-owned ABI contract");
+    expect(outputWithoutNativeOwned.stderr).toContain("requires an output ownership ABI contract");
     expect(outputWithoutNativeOwned.stderr).toContain("name");
+
+    const runtimeOwnedOutputWithFree = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param name output runtime-owned free=destroyName */
+          readName(name: ptr<string>): void
+
+          destroyName(value: string): void
+        }
+      `,
+    }));
+    expect(runtimeOwnedOutputWithFree.status).not.toBe(0);
+    expect(runtimeOwnedOutputWithFree.stderr).toContain("runtime-owned ABI contract");
+    expect(runtimeOwnedOutputWithFree.stderr).toContain("must not declare a native free function");
+
+    const runtimeOwnedOutputWithoutDirection = runCompiler(createProject({
+      "main.io": `
+        extern native from "./libnative.a" {
+          /** @abi param name runtime-owned */
+          readName(name: ptr<string>): void
+        }
+      `,
+    }));
+    expect(runtimeOwnedOutputWithoutDirection.status).not.toBe(0);
+    expect(runtimeOwnedOutputWithoutDirection.stderr).toContain("requires an output ownership ABI contract");
+    expect(runtimeOwnedOutputWithoutDirection.stderr).toContain("name");
 
     const outputNonPointer = runCompiler(createProject({
       "main.io": `

@@ -546,16 +546,21 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 const abiContract = (externFunction.abiContracts?.parameters ?? []).find((contract: any) => {
                     return contract.name === parameterName;
                 });
-                const expectedIsNativeStringOutput =
+                const expectedIsStringOutput =
                     abiContract?.direction === "output" &&
-                    (abiContract.mode === "native-owned" || abiContract.owner === "native") &&
+                    (
+                        abiContract.mode === "native-owned" ||
+                        abiContract.owner === "native" ||
+                        abiContract.mode === "runtime-owned" ||
+                        abiContract.owner === "runtime"
+                    ) &&
                     expectedPointee?.kind === Kinds.Types.StringType;
 
                 if (this.isPointerType(actualType)) {
                     this.assertPointerTargetUsable(argument, source);
                 }
 
-                if (expectedIsNativeStringOutput && argument?.pointerPermission === "readonly") {
+                if (expectedIsStringOutput && argument?.pointerPermission === "readonly") {
                     argument.arrowLength = argument.source?.length ?? 1;
                     this.throwError(
                         `extern function ${Helpers.BLUE}'${externName}.${methodName}'${Helpers.RESET} writes output string through ` +
@@ -632,7 +637,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 return {
                     index,
                     escapes: false,
-                    mutates: expectedIsNativeStringOutput,
+                    mutates: expectedIsStringOutput,
                     consumes: false,
                 };
             });
@@ -642,26 +647,38 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 raw: "unknown",
             });
             const returnAbiContract = externFunction.abiContracts?.returnValue ?? null;
-            const nativeReturnBuiltinMethod =
+            const returnIsNativeOwned =
                 returnAbiContract &&
-                    (returnAbiContract.mode === "native-owned" || returnAbiContract.owner === "native") &&
-                    returnAbiContract.freeFunction
+                (returnAbiContract.mode === "native-owned" || returnAbiContract.owner === "native");
+            const returnIsRuntimeOwned =
+                returnAbiContract &&
+                (returnAbiContract.mode === "runtime-owned" || returnAbiContract.owner === "runtime");
+            const nativeReturnBuiltinMethod =
+                returnIsNativeOwned && returnAbiContract.freeFunction
                     ? `native.return.string.native-owned.free=${returnAbiContract.freeFunction}`
+                    : returnIsRuntimeOwned
+                        ? "native.return.string.runtime-owned"
                     : null;
             const nativeOutputBuiltinMethods = (externFunction.abiContracts?.parameters ?? [])
                 .map((contract: any) => {
-                    if (
-                        contract.direction !== "output" ||
-                        (contract.mode !== "native-owned" && contract.owner !== "native") ||
-                        !contract.freeFunction
-                    ) {
+                    if (contract.direction !== "output") {
                         return null;
                     }
 
                     const parameterIndex = parameters.findIndex((parameter: any) => parameter.name === contract.name);
-                    return parameterIndex >= 0
-                        ? `native.param.${parameterIndex}.string.output.native-owned.free=${contract.freeFunction}`
-                        : null;
+                    if (parameterIndex < 0) {
+                        return null;
+                    }
+
+                    if ((contract.mode === "native-owned" || contract.owner === "native") && contract.freeFunction) {
+                        return `native.param.${parameterIndex}.string.output.native-owned.free=${contract.freeFunction}`;
+                    }
+
+                    if (contract.mode === "runtime-owned" || contract.owner === "runtime") {
+                        return `native.param.${parameterIndex}.string.output.runtime-owned`;
+                    }
+
+                    return null;
                 })
                 .filter(Boolean);
             const nativeBuiltinMethod = [

@@ -34,7 +34,7 @@ Parameter contracts:
 @abi param <name> borrowed
 @abi param <name> copy-back
 @abi param <name> output native-owned free=<externFunctionName>
-@abi param <name> runtime-owned
+@abi param <name> output runtime-owned
 ```
 
 Return contracts:
@@ -60,8 +60,10 @@ Aliases:
 - Only one contract may target the same parameter.
 - Only one return contract is allowed.
 - `copy-back` on a parameter requires a pointer type.
-- `output native-owned` on a parameter currently requires `ptr<string>`.
+- `output native-owned` and `output runtime-owned` on a parameter currently
+  require `ptr<string>`.
 - `native-owned` requires a `free=<externFunctionName>` entry.
+- `runtime-owned` must not declare a native free function.
 - A referenced free function must be declared in the same extern block.
 - Return contracts cannot be attached to `void` functions.
 - Unsupported modes fail during semantic analysis.

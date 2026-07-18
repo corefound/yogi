@@ -778,6 +778,12 @@ if(BUILD_TESTING)
                         program-native-owned-name-output
                         tests/programs/native_owned_name_output.cmake
                 )
+
+                add_yogi_program_test(
+                        yogi_program_native_runtime_owned_name
+                        program-native-runtime-owned-name
+                        tests/programs/native_runtime_owned_name.cmake
+                )
         endif()
 endif()
 
