@@ -101,11 +101,19 @@ namespace yogi::core::llvm::internal {
 				const std::string &owner,
 				const std::map<std::string, std::string> &destroyFunctions
 			);
+			void registerNativeResourceArrayElementFieldOwners(
+				const std::string &owner,
+				const std::map<std::string, std::string> &destroyFunctions
+			);
+			void clearNativeResourceArrayElementFieldOwners(const std::string &owner);
 			std::optional<std::string> nativeResourceFieldDestroyFunction(
 				const std::string &owner,
 				const std::string &fieldPath
 			) const;
 			std::map<std::string, std::string> nativeResourceFieldDestroyFunctions(
+				const std::string &owner
+			) const;
+			std::map<std::string, std::string> nativeResourceArrayElementFieldDestroyFunctions(
 				const std::string &owner
 			) const;
 			void clearNativeResourceFieldOwner(
@@ -138,6 +146,7 @@ namespace yogi::core::llvm::internal {
 			std::map<std::string, std::string> borrowedViewAliases;
 			std::map<std::string, std::string> nativeResourceReturnDestructors;
 			std::map<std::string, std::map<std::string, std::string>> nativeResourceFieldDestructors;
+			std::map<std::string, std::map<std::string, std::string>> nativeResourceArrayElementFieldDestructors;
 			std::map<std::string, std::map<std::string, std::string>> nativeResourceStructReturnDestructors;
 			std::vector<LocalAggregateCleanup> localAggregateCleanups;
 			bool retainEscapedObjectGraph = false;

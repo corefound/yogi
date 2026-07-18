@@ -5,6 +5,7 @@
 
 #include "llvm/lowering/typeLowerer.h"
 
+#include <map>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -68,6 +69,14 @@ namespace yogi::core::llvm::internal {
 				const Yogi::Sir::TypeRef *type,
 				::llvm::Value *value
 			);
+			void destroyNativeResourceArrayElements(
+				const std::string &owner,
+				const Yogi::Sir::TypeRef *type,
+				::llvm::Value *value
+			);
+			std::map<std::string, std::string> nativeResourceArrayElementFieldsFromReturnedArrayCall(
+				const Yogi::Sir::CallExpression *call
+			) const;
 			bool isStructType(const Yogi::Sir::TypeRef *type) const;
 			::llvm::Value *cast(
 				::llvm::Value *value,

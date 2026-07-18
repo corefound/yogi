@@ -54,6 +54,19 @@ namespace yogi::core::llvm::internal {
 			return kind == Yogi::Sir::TypeKind_string_type;
 		}
 
+		bool isArrayType(const Yogi::Sir::TypeRef *type) {
+			if (!type) {
+				return false;
+			}
+
+			const auto kind = type->resolved()
+				? type->resolved()->kind()
+				: type->kind();
+
+			return kind == Yogi::Sir::TypeKind_array_type ||
+				kind == Yogi::Sir::TypeKind_tuple_type;
+		}
+
 		const Yogi::Sir::TypeRef *semanticTypeOf(const Yogi::Sir::ValueRef *value) {
 			if (!value) {
 				return nullptr;
@@ -347,6 +360,18 @@ namespace yogi::core::llvm::internal {
 			auto *result = values.lowerCall(call, types.lower(call->type()), call->type());
 			if (isStringType(call->type())) {
 				values.destroyEscapedAggregate(call->type(), result);
+			} else if (
+				isArrayType(call->type()) &&
+				fbString(call->builtin_method()) == "array.splice"
+			) {
+				const auto temporaryOwner = "$discarded.splice." + std::to_string(context.localAggregateCleanups.size());
+				const auto fields = values.nativeResourceArrayElementFieldsFromReturnedArrayCall(call);
+				if (!fields.empty()) {
+					context.registerNativeResourceArrayElementFieldOwners(temporaryOwner, fields);
+					values.destroyNativeResourceArrayElements(temporaryOwner, call->type(), result);
+					context.clearNativeResourceArrayElementFieldOwners(temporaryOwner);
+				}
+				values.destroyEscapedAggregate(call->type(), result);
 			}
 			return;
 		}
@@ -580,6 +605,7 @@ namespace yogi::core::llvm::internal {
 					auto *loaded = context.builder.CreateLoad(slot->getAllocatedType(), cleanup.cleanupSlot);
 
 					values.destroyNativeResourceStructFields(cleanup.owner, cleanup.type, loaded);
+					values.destroyNativeResourceArrayElements(cleanup.owner, cleanup.type, loaded);
 
 					if (cleanup.heapOwned) {
 						values.destroyEscapedAggregate(cleanup.type, loaded);
@@ -628,6 +654,7 @@ namespace yogi::core::llvm::internal {
 				if (values.isStructType(cleanup.type)) {
 					values.destroyNativeResourceStructFields(cleanup.owner, cleanup.type, cleanup.value);
 				}
+				values.destroyNativeResourceArrayElements(cleanup.owner, cleanup.type, cleanup.value);
 
 				if (cleanup.heapOwned) {
 					values.destroyEscapedAggregate(cleanup.type, cleanup.value);

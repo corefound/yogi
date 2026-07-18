@@ -155,6 +155,7 @@ namespace yogi::core::llvm::internal {
 		aggregateAliases.clear();
 		borrowedViewAliases.clear();
 		nativeResourceFieldDestructors.clear();
+		nativeResourceArrayElementFieldDestructors.clear();
 		localAggregateCleanups.clear();
 		retainEscapedObjectGraph = false;
 	}
@@ -256,6 +257,29 @@ namespace yogi::core::llvm::internal {
 		}
 	}
 
+	void ModuleLoweringContext::registerNativeResourceArrayElementFieldOwners(
+		const std::string &owner,
+		const std::map<std::string, std::string> &destroyFunctions
+	) {
+		if (owner.empty() || destroyFunctions.empty()) {
+			return;
+		}
+
+		for (const auto &[fieldPath, destroyFunction]: destroyFunctions) {
+			if (!fieldPath.empty() && !destroyFunction.empty()) {
+				nativeResourceArrayElementFieldDestructors[owner][fieldPath] = destroyFunction;
+			}
+		}
+	}
+
+	void ModuleLoweringContext::clearNativeResourceArrayElementFieldOwners(const std::string &owner) {
+		if (owner.empty()) {
+			return;
+		}
+
+		nativeResourceArrayElementFieldDestructors.erase(owner);
+	}
+
 	std::optional<std::string> ModuleLoweringContext::nativeResourceFieldDestroyFunction(
 		const std::string &owner,
 		const std::string &fieldPath
@@ -280,6 +304,15 @@ namespace yogi::core::llvm::internal {
 	) const {
 		const auto fields = nativeResourceFieldDestructors.find(owner);
 		return fields == nativeResourceFieldDestructors.end()
+			? std::map<std::string, std::string>()
+			: fields->second;
+	}
+
+	std::map<std::string, std::string> ModuleLoweringContext::nativeResourceArrayElementFieldDestroyFunctions(
+		const std::string &owner
+	) const {
+		const auto fields = nativeResourceArrayElementFieldDestructors.find(owner);
+		return fields == nativeResourceArrayElementFieldDestructors.end()
 			? std::map<std::string, std::string>()
 			: fields->second;
 	}
