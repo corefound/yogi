@@ -101,19 +101,24 @@ Dynamic/unknown shortening paths still use the runtime pointer check.
 
 ## Runtime And Lowering
 
-The LLVM backend now calls:
+> Superseded by Lot 97 for source ownership semantics. Target slot identity
+> remains as documented here, but normal `=` no longer consumes its source.
+
+The LLVM backend now materializes an owned copy for observable sources and then
+calls:
 
 ```txt
-yogi_array_replace_from(target, source)
+yogi_array_move_replace_from(target, compilerOwnedTemporary)
 ```
 
 when assigning into an already-initialized dynamic array slot. The runtime
 performs the slot-preserving replacement using the same invalidation machinery
 used by `pop`, `shift`, and `splice`.
 
-Temporary RHS arrays are destroyed after their values are copied into the target
-slots. Receiver-returning methods such as `sort()` and `reverse()` are detected
-so self-assignment through mutating methods does not destroy the receiver.
+Only compiler-owned temporary RHS arrays are consumed. Named arrays and borrowed
+views remain alive and unchanged. Receiver-returning methods such as `sort()`
+and `reverse()` are copied before target replacement so assignment cannot create
+a second descriptor owner.
 
 ## Tests
 

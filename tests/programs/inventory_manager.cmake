@@ -19,7 +19,7 @@ struct Product {
     reorderPoint: number
 }
 
-function findProductIndex(products: Product[], id: number): number {
+function findProductIndex(products: ptr<Product[]>, id: number): number {
     for (let i: number = 0; i < products.length; i = i + 1) {
         if (products[i].id == id) {
             return i
@@ -29,7 +29,7 @@ function findProductIndex(products: Product[], id: number): number {
     return -1
 }
 
-function sell(products: Product[], id: number, amount: number): boolean {
+function sell(products: ptr<Product[]>, id: number, amount: number): boolean {
     let index: number = findProductIndex(products, id)
 
     if (index < 0) {
@@ -44,7 +44,7 @@ function sell(products: Product[], id: number, amount: number): boolean {
     return true
 }
 
-function restock(products: Product[], id: number, amount: number): boolean {
+function restock(products: ptr<Product[]>, id: number, amount: number): boolean {
     let index: number = findProductIndex(products, id)
 
     if (index < 0) {
@@ -55,7 +55,7 @@ function restock(products: Product[], id: number, amount: number): boolean {
     return true
 }
 
-function totalValue(products: Product[]): number {
+function totalValue(products: ptr<Product[]>): number {
     let total: number = 0
 
     for (let product: Product of products) {
@@ -65,7 +65,7 @@ function totalValue(products: Product[]): number {
     return total
 }
 
-function lowStockCount(products: Product[]): number {
+function lowStockCount(products: ptr<Product[]>): number {
     let low: Product[] = products.filter((product: Product): boolean => {
         return product.quantity <= product.reorderPoint
     })
@@ -80,14 +80,14 @@ function inventoryProgram(): number {
         { id: 3, name: "Cable", quantity: 5, price: 8, reorderPoint: 5 }
     ]
 
-    sell(inventory, 1, 2)
-    sell(inventory, 3, 4)
-    restock(inventory, 2, 5)
+    sell(&inventory, 1, 2)
+    sell(&inventory, 3, 4)
+    restock(&inventory, 2, 5)
     inventory.push({ id: 4, name: "Monitor", quantity: 3, price: 150, reorderPoint: 2 })
 
-    let value: number = totalValue(inventory)
-    let low: number = lowStockCount(inventory)
-    let keyboardIndex: number = findProductIndex(inventory, 1)
+    let value: number = totalValue(&inventory)
+    let low: number = lowStockCount(&inventory)
+    let keyboardIndex: number = findProductIndex(&inventory, 1)
 
     print(value)
     print(low)
@@ -150,4 +150,3 @@ set(expected_stdout "1418\n1\n8\n2426\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "inventory manager program printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
-

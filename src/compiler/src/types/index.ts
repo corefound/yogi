@@ -10,6 +10,8 @@ export namespace Types {
         export type GlobalMetaLinkInput = SirTypes.GlobalMetaLinkInput;
         export type SourcePosition = SirTypes.SourcePosition;
         export type SemanticType = SirTypes.SemanticType;
+        export type SemanticValueIdentity = SirTypes.SemanticValueIdentity;
+        export type SemanticDecision = SirTypes.SemanticDecision;
         export type SemanticNumberConstant = SirTypes.SemanticNumberConstant;
         export type SemanticStringConstant = SirTypes.SemanticStringConstant;
         export type SemanticBooleanConstant = SirTypes.SemanticBooleanConstant;

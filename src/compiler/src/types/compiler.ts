@@ -130,7 +130,9 @@ export type SymbolInfo = {
     pointerPermission?: "mutable" | "readonly";
     nativeResourceDestructor?: string | null;
     nativeResourceFieldDestructors?: Record<string, string>;
+    nativeResourceArrayElementFieldDestructors?: Record<string, string>;
     returnsNativeResourceFieldDestructors?: Record<string, string>;
+    returnsNativeResourceArrayElementFieldDestructors?: Record<string, string>;
     dynamicArrayStorageMode?: "contiguous_fast_path" | "pointer_safe_chunked_mode";
     dynamicArrayStorageReasons?: string[];
     moved?: boolean;
@@ -151,7 +153,10 @@ export type SemanticModuleSymbol = {
     linkageName?: string | null;
     qualifiedName?: string;
     sourcePath: string;
+    node?: any;
     effectSummary?: SemanticFunctionEffectSummary;
+    returnsNativeResourceFieldDestructors?: Record<string, string>;
+    returnsNativeResourceArrayElementFieldDestructors?: Record<string, string>;
 };
 
 export type SemanticModuleInfo = {

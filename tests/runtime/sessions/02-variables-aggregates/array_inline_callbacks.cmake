@@ -90,12 +90,126 @@ function remainingCallbackBatch(): number {
     return reduced * 1000000 + reducedRight * 100 + lastIndex * 10 + expanded.length
 }
 
+function controlFlowBatch(): void {
+    let scores: number[] = [1, 2, 3]
+    let mapped: number[] = scores.map((value: number, index: number): number => {
+        if (value < 2) {
+            return value * 10
+        } else {
+            {
+                let next: number = value + index
+                return next * 10
+            }
+        }
+    })
+    let filtered: number[] = scores.filter((value: number, index: number): boolean => {
+        if (value == 1) {
+            return false
+        }
+
+        if (index == 2) {
+            return true
+        }
+
+        return value > 2
+    })
+    let hasTwo: boolean = scores.some((value: number): boolean => {
+        if (value == 2) {
+            return true
+        }
+
+        return false
+    })
+    let allPositive: boolean = scores.every((value: number): boolean => {
+        if (value < 1) {
+            return false
+        } else {
+            return true
+        }
+    })
+    let foundIndex: number = scores.findIndex((value: number): boolean => {
+        if (value == 3) {
+            return true
+        }
+
+        return false
+    })
+    let total: number = 0
+    let whileScore: number = 0
+    let forScore: number = 0
+    scores.forEach((value: number): void => {
+        if (value > 1) {
+            total = total + value
+        } else {
+            {
+                total = total + 10
+            }
+        }
+
+        let cursor: number = 0
+        while (cursor < 4) {
+            cursor = cursor + 1
+
+            if (cursor == 2) {
+                continue
+            }
+
+            if (cursor == 4) {
+                break
+            }
+
+            whileScore = whileScore + value * 10 + cursor
+        }
+
+        switch (value) {
+            case 1:
+                whileScore = whileScore + 100
+                break
+
+            case 2:
+                whileScore = whileScore + 200
+
+            default:
+                whileScore = whileScore + 1
+                break
+        }
+
+        for (let index: number = 0; index < 3; index = index + 1) {
+            switch (index) {
+                case 1:
+                    continue
+
+                case 2:
+                    break
+
+                default:
+                    break
+            }
+
+            forScore = forScore + value + index
+        }
+    })
+
+    print(mapped[0])
+    print(mapped[1])
+    print(mapped[2])
+    print(filtered.length)
+    print(filtered[0])
+    print(hasTwo)
+    print(allPositive)
+    print(foundIndex)
+    print(total)
+    print(whileScore)
+    print(forScore)
+}
+
 print(mapBatch())
 print(filterBatch())
 print(predicateBatch())
 print(findBatch())
 print(blockBodyBatch())
 print(remainingCallbackBatch())
+controlFlowBatch()
 ]=])
 
 execute_process(
@@ -137,6 +251,22 @@ foreach(symbol
 	endif()
 endforeach()
 
+foreach(block
+		callback.if.then
+		callback.if.else
+		callback.if.end
+		callback.return
+		callback.while.condition
+		callback.while.end
+		callback.for.condition
+		callback.for.increment
+		callback.switch.check
+		callback.switch.end)
+	if(NOT ir MATCHES "${block}")
+		message(FATAL_ERROR "expected array inline callbacks IR to contain ${block}")
+	endif()
+endforeach()
+
 execute_process(
 	COMMAND "${EXECUTABLE}"
 	WORKING_DIRECTORY "${TEST_WORK_DIR}"
@@ -151,6 +281,7 @@ endif()
 
 set(expected_stdout "246\n31\n112\n2\n27024\n")
 set(expected_stdout "${expected_stdout}16432118\n")
+set(expected_stdout "${expected_stdout}10\n30\n50\n1\n3\ntrue\ntrue\n2\n15\n434\n18\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "array inline callbacks executable printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

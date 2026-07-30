@@ -1,6 +1,7 @@
 *.vscode/
 .idea/
 /build/
+/build-*/
 ./.DS_Store
 
 node_modules/
@@ -33,4 +34,3 @@ src/pack/CMakeFiles/
 inputs/packages/
 sir.json
 /yogi/
-

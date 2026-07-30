@@ -115,7 +115,7 @@ function pick(flag: boolean): number[] {
 let selected: number[] = pick(false)
 ]=])
 
-run_invalid_case("known-retained-callee" [=[
+run_valid_case("known-copying-callee" [=[
 let saved: number[] = [0]
 
 function save(scores: number[]): void {
@@ -127,9 +127,9 @@ function invalid(): number {
     save(local)
     return local[0]
 }
-]=] "may retain or return")
+]=])
 
-run_invalid_case("alias-retained-callee" [=[
+run_valid_case("alias-copying-callee" [=[
 let saved: number[] = [0]
 
 function save(scores: number[]): void {
@@ -142,9 +142,9 @@ function invalid(): number {
     save(alias)
     return local[0]
 }
-]=] "may retain or return")
+]=])
 
-run_invalid_case("conditional-retain" [=[
+run_valid_case("conditional-copy" [=[
 let saved: number[] = [0]
 
 function save(scores: number[]): void {
@@ -160,7 +160,7 @@ function invalid(flag: boolean): number {
 
     return local[0]
 }
-]=] "may retain or return")
+]=])
 
 run_invalid_case("unknown-external-call" [=[
 declare function externalUse(scores: number[]): void

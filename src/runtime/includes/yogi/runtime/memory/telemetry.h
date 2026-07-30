@@ -4,45 +4,42 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace yogi::runtime {
 
-	class MemoryTelemetry final {
-		public:
-			static void recordAllocation(void *address, std::size_t size, const char *typeName);
-			static void recordReallocation(
-				void *oldAddress,
-				void *newAddress,
-				std::size_t newSize,
-				const char *typeName
-			);
-			static void recordDeallocation(void *address);
+    class MemoryTelemetry final {
+       public:
+        static void recordAllocation(void* address, std::size_t size, const char* typeName);
+        static void recordReallocation(void* oldAddress, void* newAddress, std::size_t newSize, const char* typeName);
+        static void recordDeallocation(void* address);
 
-			static std::size_t liveBytes();
-			static std::size_t liveAllocations();
-			static std::size_t totalAllocatedBytes();
-			static std::size_t totalFreedBytes();
-			static std::size_t peakBytes();
-			static void pushContext(const char *moduleName, const char *functionName);
-			static void popContext();
-			static const char *currentModule();
-			static const char *currentFunction();
-			static void pushSourceLocation(const char *sourcePath, std::size_t line, std::size_t column);
-			static void popSourceLocation();
-			static const char *currentSourcePath();
-			static std::size_t currentSourceLine();
-			static std::size_t currentSourceColumn();
-			static std::size_t attributedLiveBytes(const char *moduleName, const char *functionName);
-			static std::size_t attributedLiveAllocations(const char *moduleName, const char *functionName);
-			static std::size_t attributedTotalAllocatedBytes(const char *moduleName, const char *functionName);
-			static std::size_t attributedTotalFreedBytes(const char *moduleName, const char *functionName);
-			static std::size_t attributedPeakBytes(const char *moduleName, const char *functionName);
-			static std::size_t attributedLocationLiveBytes(const char *sourcePath, std::size_t line, std::size_t column);
-			static std::size_t attributedLocationLiveAllocations(const char *sourcePath, std::size_t line, std::size_t column);
-			static std::size_t attributedLocationTotalAllocatedBytes(const char *sourcePath, std::size_t line, std::size_t column);
-			static std::size_t attributedLocationTotalFreedBytes(const char *sourcePath, std::size_t line, std::size_t column);
-			static std::size_t attributedLocationPeakBytes(const char *sourcePath, std::size_t line, std::size_t column);
-			static void report();
-	};
+        static std::size_t liveBytes();
+        static std::size_t liveAllocations();
+        static std::size_t totalAllocatedBytes();
+        static std::size_t totalFreedBytes();
+        static std::size_t peakBytes();
+        static void pushContext(const char* moduleName, const char* functionName);
+        static void popContext(const char* exitReason = "normal");
+        static const char* currentModule();
+        static const char* currentFunction();
+        static std::uint64_t currentFrameId();
+        static void pushSourceLocation(const char* sourcePath, std::size_t line, std::size_t column);
+        static void popSourceLocation();
+        static const char* currentSourcePath();
+        static std::size_t currentSourceLine();
+        static std::size_t currentSourceColumn();
+        static std::size_t attributedLiveBytes(const char* moduleName, const char* functionName);
+        static std::size_t attributedLiveAllocations(const char* moduleName, const char* functionName);
+        static std::size_t attributedTotalAllocatedBytes(const char* moduleName, const char* functionName);
+        static std::size_t attributedTotalFreedBytes(const char* moduleName, const char* functionName);
+        static std::size_t attributedPeakBytes(const char* moduleName, const char* functionName);
+        static std::size_t attributedLocationLiveBytes(const char* sourcePath, std::size_t line, std::size_t column);
+        static std::size_t attributedLocationLiveAllocations(const char* sourcePath, std::size_t line, std::size_t column);
+        static std::size_t attributedLocationTotalAllocatedBytes(const char* sourcePath, std::size_t line, std::size_t column);
+        static std::size_t attributedLocationTotalFreedBytes(const char* sourcePath, std::size_t line, std::size_t column);
+        static std::size_t attributedLocationPeakBytes(const char* sourcePath, std::size_t line, std::size_t column);
+        static void report();
+    };
 
 } // namespace yogi::runtime

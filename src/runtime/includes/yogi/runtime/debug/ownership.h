@@ -20,6 +20,7 @@ namespace yogi::runtime {
 			static void dropStackAggregate(void *address, const char *typeName);
 			static void destroyHeapAggregate(void *address, const char *typeName);
 			static void assertLiveAggregate(void *address, const char *operation, const char *typeName);
+			[[noreturn]] static void failAggregate(void *address, const char *reason, const char *typeName);
 
 			static std::size_t liveAllocations();
 			static std::size_t liveAggregates();

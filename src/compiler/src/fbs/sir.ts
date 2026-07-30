@@ -51,6 +51,10 @@ import {
     FunctionEffectSummary,
     ParameterEffect,
     ReturnBorrowSummary,
+    ValueIdentity,
+    SemanticDecision,
+    SemanticDecisionKind,
+    SemanticDecisionReason,
     LayoutMetadata,
     StructFieldDeclaration,
     StructDeclaration,
@@ -65,6 +69,7 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
         static createSirModuleBuffer(input: Types.Sir.SemanticModuleInput): Uint8Array {
             const builder = new fbs.Builder(1024);
 
+            const moduleId = builder.createString(input.moduleId ?? "");
             const sourcePath = builder.createString(input.sourcePath);
 
             const nodeOffsets = input.nodes.map((node) => {
@@ -74,16 +79,93 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             const nodesVector = createVector(builder, nodeOffsets, (length) => {
                 Module.startNodesVector(builder, length);
             });
+            const valueOffsets = (input.values ?? []).map((value) => {
+                return this.createValueIdentity(builder, value);
+            });
+            const valuesVector = createVector(builder, valueOffsets, (length) => {
+                Module.startValuesVector(builder, length);
+            });
+            const decisionOffsets = (input.decisions ?? []).map((decision) => {
+                return this.createSemanticDecision(builder, decision);
+            });
+            const decisionsVector = createVector(builder, decisionOffsets, (length) => {
+                Module.startDecisionsVector(builder, length);
+            });
 
             Module.startModule(builder);
+            Module.addModuleId(builder, moduleId);
             Module.addSourcePath(builder, sourcePath);
             Module.addNodes(builder, nodesVector);
+            Module.addValues(builder, valuesVector);
+            Module.addDecisions(builder, decisionsVector);
 
             const module = Module.endModule(builder);
 
             builder.finish(module);
 
             return builder.asUint8Array();
+        }
+
+        static createValueIdentity(
+            builder: fbs.Builder,
+            value: Types.Sir.SemanticValueIdentity,
+        ): fbs.Offset {
+            const valueId = builder.createString(value.valueId ?? "");
+            const originNodeId = builder.createString(value.originNodeId ?? "");
+            const symbolId = builder.createString(value.symbolId ?? "");
+            const scopeId = builder.createString(value.scopeId ?? "");
+            const typeId = builder.createString(value.typeId ?? "");
+            const source = builder.createString(value.source ?? "");
+            const position = this.createSourcePosition(builder, value.position);
+
+            ValueIdentity.startValueIdentity(builder);
+            ValueIdentity.addValueId(builder, valueId);
+            ValueIdentity.addOriginNodeId(builder, originNodeId);
+            ValueIdentity.addSymbolId(builder, symbolId);
+            ValueIdentity.addScopeId(builder, scopeId);
+            ValueIdentity.addTypeId(builder, typeId);
+            ValueIdentity.addSource(builder, source);
+            ValueIdentity.addPosition(builder, position);
+
+            return ValueIdentity.endValueIdentity(builder);
+        }
+
+        static createSemanticDecision(
+            builder: fbs.Builder,
+            decision: Types.Sir.SemanticDecision,
+        ): fbs.Offset {
+            const decisionId = builder.createString(decision.decisionId ?? "");
+            const nodeId = builder.createString(decision.nodeId ?? "");
+            const valueId = builder.createString(decision.valueId ?? "");
+            const typeId = builder.createString(decision.typeId ?? "");
+            const context = builder.createString(decision.context ?? "");
+            const relatedIdOffsets = (decision.relatedIds ?? []).map((id) => {
+                return builder.createString(id);
+            });
+            const relatedIds = SemanticDecision.createRelatedIdsVector(builder, relatedIdOffsets);
+            const source = builder.createString(decision.source ?? "");
+            const position = this.createSourcePosition(builder, decision.position);
+            const kind =
+                (SemanticDecisionKind as any)[decision.kind] ??
+                SemanticDecisionKind.Unknown;
+            const reason =
+                (SemanticDecisionReason as any)[decision.reason] ??
+                SemanticDecisionReason.Unknown;
+
+            SemanticDecision.startSemanticDecision(builder);
+            SemanticDecision.addDecisionId(builder, decisionId);
+            SemanticDecision.addNodeId(builder, nodeId);
+            SemanticDecision.addValueId(builder, valueId);
+            SemanticDecision.addTypeId(builder, typeId);
+            SemanticDecision.addKind(builder, kind);
+            SemanticDecision.addReason(builder, reason);
+            SemanticDecision.addContext(builder, context);
+            SemanticDecision.addRelatedIds(builder, relatedIds);
+            SemanticDecision.addRuntimeRequired(builder, decision.runtimeRequired ?? false);
+            SemanticDecision.addSource(builder, source);
+            SemanticDecision.addPosition(builder, position);
+
+            return SemanticDecision.endSemanticDecision(builder);
         }
 
         static visitSemanticNode(
@@ -586,6 +668,12 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             }
 
             const kind = builder.createString(node.kind);
+            const nodeId = builder.createString((node as any).nodeId ?? "");
+            const valueId = builder.createString((node as any).valueId ?? "");
+            const typeId = builder.createString((node as any).typeId ?? "");
+            const decisionIdOffsets = ((node as any).observabilityDecisionIds ?? [])
+                .map((id: string) => builder.createString(id));
+            const decisionIds = ValueRef.createDecisionIdsVector(builder, decisionIdOffsets);
             const constant = this.isSemanticConstant(node)
                 ? this.visitSemanticConstant(builder, node)
                 : 0;
@@ -653,6 +741,10 @@ export function SirFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             }
 
             ValueRef.startValueRef(builder);
+            ValueRef.addNodeId(builder, nodeId);
+            ValueRef.addValueId(builder, valueId);
+            ValueRef.addTypeId(builder, typeId);
+            ValueRef.addDecisionIds(builder, decisionIds);
             ValueRef.addKind(builder, kind);
 
             if (constant) {

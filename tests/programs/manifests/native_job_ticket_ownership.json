@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "name": "native-job-ticket-ownership",
+  "profile": "runtime-strict",
+  "trace": {
+    "categories": [
+      "session",
+      "semantic",
+      "function",
+      "memory",
+      "aggregate",
+      "resource",
+      "anomaly"
+    ]
+  },
+  "invariants": [
+    "event.envelope",
+    "event.sequence",
+    "decision.correlation",
+    "memory.lifetime",
+    "aggregate.lifetime",
+    "resource.lifetime",
+    "function.frame_balance",
+    "sanitizer.clean"
+  ],
+  "allowLive": [],
+  "expectations": [
+    {
+      "kind": "decision",
+      "decisionKind": "Copy",
+      "decisionReason": "TrivialValueCopy",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "decision",
+      "decisionKind": "Move",
+      "decisionReason": "ReturnTransfersToCaller",
+      "plannedAtLeast": 2,
+      "loweredAtLeast": 2,
+      "runtimeAtLeast": 2
+    },
+    {
+      "kind": "decision",
+      "decisionKind": "Move",
+      "decisionReason": "ResourceOwningAssignment",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "decision",
+      "decisionKind": "Move",
+      "decisionReason": "ValueParameterConsumes",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "decision",
+      "decisionKind": "Borrow",
+      "decisionReason": "AddressOfBorrow",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "decision",
+      "decisionKind": "Promote",
+      "decisionReason": "EscapeRequiresHeap",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "cleanup",
+      "owner": "label",
+      "cleanupKind": "string",
+      "destroyFunction": "yogi_string_destroy",
+      "scheduledAtLeast": 1,
+      "emittedAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "cleanup",
+      "owner": "current",
+      "cleanupKind": "struct",
+      "scheduledAtLeast": 1,
+      "cancelledAtLeast": 1
+    },
+    {
+      "kind": "cleanup",
+      "owner": "ticket",
+      "cleanupKind": "struct",
+      "scheduledAtLeast": 2,
+      "cancelledAtLeast": 2
+    },
+    {
+      "kind": "cleanup",
+      "owner": "copied",
+      "cleanupKind": "struct",
+      "scheduledAtLeast": 1,
+      "emittedAtLeast": 1,
+      "runtimeAtLeast": 1
+    }
+  ],
+  "ir": [
+    {
+      "kind": "function",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "name": "_yogi_fn_main_ts_replaceTicket",
+      "exactly": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "createJob",
+      "atLeast": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "scoreJob",
+      "atLeast": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "makeLabel",
+      "atLeast": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "destroyLabel",
+      "atLeast": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "destructor",
+      "atLeast": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_string_from_native_owned",
+      "atLeast": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_observe_semantic_decision",
+      "atLeast": 1,
+      "metadata": [
+        "yogi.node",
+        "yogi.value",
+        "yogi.type",
+        "yogi.decision"
+      ]
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_observe_cleanup",
+      "atLeast": 1,
+      "metadata": [
+        "yogi.cleanup",
+        "yogi.owner",
+        "yogi.destroy"
+      ]
+    },
+    {
+      "kind": "namedMetadata",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "name": "yogi.semantic.decisions",
+      "atLeast": 1
+    },
+    {
+      "kind": "namedMetadata",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "name": "yogi.cleanup.obligations",
+      "atLeast": 1
+    }
+  ]
+}

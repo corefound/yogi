@@ -99,11 +99,11 @@ function(run_valid_case_with_replace_count case_name source_text expected_value 
 
 	set(ir "${TEST_WORK_DIR}/${case_name}/packages/.cache/modules/main.io/main.ll")
 	file(READ "${ir}" ir_content)
-	string(REGEX MATCHALL "yogi_array_replace_from" replace_matches "${ir_content}")
+	string(REGEX MATCHALL "yogi_array_move_replace_from" replace_matches "${ir_content}")
 	list(LENGTH replace_matches replace_count)
 
 	if(replace_count LESS minimum_replace_count)
-		message(FATAL_ERROR "${case_name} expected at least ${minimum_replace_count} yogi_array_replace_from calls, found ${replace_count}")
+		message(FATAL_ERROR "${case_name} expected at least ${minimum_replace_count} yogi_array_move_replace_from calls, found ${replace_count}")
 	endif()
 endfunction()
 

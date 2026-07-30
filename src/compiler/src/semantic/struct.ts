@@ -274,6 +274,31 @@ export function StructSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                 ...(validatorQualifiedName ? [validatorQualifiedName] : []),
             ];
 
+            const semanticFields = allFields.map((field: any) => {
+                const declaredType = field.type ?? { kind: "AnyType", raw: "any" };
+                const resolvedType = this.resolveType(declaredType);
+                const loweringType =
+                    declaredType.kind === Kinds.Types.TypeReference &&
+                    resolvedType &&
+                    resolvedType !== declaredType &&
+                    !this.isStructResolvedType(resolvedType)
+                        ? {
+                            ...declaredType,
+                            resolved: resolvedType,
+                        }
+                        : declaredType;
+
+                return {
+                    kind: "StructFieldDeclaration" as const,
+                    name: this.getMemberNameText(field) ?? "",
+                    type: loweringType,
+                    optional: field.optional ?? false,
+                    readonly: field.readonly ?? false,
+                    raw: field.raw ?? field.source,
+                    position: field.position,
+                };
+            });
+
             const semanticNode: SemanticStructDeclaration = {
                 kind: "StructDeclaration",
                 name,
@@ -281,15 +306,7 @@ export function StructSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                 extends: extendsTypes.length > 0
                     ? primitiveBaseType ?? extendsTypes[0].name ?? extendsTypes[0]
                     : null,
-                fields: allFields.map((f: any) => ({
-                    kind: "StructFieldDeclaration",
-                    name: this.getMemberNameText(f) ?? "",
-                    type: f.type ?? { kind: "AnyType", raw: "any" },
-                    optional: f.optional ?? false,
-                    readonly: f.readonly ?? false,
-                    raw: f.raw ?? f.source,
-                    position: f.position,
-                })),
+                fields: semanticFields,
                 hasLayout: hasCustomLayout,
                 layout: resolvedLayout,
                 hasValidate,

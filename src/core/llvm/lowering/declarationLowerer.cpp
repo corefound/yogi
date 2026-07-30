@@ -51,10 +51,26 @@ namespace yogi::core::llvm::internal {
 			return "";
 		}
 
-		std::string nativeResourceDestructorFromValue(
-			const Yogi::Sir::ValueRef *value,
-			const ModuleLoweringContext &context
-		) {
+		std::optional<std::size_t> borrowedArrayReturnParameter(const Yogi::Sir::CallExpression *call) {
+			static const std::string prefix = "array.return.ownership=borrowed;parameter=";
+
+			for (const auto &part: nativeAbiMetadataParts(fbString(call ? call->builtin_method() : nullptr))) {
+				if (part.rfind(prefix, 0) != 0) {
+					continue;
+				}
+
+				const auto rawIndex = part.substr(prefix.size());
+				try {
+					return static_cast<std::size_t>(std::stoull(rawIndex));
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			return std::nullopt;
+		}
+
+		std::string nativeResourceDestructorFromValue(const Yogi::Sir::ValueRef *value, const ModuleLoweringContext &context) {
 			const auto *call = value ? value->call() : nullptr;
 			if (!call) {
 				return "";
@@ -70,19 +86,14 @@ namespace yogi::core::llvm::internal {
 			return summary == context.nativeResourceReturnDestructors.end() ? "" : summary->second;
 		}
 
-		std::optional<std::string> nativeResourceOwnerDestructorFromValue(
-			const Yogi::Sir::ValueRef *value,
-			const ModuleLoweringContext &context
-		) {
+		std::optional<std::string> nativeResourceOwnerDestructorFromValue(const Yogi::Sir::ValueRef *value, const ModuleLoweringContext &context) {
 			const auto direct = nativeResourceDestructorFromValue(value, context);
 			if (!direct.empty()) {
 				return direct;
 			}
 
 			const auto *identifier = value ? value->identifier() : nullptr;
-			return identifier
-				? context.nativeResourceDestroyFunction(fbString(identifier->name()))
-				: std::nullopt;
+			return identifier ? context.nativeResourceDestroyFunction(fbString(identifier->name())) : std::nullopt;
 		}
 
 		bool isMoveCall(const Yogi::Sir::ValueRef *value) {
@@ -123,10 +134,7 @@ namespace yogi::core::llvm::internal {
 			return "";
 		}
 
-		std::string aggregateOwnerName(
-			const Yogi::Sir::ValueRef *value,
-			const ModuleLoweringContext &context
-		) {
+		std::string aggregateOwnerName(const Yogi::Sir::ValueRef *value, const ModuleLoweringContext &context) {
 			const auto root = rootIdentifierName(value);
 			if (root.empty()) {
 				return "";
@@ -136,10 +144,82 @@ namespace yogi::core::llvm::internal {
 			return owner ? *owner : root;
 		}
 
-		NativeResourceFieldMap nativeResourceArrayElementFieldsFromCall(
-			const Yogi::Sir::CallExpression *call,
-			const ModuleLoweringContext &context
-		) {
+		const Yogi::Sir::TypeRef *semanticTypeOf(const Yogi::Sir::ValueRef *value) {
+			if (!value) {
+				return nullptr;
+			}
+
+			if (const auto *identifier = value->identifier()) {
+				return identifier->type();
+			}
+			if (const auto *access = value->element_access()) {
+				return access->type();
+			}
+			if (const auto *access = value->property_access()) {
+				return access->type();
+			}
+			if (const auto *call = value->call()) {
+				return call->type();
+			}
+			if (const auto *addressOf = value->address_of()) {
+				return addressOf->type();
+			}
+
+			return nullptr;
+		}
+
+		const Yogi::Sir::TypeRef *resolvedType(const Yogi::Sir::TypeRef *type) {
+			auto *current = type;
+
+			while (current && current->kind() == Yogi::Sir::TypeKind_type_reference && current->resolved()) {
+				current = current->resolved();
+			}
+
+			return current;
+		}
+
+		bool createsBorrowedFixedShapeView(const Yogi::Sir::ValueRef *value) {
+			const auto *access = value ? value->element_access() : nullptr;
+			if (!access) {
+				return false;
+			}
+
+			const auto *objectType = resolvedType(semanticTypeOf(access->object()));
+			if (objectType && objectType->kind() == Yogi::Sir::TypeKind_pointer_type) {
+				objectType = resolvedType(objectType->element_type());
+			}
+
+			if (!objectType || objectType->kind() != Yogi::Sir::TypeKind_array_type || !objectType->fixed() || !objectType->shape() || objectType->shape()->size() == 0) {
+				return false;
+			}
+
+			const auto *indices = access->indices();
+			const auto consumedDimensions = indices && indices->size() > 0 ? indices->size() : 1;
+			return consumedDimensions < objectType->shape()->size();
+		}
+
+		NativeResourceFieldMap nativeResourceArrayElementFieldsFromCall(const Yogi::Sir::CallExpression *call, const ModuleLoweringContext &context) {
+			static const std::string metadataPrefix = "native.return.array.element.resource.destructor=";
+			NativeResourceFieldMap result;
+
+			for (const auto &part: nativeAbiMetadataParts(fbString(call ? call->builtin_method() : nullptr))) {
+				if (part.rfind(metadataPrefix, 0) != 0) {
+					continue;
+				}
+
+				const auto payload = part.substr(metadataPrefix.size());
+				const auto separator = payload.find('=');
+				if (separator == std::string::npos || separator == 0 || separator + 1 >= payload.size()) {
+					continue;
+				}
+
+				result[payload.substr(0, separator)] = payload.substr(separator + 1);
+			}
+
+			if (!result.empty()) {
+				return result;
+			}
+
 			const auto method = fbString(call ? call->builtin_method() : nullptr);
 			if (method != "array.pop" && method != "array.shift" && method != "array.splice") {
 				return {};
@@ -147,15 +227,10 @@ namespace yogi::core::llvm::internal {
 
 			const auto *callee = call->callee() ? call->callee()->property_access() : nullptr;
 			const auto owner = callee ? aggregateOwnerName(callee->object(), context) : "";
-			return owner.empty()
-				? NativeResourceFieldMap()
-				: context.nativeResourceArrayElementFieldDestroyFunctions(owner);
+			return owner.empty() ? NativeResourceFieldMap() : context.nativeResourceArrayElementFieldDestroyFunctions(owner);
 		}
 
-		NativeResourceFieldMap prefixedNativeResourceFields(
-			const NativeResourceFieldMap &fields,
-			const std::string &prefix
-		) {
+		NativeResourceFieldMap prefixedNativeResourceFields(const NativeResourceFieldMap &fields, const std::string &prefix) {
 			if (prefix.empty()) {
 				return fields;
 			}
@@ -201,20 +276,13 @@ namespace yogi::core::llvm::internal {
 			return result;
 		}
 
-		void mergeNativeResourceFields(
-			NativeResourceFieldMap &target,
-			const NativeResourceFieldMap &source
-		) {
+		void mergeNativeResourceFields(NativeResourceFieldMap &target, const NativeResourceFieldMap &source) {
 			for (const auto &[fieldPath, destroyFunction]: source) {
 				target[fieldPath] = destroyFunction;
 			}
 		}
 
-		std::optional<std::string> nativeResourceOwnerDestructorFromValueForInference(
-			const Yogi::Sir::ValueRef *value,
-			const ModuleLoweringContext &context,
-			const std::map<std::string, std::string> &localPointerDestructors
-		) {
+		std::optional<std::string> nativeResourceOwnerDestructorFromValueForInference(const Yogi::Sir::ValueRef *value, const ModuleLoweringContext &context, const std::map<std::string, std::string> &localPointerDestructors) {
 			const auto direct = nativeResourceDestructorFromValue(value, context);
 			if (!direct.empty()) {
 				return direct;
@@ -226,9 +294,7 @@ namespace yogi::core::llvm::internal {
 			}
 
 			const auto source = localPointerDestructors.find(fbString(identifier->name()));
-			return source == localPointerDestructors.end()
-				? std::nullopt
-				: std::optional<std::string>(source->second);
+			return source == localPointerDestructors.end() ? std::nullopt : std::optional<std::string>(source->second);
 		}
 
 		NativeResourceFieldMap nativeResourceStructFieldsFromValue(
@@ -236,8 +302,7 @@ namespace yogi::core::llvm::internal {
 			const ModuleLoweringContext &context,
 			const std::map<std::string, std::string> &localPointerDestructors,
 			const std::map<std::string, NativeResourceFieldMap> &localStructFields,
-			const std::string &prefix = ""
-		) {
+			const std::string &prefix = "") {
 			NativeResourceFieldMap result;
 
 			if (!value) {
@@ -256,9 +321,7 @@ namespace yogi::core::llvm::internal {
 
 			if (const auto *identifier = value->identifier()) {
 				const auto source = localStructFields.find(fbString(identifier->name()));
-				return source == localStructFields.end()
-					? result
-					: prefixedNativeResourceFields(source->second, prefix);
+				return source == localStructFields.end() ? result : prefixedNativeResourceFields(source->second, prefix);
 			}
 
 			if (const auto *call = value->call()) {
@@ -280,40 +343,20 @@ namespace yogi::core::llvm::internal {
 
 			for (const auto *property: *object->properties()) {
 				const auto fieldName = fbString(property->key());
-				const auto fieldPath = prefix.empty()
-					? fieldName
-					: prefix + "." + fieldName;
-				const auto destructor = nativeResourceOwnerDestructorFromValueForInference(
-					property->value(),
-					context,
-					localPointerDestructors
-				);
+				const auto fieldPath = prefix.empty() ? fieldName : prefix + "." + fieldName;
+				const auto destructor = nativeResourceOwnerDestructorFromValueForInference(property->value(), context, localPointerDestructors);
 
 				if (destructor) {
 					result[fieldPath] = *destructor;
 				}
 
-				mergeNativeResourceFields(
-					result,
-					nativeResourceStructFieldsFromValue(
-						property->value(),
-						context,
-						localPointerDestructors,
-						localStructFields,
-						fieldPath
-					)
-				);
+				mergeNativeResourceFields(result, nativeResourceStructFieldsFromValue(property->value(), context, localPointerDestructors, localStructFields, fieldPath));
 			}
 
 			return result;
 		}
 
-		void registerNativeResourceStructFields(
-			const std::string &owner,
-			const Yogi::Sir::ValueRef *value,
-			ModuleLoweringContext &context,
-			const std::string &prefix = ""
-		) {
+		void registerNativeResourceStructFields(const std::string &owner, const Yogi::Sir::ValueRef *value, ModuleLoweringContext &context, const std::string &prefix = "") {
 			const auto *object = value ? value->object() : nullptr;
 			if (!object || !object->properties()) {
 				if (isMoveCall(value)) {
@@ -347,9 +390,7 @@ namespace yogi::core::llvm::internal {
 
 			for (const auto *property: *object->properties()) {
 				const auto fieldName = fbString(property->key());
-				const auto fieldPath = prefix.empty()
-					? fieldName
-					: prefix + "." + fieldName;
+				const auto fieldPath = prefix.empty() ? fieldName : prefix + "." + fieldName;
 				const auto destructor = nativeResourceOwnerDestructorFromValue(property->value(), context);
 
 				if (destructor) {
@@ -367,11 +408,7 @@ namespace yogi::core::llvm::internal {
 		bool isPointerType(const Yogi::Sir::TypeRef *type) {
 			const auto *current = type;
 
-			while (
-				current &&
-				current->kind() == Yogi::Sir::TypeKind_type_reference &&
-				current->resolved()
-			) {
+			while (current && current->kind() == Yogi::Sir::TypeKind_type_reference && current->resolved()) {
 				current = current->resolved();
 			}
 
@@ -395,13 +432,18 @@ namespace yogi::core::llvm::internal {
 				return aggregateRootIdentifier(access->object());
 			}
 
+			if (const auto *addressOf = value->address_of()) {
+				return aggregateRootIdentifier(addressOf->target());
+			}
+
+			if (const auto *dereference = value->dereference()) {
+				return aggregateRootIdentifier(dereference->target());
+			}
+
 			return "";
 		}
 
-		std::string inferFunctionNativeResourceReturnDestructor(
-			const Yogi::Sir::FunctionDeclaration *function,
-			const ModuleLoweringContext &context
-		) {
+		std::string inferFunctionNativeResourceReturnDestructor(const Yogi::Sir::FunctionDeclaration *function, const ModuleLoweringContext &context) {
 			if (!function || !isPointerType(function->return_type()) || !function->body() || !function->body()->statements()) {
 				return "";
 			}
@@ -450,8 +492,7 @@ namespace yogi::core::llvm::internal {
 			const Yogi::Sir::BlockStatement *block,
 			const ModuleLoweringContext &context,
 			std::map<std::string, std::string> localPointerDestructors,
-			std::map<std::string, NativeResourceFieldMap> localStructFields
-		) {
+			std::map<std::string, NativeResourceFieldMap> localStructFields) {
 			if (!block || !block->statements()) {
 				return std::nullopt;
 			}
@@ -475,12 +516,7 @@ namespace yogi::core::llvm::internal {
 						localPointerDestructors[name] = pointerDestructor;
 					}
 
-					const auto fields = nativeResourceStructFieldsFromValue(
-						variable->value(),
-						context,
-						localPointerDestructors,
-						localStructFields
-					);
+					const auto fields = nativeResourceStructFieldsFromValue(variable->value(), context, localPointerDestructors, localStructFields);
 					if (!fields.empty()) {
 						localStructFields[name] = fields;
 					}
@@ -488,12 +524,7 @@ namespace yogi::core::llvm::internal {
 				}
 
 				if (const auto *returnStatement = statement->value_as_ReturnStatement()) {
-					const auto fields = nativeResourceStructFieldsFromValue(
-						returnStatement->value(),
-						context,
-						localPointerDestructors,
-						localStructFields
-					);
+					const auto fields = nativeResourceStructFieldsFromValue(returnStatement->value(), context, localPointerDestructors, localStructFields);
 					if (!fields.empty()) {
 						return fields;
 					}
@@ -501,12 +532,7 @@ namespace yogi::core::llvm::internal {
 				}
 
 				if (const auto *nested = statement->value_as_BlockStatement()) {
-					auto result = inferNativeResourceStructReturnFromBlock(
-						nested,
-						context,
-						localPointerDestructors,
-						localStructFields
-					);
+					auto result = inferNativeResourceStructReturnFromBlock(nested, context, localPointerDestructors, localStructFields);
 					if (result && !result->empty()) {
 						return result;
 					}
@@ -514,22 +540,12 @@ namespace yogi::core::llvm::internal {
 				}
 
 				if (const auto *ifStatement = statement->value_as_IfStatement()) {
-					auto thenResult = inferNativeResourceStructReturnFromBlock(
-						ifStatement->then_block(),
-						context,
-						localPointerDestructors,
-						localStructFields
-					);
+					auto thenResult = inferNativeResourceStructReturnFromBlock(ifStatement->then_block(), context, localPointerDestructors, localStructFields);
 					if (thenResult && !thenResult->empty()) {
 						return thenResult;
 					}
 
-					auto elseResult = inferNativeResourceStructReturnFromBlock(
-						ifStatement->else_block(),
-						context,
-						localPointerDestructors,
-						localStructFields
-					);
+					auto elseResult = inferNativeResourceStructReturnFromBlock(ifStatement->else_block(), context, localPointerDestructors, localStructFields);
 					if (elseResult && !elseResult->empty()) {
 						return elseResult;
 					}
@@ -539,32 +555,17 @@ namespace yogi::core::llvm::internal {
 			return std::nullopt;
 		}
 
-		NativeResourceFieldMap inferFunctionNativeResourceStructReturnDestructors(
-			const Yogi::Sir::FunctionDeclaration *function,
-			const ModuleLoweringContext &context
-		) {
+		NativeResourceFieldMap inferFunctionNativeResourceStructReturnDestructors(const Yogi::Sir::FunctionDeclaration *function, const ModuleLoweringContext &context) {
 			if (!function || !function->body()) {
 				return {};
 			}
 
-			const auto result = inferNativeResourceStructReturnFromBlock(
-				function->body(),
-				context,
-				{},
-				{}
-			);
+			const auto result = inferNativeResourceStructReturnFromBlock(function->body(), context, {}, {});
 			return result.value_or(NativeResourceFieldMap{});
 		}
-	}
+	} // namespace
 
-	VariableLowerer::VariableLowerer(
-		ModuleLoweringContext &context,
-		TypeLowerer &types,
-		ValueLowerer &values
-	)
-		: context(context),
-		  types(types),
-		  values(values) {}
+	VariableLowerer::VariableLowerer(ModuleLoweringContext &context, TypeLowerer &types, ValueLowerer &values) : context(context), types(types), values(values) {}
 
 	void VariableLowerer::predeclareGlobals() {
 		for (const auto *node: *context.sirModule->nodes()) {
@@ -575,9 +576,7 @@ namespace yogi::core::llvm::internal {
 	}
 
 	::llvm::GlobalVariable *VariableLowerer::declareGlobal(const Yogi::Sir::VariableDeclaration *variable) {
-		const auto name = fbString(variable->qualified_name()) != ""
-			? fbString(variable->qualified_name())
-			: fbString(variable->name());
+		const auto name = fbString(variable->qualified_name()) != "" ? fbString(variable->qualified_name()) : fbString(variable->name());
 		const auto symbolName = "_yogi_" + sanitizeSymbol(name);
 		auto *type = types.lower(variable->type());
 		auto *global = context.module->getGlobalVariable(symbolName);
@@ -589,16 +588,7 @@ namespace yogi::core::llvm::internal {
 			return global;
 		}
 
-		global = new ::llvm::GlobalVariable(
-			*context.module,
-			type,
-			false,
-			variable->exported()
-				? ::llvm::GlobalValue::ExternalLinkage
-				: ::llvm::GlobalValue::InternalLinkage,
-			types.zero(type),
-			symbolName
-		);
+		global = new ::llvm::GlobalVariable(*context.module, type, false, variable->exported() ? ::llvm::GlobalValue::ExternalLinkage : ::llvm::GlobalValue::InternalLinkage, types.zero(type), symbolName);
 
 		context.globals[fbString(variable->name())] = global;
 		context.globalTypes[fbString(variable->name())] = variable->type();
@@ -616,29 +606,30 @@ namespace yogi::core::llvm::internal {
 				return false;
 			}
 
-			const auto kind = typeRef->resolved()
-				? typeRef->resolved()->kind()
-				: typeRef->kind();
+			const auto kind = typeRef->resolved() ? typeRef->resolved()->kind() : typeRef->kind();
 
-			return kind == Yogi::Sir::TypeKind_array_type ||
-				kind == Yogi::Sir::TypeKind_tuple_type ||
-				kind == Yogi::Sir::TypeKind_type_literal;
+			return kind == Yogi::Sir::TypeKind_array_type || kind == Yogi::Sir::TypeKind_tuple_type || kind == Yogi::Sir::TypeKind_type_literal;
 		};
 		const auto isStringType = [](const Yogi::Sir::TypeRef *typeRef) {
 			if (!typeRef) {
 				return false;
 			}
 
-			const auto kind = typeRef->resolved()
-				? typeRef->resolved()->kind()
-				: typeRef->kind();
+			const auto kind = typeRef->resolved() ? typeRef->resolved()->kind() : typeRef->kind();
 
 			return kind == Yogi::Sir::TypeKind_string_type;
 		};
-		const auto isStructType =
-			variable->type() &&
-			variable->type()->kind() == Yogi::Sir::TypeKind_type_reference &&
-			context.structTypes.contains(fbString(variable->type()->name()));
+		const auto isBoxedDynamicType = [](const Yogi::Sir::TypeRef *typeRef) {
+			while (typeRef && typeRef->kind() == Yogi::Sir::TypeKind_type_reference && typeRef->resolved()) {
+				typeRef = typeRef->resolved();
+			}
+
+			return typeRef && (
+				typeRef->kind() == Yogi::Sir::TypeKind_any_type ||
+				typeRef->kind() == Yogi::Sir::TypeKind_union_type
+			);
+		};
+		const auto isStructType = variable->type() && variable->type()->kind() == Yogi::Sir::TypeKind_type_reference && context.structTypes.contains(fbString(variable->type()->name()));
 		const auto receiverReturningArrayMethod = [](const Yogi::Sir::ValueRef *value) {
 			const auto *call = value ? value->call() : nullptr;
 			if (!call || !call->builtin_method()) {
@@ -646,10 +637,7 @@ namespace yogi::core::llvm::internal {
 			}
 
 			const auto method = fbString(call->builtin_method());
-			return method == "array.reverse" ||
-				method == "array.fill" ||
-				method == "array.copyWithin" ||
-				method == "array.sort";
+			return method == "array.reverse" || method == "array.fill" || method == "array.copyWithin" || method == "array.sort";
 		};
 		const auto isStableIterationPlan = [](const Yogi::Sir::ValueRef *value) {
 			const auto *call = value ? value->call() : nullptr;
@@ -661,55 +649,31 @@ namespace yogi::core::llvm::internal {
 			return method == "__yogiStablePlan" || method == "array.__yogiStablePlan";
 		};
 		const auto isOwnedAggregateInitializer =
-			variable->value() &&
-			(
-				values.isAggregateLiteral(variable->value()) ||
-				(variable->value()->call() && !receiverReturningArrayMethod(variable->value()))
-			);
+			variable->value() && (values.isAggregateLiteral(variable->value()) || (variable->value()->call() && !receiverReturningArrayMethod(variable->value()) && !borrowedArrayReturnParameter(variable->value()->call()).has_value()));
 		const auto isLocalStackAggregate =
 			!isGlobalVariable &&
 			fbString(variable->storage()) == "stack" &&
 			!variable->escapes() &&
 			values.isAggregateLiteral(variable->value()) &&
-			!isStructType;
-		const auto isLocalOwnedHeapAggregate =
-			!isGlobalVariable &&
-			fbString(variable->storage()) == "stack" &&
-			isAggregateType(variable->type()) &&
-			isOwnedAggregateInitializer &&
-			!isLocalStackAggregate &&
-			!isStructType;
-		const auto isLocalString =
-			!isGlobalVariable &&
-			fbString(variable->storage()) == "stack" &&
-			isStringType(variable->type());
-		const auto isLocalStruct =
-			!isGlobalVariable &&
-			isStructType;
+			!isStructType &&
+			!isBoxedDynamicType(variable->type());
+		const auto isLocalOwnedHeapAggregate = !isGlobalVariable && fbString(variable->storage()) == "stack" && isAggregateType(variable->type()) && isOwnedAggregateInitializer && !isLocalStackAggregate && !isStructType;
+		const auto isLocalString = !isGlobalVariable && fbString(variable->storage()) == "stack" && isStringType(variable->type());
+		const auto isLocalStruct = !isGlobalVariable && isStructType;
 		const auto nativeResourceDestructor = nativeResourceDestructorFromValue(variable->value(), context);
-		const auto isLocalNativeResource =
-			!isGlobalVariable &&
-			fbString(variable->storage()) == "stack" &&
-			isPointerType(variable->type()) &&
-			!nativeResourceDestructor.empty();
-		const auto shouldRetainEscapedGraph =
-			!isGlobalVariable &&
-			variable->escapes() &&
-			values.isAggregateLiteral(variable->value());
+		const auto isLocalNativeResource = !isGlobalVariable && fbString(variable->storage()) == "stack" && isPointerType(variable->type()) && !nativeResourceDestructor.empty();
+		const auto shouldRetainEscapedGraph = !isGlobalVariable && variable->escapes() && values.isAggregateLiteral(variable->value());
+		const auto isLocalBorrowedFixedShapeView = !isGlobalVariable && !variable->escapes() && createsBorrowedFixedShapeView(variable->value());
 
 		context.pushMemorySourceLocation(variable->position());
-		auto *initializer = isLocalStackAggregate
-			? values.lowerLocalAggregate(variable->value(), name, variable->type())
-			: shouldRetainEscapedGraph
-				? values.lowerWithEscapedObjectGraphRetention(variable->value(), type, variable->type())
-			: values.lower(variable->value(), type, variable->type());
+		auto *initializer = isLocalStackAggregate ? values.lowerLocalAggregate(variable->value(), name, variable->type())
+			: shouldRetainEscapedGraph			  ? values.lowerWithEscapedObjectGraphRetention(variable->value(), type, variable->type())
+												  : values.lower(variable->value(), type, variable->type());
+		initializer = values.materializeBoxedValueCopy(initializer, variable->value(), variable->type());
 		context.popMemorySourceLocation();
 
 		if (isGlobalVariable) {
-			context.builder.CreateStore(
-				values.cast(initializer, type, variable->type()),
-				context.globals[name]
-			);
+			context.builder.CreateStore(values.cast(initializer, type, variable->type()), context.globals[name]);
 			return;
 		}
 
@@ -730,48 +694,32 @@ namespace yogi::core::llvm::internal {
 		context.localTypeKinds[name] = variable->type()->kind();
 
 		if (isLocalNativeResource) {
-			context.registerNativeResourceOwner(
-				name,
-				variable->symbol_id(),
-				initializer,
-				slot,
-				nativeResourceDestructor
-			);
+			context.registerNativeResourceOwner(name, variable->symbol_id(), initializer, slot, nativeResourceDestructor, variable->position());
 		} else if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
 			const auto sourceName = fbString(identifier->name());
 			const auto sourceDestructor = context.nativeResourceDestroyFunction(sourceName);
 			if (sourceDestructor && isPointerType(variable->type())) {
 				context.deactivateAggregateOwner(sourceName);
-				context.registerNativeResourceOwner(
-					name,
-					variable->symbol_id(),
-					initializer,
-					slot,
-					*sourceDestructor
-				);
+				context.registerNativeResourceOwner(name, variable->symbol_id(), initializer, slot, *sourceDestructor, variable->position());
 			}
 		}
 
-		if (isLocalStackAggregate) {
-			context.registerAggregateOwner(
-				name, variable->symbol_id(), variable->type(),
-				initializer, false,
-				inSwitchBody ? slot : nullptr
-			);
+		if (isLocalBorrowedFixedShapeView) {
+			context.registerRuntimeCleanup(name, variable->symbol_id(), initializer, slot, "yogi_array_release", variable->position());
+
+			if (const auto *elementAccess = variable->value() ? variable->value()->element_access() : nullptr) {
+				const auto ownerName = aggregateRootIdentifier(elementAccess->object());
+				if (!ownerName.empty()) {
+					context.aliasAggregateOwner(name, ownerName);
+					context.borrowedViewAliases[name] = ownerName;
+				}
+			}
+		} else if (isLocalStackAggregate) {
+			context.registerAggregateOwner(name, variable->symbol_id(), variable->type(), initializer, false, inSwitchBody ? slot : nullptr, variable->position());
 		} else if (isStableIterationPlan(variable->value())) {
-			context.registerRuntimeCleanup(
-				name,
-				variable->symbol_id(),
-				initializer,
-				slot,
-				"yogi_array_iteration_plan_destroy"
-			);
+			context.registerRuntimeCleanup(name, variable->symbol_id(), initializer, slot, "yogi_array_iteration_plan_destroy", variable->position());
 		} else if (isLocalOwnedHeapAggregate) {
-			context.registerAggregateOwner(
-				name, variable->symbol_id(), variable->type(),
-				initializer, true,
-				inSwitchBody ? slot : nullptr
-			);
+			context.registerAggregateOwner(name, variable->symbol_id(), variable->type(), initializer, true, inSwitchBody ? slot : nullptr, variable->position());
 			if (const auto *call = variable->value() ? variable->value()->call() : nullptr) {
 				const auto fields = nativeResourceArrayElementFieldsFromCall(call, context);
 				if (!fields.empty()) {
@@ -779,17 +727,17 @@ namespace yogi::core::llvm::internal {
 				}
 			}
 		} else if (isLocalString) {
-			context.registerAggregateOwner(
-				name, variable->symbol_id(), variable->type(),
-				initializer, true,
-				slot
-			);
+			context.registerAggregateOwner(name, variable->symbol_id(), variable->type(), initializer, true, slot, variable->position());
+		} else if (isBoxedDynamicType(variable->type())) {
+			context.registerRuntimeCleanup(
+				name,
+				variable->symbol_id(),
+				initializer,
+				slot,
+				"yogi_any_destroy",
+				variable->position());
 		} else if (isLocalStruct) {
-			context.registerAggregateOwner(
-				name, variable->symbol_id(), variable->type(),
-				initializer, false,
-				slot
-			);
+			context.registerAggregateOwner(name, variable->symbol_id(), variable->type(), initializer, false, slot, variable->position());
 			registerNativeResourceStructFields(name, variable->value(), context);
 		} else if (isAggregateType(variable->type())) {
 			if (const auto *identifier = variable->value() ? variable->value()->identifier() : nullptr) {
@@ -800,7 +748,24 @@ namespace yogi::core::llvm::internal {
 					context.aliasAggregateOwner(name, ownerName);
 					context.borrowedViewAliases[name] = ownerName;
 				}
+			} else if (const auto *dereference = variable->value() ? variable->value()->dereference() : nullptr) {
+				const auto ownerName = aggregateRootIdentifier(dereference->target());
+				if (!ownerName.empty()) {
+					context.aliasAggregateOwner(name, ownerName);
+					context.borrowedViewAliases[name] = ownerName;
+				}
 			} else if (const auto *call = variable->value() ? variable->value()->call() : nullptr) {
+				if (const auto parameterIndex = borrowedArrayReturnParameter(call)) {
+					if (call->arguments() && *parameterIndex < call->arguments()->size()) {
+						const auto ownerName = aggregateOwnerName(call->arguments()->Get(static_cast<flatbuffers::uoffset_t>(*parameterIndex)), context);
+						if (!ownerName.empty()) {
+							context.aliasAggregateOwner(name, ownerName);
+							context.borrowedViewAliases[name] = ownerName;
+						}
+					}
+					return;
+				}
+
 				const auto *property = call->callee() ? call->callee()->property_access() : nullptr;
 				const auto *receiver = property && property->object() ? property->object()->identifier() : nullptr;
 
@@ -811,14 +776,7 @@ namespace yogi::core::llvm::internal {
 		}
 	}
 
-	FunctionLowerer::FunctionLowerer(
-		ModuleLoweringContext &context,
-		TypeLowerer &types,
-		ValueLowerer &values
-	)
-		: context(context),
-		  types(types),
-		  values(values) {}
+	FunctionLowerer::FunctionLowerer(ModuleLoweringContext &context, TypeLowerer &types, ValueLowerer &values) : context(context), types(types), values(values) {}
 
 	void FunctionLowerer::setStatementLowerer(StatementLowerer *statementLowerer) {
 		statements = statementLowerer;
@@ -845,10 +803,7 @@ namespace yogi::core::llvm::internal {
 				}
 
 				const auto structDestructors = inferFunctionNativeResourceStructReturnDestructors(function, context);
-				if (
-					!structDestructors.empty() &&
-					context.nativeResourceStructReturnDestructors[qualifiedName] != structDestructors
-				) {
+				if (!structDestructors.empty() && context.nativeResourceStructReturnDestructors[qualifiedName] != structDestructors) {
 					context.nativeResourceStructReturnDestructors[qualifiedName] = structDestructors;
 					changed = true;
 				}
@@ -869,11 +824,7 @@ namespace yogi::core::llvm::internal {
 		const auto resolvedKind = [](const Yogi::Sir::TypeRef *type) {
 			const auto *current = type;
 
-			while (
-				current &&
-				current->kind() == Yogi::Sir::TypeKind_type_reference &&
-				current->resolved()
-			) {
+			while (current && current->kind() == Yogi::Sir::TypeKind_type_reference && current->resolved()) {
 				current = current->resolved();
 			}
 
@@ -888,14 +839,18 @@ namespace yogi::core::llvm::internal {
 
 		auto *returnType = types.lower(function->return_type());
 		auto *functionType = ::llvm::FunctionType::get(returnType, parameterTypes, false);
-		auto *llvmFunction = ::llvm::Function::Create(
-			functionType,
-			function->exported()
-				? ::llvm::Function::ExternalLinkage
-				: ::llvm::Function::InternalLinkage,
-			"_yogi_fn_" + sanitizeSymbol(fbString(function->qualified_name())),
-			context.module.get()
-		);
+		const auto functionName = "_yogi_fn_" + sanitizeSymbol(fbString(function->qualified_name()));
+		auto *llvmFunction = context.module->getFunction(functionName);
+
+		if (llvmFunction) {
+			if (llvmFunction->getFunctionType() != functionType || !llvmFunction->empty()) {
+				throw std::runtime_error("conflicting LLVM declaration for function '" + functionName + "'");
+			}
+
+			llvmFunction->setLinkage(function->exported() ? ::llvm::Function::ExternalLinkage : ::llvm::Function::InternalLinkage);
+		} else {
+			llvmFunction = ::llvm::Function::Create(functionType, function->exported() ? ::llvm::Function::ExternalLinkage : ::llvm::Function::InternalLinkage, functionName, context.module.get());
+		}
 
 		auto *entry = ::llvm::BasicBlock::Create(context.llvmContext, "entry", llvmFunction);
 		context.builder.SetInsertPoint(entry);
@@ -911,42 +866,37 @@ namespace yogi::core::llvm::internal {
 				auto *storedArgument = static_cast<::llvm::Value *>(argument);
 				const auto parameterKind = resolvedKind(parameter->type());
 				const auto cloneLocalAggregate =
+					parameterKind == Yogi::Sir::TypeKind_string_type ||
 					parameterKind == Yogi::Sir::TypeKind_array_type ||
-					parameterKind == Yogi::Sir::TypeKind_tuple_type;
+					parameterKind == Yogi::Sir::TypeKind_tuple_type ||
+					parameterKind == Yogi::Sir::TypeKind_type_literal;
+				const auto cloneLocalDynamicBox = parameterKind == Yogi::Sir::TypeKind_any_type || parameterKind == Yogi::Sir::TypeKind_union_type;
+				const auto cloneLocalStruct =
+					values.isStructType(parameter->type()) &&
+					values.typeRequiresOwnedCopy(parameter->type()) &&
+					!values.typeContainsPointer(parameter->type());
 
-				if (cloneLocalAggregate) {
-					auto *opaquePointer = ::llvm::PointerType::get(context.llvmContext, 0);
-					auto *cloneFunction = context.runtimeFunction(
-						"yogi_array_clone",
-						opaquePointer,
-						{opaquePointer}
-					);
-					storedArgument = context.builder.CreateCall(
-						cloneFunction,
-						{argument},
-						sanitizeSymbol(fbString(parameter->name())) + ".param.clone"
-					);
+				if (cloneLocalAggregate || cloneLocalDynamicBox || cloneLocalStruct) {
+					storedArgument = values.copyOwnedValue(argument, parameter->type());
+					storedArgument->setName(sanitizeSymbol(fbString(parameter->name())) + ".param.clone");
 				}
 
-				auto *slot = context.createEntryAlloca(
-					llvmFunction,
-					fbString(parameter->name()),
-					argument->getType()
-				);
+				auto *slot = context.createEntryAlloca(llvmFunction, fbString(parameter->name()), argument->getType());
 				context.builder.CreateStore(storedArgument, slot);
 				context.locals[fbString(parameter->name())] = slot;
 				context.localTypes[fbString(parameter->name())] = parameter->type();
 				context.localTypeKinds[fbString(parameter->name())] = parameter->type()->kind();
 
-				if (cloneLocalAggregate) {
-					context.registerAggregateOwner(
+				if (cloneLocalAggregate || cloneLocalStruct) {
+					context.registerAggregateOwner(fbString(parameter->name()), parameter->symbol_id(), parameter->type(), storedArgument, true, slot, parameter->position());
+				} else if (cloneLocalDynamicBox) {
+					context.registerRuntimeCleanup(
 						fbString(parameter->name()),
 						parameter->symbol_id(),
-						parameter->type(),
 						storedArgument,
-						true,
-						slot
-					);
+						slot,
+						"yogi_any_destroy",
+						parameter->position());
 				}
 			}
 		}

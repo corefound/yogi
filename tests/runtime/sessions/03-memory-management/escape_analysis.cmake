@@ -47,18 +47,12 @@ foreach(symbol
 		storeGlobal
 		yogi_module_cleanup
 		yogi_array_create
+		yogi_array_init
 		yogi_array_set
-		yogi_array_destroy)
+		yogi_array_destroy
+		yogi_array_drop)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected escape-analysis IR to contain ${symbol}")
-	endif()
-endforeach()
-
-foreach(symbol
-		yogi_array_init
-		yogi_array_drop)
-	if(ir MATCHES "${symbol}")
-		message(FATAL_ERROR "escaped aggregate alias should not use local stack cleanup symbol ${symbol}")
 	endif()
 endforeach()
 

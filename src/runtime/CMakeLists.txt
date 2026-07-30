@@ -4,6 +4,14 @@ project(yogi_runtime LANGUAGES C CXX)
 set(YOGI_ALLOCATOR "mimalloc" CACHE STRING "Runtime allocator: mimalloc, jemalloc, or system")
 set_property(CACHE YOGI_ALLOCATOR PROPERTY STRINGS mimalloc jemalloc system)
 option(YOGI_RUNTIME_DEBUG_OWNERSHIP "Enable runtime ownership debug checks" ON)
+option(YOGI_ENABLE_PROGRAM_OBSERVABILITY "Enable structured Program Test compiler/runtime tracing" OFF)
+
+if(YOGI_ENABLE_PROGRAM_OBSERVABILITY AND NOT YOGI_RUNTIME_DEBUG_OWNERSHIP)
+        message(FATAL_ERROR
+                "YOGI_ENABLE_PROGRAM_OBSERVABILITY requires YOGI_RUNTIME_DEBUG_OWNERSHIP "
+                "for aggregate lifetime events."
+        )
+endif()
 
 if(NOT YOGI_ALLOCATOR MATCHES "^(mimalloc|jemalloc|system)$")
         message(FATAL_ERROR
@@ -130,6 +138,12 @@ endif()
 
 if(YOGI_RUNTIME_DEBUG_OWNERSHIP)
         target_compile_definitions(${PROJECT_NAME} PUBLIC YOGI_RUNTIME_DEBUG_OWNERSHIP=1)
+endif()
+
+if(YOGI_ENABLE_PROGRAM_OBSERVABILITY)
+        target_compile_definitions(${PROJECT_NAME} PUBLIC YOGI_ENABLE_PROGRAM_OBSERVABILITY=1)
+else()
+        target_compile_definitions(${PROJECT_NAME} PUBLIC YOGI_ENABLE_PROGRAM_OBSERVABILITY=0)
 endif()
 
 message(STATUS "Runtime include: ${CMAKE_CURRENT_SOURCE_DIR}/includes")

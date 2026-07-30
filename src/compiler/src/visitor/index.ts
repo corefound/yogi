@@ -14,6 +14,7 @@ import { ConditionalVisitor } from "./conditional";
 import { LoopVisitor } from "./loops";
 import { Types } from "../helpers/types";
 import { Helpers } from "../helpers";
+import { assignAstNodeIds } from "../observability/identity";
 
 class MixinsVisitor extends applyMixins(
     BaseVisitor,
@@ -31,7 +32,9 @@ class MixinsVisitor extends applyMixins(
     LoopVisitor
 ) {
     public rootDir: string
-    constructor(filePath: string, sourceFile?: ts.SourceFile) {
+    public moduleId: string
+
+    constructor(filePath: string, sourceFile?: ts.SourceFile, moduleId?: string) {
         const tsConfig = {
             target: ts.ScriptTarget.ESNext,
             module: ts.ModuleKind.NodeNext,
@@ -42,10 +45,12 @@ class MixinsVisitor extends applyMixins(
         };
 
         super(filePath, sourceFile);
+        this.moduleId = moduleId ?? filePath;
     }
 
     public visit() {
         const ast = this.sourceFile.statements.map((s: ts.Statement) => this.visitNode(s)).flat(Infinity)
+        assignAstNodeIds(ast, this.moduleId);
         return {
             ast,
             astHash: Helpers.hash(JSON.stringify(ast)),
@@ -60,8 +65,8 @@ export class Visitor {
     }
 
 
-    public parse(filePath: string, sourceFile?: ts.SourceFile) {
-        const visitor = new MixinsVisitor(filePath, sourceFile);
+    public parse(filePath: string, sourceFile?: ts.SourceFile, moduleId?: string) {
+        const visitor = new MixinsVisitor(filePath, sourceFile, moduleId);
         const ast = visitor.visit();
         return ast;
     }

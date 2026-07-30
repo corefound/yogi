@@ -9,11 +9,14 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <limits>
 #include <map>
 #include <optional>
+#include <set>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -64,10 +67,31 @@ namespace yogi::core::llvm::internal {
 			return result;
 		}
 
+		std::vector<std::string> splitFieldPath(const std::string &path) {
+			std::vector<std::string> result;
+			std::size_t start = 0;
+
+			while (start <= path.size()) {
+				const auto end = path.find('.', start);
+				const auto part = path.substr(start, end == std::string::npos ? std::string::npos : end - start);
+				if (!part.empty()) {
+					result.push_back(part);
+				}
+
+				if (end == std::string::npos) {
+					break;
+				}
+
+				start = end + 1;
+			}
+
+			return result;
+		}
+
 		std::vector<std::string> nativeAbiMetadataParts(const Yogi::Sir::CallExpression *call) {
 			std::vector<std::string> parts;
 
-			if (!call || !call->external()) {
+			if (!call) {
 				return parts;
 			}
 
@@ -115,9 +139,7 @@ namespace yogi::core::llvm::internal {
 			return false;
 		}
 
-		std::map<flatbuffers::uoffset_t, std::string> nativeOwnedStringOutputFreeFunctions(
-			const Yogi::Sir::CallExpression *call
-		) {
+		std::map<flatbuffers::uoffset_t, std::string> nativeOwnedStringOutputFreeFunctions(const Yogi::Sir::CallExpression *call) {
 			static const std::string prefix = "native.param.";
 			static const std::string suffix = ".string.output.native-owned.free=";
 			std::map<flatbuffers::uoffset_t, std::string> result;
@@ -158,9 +180,7 @@ namespace yogi::core::llvm::internal {
 			return result;
 		}
 
-		std::map<flatbuffers::uoffset_t, bool> runtimeOwnedStringOutputParameters(
-			const Yogi::Sir::CallExpression *call
-		) {
+		std::map<flatbuffers::uoffset_t, bool> runtimeOwnedStringOutputParameters(const Yogi::Sir::CallExpression *call) {
 			static const std::string prefix = "native.param.";
 			static const std::string suffix = ".string.output.runtime-owned";
 			std::map<flatbuffers::uoffset_t, bool> result;
@@ -172,11 +192,7 @@ namespace yogi::core::llvm::internal {
 
 				const auto rest = part.substr(prefix.size());
 				const auto suffixPosition = rest.find(suffix);
-				if (
-					suffixPosition == std::string::npos ||
-					suffixPosition == 0 ||
-					suffixPosition + suffix.size() != rest.size()
-				) {
+				if (suffixPosition == std::string::npos || suffixPosition == 0 || suffixPosition + suffix.size() != rest.size()) {
 					continue;
 				}
 
@@ -200,10 +216,7 @@ namespace yogi::core::llvm::internal {
 			return result;
 		}
 
-		std::string nativeResourceReturnDestructorFunction(
-			const Yogi::Sir::CallExpression *call,
-			const ModuleLoweringContext &context
-		) {
+		std::string nativeResourceReturnDestructorFunction(const Yogi::Sir::CallExpression *call, const ModuleLoweringContext &context) {
 			static const std::string prefix = "native.return.resource.destructor=";
 
 			for (const auto &part: nativeAbiMetadataParts(call)) {
@@ -217,27 +230,19 @@ namespace yogi::core::llvm::internal {
 			return summary == context.nativeResourceReturnDestructors.end() ? "" : summary->second;
 		}
 
-		std::string nativeResourceReturnDestructorFunction(
-			const Yogi::Sir::ValueRef *value,
-			const ModuleLoweringContext &context
-		) {
+		std::string nativeResourceReturnDestructorFunction(const Yogi::Sir::ValueRef *value, const ModuleLoweringContext &context) {
 			const auto *call = value ? value->call() : nullptr;
 			return call ? nativeResourceReturnDestructorFunction(call, context) : "";
 		}
 
-		std::optional<std::string> nativeResourceOwnerDestructorFunction(
-			const Yogi::Sir::ValueRef *value,
-			const ModuleLoweringContext &context
-		) {
+		std::optional<std::string> nativeResourceOwnerDestructorFunction(const Yogi::Sir::ValueRef *value, const ModuleLoweringContext &context) {
 			const auto direct = nativeResourceReturnDestructorFunction(value, context);
 			if (!direct.empty()) {
 				return direct;
 			}
 
 			const auto sourceName = identifierName(value);
-			return sourceName.empty()
-				? std::nullopt
-				: context.nativeResourceDestroyFunction(sourceName);
+			return sourceName.empty() ? std::nullopt : context.nativeResourceDestroyFunction(sourceName);
 		}
 
 		bool isMoveCall(const Yogi::Sir::ValueRef *value) {
@@ -247,12 +252,7 @@ namespace yogi::core::llvm::internal {
 
 		std::string moveSourceName(const Yogi::Sir::ValueRef *value) {
 			const auto *call = value ? value->call() : nullptr;
-			if (
-				!call ||
-				fbString(call->builtin_method()) != "move" ||
-				!call->arguments() ||
-				call->arguments()->size() == 0
-			) {
+			if (!call || fbString(call->builtin_method()) != "move" || !call->arguments() || call->arguments()->size() == 0) {
 				return "";
 			}
 
@@ -266,31 +266,65 @@ namespace yogi::core::llvm::internal {
 
 		const Yogi::Sir::TypeRef *arrayElementType(const Yogi::Sir::TypeRef *type) {
 			const auto *current = type;
-			while (
-				current &&
-				current->kind() == Yogi::Sir::TypeKind_type_reference &&
-				current->resolved()
-			) {
+			while (current && current->kind() == Yogi::Sir::TypeKind_type_reference && current->resolved()) {
 				current = current->resolved();
 			}
 
-			if (
-				current &&
-				(
-					current->kind() == Yogi::Sir::TypeKind_array_type ||
-					current->kind() == Yogi::Sir::TypeKind_tuple_type
-				)
-			) {
+			if (current && current->kind() == Yogi::Sir::TypeKind_array_type) {
 				return current->element_type();
+			}
+
+			if (current && current->kind() == Yogi::Sir::TypeKind_tuple_type) {
+				if (current->element_type()) {
+					return current->element_type();
+				}
+
+				if (current->types() && current->types()->size() > 0) {
+					return current->types()->Get(0);
+				}
 			}
 
 			return nullptr;
 		}
 
-		std::string aggregateOwnerName(
-			const Yogi::Sir::ValueRef *value,
-			const ModuleLoweringContext &context
-		) {
+		bool callReturnsBorrowedArray(const Yogi::Sir::CallExpression *call) {
+			const auto metadata = fbString(call ? call->builtin_method() : nullptr);
+			return metadata.find("array.return.ownership=borrowed;parameter=") != std::string::npos;
+		}
+
+		std::optional<std::size_t> borrowedArrayReturnParameter(const Yogi::Sir::CallExpression *call) {
+			static const std::string prefix = "array.return.ownership=borrowed;parameter=";
+
+			for (const auto &part : nativeAbiMetadataParts(call)) {
+				if (part.rfind(prefix, 0) != 0) {
+					continue;
+				}
+
+				try {
+					return static_cast<std::size_t>(std::stoull(part.substr(prefix.size())));
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			return std::nullopt;
+		}
+
+		bool callReturnsReceiverArray(const Yogi::Sir::CallExpression *call) {
+			const auto method = fbString(call ? call->builtin_method() : nullptr);
+			return method == "array.reverse" || method == "array.fill" || method == "array.copyWithin" || method == "array.sort";
+		}
+
+		const Yogi::Sir::TypeRef *resolvedType(const Yogi::Sir::TypeRef *type) {
+			const auto *current = type;
+			while (current && current->kind() == Yogi::Sir::TypeKind_type_reference && current->resolved()) {
+				current = current->resolved();
+			}
+
+			return current;
+		}
+
+		std::string aggregateOwnerName(const Yogi::Sir::ValueRef *value, const ModuleLoweringContext &context) {
 			const auto root = rootIdentifierName(value);
 			if (root.empty()) {
 				return "";
@@ -300,10 +334,28 @@ namespace yogi::core::llvm::internal {
 			return owner ? *owner : root;
 		}
 
-		std::map<std::string, std::string> nativeResourceArrayElementFieldsFromCall(
-			const Yogi::Sir::CallExpression *call,
-			const ModuleLoweringContext &context
-		) {
+		std::map<std::string, std::string> nativeResourceArrayElementFieldsFromCall(const Yogi::Sir::CallExpression *call, const ModuleLoweringContext &context) {
+			static const std::string metadataPrefix = "native.return.array.element.resource.destructor=";
+			std::map<std::string, std::string> result;
+
+			for (const auto &part : nativeAbiMetadataParts(call)) {
+				if (part.rfind(metadataPrefix, 0) != 0) {
+					continue;
+				}
+
+				const auto payload = part.substr(metadataPrefix.size());
+				const auto separator = payload.find('=');
+				if (separator == std::string::npos || separator == 0 || separator + 1 >= payload.size()) {
+					continue;
+				}
+
+				result[payload.substr(0, separator)] = payload.substr(separator + 1);
+			}
+
+			if (!result.empty()) {
+				return result;
+			}
+
 			const auto method = fbString(call ? call->builtin_method() : nullptr);
 			if (method != "array.pop" && method != "array.shift" && method != "array.splice") {
 				return {};
@@ -311,30 +363,20 @@ namespace yogi::core::llvm::internal {
 
 			const auto *callee = call->callee() ? call->callee()->property_access() : nullptr;
 			const auto owner = callee ? aggregateOwnerName(callee->object(), context) : "";
-			return owner.empty()
-				? std::map<std::string, std::string>()
-				: context.nativeResourceArrayElementFieldDestroyFunctions(owner);
+			return owner.empty() ? std::map<std::string, std::string>() : context.nativeResourceArrayElementFieldDestroyFunctions(owner);
 		}
 
-		std::map<std::string, std::string> nativeResourceStructReturnFieldDestructors(
-			const Yogi::Sir::ValueRef *value,
-			const ModuleLoweringContext &context
-		) {
+		std::map<std::string, std::string> nativeResourceStructReturnFieldDestructors(const Yogi::Sir::ValueRef *value, const ModuleLoweringContext &context) {
 			const auto *call = value ? value->call() : nullptr;
 			if (!call || isMoveCall(value)) {
 				return {};
 			}
 
 			const auto summary = context.nativeResourceStructReturnDestructors.find(fbString(call->qualified_name()));
-			return summary == context.nativeResourceStructReturnDestructors.end()
-				? std::map<std::string, std::string>()
-				: summary->second;
+			return summary == context.nativeResourceStructReturnDestructors.end() ? std::map<std::string, std::string>() : summary->second;
 		}
 
-		std::map<std::string, std::string> prefixedNativeResourceFields(
-			const std::map<std::string, std::string> &fields,
-			const std::string &prefix
-		) {
+		std::map<std::string, std::string> prefixedNativeResourceFields(const std::map<std::string, std::string> &fields, const std::string &prefix) {
 			if (prefix.empty()) {
 				return fields;
 			}
@@ -347,9 +389,7 @@ namespace yogi::core::llvm::internal {
 			return result;
 		}
 
-		std::map<std::string, std::string> nativeResourceFieldsFromMoveCall(
-			const Yogi::Sir::ValueRef *value
-		) {
+		std::map<std::string, std::string> nativeResourceFieldsFromMoveCall(const Yogi::Sir::ValueRef *value) {
 			static const std::string prefix = "native.resource.field.";
 			std::map<std::string, std::string> result;
 
@@ -412,10 +452,7 @@ namespace yogi::core::llvm::internal {
 			}
 
 			if (const auto *identifier = value->identifier()) {
-				return prefixedNativeResourceFields(
-					context.nativeResourceFieldDestroyFunctions(fbString(identifier->name())),
-					prefix
-				);
+				return prefixedNativeResourceFields(context.nativeResourceFieldDestroyFunctions(fbString(identifier->name())), prefix);
 			}
 
 			if (const auto *call = value->call()) {
@@ -434,30 +471,20 @@ namespace yogi::core::llvm::internal {
 
 			for (const auto *property: *object->properties()) {
 				const auto fieldName = fbString(property->key());
-				const auto fieldPath = prefix.empty()
-					? fieldName
-					: prefix + "." + fieldName;
+				const auto fieldPath = prefix.empty() ? fieldName : prefix + "." + fieldName;
 				const auto destructor = nativeResourceOwnerDestructorFunction(property->value(), context);
 
 				if (destructor) {
 					result[fieldPath] = *destructor;
 				}
 
-				mergeNativeResourceFields(
-					result,
-					nativeResourceStructFieldsFromValue(property->value(), context, fieldPath)
-				);
+				mergeNativeResourceFields(result, nativeResourceStructFieldsFromValue(property->value(), context, fieldPath));
 			}
 
 			return result;
 		}
 
-		void registerNativeResourceStructFieldsFromValue(
-			const std::string &owner,
-			const Yogi::Sir::ValueRef *value,
-			ModuleLoweringContext &context,
-			const std::string &prefix = ""
-		) {
+		void registerNativeResourceStructFieldsFromValue(const std::string &owner, const Yogi::Sir::ValueRef *value, ModuleLoweringContext &context, const std::string &prefix = "") {
 			if (owner.empty() || !value) {
 				return;
 			}
@@ -468,10 +495,7 @@ namespace yogi::core::llvm::internal {
 				if (fields.empty()) {
 					fields = nativeResourceFieldsFromMoveCall(value);
 				}
-				context.registerNativeResourceFieldOwners(
-					owner,
-					prefixedNativeResourceFields(fields, prefix)
-				);
+				context.registerNativeResourceFieldOwners(owner, prefixedNativeResourceFields(fields, prefix));
 				context.clearNativeResourceFieldOwners(source);
 				context.deactivateAggregateOwner(source);
 				return;
@@ -479,10 +503,7 @@ namespace yogi::core::llvm::internal {
 
 			if (const auto *identifier = value->identifier()) {
 				const auto source = fbString(identifier->name());
-				context.registerNativeResourceFieldOwners(
-					owner,
-					prefixedNativeResourceFields(context.nativeResourceFieldDestroyFunctions(source), prefix)
-				);
+				context.registerNativeResourceFieldOwners(owner, prefixedNativeResourceFields(context.nativeResourceFieldDestroyFunctions(source), prefix));
 				context.clearNativeResourceFieldOwners(source);
 				context.deactivateAggregateOwner(source);
 				return;
@@ -505,9 +526,7 @@ namespace yogi::core::llvm::internal {
 
 			for (const auto *property: *object->properties()) {
 				const auto fieldName = fbString(property->key());
-				const auto fieldPath = prefix.empty()
-					? fieldName
-					: prefix + "." + fieldName;
+				const auto fieldPath = prefix.empty() ? fieldName : prefix + "." + fieldName;
 				const auto destructor = nativeResourceOwnerDestructorFunction(property->value(), context);
 
 				if (destructor) {
@@ -521,47 +540,159 @@ namespace yogi::core::llvm::internal {
 				registerNativeResourceStructFieldsFromValue(owner, property->value(), context, fieldPath);
 			}
 		}
+	} // namespace
+
+	ValueLowerer::ValueLowerer(ModuleLoweringContext &context, TypeLowerer &types) : context(context), types(types) {}
+
+	::llvm::Function *ValueLowerer::arrayElementDestroyPolicyFunction(const std::map<std::string, std::string> &fields, const Yogi::Sir::TypeRef *elementType, const std::string &identity) {
+		const auto symbol = "__yogi_array_element_destroy_" + std::to_string(std::hash<std::string>{}(identity));
+		if (auto *existing = context.module->getFunction(symbol)) {
+			return existing;
+		}
+
+		auto *pointerType = opaquePointer();
+		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
+		auto *functionType = ::llvm::FunctionType::get(voidType, {pointerType, pointerType}, false);
+		auto *function = ::llvm::Function::Create(functionType, ::llvm::GlobalValue::InternalLinkage, symbol, context.module.get());
+		auto argument = function->arg_begin();
+		auto *boxedElement = &*argument++;
+		boxedElement->setName("boxedElement");
+		argument->setName("context");
+
+		const auto savedInsertionPoint = context.builder.saveIP();
+		auto *entry = ::llvm::BasicBlock::Create(context.llvmContext, "entry", function);
+		context.builder.SetInsertPoint(entry);
+		auto *rootObject = callRuntime("yogi_any_to_object", pointerType, {boxedElement});
+
+		for (const auto &[fieldPath, destroyFunction] : fields) {
+			const auto parts = splitFieldPath(fieldPath);
+			if (parts.empty()) {
+				continue;
+			}
+
+			::llvm::Value *currentObject = rootObject;
+			::llvm::Value *fieldValue = nullptr;
+			for (std::size_t index = 0; index < parts.size(); ++index) {
+				auto *key = context.builder.CreateGlobalString(parts[index]);
+				fieldValue = callRuntime("yogi_object_get", pointerType, {currentObject, key});
+				if (index + 1 < parts.size()) {
+					currentObject = callRuntime("yogi_any_to_object", pointerType, {fieldValue});
+				}
+			}
+
+			if (!fieldValue) {
+				continue;
+			}
+
+			auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "destroy." + sanitizeSymbol(fieldPath), function);
+			auto *nextBlock = ::llvm::BasicBlock::Create(context.llvmContext, "after." + sanitizeSymbol(fieldPath), function);
+			context.builder.CreateCondBr(context.builder.CreateIsNotNull(fieldValue), destroyBlock, nextBlock);
+			context.builder.SetInsertPoint(destroyBlock);
+			auto *destroy = context.runtimeFunction(destroyFunction, voidType, {pointerType});
+			context.builder.CreateCall(destroy, {fieldValue});
+			context.builder.CreateBr(nextBlock);
+			context.builder.SetInsertPoint(nextBlock);
+		}
+
+		context.builder.CreateRetVoid();
+		context.builder.restoreIP(savedInsertionPoint);
+		return function;
 	}
 
-	ValueLowerer::ValueLowerer(ModuleLoweringContext &context, TypeLowerer &types)
-		: context(context),
-		  types(types) {}
+	void ValueLowerer::installArrayBoxPolicy(::llvm::Value *array, const Yogi::Sir::TypeRef *arrayType) {
+		if (!array) {
+			return;
+		}
 
-	std::map<std::string, std::string> ValueLowerer::nativeResourceArrayElementFieldsFromReturnedArrayCall(
-		const Yogi::Sir::CallExpression *call
-	) const {
-		return nativeResourceArrayElementFieldsFromCall(call, context);
+		callRuntime(
+		    "yogi_array_set_boxed_elements",
+		    ::llvm::Type::getVoidTy(context.llvmContext),
+		    {
+		        array,
+		        ::llvm::ConstantInt::getTrue(context.llvmContext),
+		    });
 	}
+
+	void ValueLowerer::installArrayElementOwnershipPolicy(::llvm::Value *array, const std::map<std::string, std::string> &fields, const Yogi::Sir::TypeRef *elementType) {
+		if (!array || fields.empty() || structTypeName(elementType).empty()) {
+			return;
+		}
+
+		std::string identity = "resource-array:" + structTypeName(elementType);
+		for (const auto &[fieldPath, destroyFunction] : fields) {
+			identity += "|" + fieldPath + "=" + destroyFunction;
+		}
+
+		auto *destroyFunction = arrayElementDestroyPolicyFunction(fields, elementType, identity);
+		auto *nullPointer = ::llvm::ConstantPointerNull::get(opaquePointer());
+		callRuntime(
+		    "yogi_array_set_element_ownership_policy",
+		    ::llvm::Type::getVoidTy(context.llvmContext),
+		    {
+		        array,
+		        ::llvm::ConstantInt::getTrue(context.llvmContext),
+		        destroyFunction,
+		        nullPointer,
+		        nullPointer,
+		        context.builder.CreateGlobalString(identity),
+		    });
+	}
+
+	std::map<std::string, std::string> ValueLowerer::nativeResourceArrayElementFieldsFromReturnedArrayCall(const Yogi::Sir::CallExpression *call) const { return nativeResourceArrayElementFieldsFromCall(call, context); }
 
 	std::string ValueLowerer::borrowedViewOwnerName(const Yogi::Sir::ValueRef *value) const {
-		if (!value) {
+		std::function<std::string(const Yogi::Sir::ValueRef *, bool)> resolve = [&](const Yogi::Sir::ValueRef *current, bool allowDirectIdentifier) -> std::string {
+			if (!current) {
 			return "";
 		}
 
-		if (const auto *identifier = value->identifier()) {
+			if (const auto *identifier = current->identifier()) {
 			const auto name = fbString(identifier->name());
 			const auto viewAlias = context.borrowedViewAliases.find(name);
-			return viewAlias == context.borrowedViewAliases.end()
-				? ""
-				: viewAlias->second;
+				if (viewAlias != context.borrowedViewAliases.end()) {
+					const auto owner = context.resolveAggregateOwner(viewAlias->second);
+					return owner ? *owner : viewAlias->second;
 		}
 
-		if (const auto *access = value->element_access()) {
-			const auto owner = borrowedViewOwnerName(access->object());
+				if (!allowDirectIdentifier) {
+					return "";
+				}
+
+				const auto owner = context.resolveAggregateOwner(name);
+				return owner ? *owner : name;
+			}
+
+			if (const auto *access = current->element_access()) {
+				const auto owner = resolve(access->object(), false);
 			return owner.empty() ? rootIdentifierName(access->object()) : owner;
 		}
 
-		if (const auto *access = value->property_access()) {
-			return borrowedViewOwnerName(access->object());
+			if (const auto *access = current->property_access()) {
+				return resolve(access->object(), false);
+			}
+
+			if (const auto *addressOf = current->address_of()) {
+				return resolve(addressOf->target(), true);
+			}
+
+			if (const auto *dereference = current->dereference()) {
+				return resolve(dereference->target(), true);
+			}
+
+			if (const auto *call = current->call()) {
+				const auto parameterIndex = borrowedArrayReturnParameter(call);
+				if (parameterIndex && call->arguments() && *parameterIndex < call->arguments()->size()) {
+					return resolve(call->arguments()->Get(static_cast<flatbuffers::uoffset_t>(*parameterIndex)), false);
+				}
 		}
 
 		return "";
+		};
+
+		return resolve(value, false);
 	}
 
-	void ValueLowerer::retainEscapedBorrowedViewSource(
-		const Yogi::Sir::ValueRef *value,
-		::llvm::Value *loweredValue
-	) {
+	void ValueLowerer::retainEscapedBorrowedViewSource(const Yogi::Sir::ValueRef *value, ::llvm::Value *loweredValue) {
 		if (!value || !loweredValue || !loweredValue->getType()->isPointerTy()) {
 			return;
 		}
@@ -571,12 +702,12 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
-		callRuntime(
-			"yogi_array_retain_view_source",
-			::llvm::Type::getVoidTy(context.llvmContext),
-			{loweredValue}
-		);
+		callRuntime("yogi_array_retain_view_source", ::llvm::Type::getVoidTy(context.llvmContext), {loweredValue});
 		context.deactivateAggregateOwner(ownerName);
+
+		if (const auto *identifier = value->identifier()) {
+			context.deactivateAggregateOwner(identifier->symbol_id());
+		}
 	}
 
 	void ValueLowerer::deactivateEscapedAggregateGraphOwner(const Yogi::Sir::ValueRef *value) {
@@ -586,11 +717,7 @@ namespace yogi::core::llvm::internal {
 		}
 	}
 
-	::llvm::Value *ValueLowerer::lowerWithEscapedObjectGraphRetention(
-		const Yogi::Sir::ValueRef *value,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerWithEscapedObjectGraphRetention(const Yogi::Sir::ValueRef *value, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto previous = context.retainEscapedObjectGraph;
 		context.retainEscapedObjectGraph = true;
 		auto *result = lower(value, expectedType, expectedSemanticType);
@@ -598,14 +725,12 @@ namespace yogi::core::llvm::internal {
 		return result;
 	}
 
-	::llvm::Value *ValueLowerer::lower(
-		const Yogi::Sir::ValueRef *value,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lower(const Yogi::Sir::ValueRef *value, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		if (!value) {
 			return types.zero(expectedType);
 		}
+
+		context.emitRuntimeSemanticDecisions(value);
 
 		if (const auto *constant = value->constant()) {
 			return lowerConstant(constant, expectedType, expectedSemanticType);
@@ -662,22 +787,68 @@ namespace yogi::core::llvm::internal {
 		return types.zero(expectedType);
 	}
 
-	::llvm::Value *ValueLowerer::lowerCall(
-		const Yogi::Sir::CallExpression *call,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerCall(const Yogi::Sir::CallExpression *call, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
+		if (fbString(call->builtin_method()) == "runtime.box") {
+			const auto *argument = call->arguments() && call->arguments()->size() > 0 ? call->arguments()->Get(0) : nullptr;
+			const auto *argumentType = valueSemanticType(argument);
+			auto *value = argument ? lower(argument, types.lower(argumentType), argumentType) : static_cast<::llvm::Value *>(nullptr);
+			auto *boxed = boxAny(value, argumentType);
+			return materializeBoxedValueCopy(boxed, argument, call->type());
+		}
+
+		if (fbString(call->builtin_method()) == "runtime.typeof") {
+			const auto *argument = call->arguments() && call->arguments()->size() > 0 ? call->arguments()->Get(0) : nullptr;
+			const auto *argumentType = valueSemanticType(argument);
+			const auto argumentKind = resolvedTypeKind(argumentType);
+			const char *staticType = nullptr;
+
+			switch (argumentKind) {
+			case Yogi::Sir::TypeKind_number_type:
+				staticType = "number";
+				break;
+			case Yogi::Sir::TypeKind_string_type:
+				staticType = "string";
+				break;
+			case Yogi::Sir::TypeKind_boolean_type:
+				staticType = "boolean";
+				break;
+			case Yogi::Sir::TypeKind_undefined_type:
+				staticType = "undefined";
+				break;
+			case Yogi::Sir::TypeKind_function_type:
+				staticType = "function";
+				break;
+			case Yogi::Sir::TypeKind_null_type:
+			case Yogi::Sir::TypeKind_array_type:
+			case Yogi::Sir::TypeKind_tuple_type:
+			case Yogi::Sir::TypeKind_type_literal:
+			case Yogi::Sir::TypeKind_type_reference:
+			case Yogi::Sir::TypeKind_pointer_type:
+				staticType = "object";
+				break;
+			default:
+				break;
+			}
+
+			::llvm::Value *rawType = nullptr;
+			if (staticType) {
+				rawType = context.builder.CreateGlobalString(staticType);
+			} else {
+				auto *boxed = argument ? lower(argument, opaquePointer(), argumentType) : callRuntime("yogi_any_undefined", opaquePointer(), {});
+				rawType = callRuntime("yogi_any_typeof", opaquePointer(), {boxed});
+			}
+
+			auto *ownedType = callRuntime("yogi_string_from_native_owned", opaquePointer(), {rawType});
+			return cast(ownedType, expectedType ? expectedType : opaquePointer(), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+		}
+
 		if (fbString(call->builtin_method()) == "print") {
 			return lowerPrintCall(call, expectedType, expectedSemanticType);
 		}
 
 		if (fbString(call->builtin_method()) == "move") {
-			const auto *argument = call->arguments() && call->arguments()->size() > 0
-				? call->arguments()->Get(0)
-				: nullptr;
-			return argument
-				? lower(argument, expectedType, expectedSemanticType)
-				: types.zero(expectedType);
+			const auto *argument = call->arguments() && call->arguments()->size() > 0 ? call->arguments()->Get(0) : nullptr;
+			return argument ? lower(argument, expectedType, expectedSemanticType) : types.zero(expectedType);
 		}
 
 		if (call->callee() && call->callee()->property_access()) {
@@ -717,21 +888,13 @@ namespace yogi::core::llvm::internal {
 		std::vector<::llvm::Value *> nativeStringArrayCleanups;
 		std::vector<NativeStringOutput> nativeStringOutputs;
 		std::vector<MovedStructArgumentCleanup> movedStructArgumentCleanups;
+		std::vector<::llvm::Value *> ownedArrayArgumentTemporaries;
+		std::vector<::llvm::Value *> ownedBoxedArgumentTemporaries;
 		const auto nativeStringOutputFreeFunctions = nativeOwnedStringOutputFreeFunctions(call);
 		const auto runtimeStringOutputParameters = runtimeOwnedStringOutputParameters(call);
 		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
-		const auto nativeArrayElementType = [&](const Yogi::Sir::TypeRef *type) -> const Yogi::Sir::TypeRef * {
-			if (!type) {
-				return nullptr;
-			}
-
-			if (resolvedTypeKind(type) != Yogi::Sir::TypeKind_array_type) {
-				return nullptr;
-			}
-
-			return type->element_type();
-		};
+		const auto nativeArrayElementType = [&](const Yogi::Sir::TypeRef *type) -> const Yogi::Sir::TypeRef * { return resolvedTypeKind(type) == Yogi::Sir::TypeKind_array_type ? arrayElementType(type) : nullptr; };
 		const auto isNativeNumberArray = [&](const Yogi::Sir::TypeRef *type) {
 			const auto *elementType = nativeArrayElementType(type);
 			return elementType && resolvedTypeKind(elementType) == Yogi::Sir::TypeKind_number_type;
@@ -762,7 +925,7 @@ namespace yogi::core::llvm::internal {
 		const auto appendNativeArrayDimensions = [&](const Yogi::Sir::TypeRef *arrayType, ::llvm::Value *length) {
 			const auto shape = fixedShape(arrayType);
 
-			if (arrayType && arrayType->fixed() && shape.size() > 1) {
+			if (isFixedLengthArray(arrayType) && shape.size() > 1) {
 				for (const auto dimension: shape) {
 					arguments.push_back(::llvm::ConstantInt::get(
 						integerType,
@@ -776,12 +939,7 @@ namespace yogi::core::llvm::internal {
 			arguments.push_back(length);
 			argumentTypes.push_back(integerType);
 		};
-		const auto appendNativeNumberArrayArgument = [&](
-			const Yogi::Sir::ValueRef *argument,
-			const Yogi::Sir::TypeRef *argumentSemanticType,
-			const Yogi::Sir::TypeRef *arrayType,
-			bool mutableBorrow
-		) {
+		const auto appendNativeNumberArrayArgument = [&](const Yogi::Sir::ValueRef *argument, const Yogi::Sir::TypeRef *argumentSemanticType, const Yogi::Sir::TypeRef *arrayType, bool mutableBorrow) {
 			::llvm::Value *array = nullptr;
 
 			if (mutableBorrow) {
@@ -797,12 +955,11 @@ namespace yogi::core::llvm::internal {
 			argumentTypes.push_back(opaquePointer());
 			appendNativeArrayDimensions(arrayType, length);
 			nativeArrayCleanups.push_back({array, buffer, length, mutableBorrow});
+			if (!mutableBorrow && isOwnedArrayExpression(argument)) {
+				ownedArrayArgumentTemporaries.push_back(array);
+			}
 		};
-		const auto appendNativeStringArrayArgument = [&](
-			const Yogi::Sir::ValueRef *argument,
-			const Yogi::Sir::TypeRef *argumentSemanticType,
-			const Yogi::Sir::TypeRef *arrayType
-		) {
+		const auto appendNativeStringArrayArgument = [&](const Yogi::Sir::ValueRef *argument, const Yogi::Sir::TypeRef *argumentSemanticType, const Yogi::Sir::TypeRef *arrayType) {
 			auto *array = lower(argument, opaquePointer(), argumentSemanticType);
 			auto *length = callRuntime("yogi_array_length", integerType, {array});
 			auto *buffer = callRuntime("yogi_array_native_string_buffer", opaquePointer(), {array});
@@ -810,14 +967,11 @@ namespace yogi::core::llvm::internal {
 			argumentTypes.push_back(opaquePointer());
 			appendNativeArrayDimensions(arrayType, length);
 			nativeStringArrayCleanups.push_back(buffer);
+			if (isOwnedArrayExpression(argument)) {
+				ownedArrayArgumentTemporaries.push_back(array);
+			}
 		};
-		const auto emitStructArrayCopyBack = [&](
-			::llvm::Value *array,
-			::llvm::Value *buffer,
-			::llvm::Value *length,
-			const Yogi::Sir::TypeRef *elementType,
-			::llvm::StructType *structType
-		) {
+		const auto emitStructArrayCopyBack = [&](::llvm::Value *array, ::llvm::Value *buffer, ::llvm::Value *length, const Yogi::Sir::TypeRef *elementType, ::llvm::StructType *structType) {
 			auto *function = context.builder.GetInsertBlock()->getParent();
 			auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.copyback.cond", function);
 			auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.copyback.body", function);
@@ -836,23 +990,13 @@ namespace yogi::core::llvm::internal {
 			auto *structValue = context.builder.CreateLoad(structType, slot, "native.struct.copyback.value");
 			auto *boxedValue = boxAny(structValue, elementType);
 			callRuntime("yogi_array_set", voidType, {array, index, boxedValue});
-			auto *nextIndex = context.builder.CreateAdd(
-				index,
-				::llvm::ConstantInt::get(integerType, 1),
-				"native.struct.copyback.next"
-			);
+			auto *nextIndex = context.builder.CreateAdd(index, ::llvm::ConstantInt::get(integerType, 1), "native.struct.copyback.next");
 			context.builder.CreateStore(nextIndex, indexSlot);
 			context.builder.CreateBr(conditionBlock);
 
 			context.builder.SetInsertPoint(afterBlock);
 		};
-		const auto appendNativeStructArrayArgument = [&](
-			const Yogi::Sir::ValueRef *argument,
-			const Yogi::Sir::TypeRef *argumentSemanticType,
-			const Yogi::Sir::TypeRef *arrayType,
-			const std::string &structName,
-			bool mutableBorrow
-		) {
+		const auto appendNativeStructArrayArgument = [&](const Yogi::Sir::ValueRef *argument, const Yogi::Sir::TypeRef *argumentSemanticType, const Yogi::Sir::TypeRef *arrayType, const std::string &structName, bool mutableBorrow) {
 			::llvm::Value *array = nullptr;
 
 			if (mutableBorrow) {
@@ -883,11 +1027,7 @@ namespace yogi::core::llvm::internal {
 			auto *structValue = unboxAny(boxedElement, nativeArrayElementType(arrayType));
 			auto *slot = context.builder.CreateGEP(structType, buffer, index, "native.struct.fill.slot");
 			context.builder.CreateStore(structValue, slot);
-			auto *nextIndex = context.builder.CreateAdd(
-				index,
-				::llvm::ConstantInt::get(integerType, 1),
-				"native.struct.fill.next"
-			);
+			auto *nextIndex = context.builder.CreateAdd(index, ::llvm::ConstantInt::get(integerType, 1), "native.struct.fill.next");
 			context.builder.CreateStore(nextIndex, indexSlot);
 			context.builder.CreateBr(conditionBlock);
 
@@ -904,6 +1044,8 @@ namespace yogi::core::llvm::internal {
 					nativeArrayElementType(arrayType),
 					structType,
 				});
+			} else if (isOwnedArrayExpression(argument)) {
+				ownedArrayArgumentTemporaries.push_back(array);
 			}
 		};
 
@@ -912,27 +1054,15 @@ namespace yogi::core::llvm::internal {
 				const auto *argument = call->arguments()->Get(index);
 				const auto *argumentSemanticType = valueSemanticType(argument);
 				const auto argumentKind = resolvedTypeKind(argumentSemanticType);
-				const auto *pointeeType =
-					argumentKind == Yogi::Sir::TypeKind_pointer_type && argumentSemanticType
-						? argumentSemanticType->element_type()
-						: nullptr;
+				const auto *pointeeType = argumentKind == Yogi::Sir::TypeKind_pointer_type && argumentSemanticType ? argumentSemanticType->element_type() : nullptr;
 				const auto pointeeKind = resolvedTypeKind(pointeeType);
 				const auto outputIt = nativeStringOutputFreeFunctions.find(index);
 				const auto runtimeOutputIt = runtimeStringOutputParameters.find(index);
+				const auto *effect = call->argument_effects() && index < call->argument_effects()->size() ? call->argument_effects()->Get(index) : nullptr;
 
-				if (
-					call->external() &&
-					(
-						outputIt != nativeStringOutputFreeFunctions.end() ||
-						runtimeOutputIt != runtimeStringOutputParameters.end()
-					)
-				) {
+				if (call->external() && (outputIt != nativeStringOutputFreeFunctions.end() || runtimeOutputIt != runtimeStringOutputParameters.end())) {
 					auto *yogiPointer = lower(argument, opaquePointer(), argumentSemanticType);
-					auto *nativeSlot = context.builder.CreateAlloca(
-						opaquePointer(),
-						nullptr,
-						"native.string.output.slot"
-					);
+					auto *nativeSlot = context.builder.CreateAlloca(opaquePointer(), nullptr, "native.string.output.slot");
 					context.builder.CreateStore(::llvm::ConstantPointerNull::get(opaquePointer()), nativeSlot);
 					arguments.push_back(nativeSlot);
 					argumentTypes.push_back(opaquePointer());
@@ -946,21 +1076,12 @@ namespace yogi::core::llvm::internal {
 					continue;
 				}
 
-				if (
-					call->external() &&
-					pointeeType &&
-					pointeeKind == Yogi::Sir::TypeKind_array_type &&
-					isNativeNumberArray(pointeeType)
-				) {
+				if (call->external() && pointeeType && pointeeKind == Yogi::Sir::TypeKind_array_type && isNativeNumberArray(pointeeType)) {
 					appendNativeNumberArrayArgument(argument, argumentSemanticType, pointeeType, true);
 					continue;
 				}
 
-				if (
-					call->external() &&
-					pointeeType &&
-					pointeeKind == Yogi::Sir::TypeKind_array_type
-				) {
+				if (call->external() && pointeeType && pointeeKind == Yogi::Sir::TypeKind_array_type) {
 					const auto structName = nativeStructArrayName(pointeeType);
 					if (!structName.empty()) {
 						appendNativeStructArrayArgument(argument, argumentSemanticType, pointeeType, structName, true);
@@ -968,28 +1089,17 @@ namespace yogi::core::llvm::internal {
 					}
 				}
 
-				if (
-					call->external() &&
-					argumentKind == Yogi::Sir::TypeKind_array_type &&
-					isNativeNumberArray(argumentSemanticType)
-				) {
+				if (call->external() && argumentKind == Yogi::Sir::TypeKind_array_type && isNativeNumberArray(argumentSemanticType)) {
 					appendNativeNumberArrayArgument(argument, argumentSemanticType, argumentSemanticType, false);
 					continue;
 				}
 
-				if (
-					call->external() &&
-					argumentKind == Yogi::Sir::TypeKind_array_type &&
-					isNativeStringArray(argumentSemanticType)
-				) {
+				if (call->external() && argumentKind == Yogi::Sir::TypeKind_array_type && isNativeStringArray(argumentSemanticType)) {
 					appendNativeStringArrayArgument(argument, argumentSemanticType, argumentSemanticType);
 					continue;
 				}
 
-				if (
-					call->external() &&
-					argumentKind == Yogi::Sir::TypeKind_array_type
-				) {
+				if (call->external() && argumentKind == Yogi::Sir::TypeKind_array_type) {
 					const auto structName = nativeStructArrayName(argumentSemanticType);
 					if (!structName.empty()) {
 						appendNativeStructArrayArgument(argument, argumentSemanticType, argumentSemanticType, structName, false);
@@ -1002,9 +1112,13 @@ namespace yogi::core::llvm::internal {
 				arguments.push_back(argumentValue);
 				argumentTypes.push_back(argumentType);
 
-				const auto *effect = call->argument_effects() && index < call->argument_effects()->size()
-					? call->argument_effects()->Get(index)
-					: nullptr;
+				if (const auto *boxedCall = argument ? argument->call() : nullptr; boxedCall && fbString(boxedCall->builtin_method()) == "runtime.box") {
+					ownedBoxedArgumentTemporaries.push_back(argumentValue);
+				}
+
+				if (isOwnedArrayExpression(argument) && (!effect || (!effect->consumes() && !effect->escapes()))) {
+					ownedArrayArgumentTemporaries.push_back(argumentValue);
+				}
 
 					if (effect && effect->escapes()) {
 						retainEscapedBorrowedViewSource(argument, argumentValue);
@@ -1014,13 +1128,7 @@ namespace yogi::core::llvm::internal {
 						}
 					}
 
-					if (
-						effect &&
-						effect->consumes() &&
-						!effect->escapes() &&
-						isMoveCall(argument) &&
-						!structTypeName(argumentSemanticType).empty()
-					) {
+				if (effect && effect->consumes() && !effect->escapes() && isMoveCall(argument) && !structTypeName(argumentSemanticType).empty()) {
 						const auto sourceName = moveSourceName(argument);
 						if (!sourceName.empty()) {
 							movedStructArgumentCleanups.push_back({
@@ -1056,14 +1164,8 @@ namespace yogi::core::llvm::internal {
 
 		if (!function) {
 			auto *functionType = ::llvm::FunctionType::get(returnType, argumentTypes, false);
-			function = ::llvm::Function::Create(
-				functionType,
-				call->external()
-					? ::llvm::Function::ExternalLinkage
-					: ::llvm::Function::InternalLinkage,
-				functionName,
-				context.module.get()
-			);
+			const auto publicFunction = !fbString(call->linkage_name()).empty();
+			function = ::llvm::Function::Create(functionType, call->external() || publicFunction ? ::llvm::Function::ExternalLinkage : ::llvm::Function::InternalLinkage, functionName, context.module.get());
 		}
 
 		const auto nativeFreeFunction = [&](const std::string &name) {
@@ -1071,12 +1173,7 @@ namespace yogi::core::llvm::internal {
 
 			if (!freeFunction) {
 				auto *freeFunctionType = ::llvm::FunctionType::get(voidType, {opaquePointer()}, false);
-				freeFunction = ::llvm::Function::Create(
-					freeFunctionType,
-					::llvm::Function::ExternalLinkage,
-					name,
-					context.module.get()
-				);
+				freeFunction = ::llvm::Function::Create(freeFunctionType, ::llvm::Function::ExternalLinkage, name, context.module.get());
 			}
 
 			return freeFunction;
@@ -1084,16 +1181,8 @@ namespace yogi::core::llvm::internal {
 
 		const auto emitNativeStringOutputCopies = [&]() {
 			for (auto it = nativeStringOutputs.rbegin(); it != nativeStringOutputs.rend(); ++it) {
-				auto *nativeValue = context.builder.CreateLoad(
-					opaquePointer(),
-					it->nativeSlot,
-					"native.string.output.value"
-				);
-				auto *yogiString = callRuntime(
-					it->runtimeOwned ? "yogi_string_require_runtime_owned" : "yogi_string_from_native_owned",
-					opaquePointer(),
-					{nativeValue}
-				);
+				auto *nativeValue = context.builder.CreateLoad(opaquePointer(), it->nativeSlot, "native.string.output.value");
+				auto *yogiString = callRuntime(it->runtimeOwned ? "yogi_string_require_runtime_owned" : "yogi_string_from_native_owned", opaquePointer(), {nativeValue});
 				if (!it->runtimeOwned) {
 					context.builder.CreateCall(nativeFreeFunction(it->freeFunction), {nativeValue});
 				}
@@ -1112,11 +1201,7 @@ namespace yogi::core::llvm::internal {
 
 			for (auto it = nativeArrayCleanups.rbegin(); it != nativeArrayCleanups.rend(); ++it) {
 				if (it->copyBack) {
-					callRuntime(
-						"yogi_array_native_number_buffer_copy_back",
-						voidType,
-						{it->array, it->buffer, it->length}
-					);
+					callRuntime("yogi_array_native_number_buffer_copy_back", voidType, {it->array, it->buffer, it->length});
 				}
 
 				callRuntime("yogi_array_native_buffer_destroy", voidType, {it->buffer});
@@ -1124,15 +1209,22 @@ namespace yogi::core::llvm::internal {
 		};
 		const auto emitMovedStructArgumentCleanups = [&]() {
 			for (auto it = movedStructArgumentCleanups.rbegin(); it != movedStructArgumentCleanups.rend(); ++it) {
-				if (
-					context.nativeResourceFieldDestroyFunctions(it->sourceName).empty() &&
-					!it->fieldDestructors.empty()
-				) {
+				if (context.nativeResourceFieldDestroyFunctions(it->sourceName).empty() && !it->fieldDestructors.empty()) {
 					context.registerNativeResourceFieldOwners(it->sourceName, it->fieldDestructors);
 				}
 				destroyNativeResourceStructFields(it->sourceName, it->type, it->value);
 				context.clearNativeResourceFieldOwners(it->sourceName);
 				context.deactivateAggregateOwner(it->sourceName);
+			}
+		};
+		const auto emitOwnedArrayArgumentTemporaryCleanups = [&]() {
+			for (auto it = ownedArrayArgumentTemporaries.rbegin(); it != ownedArrayArgumentTemporaries.rend(); ++it) {
+				destroyArrayTemporary(*it);
+			}
+		};
+		const auto emitOwnedBoxedArgumentTemporaryCleanups = [&]() {
+			for (auto it = ownedBoxedArgumentTemporaries.rbegin(); it != ownedBoxedArgumentTemporaries.rend(); ++it) {
+				callRuntime("yogi_any_destroy", voidType, {*it});
 			}
 		};
 
@@ -1141,40 +1233,36 @@ namespace yogi::core::llvm::internal {
 			emitNativeStringOutputCopies();
 			emitNativeArrayCleanups();
 			emitMovedStructArgumentCleanups();
+			emitOwnedArrayArgumentTemporaryCleanups();
+			emitOwnedBoxedArgumentTemporaryCleanups();
 			return result;
 		}
 
 		auto *result = context.builder.CreateCall(function, arguments, sanitizeSymbol(functionName) + ".call");
 
 		if (!nativeReturnFreeFunction.empty() || runtimeOwnedStringReturn) {
-			auto *yogiString = callRuntime(
-				runtimeOwnedStringReturn ? "yogi_string_require_runtime_owned" : "yogi_string_from_native_owned",
-				opaquePointer(),
-				{result}
-			);
+			auto *yogiString = callRuntime(runtimeOwnedStringReturn ? "yogi_string_require_runtime_owned" : "yogi_string_from_native_owned", opaquePointer(), {result});
 			if (!nativeReturnFreeFunction.empty()) {
 				context.builder.CreateCall(nativeFreeFunction(nativeReturnFreeFunction), {result});
 				}
 				emitNativeStringOutputCopies();
 				emitNativeArrayCleanups();
 				emitMovedStructArgumentCleanups();
+			emitOwnedArrayArgumentTemporaryCleanups();
+			emitOwnedBoxedArgumentTemporaryCleanups();
 				return cast(yogiString, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
 			}
 
 			emitNativeStringOutputCopies();
 			emitNativeArrayCleanups();
 			emitMovedStructArgumentCleanups();
+		emitOwnedArrayArgumentTemporaryCleanups();
+		emitOwnedBoxedArgumentTemporaryCleanups();
 			return cast(result, expectedType ? expectedType : returnType, expectedSemanticType, call->type());
 		}
 
-	::llvm::Value *ValueLowerer::lowerPrintCall(
-		const Yogi::Sir::CallExpression *call,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
-		const auto *argument = call->arguments() && call->arguments()->size() > 0
-			? call->arguments()->Get(0)
-			: nullptr;
+	::llvm::Value *ValueLowerer::lowerPrintCall(const Yogi::Sir::CallExpression *call, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
+		const auto *argument = call->arguments() && call->arguments()->size() > 0 ? call->arguments()->Get(0) : nullptr;
 		const auto *argumentSemanticType = valueSemanticType(argument);
 		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
 
@@ -1220,7 +1308,11 @@ namespace yogi::core::llvm::internal {
 			case Yogi::Sir::TypeKind_array_type:
 			case Yogi::Sir::TypeKind_tuple_type: {
 				auto *value = lower(argument, opaquePointer(), argumentSemanticType);
-				return callRuntime("yogi_print_array", voidType, {value});
+			auto *result = callRuntime("yogi_print_array", voidType, {value});
+			if (isOwnedArrayExpression(argument)) {
+				destroyArrayTemporary(value);
+			}
+			return result;
 			}
 
 			case Yogi::Sir::TypeKind_type_literal: {
@@ -1252,20 +1344,66 @@ namespace yogi::core::llvm::internal {
 		return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
 	}
 
-	::llvm::Value *ValueLowerer::lowerBuiltinMethodCall(
-		const Yogi::Sir::CallExpression *call,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerBuiltinMethodCall(const Yogi::Sir::CallExpression *call, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto *callee = call->callee()->property_access();
 		const auto methodName = fbString(callee->property());
 		const auto *arguments = call->arguments();
 		const auto argumentCount = arguments ? arguments->size() : 0;
 		const auto *objectSemanticType = valueSemanticType(callee->object());
 		const auto objectKind = resolvedTypeKind(objectSemanticType);
-		const auto numberConstant = [&](double value) {
-			return ::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), value);
+		const auto rejectUnsafeNativeResourceArrayCopy = [&]() {
+			const auto receiverOwner = aggregateOwnerName(callee->object(), context);
+			auto copiedFields = receiverOwner.empty() ? std::map<std::string, std::string>() : context.nativeResourceArrayElementFieldDestroyFunctions(receiverOwner);
+			flatbuffers::uoffset_t copiedArgumentStart = argumentCount;
+
+			if (methodName == "concat") {
+				copiedArgumentStart = 0;
+			} else if (methodName == "toSpliced") {
+				copiedArgumentStart = 2;
+			} else if (methodName == "with") {
+				copiedArgumentStart = 1;
+			}
+
+			if (arguments) {
+				for (flatbuffers::uoffset_t index = copiedArgumentStart; index < arguments->size(); ++index) {
+					const auto *argument = arguments->Get(index);
+					const auto argumentKind = resolvedTypeKind(valueSemanticType(argument));
+					if (argumentKind == Yogi::Sir::TypeKind_array_type || argumentKind == Yogi::Sir::TypeKind_tuple_type) {
+						const auto owner = aggregateOwnerName(argument, context);
+						if (!owner.empty()) {
+							mergeNativeResourceFields(copiedFields, context.nativeResourceArrayElementFieldDestroyFunctions(owner));
+						}
+						continue;
+					}
+
+					mergeNativeResourceFields(copiedFields, nativeResourceStructFieldsFromValue(argument, context));
+				}
+			}
+
+			if (!copiedFields.empty()) {
+				throw std::runtime_error("cannot lower array." + methodName + " because it would duplicate resource-owning elements");
+			}
 		};
+		const auto methodAlwaysCopiesElements =
+		    methodName == "copy" || methodName == "concat" || methodName == "slice" || methodName == "toSpliced" || methodName == "toReversed" || methodName == "toSorted" || methodName == "flat" || methodName == "with" || methodName == "filter";
+
+		if (methodAlwaysCopiesElements) {
+			rejectUnsafeNativeResourceArrayCopy();
+		}
+
+		if (methodName == "map" || methodName == "flatMap") {
+			const auto receiverOwner = aggregateOwnerName(callee->object(), context);
+			const auto receiverFields = receiverOwner.empty() ? std::map<std::string, std::string>() : context.nativeResourceArrayElementFieldDestroyFunctions(receiverOwner);
+			const auto *resultElementType = call->type() ? call->type()->element_type() : nullptr;
+			const auto resultElementKind = resolvedTypeKind(resultElementType);
+			const auto resultMayRetainBorrowedOwnership = !structTypeName(resultElementType).empty() || resultElementKind == Yogi::Sir::TypeKind_pointer_type || resultElementKind == Yogi::Sir::TypeKind_array_type ||
+			                                              resultElementKind == Yogi::Sir::TypeKind_tuple_type || resultElementKind == Yogi::Sir::TypeKind_type_literal;
+
+			if (!receiverFields.empty() && resultMayRetainBorrowedOwnership) {
+				throw std::runtime_error("cannot lower array." + methodName + " because its result may retain borrowed resource ownership");
+			}
+		}
+		const auto numberConstant = [&](double value) { return ::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), value); };
 		const auto lowerNumberArgument = [&](flatbuffers::uoffset_t index, double defaultValue) -> ::llvm::Value * {
 			if (!arguments || index >= arguments->size()) {
 				return numberConstant(defaultValue);
@@ -1283,9 +1421,7 @@ namespace yogi::core::llvm::internal {
 			return lower(argument, opaquePointer(), valueSemanticType(argument));
 		};
 		const auto getCallbackFunction = [&]() -> ::llvm::Function * {
-			const auto *callbackArgument = arguments && arguments->size() > 0
-				? arguments->Get(0)
-				: nullptr;
+			const auto *callbackArgument = arguments && arguments->size() > 0 ? arguments->Get(0) : nullptr;
 			const auto *identifier = callbackArgument ? callbackArgument->identifier() : nullptr;
 
 			if (!identifier || !identifier->qualified_name()) {
@@ -1296,97 +1432,574 @@ namespace yogi::core::llvm::internal {
 			return context.module->getFunction(callbackName);
 		};
 		const auto getInlineCallback = [&]() -> const Yogi::Sir::FunctionExpression * {
-			const auto *callbackArgument = arguments && arguments->size() > 0
-				? arguments->Get(0)
-				: nullptr;
+			const auto *callbackArgument = arguments && arguments->size() > 0 ? arguments->Get(0) : nullptr;
 
 			return callbackArgument ? callbackArgument->function_expression() : nullptr;
 		};
-		const auto indexAsNumber = [&](::llvm::Value *index) {
-			return context.builder.CreateUIToFP(
-				index,
-				::llvm::Type::getDoubleTy(context.llvmContext),
-				"array.callback.index"
-			);
-		};
+		const auto indexAsNumber = [&](::llvm::Value *index) { return context.builder.CreateUIToFP(index, ::llvm::Type::getDoubleTy(context.llvmContext), "array.callback.index"); };
+		std::set<::llvm::Value *> inlineOwnedCallbackArguments;
 		const auto lowerInlineCallback = [&](const Yogi::Sir::FunctionExpression *inlineCallback, const std::vector<std::pair<::llvm::Value *, const Yogi::Sir::TypeRef *>> &callbackArguments) -> ::llvm::Value * {
+			struct InlineOwnedSlot {
+				std::string name;
+				::llvm::AllocaInst *slot;
+				::llvm::AllocaInst *activeSlot;
+				const Yogi::Sir::TypeRef *type;
+			};
+
 			auto *function = context.builder.GetInsertBlock()->getParent();
 			auto previousLocals = context.locals;
 			auto previousLocalTypes = context.localTypes;
 			auto previousLocalTypeKinds = context.localTypeKinds;
 			const auto *parameters = inlineCallback->parameters();
 			auto *callbackReturnType = types.lower(inlineCallback->return_type());
+			std::vector<InlineOwnedSlot> ownedSlots;
+			const auto isManagedType = [&](const Yogi::Sir::TypeRef *type) {
+				const auto kind = resolvedTypeKind(type);
+				return
+					!structTypeName(type).empty() ||
+					kind == Yogi::Sir::TypeKind_string_type ||
+					kind == Yogi::Sir::TypeKind_array_type ||
+					kind == Yogi::Sir::TypeKind_tuple_type ||
+					kind == Yogi::Sir::TypeKind_type_literal ||
+					kind == Yogi::Sir::TypeKind_any_type ||
+					kind == Yogi::Sir::TypeKind_union_type;
+			};
+			const auto trackOwnedSlot = [&](const std::string &name, ::llvm::AllocaInst *slot, const Yogi::Sir::TypeRef *type) {
+				auto *activeSlot = context.createEntryAlloca(function, name + ".callback.owner.active", ::llvm::Type::getInt1Ty(context.llvmContext));
+				::llvm::IRBuilder<> initializerBuilder(context.llvmContext);
+				if (auto *nextInstruction = activeSlot->getNextNode()) {
+					initializerBuilder.SetInsertPoint(nextInstruction);
+				} else {
+					initializerBuilder.SetInsertPoint(activeSlot->getParent());
+				}
+				initializerBuilder.CreateStore(::llvm::ConstantInt::getFalse(context.llvmContext), activeSlot);
+				context.builder.CreateStore(::llvm::ConstantInt::getTrue(context.llvmContext), activeSlot);
+				ownedSlots.push_back({name, slot, activeSlot, type});
+			};
+
+			std::function<::llvm::Value *(const Yogi::Sir::ValueRef *, const Yogi::Sir::TypeRef *)> materializeOwnedValue;
+			materializeOwnedValue = [&](const Yogi::Sir::ValueRef *value, const Yogi::Sir::TypeRef *type) -> ::llvm::Value * {
+				auto *resultType = types.lower(type);
+
+				if (const auto *conditional = value ? value->conditional() : nullptr) {
+					auto *conditionValue = toBoolean(lower(
+						conditional->condition(),
+						::llvm::Type::getInt1Ty(context.llvmContext),
+						valueSemanticType(conditional->condition())));
+					auto *thenBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.owner.then", function);
+					auto *elseBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.owner.else", function);
+					auto *mergeBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.owner.end", function);
+					context.builder.CreateCondBr(conditionValue, thenBlock, elseBlock);
+
+					context.builder.SetInsertPoint(thenBlock);
+					auto *thenValue = cast(
+						materializeOwnedValue(conditional->when_true(), type),
+						resultType,
+						type,
+						valueSemanticType(conditional->when_true()));
+					auto *thenEnd = context.builder.GetInsertBlock();
+					context.builder.CreateBr(mergeBlock);
+
+					context.builder.SetInsertPoint(elseBlock);
+					auto *elseValue = cast(
+						materializeOwnedValue(conditional->when_false(), type),
+						resultType,
+						type,
+						valueSemanticType(conditional->when_false()));
+					auto *elseEnd = context.builder.GetInsertBlock();
+					context.builder.CreateBr(mergeBlock);
+
+					context.builder.SetInsertPoint(mergeBlock);
+					auto *result = context.builder.CreatePHI(resultType, 2, "callback.owner.result");
+					result->addIncoming(thenValue, thenEnd);
+					result->addIncoming(elseValue, elseEnd);
+					return result;
+				}
+
+				auto *rawValue = lower(value, resultType, type);
+				auto *ownedValue = copyOwnedValue(rawValue, type);
+				const auto borrowedValue =
+					(value && value->identifier()) ||
+					(value && value->property_access()) ||
+					(value && value->element_access()) ||
+					(value && value->dereference()) ||
+					returnRequiresOwnedCopy(value, type);
+
+				if (!borrowedValue) {
+					destroyEscapedAggregate(type, rawValue);
+				}
+
+				return ownedValue;
+			};
 
 			if (parameters) {
 				for (flatbuffers::uoffset_t argumentIndex = 0; argumentIndex < parameters->size() && argumentIndex < callbackArguments.size(); ++argumentIndex) {
 					const auto *parameter = parameters->Get(argumentIndex);
-					auto *value = callbackArguments[argumentIndex].first;
+					auto *incomingValue = callbackArguments[argumentIndex].first;
+					auto *value = incomingValue;
 					const auto *valueType = callbackArguments[argumentIndex].second;
 					if (value && value->getType()->isPointerTy() && !types.lower(parameter->type())->isPointerTy()) {
 						value = unboxAny(value, parameter->type());
 					}
-				auto *slotType = types.lower(parameter->type());
-				auto *slot = context.createEntryAlloca(function, fbString(parameter->name()), slotType);
+					auto *slotType = types.lower(parameter->type());
+					auto *slot = context.createEntryAlloca(function, fbString(parameter->name()), slotType);
 					context.builder.CreateStore(cast(value, slotType, parameter->type(), valueType), slot);
-				context.locals[fbString(parameter->name())] = slot;
-				context.localTypes[fbString(parameter->name())] = parameter->type();
-				context.localTypeKinds[fbString(parameter->name())] = parameter->type()->kind();
-				}
-			}
+					const auto parameterName = fbString(parameter->name());
+					context.locals[parameterName] = slot;
+					context.localTypes[parameterName] = parameter->type();
+					context.localTypeKinds[parameterName] = parameter->type()->kind();
 
-			::llvm::Value *result = types.zero(callbackReturnType);
-			const auto *statements = inlineCallback->body() ? inlineCallback->body()->statements() : nullptr;
-
-			if (statements) {
-				for (const auto *statement: *statements) {
-					if (!statement) {
-						continue;
-					}
-
-					if (const auto *variable = statement->value_as_VariableDeclaration()) {
-						auto *type = types.lower(variable->type());
-						auto *initializer = lower(variable->value(), type, variable->type());
-						auto *slot = context.createEntryAlloca(function, fbString(variable->name()), type);
-						context.builder.CreateStore(cast(initializer, type, variable->type(), variable->type()), slot);
-						context.locals[fbString(variable->name())] = slot;
-						context.localTypes[fbString(variable->name())] = variable->type();
-						context.localTypeKinds[fbString(variable->name())] = variable->type()->kind();
-						continue;
-					}
-
-					if (const auto *assignment = statement->value_as_AssignmentExpression()) {
-						lowerAssignment(assignment);
-						continue;
-					}
-
-					if (const auto *aggregateAssignment = statement->value_as_AggregateAssignmentExpression()) {
-						lowerAggregateAssignment(aggregateAssignment);
-						continue;
-					}
-
-					if (const auto *call = statement->value_as_CallExpression()) {
-						lowerCall(call, types.lower(call->type()), call->type());
-						continue;
-					}
-
-					if (const auto *binary = statement->value_as_BinaryExpression()) {
-						lowerBinary(binary, types.lower(binary->type()), binary->type());
-						continue;
-					}
-
-					if (const auto *conditional = statement->value_as_ConditionalExpression()) {
-						lowerConditional(conditional, types.lower(conditional->type()), conditional->type());
-						continue;
-					}
-
-					if (const auto *returnStatement = statement->value_as_ReturnStatement()) {
-						result = returnStatement->value()
-							? lower(returnStatement->value(), callbackReturnType, inlineCallback->return_type())
-							: types.zero(callbackReturnType);
-						break;
+					if (inlineOwnedCallbackArguments.contains(incomingValue)) {
+						trackOwnedSlot(parameterName, slot, parameter->type());
 					}
 				}
 			}
+
+			const auto callbackReturnsVoid = callbackReturnType->isVoidTy();
+			auto *returnSlot = callbackReturnsVoid
+				? nullptr
+				: context.createEntryAlloca(function, "callback.return.value", callbackReturnType);
+			auto *returnBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.return", function);
+
+			const auto emitOwnedSlotCleanupsFrom = [&](std::size_t firstSlot) {
+				for (auto slotIndex = ownedSlots.size(); slotIndex > firstSlot; --slotIndex) {
+					const auto &slot = ownedSlots[slotIndex - 1];
+					auto *cleanupBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.cleanup." + sanitizeSymbol(slot.name), function);
+					auto *doneBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.cleanup.done", function);
+					auto *active = context.builder.CreateLoad(::llvm::Type::getInt1Ty(context.llvmContext), slot.activeSlot, "callback.cleanup.active");
+					context.builder.CreateCondBr(active, cleanupBlock, doneBlock);
+
+					context.builder.SetInsertPoint(cleanupBlock);
+					auto *ownedValue = context.builder.CreateLoad(slot.slot->getAllocatedType(), slot.slot, "callback.cleanup." + sanitizeSymbol(slot.name));
+					destroyEscapedAggregate(slot.type, ownedValue);
+					context.builder.CreateStore(::llvm::Constant::getNullValue(slot.slot->getAllocatedType()), slot.slot);
+					context.builder.CreateStore(::llvm::ConstantInt::getFalse(context.llvmContext), slot.activeSlot);
+					context.builder.CreateBr(doneBlock);
+					context.builder.SetInsertPoint(doneBlock);
+				}
+			};
+
+			std::function<void(const Yogi::Sir::SirNode *)> lowerInlineStatement;
+			std::function<void(const Yogi::Sir::BlockStatement *)> lowerInlineBlock;
+			std::function<void(const Yogi::Sir::IfStatement *)> lowerInlineIf;
+			std::function<void(const Yogi::Sir::WhileStatement *)> lowerInlineWhile;
+			std::function<void(const Yogi::Sir::ForStatement *)> lowerInlineFor;
+			std::function<void(const Yogi::Sir::SwitchStatement *)> lowerInlineSwitch;
+			struct InlineControlFrame {
+				::llvm::BasicBlock *breakBlock;
+				::llvm::BasicBlock *continueBlock;
+				std::size_t cleanupStart;
+			};
+			std::vector<InlineControlFrame> controlFrames;
+
+			const auto lowerInlineReturn = [&](const Yogi::Sir::ReturnStatement *returnStatement) {
+				if (!callbackReturnsVoid) {
+					auto *returnValue = returnStatement->value()
+						? (isManagedType(inlineCallback->return_type())
+							? materializeOwnedValue(returnStatement->value(), inlineCallback->return_type())
+							: lower(returnStatement->value(), callbackReturnType, inlineCallback->return_type()))
+						: types.zero(callbackReturnType);
+					context.builder.CreateStore(
+						cast(returnValue, callbackReturnType, inlineCallback->return_type(), inlineCallback->return_type()),
+						returnSlot);
+				}
+
+				emitOwnedSlotCleanupsFrom(0);
+				context.builder.CreateBr(returnBlock);
+			};
+
+			lowerInlineIf = [&](const Yogi::Sir::IfStatement *ifStatement) {
+				auto *conditionValue = toBoolean(lower(
+					ifStatement->condition(),
+					::llvm::Type::getInt1Ty(context.llvmContext),
+					valueSemanticType(ifStatement->condition())));
+				auto *thenBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.if.then", function);
+				auto *elseBlock = ifStatement->else_block()
+					? ::llvm::BasicBlock::Create(context.llvmContext, "callback.if.else", function)
+					: nullptr;
+				auto *mergeBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.if.end", function);
+				context.builder.CreateCondBr(conditionValue, thenBlock, elseBlock ? elseBlock : mergeBlock);
+
+				context.builder.SetInsertPoint(thenBlock);
+				lowerInlineBlock(ifStatement->then_block());
+				const auto thenFallsThrough = !context.builder.GetInsertBlock()->hasTerminator();
+				if (thenFallsThrough) {
+					context.builder.CreateBr(mergeBlock);
+				}
+
+				auto elseFallsThrough = !elseBlock;
+				if (elseBlock) {
+					context.builder.SetInsertPoint(elseBlock);
+					lowerInlineBlock(ifStatement->else_block());
+					elseFallsThrough = !context.builder.GetInsertBlock()->hasTerminator();
+					if (elseFallsThrough) {
+						context.builder.CreateBr(mergeBlock);
+					}
+				}
+
+				context.builder.SetInsertPoint(mergeBlock);
+				if (!thenFallsThrough && !elseFallsThrough) {
+					context.builder.CreateUnreachable();
+				}
+			};
+
+			lowerInlineWhile = [&](const Yogi::Sir::WhileStatement *whileStatement) {
+				auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.while.condition", function);
+				auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.while.body", function);
+				auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.while.end", function);
+				const auto bodyCleanupStart = ownedSlots.size();
+				context.builder.CreateBr(conditionBlock);
+
+				context.builder.SetInsertPoint(conditionBlock);
+				auto *conditionValue = toBoolean(lower(
+					whileStatement->condition(),
+					::llvm::Type::getInt1Ty(context.llvmContext),
+					valueSemanticType(whileStatement->condition())));
+				context.builder.CreateCondBr(conditionValue, bodyBlock, afterBlock);
+
+				context.builder.SetInsertPoint(bodyBlock);
+				controlFrames.push_back({afterBlock, conditionBlock, bodyCleanupStart});
+				lowerInlineBlock(whileStatement->body());
+				controlFrames.pop_back();
+				if (!context.builder.GetInsertBlock()->hasTerminator()) {
+					context.builder.CreateBr(conditionBlock);
+				}
+
+				context.builder.SetInsertPoint(afterBlock);
+			};
+
+			lowerInlineFor = [&](const Yogi::Sir::ForStatement *forStatement) {
+				const auto loopCleanupStart = ownedSlots.size();
+				auto loopLocals = context.locals;
+				auto loopLocalTypes = context.localTypes;
+				auto loopLocalTypeKinds = context.localTypeKinds;
+
+				if (const auto *initializer = forStatement->initializer()) {
+					if (const auto *initializerBlock = initializer->value_as_BlockStatement()) {
+						if (initializerBlock->statements()) {
+							for (const auto *initializerStatement: *initializerBlock->statements()) {
+								if (context.builder.GetInsertBlock()->hasTerminator()) {
+									break;
+								}
+								lowerInlineStatement(initializerStatement);
+							}
+						}
+					} else {
+						lowerInlineStatement(initializer);
+					}
+				}
+
+				if (context.builder.GetInsertBlock()->hasTerminator()) {
+					ownedSlots.resize(loopCleanupStart);
+					context.locals = std::move(loopLocals);
+					context.localTypes = std::move(loopLocalTypes);
+					context.localTypeKinds = std::move(loopLocalTypeKinds);
+					return;
+				}
+
+				auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.for.condition", function);
+				auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.for.body", function);
+				auto *incrementBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.for.increment", function);
+				auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.for.end", function);
+				const auto bodyCleanupStart = ownedSlots.size();
+				context.builder.CreateBr(conditionBlock);
+
+				context.builder.SetInsertPoint(conditionBlock);
+				if (forStatement->condition() && forStatement->condition()->kind()) {
+					auto *conditionValue = toBoolean(lower(
+						forStatement->condition(),
+						::llvm::Type::getInt1Ty(context.llvmContext),
+						valueSemanticType(forStatement->condition())));
+					context.builder.CreateCondBr(conditionValue, bodyBlock, afterBlock);
+				} else {
+					context.builder.CreateBr(bodyBlock);
+				}
+
+				context.builder.SetInsertPoint(bodyBlock);
+				controlFrames.push_back({afterBlock, incrementBlock, bodyCleanupStart});
+				lowerInlineBlock(forStatement->body());
+				controlFrames.pop_back();
+				if (!context.builder.GetInsertBlock()->hasTerminator()) {
+					context.builder.CreateBr(incrementBlock);
+				}
+
+				context.builder.SetInsertPoint(incrementBlock);
+				if (forStatement->incrementor() && forStatement->incrementor()->kind()) {
+					lower(forStatement->incrementor(), nullptr, valueSemanticType(forStatement->incrementor()));
+				}
+				if (!context.builder.GetInsertBlock()->hasTerminator()) {
+					context.builder.CreateBr(conditionBlock);
+				}
+
+				context.builder.SetInsertPoint(afterBlock);
+				emitOwnedSlotCleanupsFrom(loopCleanupStart);
+				ownedSlots.resize(loopCleanupStart);
+				context.locals = std::move(loopLocals);
+				context.localTypes = std::move(loopLocalTypes);
+				context.localTypeKinds = std::move(loopLocalTypeKinds);
+			};
+
+			lowerInlineSwitch = [&](const Yogi::Sir::SwitchStatement *switchStatement) {
+				const auto *clauses = switchStatement->clauses();
+				const auto clauseCount = clauses ? clauses->size() : 0;
+				auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "callback.switch.end", function);
+				if (clauseCount == 0) {
+					context.builder.CreateBr(afterBlock);
+					context.builder.SetInsertPoint(afterBlock);
+					return;
+				}
+
+				const auto switchCleanupStart = ownedSlots.size();
+				auto switchLocals = context.locals;
+				auto switchLocalTypes = context.localTypes;
+				auto switchLocalTypeKinds = context.localTypeKinds;
+				const auto *discriminantType = valueSemanticType(switchStatement->expression());
+				auto *discriminant = lower(
+					switchStatement->expression(),
+					types.lower(discriminantType),
+					discriminantType);
+
+				struct InlineClause {
+					::llvm::BasicBlock *bodyBlock;
+					const Yogi::Sir::BlockStatement *body;
+					const Yogi::Sir::ValueRef *expression;
+				};
+				std::vector<InlineClause> inlineClauses;
+				std::vector<std::size_t> caseIndices;
+				int defaultIndex = -1;
+				inlineClauses.reserve(clauseCount);
+
+				for (flatbuffers::uoffset_t clauseIndex = 0; clauseIndex < clauseCount; ++clauseIndex) {
+					const auto *clause = clauses->Get(clauseIndex);
+					const auto *caseClause = clause->value_as_CaseClause();
+					const auto *defaultClause = clause->value_as_DefaultClause();
+					auto *bodyBlock = ::llvm::BasicBlock::Create(
+						context.llvmContext,
+						caseClause ? "callback.switch.case." + std::to_string(clauseIndex) : "callback.switch.default",
+						function);
+					inlineClauses.push_back({
+						bodyBlock,
+						caseClause ? caseClause->body() : defaultClause->body(),
+						caseClause ? caseClause->expression() : nullptr,
+					});
+					if (caseClause) {
+						caseIndices.push_back(clauseIndex);
+					} else {
+						defaultIndex = static_cast<int>(clauseIndex);
+					}
+				}
+
+				std::vector<::llvm::BasicBlock *> checkBlocks;
+				checkBlocks.reserve(caseIndices.size());
+				for (const auto caseIndex: caseIndices) {
+					checkBlocks.push_back(::llvm::BasicBlock::Create(
+						context.llvmContext,
+						"callback.switch.check." + std::to_string(caseIndex),
+						function));
+				}
+
+				if (!checkBlocks.empty()) {
+					context.builder.CreateBr(checkBlocks.front());
+				} else if (defaultIndex >= 0) {
+					context.builder.CreateBr(inlineClauses[defaultIndex].bodyBlock);
+				} else {
+					context.builder.CreateBr(afterBlock);
+				}
+
+				for (std::size_t checkIndex = 0; checkIndex < checkBlocks.size(); ++checkIndex) {
+					const auto caseIndex = caseIndices[checkIndex];
+					auto *noMatchBlock = checkIndex + 1 < checkBlocks.size()
+						? checkBlocks[checkIndex + 1]
+						: (defaultIndex >= 0 ? inlineClauses[defaultIndex].bodyBlock : afterBlock);
+					const auto *caseExpression = inlineClauses[caseIndex].expression;
+					const auto *caseType = valueSemanticType(caseExpression);
+					context.builder.SetInsertPoint(checkBlocks[checkIndex]);
+					auto *caseValue = lower(caseExpression, types.lower(discriminantType), discriminantType);
+					::llvm::Value *matches = nullptr;
+					if (resolvedTypeKind(discriminantType) == Yogi::Sir::TypeKind_string_type &&
+					    resolvedTypeKind(caseType) == Yogi::Sir::TypeKind_string_type) {
+						matches = callRuntime("yogi_string_equals", ::llvm::Type::getInt1Ty(context.llvmContext), {discriminant, caseValue});
+					} else {
+						matches = compare(discriminant, caseValue, true);
+					}
+					context.builder.CreateCondBr(matches, inlineClauses[caseIndex].bodyBlock, noMatchBlock);
+				}
+
+				controlFrames.push_back({afterBlock, nullptr, switchCleanupStart});
+				for (std::size_t clauseIndex = 0; clauseIndex < inlineClauses.size(); ++clauseIndex) {
+					context.builder.SetInsertPoint(inlineClauses[clauseIndex].bodyBlock);
+					const auto *body = inlineClauses[clauseIndex].body;
+					if (body && body->statements()) {
+						for (const auto *statement: *body->statements()) {
+							if (context.builder.GetInsertBlock()->hasTerminator()) {
+								break;
+							}
+							lowerInlineStatement(statement);
+						}
+					}
+
+					if (!context.builder.GetInsertBlock()->hasTerminator()) {
+						context.builder.CreateBr(
+							clauseIndex + 1 < inlineClauses.size()
+								? inlineClauses[clauseIndex + 1].bodyBlock
+								: afterBlock);
+					}
+				}
+				controlFrames.pop_back();
+
+				context.builder.SetInsertPoint(afterBlock);
+				emitOwnedSlotCleanupsFrom(switchCleanupStart);
+				ownedSlots.resize(switchCleanupStart);
+				context.locals = std::move(switchLocals);
+				context.localTypes = std::move(switchLocalTypes);
+				context.localTypeKinds = std::move(switchLocalTypeKinds);
+			};
+
+			lowerInlineStatement = [&](const Yogi::Sir::SirNode *statement) {
+				if (!statement) {
+					return;
+				}
+
+				if (const auto *variable = statement->value_as_VariableDeclaration()) {
+					auto *type = types.lower(variable->type());
+					auto *initializer = isManagedType(variable->type())
+						? materializeOwnedValue(variable->value(), variable->type())
+						: lower(variable->value(), type, variable->type());
+					auto *slot = context.createEntryAlloca(function, fbString(variable->name()), type);
+					context.builder.CreateStore(cast(initializer, type, variable->type(), variable->type()), slot);
+					const auto variableName = fbString(variable->name());
+					context.locals[variableName] = slot;
+					context.localTypes[variableName] = variable->type();
+					context.localTypeKinds[variableName] = variable->type()->kind();
+					if (isManagedType(variable->type())) {
+						trackOwnedSlot(variableName, slot, variable->type());
+					}
+					return;
+				}
+
+				if (const auto *assignment = statement->value_as_AssignmentExpression()) {
+					lowerAssignment(assignment);
+					return;
+				}
+
+				if (const auto *aggregateAssignment = statement->value_as_AggregateAssignmentExpression()) {
+					lowerAggregateAssignment(aggregateAssignment);
+					return;
+				}
+
+				if (const auto *call = statement->value_as_CallExpression()) {
+					lowerCall(call, types.lower(call->type()), call->type());
+					return;
+				}
+
+				if (const auto *binary = statement->value_as_BinaryExpression()) {
+					lowerBinary(binary, types.lower(binary->type()), binary->type());
+					return;
+				}
+
+				if (const auto *conditional = statement->value_as_ConditionalExpression()) {
+					lowerConditional(conditional, types.lower(conditional->type()), conditional->type());
+					return;
+				}
+
+				if (const auto *block = statement->value_as_BlockStatement()) {
+					lowerInlineBlock(block);
+					return;
+				}
+
+				if (const auto *ifStatement = statement->value_as_IfStatement()) {
+					lowerInlineIf(ifStatement);
+					return;
+				}
+
+				if (const auto *whileStatement = statement->value_as_WhileStatement()) {
+					lowerInlineWhile(whileStatement);
+					return;
+				}
+
+				if (const auto *forStatement = statement->value_as_ForStatement()) {
+					lowerInlineFor(forStatement);
+					return;
+				}
+
+				if (const auto *switchStatement = statement->value_as_SwitchStatement()) {
+					lowerInlineSwitch(switchStatement);
+					return;
+				}
+
+				if (statement->value_as_BreakStatement()) {
+					if (controlFrames.empty()) {
+						throw std::runtime_error("inline array callback break has no active control-flow frame");
+					}
+					const auto frame = controlFrames.back();
+					emitOwnedSlotCleanupsFrom(frame.cleanupStart);
+					context.builder.CreateBr(frame.breakBlock);
+					return;
+				}
+
+				if (statement->value_as_ContinueStatement()) {
+					const auto frame = std::find_if(
+						controlFrames.rbegin(),
+						controlFrames.rend(),
+						[](const InlineControlFrame &candidate) {
+							return candidate.continueBlock != nullptr;
+						});
+					if (frame == controlFrames.rend()) {
+						throw std::runtime_error("inline array callback continue has no active loop frame");
+					}
+					emitOwnedSlotCleanupsFrom(frame->cleanupStart);
+					context.builder.CreateBr(frame->continueBlock);
+					return;
+				}
+
+				if (const auto *returnStatement = statement->value_as_ReturnStatement()) {
+					lowerInlineReturn(returnStatement);
+					return;
+				}
+
+				throw std::runtime_error("unsupported inline array callback statement in semantic IR");
+			};
+
+			lowerInlineBlock = [&](const Yogi::Sir::BlockStatement *block) {
+				const auto firstOwnedSlot = ownedSlots.size();
+				auto blockLocals = context.locals;
+				auto blockLocalTypes = context.localTypes;
+				auto blockLocalTypeKinds = context.localTypeKinds;
+				const auto *statements = block ? block->statements() : nullptr;
+
+				if (statements) {
+					for (const auto *statement: *statements) {
+						if (context.builder.GetInsertBlock()->hasTerminator()) {
+							break;
+						}
+
+						lowerInlineStatement(statement);
+					}
+				}
+
+				if (!context.builder.GetInsertBlock()->hasTerminator()) {
+					emitOwnedSlotCleanupsFrom(firstOwnedSlot);
+				}
+
+				ownedSlots.resize(firstOwnedSlot);
+				context.locals = std::move(blockLocals);
+				context.localTypes = std::move(blockLocalTypes);
+				context.localTypeKinds = std::move(blockLocalTypeKinds);
+			};
+
+			lowerInlineBlock(inlineCallback->body());
+			if (!context.builder.GetInsertBlock()->hasTerminator()) {
+				if (!callbackReturnsVoid) {
+					context.builder.CreateStore(types.zero(callbackReturnType), returnSlot);
+				}
+				emitOwnedSlotCleanupsFrom(0);
+				context.builder.CreateBr(returnBlock);
+			}
+
+			context.builder.SetInsertPoint(returnBlock);
+			auto *result = callbackReturnsVoid
+				? nullptr
+				: context.builder.CreateLoad(callbackReturnType, returnSlot, "callback.return.result");
 
 			context.locals = previousLocals;
 			context.localTypes = previousLocalTypes;
@@ -1417,14 +2030,10 @@ namespace yogi::core::llvm::internal {
 			return context.builder.CreateCall(function, callbackArguments, "array.callback.result");
 		};
 		const auto createInsertArray = [&](flatbuffers::uoffset_t startIndex) -> ::llvm::Value * {
-			const auto count = arguments && arguments->size() > startIndex
-				? arguments->size() - startIndex
-				: 0;
-			auto *inserted = callRuntime(
-				"yogi_array_create",
-				opaquePointer(),
-				{::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), count)}
-			);
+			const auto count = arguments && arguments->size() > startIndex ? arguments->size() - startIndex : 0;
+			auto *inserted = callRuntime("yogi_array_create", opaquePointer(), {::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), count)});
+			const auto *insertedArrayType = resolvedTypeKind(objectSemanticType) == Yogi::Sir::TypeKind_pointer_type && objectSemanticType ? objectSemanticType->element_type() : objectSemanticType;
+			installArrayBoxPolicy(inserted, insertedArrayType);
 
 			if (arguments) {
 				for (flatbuffers::uoffset_t index = startIndex; index < arguments->size(); ++index) {
@@ -1439,8 +2048,7 @@ namespace yogi::core::llvm::internal {
 							inserted,
 							::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), index - startIndex),
 							boxedValue,
-						}
-					);
+					    });
 				}
 			}
 
@@ -1464,6 +2072,11 @@ namespace yogi::core::llvm::internal {
 
 			return value;
 		};
+		const auto destroyOwnedArrayReceiver = [&](::llvm::Value *array) {
+			if (isOwnedArrayExpression(callee->object())) {
+				destroyArrayTemporary(array);
+			}
+		};
 
 		if (methodName == "__yogiStablePlan") {
 			auto *array = lowerArrayReceiver(callee->object());
@@ -1473,29 +2086,15 @@ namespace yogi::core::llvm::internal {
 		if (methodName == "__yogiStableLength") {
 			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
 			auto *length = callRuntime("yogi_array_iteration_plan_length", ::llvm::Type::getInt64Ty(context.llvmContext), {plan});
-			auto *asNumber = context.builder.CreateUIToFP(
-				length,
-				::llvm::Type::getDoubleTy(context.llvmContext),
-				"array.iteration.plan.length"
-			);
-			return cast(
-				asNumber,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			auto *asNumber = context.builder.CreateUIToFP(length, ::llvm::Type::getDoubleTy(context.llvmContext), "array.iteration.plan.length");
+			return cast(asNumber, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "__yogiStableValid") {
 			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
 			auto *index = toIndex(lowerNumberArgument(0, 0));
 			auto *valid = callRuntime("yogi_array_iteration_plan_valid", ::llvm::Type::getInt1Ty(context.llvmContext), {plan, index});
-			return cast(
-				valid,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(valid, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "__yogiStableValue") {
@@ -1504,24 +2103,14 @@ namespace yogi::core::llvm::internal {
 			auto *boxedValue = callRuntime("yogi_array_iteration_plan_value", opaquePointer(), {plan, index});
 			auto *targetType = expectedType ? expectedType : types.lower(call->type());
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
-			return cast(
-				unboxAny(boxedValue, targetSemanticType),
-				targetType,
-				targetSemanticType,
-				call->type()
-			);
+			return cast(unboxAny(boxedValue, targetSemanticType), targetType, targetSemanticType, call->type());
 		}
 
 		if (methodName == "__yogiStablePointer") {
 			auto *plan = lower(callee->object(), opaquePointer(), objectSemanticType);
 			auto *index = toIndex(lowerNumberArgument(0, 0));
 			auto *pointer = callRuntime("yogi_array_iteration_plan_pointer", opaquePointer(), {plan, index});
-			return cast(
-				pointer,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(pointer, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "__yogiStableDestroy") {
@@ -1555,12 +2144,7 @@ namespace yogi::core::llvm::internal {
 			context.builder.CreateCondBr(inBounds, body, after);
 			context.builder.SetInsertPoint(body);
 
-			return std::tuple<::llvm::BasicBlock *, ::llvm::BasicBlock *, ::llvm::PHINode *, ::llvm::Value *>{
-				condition,
-				after,
-				index,
-				length
-			};
+			return std::tuple<::llvm::BasicBlock *, ::llvm::BasicBlock *, ::llvm::PHINode *, ::llvm::Value *>{condition, after, index, length};
 		};
 		const auto continueCallbackLoop = [&](::llvm::BasicBlock *condition, ::llvm::PHINode *index) {
 			auto *one = ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 1);
@@ -1586,12 +2170,7 @@ namespace yogi::core::llvm::internal {
 			context.builder.CreateCondBr(inBounds, body, after);
 			context.builder.SetInsertPoint(body);
 
-			return std::tuple<::llvm::BasicBlock *, ::llvm::BasicBlock *, ::llvm::PHINode *, ::llvm::Value *>{
-				condition,
-				after,
-				index,
-				length
-			};
+			return std::tuple<::llvm::BasicBlock *, ::llvm::BasicBlock *, ::llvm::PHINode *, ::llvm::Value *>{condition, after, index, length};
 		};
 		const auto continueReverseCallbackLoop = [&](::llvm::BasicBlock *condition, ::llvm::PHINode *index) {
 			auto *one = ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 1);
@@ -1607,92 +2186,42 @@ namespace yogi::core::llvm::internal {
 			if (methodName == "slice" || methodName == "substring") {
 				auto *start = lowerNumberArgument(0, 0);
 				auto *end = lowerNumberArgument(1, std::numeric_limits<double>::infinity());
-				auto *result = callRuntime(
-					methodName == "slice" ? "yogi_string_slice" : "yogi_string_substring",
-					opaquePointer(),
-					{text, start, end}
-				);
+				auto *result = callRuntime(methodName == "slice" ? "yogi_string_slice" : "yogi_string_substring", opaquePointer(), {text, start, end});
 				destroyStringTemporaryIfOwned(text, callee->object());
 
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 
 			if (methodName == "includes" || methodName == "startsWith" || methodName == "endsWith") {
 				auto *search = lowerStringArgument(0, "");
 				const auto *searchSource = arguments && arguments->size() > 0 ? arguments->Get(0) : nullptr;
-				auto *position = lowerNumberArgument(
-					1,
-					methodName == "endsWith" ? std::numeric_limits<double>::infinity() : 0
-				);
-				const auto runtimeName = methodName == "includes"
-					? "yogi_string_includes"
-					: methodName == "startsWith"
-						? "yogi_string_starts_with"
-						: "yogi_string_ends_with";
-				auto *result = callRuntime(
-					runtimeName,
-					::llvm::Type::getInt1Ty(context.llvmContext),
-					{text, search, position}
-				);
+				auto *position = lowerNumberArgument(1, methodName == "endsWith" ? std::numeric_limits<double>::infinity() : 0);
+				const auto runtimeName = methodName == "includes" ? "yogi_string_includes" : methodName == "startsWith" ? "yogi_string_starts_with" : "yogi_string_ends_with";
+				auto *result = callRuntime(runtimeName, ::llvm::Type::getInt1Ty(context.llvmContext), {text, search, position});
 				destroyStringTemporaryIfOwned(search, searchSource);
 				destroyStringTemporaryIfOwned(text, callee->object());
 
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 
 			if (methodName == "indexOf" || methodName == "lastIndexOf") {
 				auto *search = lowerStringArgument(0, "");
 				const auto *searchSource = arguments && arguments->size() > 0 ? arguments->Get(0) : nullptr;
-				auto *position = lowerNumberArgument(
-					1,
-					methodName == "lastIndexOf" ? std::numeric_limits<double>::infinity() : 0
-				);
-				auto *result = callRuntime(
-					methodName == "indexOf" ? "yogi_string_index_of" : "yogi_string_last_index_of",
-					::llvm::Type::getInt64Ty(context.llvmContext),
-					{text, search, position}
-				);
-				auto *asNumber = context.builder.CreateSIToFP(
-					result,
-					::llvm::Type::getDoubleTy(context.llvmContext),
-					"string.search.index"
-				);
+				auto *position = lowerNumberArgument(1, methodName == "lastIndexOf" ? std::numeric_limits<double>::infinity() : 0);
+				auto *result = callRuntime(methodName == "indexOf" ? "yogi_string_index_of" : "yogi_string_last_index_of", ::llvm::Type::getInt64Ty(context.llvmContext), {text, search, position});
+				auto *asNumber = context.builder.CreateSIToFP(result, ::llvm::Type::getDoubleTy(context.llvmContext), "string.search.index");
 				destroyStringTemporaryIfOwned(search, searchSource);
 				destroyStringTemporaryIfOwned(text, callee->object());
 
-				return cast(
-					asNumber,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(asNumber, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 
 			if (methodName == "charAt" || methodName == "charCodeAt") {
 				auto *index = lowerNumberArgument(0, 0);
-				auto *result = callRuntime(
-					methodName == "charAt" ? "yogi_string_char_at" : "yogi_string_char_code_at",
-					methodName == "charAt" ? opaquePointer() : ::llvm::Type::getDoubleTy(context.llvmContext),
-					{text, index}
-				);
+				auto *result = callRuntime(methodName == "charAt" ? "yogi_string_char_at" : "yogi_string_char_code_at", methodName == "charAt" ? opaquePointer() : ::llvm::Type::getDoubleTy(context.llvmContext), {text, index});
 				destroyStringTemporaryIfOwned(text, callee->object());
 
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 
 			if (methodName == "repeat") {
@@ -1700,32 +2229,18 @@ namespace yogi::core::llvm::internal {
 				auto *result = callRuntime("yogi_string_repeat", opaquePointer(), {text, count});
 				destroyStringTemporaryIfOwned(text, callee->object());
 
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 
 			if (methodName == "padStart" || methodName == "padEnd") {
 				auto *targetLength = lowerNumberArgument(0, 0);
 				auto *pad = lowerStringArgument(1, " ");
 				const auto *padSource = arguments && arguments->size() > 1 ? arguments->Get(1) : nullptr;
-				auto *result = callRuntime(
-					methodName == "padStart" ? "yogi_string_pad_start" : "yogi_string_pad_end",
-					opaquePointer(),
-					{text, targetLength, pad}
-				);
+				auto *result = callRuntime(methodName == "padStart" ? "yogi_string_pad_start" : "yogi_string_pad_end", opaquePointer(), {text, targetLength, pad});
 				destroyStringTemporaryIfOwned(pad, padSource);
 				destroyStringTemporaryIfOwned(text, callee->object());
 
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 
 			if (methodName == "concat") {
@@ -1742,57 +2257,32 @@ namespace yogi::core::llvm::internal {
 					result = next;
 				}
 
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 
-			if (
-				methodName == "toUpperCase" ||
-				methodName == "toLowerCase" ||
-				methodName == "trim" ||
-				methodName == "trimStart" ||
-				methodName == "trimEnd"
-			) {
-				const auto runtimeName = methodName == "toUpperCase"
-					? "yogi_string_to_upper_case"
-					: methodName == "toLowerCase"
-						? "yogi_string_to_lower_case"
-						: methodName == "trimStart"
-							? "yogi_string_trim_start"
-							: methodName == "trimEnd"
-								? "yogi_string_trim_end"
+			if (methodName == "toUpperCase" || methodName == "toLowerCase" || methodName == "trim" || methodName == "trimStart" || methodName == "trimEnd") {
+				const auto runtimeName = methodName == "toUpperCase"   ? "yogi_string_to_upper_case"
+				                         : methodName == "toLowerCase" ? "yogi_string_to_lower_case"
+				                         : methodName == "trimStart"   ? "yogi_string_trim_start"
+				                         : methodName == "trimEnd"     ? "yogi_string_trim_end"
 								: "yogi_string_trim";
 				auto *result = callRuntime(runtimeName, opaquePointer(), {text});
 				destroyStringTemporaryIfOwned(text, callee->object());
 
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 		}
 
 		if (methodName == "push") {
 			auto *array = lowerArrayReceiver(callee->object());
-			const auto *argument = arguments && argumentCount > 0
-				? arguments->Get(0)
-				: nullptr;
+			const auto *argument = arguments && argumentCount > 0 ? arguments->Get(0) : nullptr;
 			const auto *argumentSemanticType = valueSemanticType(argument);
 			const auto arrayOwner = aggregateOwnerName(callee->object(), context);
 			const auto elementResourceFields = nativeResourceStructFieldsFromValue(argument, context);
 			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
 			auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
-			auto *length = callRuntime(
-				"yogi_array_push",
-				::llvm::Type::getInt64Ty(context.llvmContext),
-				{array, boxedValue}
-			);
+			installArrayElementOwnershipPolicy(array, elementResourceFields, arrayElementType(arrayReceiverSemanticType(callee->object())));
+			auto *length = callRuntime("yogi_array_push", ::llvm::Type::getInt64Ty(context.llvmContext), {array, boxedValue});
 			if (!arrayOwner.empty() && !elementResourceFields.empty()) {
 				context.registerNativeResourceArrayElementFieldOwners(arrayOwner, elementResourceFields);
 			}
@@ -1801,186 +2291,169 @@ namespace yogi::core::llvm::internal {
 				context.clearNativeResourceFieldOwners(source);
 				context.deactivateAggregateOwner(source);
 			}
-			auto *asNumber = context.builder.CreateUIToFP(
-				length,
-				::llvm::Type::getDoubleTy(context.llvmContext),
-				"array.push.length"
-			);
+			auto *asNumber = context.builder.CreateUIToFP(length, ::llvm::Type::getDoubleTy(context.llvmContext), "array.push.length");
+			auto *result = cast(asNumber, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				asNumber,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return result;
 		}
 
 		if (methodName == "unshift") {
 			auto *array = lowerArrayReceiver(callee->object());
 			auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+			const auto arrayOwner = aggregateOwnerName(callee->object(), context);
 
 			if (arguments) {
-				for (auto index = arguments->size(); index > 0; --index) {
-					const auto *argument = arguments->Get(index - 1);
+				std::vector<::llvm::Value *> boxedArguments;
+				std::vector<std::map<std::string, std::string>> resourceFields;
+				std::vector<std::string> movedSources;
+				std::map<std::string, std::string> arrayElementResourceFields;
+				boxedArguments.reserve(arguments->size());
+				resourceFields.reserve(arguments->size());
+				movedSources.reserve(arguments->size());
+
+				// Evaluate arguments left-to-right, then insert in reverse so their
+				// observable order matches JavaScript/TypeScript unshift semantics.
+				for (const auto *argument : *arguments) {
 					const auto *argumentSemanticType = valueSemanticType(argument);
+					resourceFields.push_back(nativeResourceStructFieldsFromValue(argument, context));
+					mergeNativeResourceFields(arrayElementResourceFields, resourceFields.back());
+					movedSources.push_back(moveOrIdentifierSourceName(argument));
 					auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
-					auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
-					length = callRuntime(
-						"yogi_array_unshift",
-						::llvm::Type::getInt64Ty(context.llvmContext),
-						{array, boxedValue}
-					);
+					boxedArguments.push_back(boxAny(argumentValue, argumentSemanticType));
+				}
+
+				installArrayElementOwnershipPolicy(array, arrayElementResourceFields, arrayElementType(arrayReceiverSemanticType(callee->object())));
+
+				for (auto index = boxedArguments.size(); index > 0; --index) {
+					length = callRuntime("yogi_array_unshift", ::llvm::Type::getInt64Ty(context.llvmContext), {array, boxedArguments[index - 1]});
+			}
+
+				for (std::size_t index = 0; index < resourceFields.size(); ++index) {
+					const auto &elementResourceFields = resourceFields[index];
+					if (!arrayOwner.empty() && !elementResourceFields.empty()) {
+						context.registerNativeResourceArrayElementFieldOwners(arrayOwner, elementResourceFields);
+					}
+
+					if (!elementResourceFields.empty()) {
+						const auto &source = movedSources[index];
+						context.clearNativeResourceFieldOwners(source);
+						context.deactivateAggregateOwner(source);
+					}
 				}
 			}
 
-			auto *asNumber = context.builder.CreateUIToFP(
-				length,
-				::llvm::Type::getDoubleTy(context.llvmContext),
-				"array.unshift.length"
-			);
+			auto *asNumber = context.builder.CreateUIToFP(length, ::llvm::Type::getDoubleTy(context.llvmContext), "array.unshift.length");
+			auto *result = cast(asNumber, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				asNumber,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return result;
 		}
 
 		if (methodName == "pop") {
 			auto *array = lowerArrayReceiver(callee->object());
-			auto *result = callRuntime(
-				"yogi_array_pop",
-				opaquePointer(),
-				{array}
-			);
+			auto *result = callRuntime("yogi_array_pop", opaquePointer(), {array});
 
 			auto *targetType = expectedType ? expectedType : types.lower(call->type());
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
-			return cast(
-				unboxArrayElement(result, targetType, targetSemanticType, call->type()),
-				targetType,
-				targetSemanticType,
-				call->type()
-			);
+			const auto targetKind = resolvedTypeKind(targetSemanticType);
+			if (targetKind == Yogi::Sir::TypeKind_any_type || targetKind == Yogi::Sir::TypeKind_union_type) {
+				destroyOwnedArrayReceiver(array);
+				return result;
+			}
+
+			auto *unboxed = unboxArrayElement(result, targetType, targetSemanticType, call->type());
+			auto *value = cast(unboxed, targetType, targetSemanticType, targetSemanticType);
+			if (targetKind != Yogi::Sir::TypeKind_any_type && targetKind != Yogi::Sir::TypeKind_union_type) {
+				callRuntime("yogi_array_release_boxed_element", ::llvm::Type::getVoidTy(context.llvmContext), {array, result});
+			}
+			destroyOwnedArrayReceiver(array);
+			return value;
 		}
 
 		if (methodName == "shift") {
 			auto *array = lowerArrayReceiver(callee->object());
-			auto *result = callRuntime(
-				"yogi_array_shift",
-				opaquePointer(),
-				{array}
-			);
+			auto *result = callRuntime("yogi_array_shift", opaquePointer(), {array});
 
 			auto *targetType = expectedType ? expectedType : types.lower(call->type());
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
-			return cast(
-				unboxArrayElement(result, targetType, targetSemanticType, call->type()),
-				targetType,
-				targetSemanticType,
-				call->type()
-			);
+			const auto targetKind = resolvedTypeKind(targetSemanticType);
+			if (targetKind == Yogi::Sir::TypeKind_any_type || targetKind == Yogi::Sir::TypeKind_union_type) {
+				destroyOwnedArrayReceiver(array);
+				return result;
+			}
+
+			auto *unboxed = unboxArrayElement(result, targetType, targetSemanticType, call->type());
+			auto *value = cast(unboxed, targetType, targetSemanticType, targetSemanticType);
+			if (targetKind != Yogi::Sir::TypeKind_any_type && targetKind != Yogi::Sir::TypeKind_union_type) {
+				callRuntime("yogi_array_release_boxed_element", ::llvm::Type::getVoidTy(context.llvmContext), {array, result});
+			}
+			destroyOwnedArrayReceiver(array);
+			return value;
 		}
 
 		if (methodName == "at") {
 			auto *array = lowerArrayReceiver(callee->object());
 			auto *argumentValue = lowerNumberArgument(0, 0);
-			auto *result = callRuntime(
-				"yogi_array_at_index",
-				opaquePointer(),
-				{array, argumentValue}
-			);
+			auto *result = callRuntime("yogi_array_at_index", opaquePointer(), {array, argumentValue});
 
 			auto *targetType = expectedType ? expectedType : types.lower(call->type());
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
-			return cast(
-				unboxArrayElement(result, targetType, targetSemanticType, call->type()),
-				targetType,
-				targetSemanticType,
-				call->type()
-			);
+			const auto targetKind = resolvedTypeKind(targetSemanticType);
+			if (targetKind == Yogi::Sir::TypeKind_any_type || targetKind == Yogi::Sir::TypeKind_union_type) {
+				auto *ownedResult = callRuntime("yogi_any_clone_owned", opaquePointer(), {result});
+				destroyOwnedArrayReceiver(array);
+				return ownedResult;
+		}
+
+			auto *resultBox = result;
+			const auto ownedReceiver = isOwnedArrayExpression(callee->object());
+			if (ownedReceiver && (targetKind == Yogi::Sir::TypeKind_string_type || targetKind == Yogi::Sir::TypeKind_array_type || targetKind == Yogi::Sir::TypeKind_tuple_type || targetKind == Yogi::Sir::TypeKind_type_literal)) {
+				resultBox = callRuntime("yogi_any_clone_owned", opaquePointer(), {result});
+			}
+
+			auto *unboxed = unboxArrayElement(resultBox, targetType, targetSemanticType, call->type());
+			auto *value = cast(unboxed, targetType, targetSemanticType, targetSemanticType);
+			if (resultBox != result) {
+				callRuntime("yogi_any_release", ::llvm::Type::getVoidTy(context.llvmContext), {resultBox});
+			}
+			destroyOwnedArrayReceiver(array);
+			return value;
 		}
 
 		if (methodName == "copy") {
 			auto *array = lowerArrayReceiver(callee->object());
-			auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
-			auto *length = callRuntime("yogi_array_length", i64, {array});
-			auto *copy = callRuntime("yogi_array_create", opaquePointer(), {length});
-			auto *function = context.builder.GetInsertBlock()->getParent();
-			auto *condBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.copy.cond", function);
-			auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.copy.body", function);
-			auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.copy.done", function);
-			auto *indexSlot = context.builder.CreateAlloca(i64, nullptr, "array.copy.index");
-			context.builder.CreateStore(::llvm::ConstantInt::get(i64, 0), indexSlot);
-			context.builder.CreateBr(condBlock);
+			auto *copy = callRuntime("yogi_array_clone", opaquePointer(), {array});
+			destroyOwnedArrayReceiver(array);
 
-			context.builder.SetInsertPoint(condBlock);
-			auto *index = context.builder.CreateLoad(i64, indexSlot, "array.copy.i");
-			auto *hasMore = context.builder.CreateICmpULT(index, length, "array.copy.more");
-			context.builder.CreateCondBr(hasMore, bodyBlock, afterBlock);
-
-			context.builder.SetInsertPoint(bodyBlock);
-			auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
-			callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {copy, index, boxedElement});
-			auto *nextIndex = context.builder.CreateAdd(index, ::llvm::ConstantInt::get(i64, 1), "array.copy.next");
-			context.builder.CreateStore(nextIndex, indexSlot);
-			context.builder.CreateBr(condBlock);
-
-			context.builder.SetInsertPoint(afterBlock);
-
-			return cast(
-				copy,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(copy, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "includes" || methodName == "indexOf" || methodName == "lastIndexOf") {
 			auto *array = lowerArrayReceiver(callee->object());
-			const auto *argument = arguments && argumentCount > 0
-				? arguments->Get(0)
-				: nullptr;
+			const auto *argument = arguments && argumentCount > 0 ? arguments->Get(0) : nullptr;
 			const auto *argumentSemanticType = valueSemanticType(argument);
 			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
 			auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
-			auto *fromIndex = methodName == "lastIndexOf"
-				? lowerNumberArgument(1, std::numeric_limits<double>::infinity())
-				: lowerNumberArgument(1, 0);
+			if (isBoxedDynamicType(argumentSemanticType)) {
+				callRuntime("yogi_any_retain", ::llvm::Type::getVoidTy(context.llvmContext), {boxedValue});
+			}
+			auto *fromIndex = methodName == "lastIndexOf" ? lowerNumberArgument(1, std::numeric_limits<double>::infinity()) : lowerNumberArgument(1, 0);
 
 			if (methodName == "includes") {
-				auto *result = callRuntime(
-					"yogi_array_includes",
-					::llvm::Type::getInt1Ty(context.llvmContext),
-					{array, boxedValue, fromIndex}
-				);
+				auto *result = callRuntime("yogi_array_includes", ::llvm::Type::getInt1Ty(context.llvmContext), {array, boxedValue, fromIndex});
+				auto *value = cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				destroyOwnedArrayReceiver(array);
 
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return value;
 			}
 
-			auto *result = callRuntime(
-				methodName == "indexOf" ? "yogi_array_index_of" : "yogi_array_last_index_of",
-				::llvm::Type::getInt64Ty(context.llvmContext),
-				{array, boxedValue, fromIndex}
-			);
-			auto *asNumber = context.builder.CreateSIToFP(
-				result,
-				::llvm::Type::getDoubleTy(context.llvmContext),
-				"array.search.index"
-			);
+			auto *result = callRuntime(methodName == "indexOf" ? "yogi_array_index_of" : "yogi_array_last_index_of", ::llvm::Type::getInt64Ty(context.llvmContext), {array, boxedValue, fromIndex});
+			auto *asNumber = context.builder.CreateSIToFP(result, ::llvm::Type::getDoubleTy(context.llvmContext), "array.search.index");
+			auto *value = cast(asNumber, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				asNumber,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return value;
 		}
 
 		if (methodName == "concat") {
@@ -1993,68 +2466,44 @@ namespace yogi::core::llvm::internal {
 					const auto *argumentSemanticType = valueSemanticType(argument);
 					const auto argumentKind = resolvedTypeKind(argumentSemanticType);
 
-					if (
-						argumentKind == Yogi::Sir::TypeKind_array_type ||
-						argumentKind == Yogi::Sir::TypeKind_tuple_type
-					) {
+					if (argumentKind == Yogi::Sir::TypeKind_array_type || argumentKind == Yogi::Sir::TypeKind_tuple_type) {
 						auto *source = lower(argument, opaquePointer(), argumentSemanticType);
 						callRuntime("yogi_array_append_array", ::llvm::Type::getVoidTy(context.llvmContext), {result, source});
+						if (isOwnedArrayExpression(argument)) {
+							destroyArrayTemporary(source);
+						}
 						continue;
 					}
 
 					auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
 					auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
-					callRuntime(
-						"yogi_array_push",
-						::llvm::Type::getInt64Ty(context.llvmContext),
-						{result, boxedValue}
-					);
+					callRuntime("yogi_array_push", ::llvm::Type::getInt64Ty(context.llvmContext), {result, boxedValue});
 				}
 			}
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "reverse") {
 			auto *array = lowerArrayReceiver(callee->object());
 			callRuntime("yogi_array_reverse", ::llvm::Type::getVoidTy(context.llvmContext), {array});
 
-			return cast(
-				array,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(array, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "fill") {
 			auto *array = lowerArrayReceiver(callee->object());
-			const auto *argument = arguments && argumentCount > 0
-				? arguments->Get(0)
-				: nullptr;
+			const auto *argument = arguments && argumentCount > 0 ? arguments->Get(0) : nullptr;
 			const auto *argumentSemanticType = valueSemanticType(argument);
 			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
 			auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
 			auto *start = lowerNumberArgument(1, 0);
 			auto *end = lowerNumberArgument(2, std::numeric_limits<double>::infinity());
 
-			callRuntime(
-				"yogi_array_fill",
-				::llvm::Type::getVoidTy(context.llvmContext),
-				{array, boxedValue, start, end}
-			);
+			callRuntime("yogi_array_fill", ::llvm::Type::getVoidTy(context.llvmContext), {array, boxedValue, start, end});
 
-			return cast(
-				array,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(array, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "copyWithin") {
@@ -2063,18 +2512,9 @@ namespace yogi::core::llvm::internal {
 			auto *start = lowerNumberArgument(1, 0);
 			auto *end = lowerNumberArgument(2, std::numeric_limits<double>::infinity());
 
-			callRuntime(
-				"yogi_array_copy_within",
-				::llvm::Type::getVoidTy(context.llvmContext),
-				{array, target, start, end}
-			);
+			callRuntime("yogi_array_copy_within", ::llvm::Type::getVoidTy(context.llvmContext), {array, target, start, end});
 
-			return cast(
-				array,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(array, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "splice" || methodName == "toSpliced") {
@@ -2103,35 +2543,24 @@ namespace yogi::core::llvm::internal {
 			}
 
 			auto *inserted = createInsertArray(2);
-			auto *result = callRuntime(
-				methodName == "splice" ? "yogi_array_splice" : "yogi_array_to_spliced",
-				opaquePointer(),
-				{array, start, deleteCount, inserted}
-			);
+			installArrayElementOwnershipPolicy(inserted, insertedElementResourceFields, arrayElementType(arrayReceiverSemanticType(callee->object())));
+			auto *result = callRuntime(methodName == "splice" ? "yogi_array_splice" : "yogi_array_to_spliced", opaquePointer(), {array, start, deleteCount, inserted});
 			callRuntime("yogi_array_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {inserted});
 
 			if (!arrayOwner.empty() && !insertedElementResourceFields.empty()) {
 				context.registerNativeResourceArrayElementFieldOwners(arrayOwner, insertedElementResourceFields);
 			}
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "toReversed") {
 			auto *array = lowerArrayReceiver(callee->object());
 			auto *result = callRuntime("yogi_array_to_reversed", opaquePointer(), {array});
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "join" || methodName == "toString" || methodName == "toLocaleString") {
@@ -2139,29 +2568,25 @@ namespace yogi::core::llvm::internal {
 
 			if (methodName == "join") {
 				::llvm::Value *separator = nullptr;
+				const Yogi::Sir::ValueRef *separatorSource = nullptr;
 				if (arguments && arguments->size() > 0) {
-					const auto *argument = arguments->Get(0);
-					separator = lower(argument, opaquePointer(), valueSemanticType(argument));
+					separatorSource = arguments->Get(0);
+					separator = lower(separatorSource, opaquePointer(), valueSemanticType(separatorSource));
 				} else {
 					separator = context.builder.CreateGlobalString(",");
 				}
 
 				auto *result = callRuntime("yogi_array_join", opaquePointer(), {array, separator});
-				return cast(
-					result,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				auto *value = cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				destroyStringTemporaryIfOwned(separator, separatorSource);
+				destroyOwnedArrayReceiver(array);
+				return value;
 			}
 
 			auto *result = callRuntime("yogi_array_to_string", opaquePointer(), {array});
-			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			auto *value = cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+			destroyOwnedArrayReceiver(array);
+			return value;
 		}
 
 		if (methodName == "sort" || methodName == "toSorted") {
@@ -2176,18 +2601,15 @@ namespace yogi::core::llvm::internal {
 				auto *callback = getCallbackFunction();
 				const auto *inlineCallback = getInlineCallback();
 				if (!callback && !inlineCallback) {
-					return cast(
-						targetArray,
-						expectedType ? expectedType : types.lower(call->type()),
-						expectedSemanticType ? expectedSemanticType : call->type(),
-						call->type()
-					);
+					auto *result = cast(targetArray, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+					if (methodName == "toSorted") {
+						destroyOwnedArrayReceiver(array);
+					}
+					return result;
 				}
 
 				const auto *arrayType = arrayReceiverSemanticType(callee->object());
-				const auto *elementType = arrayType && arrayType->element_type()
-					? arrayType->element_type()
-					: call->type();
+				const auto *elementType = arrayType && arrayType->element_type() ? arrayType->element_type() : call->type();
 				auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {targetArray});
 				auto *function = context.builder.GetInsertBlock()->getParent();
 				auto *outerCondition = ::llvm::BasicBlock::Create(context.llvmContext, "array.sort.outer.condition", function);
@@ -2229,13 +2651,8 @@ namespace yogi::core::llvm::internal {
 					{
 						{leftValue, elementType},
 						{rightValue, elementType},
-					}
-				);
-				auto *shouldSwap = context.builder.CreateFCmpOGT(
-					toNumber(compareResult),
-					::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), 0.0),
-					"array.sort.should.swap"
-				);
+				    });
+				auto *shouldSwap = context.builder.CreateFCmpOGT(toNumber(compareResult), ::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), 0.0), "array.sort.should.swap");
 				context.builder.CreateCondBr(shouldSwap, swapBlock, innerContinue);
 
 				context.builder.SetInsertPoint(swapBlock);
@@ -2252,31 +2669,22 @@ namespace yogi::core::llvm::internal {
 				context.builder.CreateBr(outerCondition);
 
 				context.builder.SetInsertPoint(after);
-				return cast(
-					targetArray,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				auto *result = cast(targetArray, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				if (methodName == "toSorted") {
+					destroyOwnedArrayReceiver(array);
+				}
+				return result;
 			}
 
 			if (methodName == "sort") {
 				callRuntime("yogi_array_sort", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray});
-				return cast(
-					targetArray,
-					expectedType ? expectedType : types.lower(call->type()),
-					expectedSemanticType ? expectedSemanticType : call->type(),
-					call->type()
-				);
+				return cast(targetArray, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 			}
 
 			callRuntime("yogi_array_sort", ::llvm::Type::getVoidTy(context.llvmContext), {targetArray});
-			return cast(
-				targetArray,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			auto *result = cast(targetArray, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+			destroyOwnedArrayReceiver(array);
+			return result;
 		}
 
 		if (methodName == "flat" || methodName == "keys" || methodName == "values" || methodName == "entries") {
@@ -2293,48 +2701,26 @@ namespace yogi::core::llvm::internal {
 			} else {
 				result = callRuntime("yogi_array_entries", opaquePointer(), {array});
 			}
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		if (methodName == "with") {
 			auto *array = lowerArrayReceiver(callee->object());
 			auto *index = lowerNumberArgument(0, 0);
-			const auto *argument = arguments && argumentCount > 1
-				? arguments->Get(1)
-				: nullptr;
+			const auto *argument = arguments && argumentCount > 1 ? arguments->Get(1) : nullptr;
 			const auto *argumentSemanticType = valueSemanticType(argument);
 			auto *argumentValue = lower(argument, types.lower(argumentSemanticType), argumentSemanticType);
 			auto *boxedValue = boxAny(argumentValue, argumentSemanticType);
 			auto *result = callRuntime("yogi_array_with", opaquePointer(), {array, index, boxedValue});
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
-		if (
-			methodName == "forEach" ||
-			methodName == "map" ||
-			methodName == "filter" ||
-			methodName == "some" ||
-			methodName == "every" ||
-			methodName == "find" ||
-			methodName == "findIndex" ||
-			methodName == "findLast" ||
-			methodName == "findLastIndex" ||
-			methodName == "flatMap" ||
-			methodName == "reduce" ||
-			methodName == "reduceRight"
-		) {
+		if (methodName == "forEach" || methodName == "map" || methodName == "filter" || methodName == "some" || methodName == "every" || methodName == "find" || methodName == "findIndex" || methodName == "findLast" || methodName == "findLastIndex" ||
+		    methodName == "flatMap" || methodName == "reduce" || methodName == "reduceRight") {
 			auto *callback = getCallbackFunction();
 			const auto *inlineCallback = getInlineCallback();
 			if (!callback && !inlineCallback) {
@@ -2343,17 +2729,15 @@ namespace yogi::core::llvm::internal {
 
 			auto *array = lowerArrayReceiver(callee->object());
 			const auto *arrayType = arrayReceiverSemanticType(callee->object());
-			const auto *elementType = arrayType && arrayType->element_type()
-				? arrayType->element_type()
-				: call->type();
+			const auto *elementType = arrayElementType(arrayType);
+			if (!elementType) {
+				throw std::runtime_error("cannot lower array." + methodName + " without a readable receiver element type");
+			}
 			auto *returnType = expectedType ? expectedType : types.lower(call->type());
 
 			if (methodName == "map" || methodName == "filter" || methodName == "flatMap") {
-				auto *result = callRuntime(
-					"yogi_array_create",
-					opaquePointer(),
-					{::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 0)}
-				);
+				auto *result = callRuntime("yogi_array_create", opaquePointer(), {::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 0)});
+				installArrayBoxPolicy(result, call->type());
 				auto [condition, after, index, _] = createCallbackLoop("array." + methodName, array, elementType);
 				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
 				auto *element = unboxAny(boxedElement, elementType);
@@ -2363,13 +2747,10 @@ namespace yogi::core::llvm::internal {
 					{
 						{element, elementType},
 						{indexAsNumber(index), call->type()},
-					}
-				);
+				    });
 
 				if (methodName == "map") {
-					const auto *mappedType = call->type() && call->type()->element_type()
-						? call->type()->element_type()
-						: nullptr;
+					const auto *mappedType = call->type() && call->type()->element_type() ? call->type()->element_type() : nullptr;
 					auto *boxedMapped = boxAny(callbackResult, mappedType);
 					callRuntime("yogi_array_push", ::llvm::Type::getInt64Ty(context.llvmContext), {result, boxedMapped});
 				} else if (methodName == "flatMap") {
@@ -2380,14 +2761,17 @@ namespace yogi::core::llvm::internal {
 					auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.filter.continue", context.builder.GetInsertBlock()->getParent());
 					context.builder.CreateCondBr(keep, pushBlock, continueBlock);
 					context.builder.SetInsertPoint(pushBlock);
-					callRuntime("yogi_array_push", ::llvm::Type::getInt64Ty(context.llvmContext), {result, boxedElement});
+					auto *copiedElement = callRuntime("yogi_array_copy_element", opaquePointer(), {array, boxedElement});
+					callRuntime("yogi_array_push", ::llvm::Type::getInt64Ty(context.llvmContext), {result, copiedElement});
 					context.builder.CreateBr(continueBlock);
 					context.builder.SetInsertPoint(continueBlock);
 				}
 
 				continueCallbackLoop(condition, index);
 				context.builder.SetInsertPoint(after);
-				return cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				auto *value = cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				destroyOwnedArrayReceiver(array);
+				return value;
 			}
 
 			if (methodName == "forEach") {
@@ -2400,10 +2784,10 @@ namespace yogi::core::llvm::internal {
 					{
 						{element, elementType},
 						{indexAsNumber(index), call->type()},
-					}
-				);
+				    });
 				continueCallbackLoop(condition, index);
 				context.builder.SetInsertPoint(after);
+				destroyOwnedArrayReceiver(array);
 				return types.zero(returnType);
 			}
 
@@ -2417,8 +2801,7 @@ namespace yogi::core::llvm::internal {
 					{
 						{element, elementType},
 						{indexAsNumber(index), call->type()},
-					}
-				);
+				    });
 				auto *predicate = toBoolean(callbackResult);
 				auto *foundBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".short", context.builder.GetInsertBlock()->getParent());
 				auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".continue", context.builder.GetInsertBlock()->getParent());
@@ -2441,18 +2824,16 @@ namespace yogi::core::llvm::internal {
 				auto *result = context.builder.CreatePHI(::llvm::Type::getInt1Ty(context.llvmContext), 2, "array.callback.boolean");
 				result->addIncoming(::llvm::ConstantInt::get(::llvm::Type::getInt1Ty(context.llvmContext), methodName == "every"), condition);
 				result->addIncoming(shortValue, shortBlock);
-				return cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				auto *value = cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				destroyOwnedArrayReceiver(array);
+				return value;
 			}
 
 			if (methodName == "find" || methodName == "findIndex" || methodName == "findLast" || methodName == "findLastIndex") {
 				const auto returnsIndex = methodName == "findIndex" || methodName == "findLastIndex";
 				const auto reverseSearch = methodName == "findLast" || methodName == "findLastIndex";
-				auto *defaultFindValue = !returnsIndex
-					? callRuntime("yogi_any_undefined", opaquePointer(), {})
-					: nullptr;
-				auto [condition, after, index, _] = reverseSearch
-					? createReverseCallbackLoop("array." + methodName, array)
-					: createCallbackLoop("array." + methodName, array, elementType);
+				auto *defaultFindValue = !returnsIndex ? callRuntime("yogi_any_undefined", opaquePointer(), {}) : nullptr;
+				auto [condition, after, index, _] = reverseSearch ? createReverseCallbackLoop("array." + methodName, array) : createCallbackLoop("array." + methodName, array, elementType);
 				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
 				auto *element = unboxAny(boxedElement, elementType);
 				auto *callbackResult = callCallback(
@@ -2461,8 +2842,7 @@ namespace yogi::core::llvm::internal {
 					{
 						{element, elementType},
 						{indexAsNumber(index), call->type()},
-					}
-				);
+				    });
 				auto *predicate = toBoolean(callbackResult);
 				auto *foundBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".found", context.builder.GetInsertBlock()->getParent());
 				auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".continue", context.builder.GetInsertBlock()->getParent());
@@ -2471,11 +2851,7 @@ namespace yogi::core::llvm::internal {
 				context.builder.SetInsertPoint(foundBlock);
 				::llvm::Value *foundValue = boxedElement;
 				if (returnsIndex) {
-					foundValue = context.builder.CreateUIToFP(
-						index,
-						::llvm::Type::getDoubleTy(context.llvmContext),
-						"array.findIndex.value"
-					);
+					foundValue = context.builder.CreateUIToFP(index, ::llvm::Type::getDoubleTy(context.llvmContext), "array.findIndex.value");
 				}
 				context.builder.CreateBr(after);
 				auto *foundIncoming = context.builder.GetInsertBlock();
@@ -2492,19 +2868,34 @@ namespace yogi::core::llvm::internal {
 					auto *result = context.builder.CreatePHI(::llvm::Type::getDoubleTy(context.llvmContext), 2, "array.findIndex.result");
 					result->addIncoming(numberConstant(-1), condition);
 					result->addIncoming(foundValue, foundIncoming);
-					return cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+					auto *value = cast(result, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+					destroyOwnedArrayReceiver(array);
+					return value;
 				}
 
 				auto *result = context.builder.CreatePHI(opaquePointer(), 2, "array.find.result");
 				result->addIncoming(defaultFindValue, condition);
 				result->addIncoming(foundValue, foundIncoming);
 				const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
-				return cast(
-					unboxArrayElement(result, returnType, targetSemanticType, call->type()),
-					returnType,
-					targetSemanticType,
-					call->type()
-				);
+				const auto targetKind = resolvedTypeKind(targetSemanticType);
+				if (targetKind == Yogi::Sir::TypeKind_any_type || targetKind == Yogi::Sir::TypeKind_union_type) {
+					auto *ownedResult = callRuntime("yogi_any_clone_owned", opaquePointer(), {result});
+					destroyOwnedArrayReceiver(array);
+					return ownedResult;
+				}
+
+				::llvm::Value *resultBox = result;
+				const auto ownedReceiver = isOwnedArrayExpression(callee->object());
+				if (ownedReceiver && (targetKind == Yogi::Sir::TypeKind_string_type || targetKind == Yogi::Sir::TypeKind_array_type || targetKind == Yogi::Sir::TypeKind_tuple_type || targetKind == Yogi::Sir::TypeKind_type_literal)) {
+					resultBox = callRuntime("yogi_any_clone_owned", opaquePointer(), {result});
+				}
+				auto *unboxed = unboxArrayElement(resultBox, returnType, targetSemanticType, call->type());
+				auto *value = cast(unboxed, returnType, targetSemanticType, targetSemanticType);
+				if (resultBox != result) {
+					callRuntime("yogi_any_release", ::llvm::Type::getVoidTy(context.llvmContext), {resultBox});
+				}
+				destroyOwnedArrayReceiver(array);
+				return value;
 			}
 
 			if (methodName == "reduce" || methodName == "reduceRight") {
@@ -2513,21 +2904,25 @@ namespace yogi::core::llvm::internal {
 				const auto *accumulatorType = call->type();
 				auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
 				auto *one = ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 1);
-				auto *startIndex = reverseReduce
-					? context.builder.CreateSub(length, one, "array.reduceRight.start")
-					: ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 0);
+				auto *startIndex = reverseReduce ? context.builder.CreateSub(length, one, "array.reduceRight.start") : ::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), 0);
 				::llvm::Value *initialAccumulator = nullptr;
 
 				if (hasInitialValue) {
 					const auto *initialValue = arguments->Get(1);
 					const auto *initialType = valueSemanticType(initialValue);
 					initialAccumulator = lower(initialValue, types.lower(initialType), initialType);
+					const auto borrowedInitial =
+						initialValue->identifier() ||
+						initialValue->property_access() ||
+						initialValue->element_access() ||
+						initialValue->dereference();
+					if (borrowedInitial) {
+						initialAccumulator = copyOwnedValue(initialAccumulator, accumulatorType);
+					}
 				} else {
 					auto *initialBoxed = callRuntime("yogi_array_get", opaquePointer(), {array, startIndex});
-					initialAccumulator = unboxAny(initialBoxed, accumulatorType);
-					startIndex = reverseReduce
-						? context.builder.CreateSub(startIndex, one, "array.reduceRight.previous.start")
-						: context.builder.CreateAdd(startIndex, one, "array.reduce.next.start");
+					initialAccumulator = copyOwnedValue(unboxAny(initialBoxed, accumulatorType), accumulatorType);
+					startIndex = reverseReduce ? context.builder.CreateSub(startIndex, one, "array.reduceRight.previous.start") : context.builder.CreateAdd(startIndex, one, "array.reduce.next.start");
 				}
 
 				auto *function = context.builder.GetInsertBlock()->getParent();
@@ -2547,25 +2942,66 @@ namespace yogi::core::llvm::internal {
 				context.builder.SetInsertPoint(body);
 				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {array, index});
 				auto *element = unboxAny(boxedElement, elementType);
+				auto *callbackAccumulator = static_cast<::llvm::Value *>(accumulator);
+				const auto inlineStructAccumulatorCopy =
+					inlineCallback &&
+					isStructType(accumulatorType) &&
+					typeRequiresOwnedCopy(accumulatorType) &&
+					!typeContainsPointer(accumulatorType);
+				if (inlineStructAccumulatorCopy) {
+					callbackAccumulator = copyOwnedValue(accumulator, accumulatorType);
+					inlineOwnedCallbackArguments.insert(callbackAccumulator);
+				}
 				auto *nextAccumulator = callCallback(
 					callback,
 					inlineCallback,
 					{
-						{accumulator, accumulatorType},
+						{callbackAccumulator, accumulatorType},
 						{element, elementType},
 						{indexAsNumber(index), accumulatorType},
-					}
-				);
-				auto *nextIndex = reverseReduce
-					? context.builder.CreateSub(index, one, "array.reduce.previous")
-					: context.builder.CreateAdd(index, one, "array.reduce.next");
+				    });
+				inlineOwnedCallbackArguments.erase(callbackAccumulator);
+				nextAccumulator = cast(nextAccumulator, types.lower(accumulatorType), accumulatorType, accumulatorType);
+
+				const auto accumulatorKind = resolvedTypeKind(accumulatorType);
+				const auto managedAccumulator =
+					!structTypeName(accumulatorType).empty() ||
+					accumulatorKind == Yogi::Sir::TypeKind_string_type ||
+					accumulatorKind == Yogi::Sir::TypeKind_array_type ||
+					accumulatorKind == Yogi::Sir::TypeKind_tuple_type ||
+					accumulatorKind == Yogi::Sir::TypeKind_type_literal ||
+					accumulatorKind == Yogi::Sir::TypeKind_any_type ||
+					accumulatorKind == Yogi::Sir::TypeKind_union_type;
+
+				if (managedAccumulator && accumulator->getType()->isPointerTy()) {
+					auto *replace = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".accumulator.replace", function);
+					auto *keep = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".accumulator.keep", function);
+					auto *continueBody = ::llvm::BasicBlock::Create(context.llvmContext, "array." + methodName + ".accumulator.next", function);
+					auto *sameAccumulator = context.builder.CreateICmpEQ(accumulator, nextAccumulator, "array." + methodName + ".accumulator.same");
+					context.builder.CreateCondBr(sameAccumulator, keep, replace);
+
+					context.builder.SetInsertPoint(replace);
+					destroyEscapedAggregate(accumulatorType, accumulator);
+					context.builder.CreateBr(continueBody);
+
+					context.builder.SetInsertPoint(keep);
+					context.builder.CreateBr(continueBody);
+					context.builder.SetInsertPoint(continueBody);
+				} else if (managedAccumulator) {
+					destroyEscapedAggregate(accumulatorType, accumulator);
+				}
+
+				auto *nextIndex = reverseReduce ? context.builder.CreateSub(index, one, "array.reduce.previous") : context.builder.CreateAdd(index, one, "array.reduce.next");
 				auto *bodyBlock = context.builder.GetInsertBlock();
 				context.builder.CreateBr(condition);
 				index->addIncoming(nextIndex, bodyBlock);
-				accumulator->addIncoming(cast(nextAccumulator, types.lower(accumulatorType), accumulatorType, accumulatorType), bodyBlock);
+				accumulator->addIncoming(nextAccumulator, bodyBlock);
 
 				context.builder.SetInsertPoint(after);
-				return cast(accumulator, returnType, expectedSemanticType ? expectedSemanticType : call->type(), call->type());
+				const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : call->type();
+				auto *result = cast(accumulator, returnType, targetSemanticType, call->type());
+				destroyOwnedArrayReceiver(array);
+				return result;
 			}
 		}
 
@@ -2573,37 +3009,45 @@ namespace yogi::core::llvm::internal {
 			auto *array = lowerArrayReceiver(callee->object());
 			auto *start = lowerNumberArgument(0, 0);
 			auto *end = lowerNumberArgument(1, std::numeric_limits<double>::infinity());
-			auto *result = callRuntime(
-				"yogi_array_slice",
-				opaquePointer(),
-				{array, start, end}
-			);
+			auto *result = callRuntime("yogi_array_slice", opaquePointer(), {array, start, end});
+			destroyOwnedArrayReceiver(array);
 
-			return cast(
-				result,
-				expectedType ? expectedType : types.lower(call->type()),
-				expectedSemanticType ? expectedSemanticType : call->type(),
-				call->type()
-			);
+			return cast(result, expectedType ? expectedType : types.lower(call->type()), expectedSemanticType ? expectedSemanticType : call->type(), call->type());
 		}
 
 		return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
 	}
 
-	::llvm::Value *ValueLowerer::lowerConstant(
-		const Yogi::Sir::Constant *constant,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	bool ValueLowerer::lowerDiscardedArrayElementCall(const Yogi::Sir::CallExpression *call) {
+		const auto *callee = call && call->callee() ? call->callee()->property_access() : nullptr;
+		if (!callee) {
+			return false;
+		}
+
+		const auto method = fbString(call->builtin_method());
+		if (method != "array.pop" && method != "array.shift") {
+			return false;
+		}
+
+		const auto *receiverType = valueSemanticType(callee->object());
+		auto *array = lower(callee->object(), opaquePointer(), receiverType);
+		if (resolvedTypeKind(receiverType) == Yogi::Sir::TypeKind_pointer_type && receiverType->element_type()) {
+			array = lowerPointerArrayDescriptor(array, receiverType->element_type());
+		}
+
+		callRuntime(method == "array.pop" ? "yogi_array_pop_discard" : "yogi_array_shift_discard", ::llvm::Type::getVoidTy(context.llvmContext), {array});
+		if (isOwnedArrayExpression(callee->object())) {
+			destroyArrayTemporary(array);
+		}
+		return true;
+	}
+
+	::llvm::Value *ValueLowerer::lowerConstant(const Yogi::Sir::Constant *constant, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		if (const auto *number = constant->value_as_NumberConstant()) {
 			if (expectedType && expectedType->isIntegerTy() && !expectedType->isIntegerTy(1)) {
 				auto *integerType = ::llvm::cast<::llvm::IntegerType>(expectedType);
 				auto literal = static_cast<int64_t>(number->value());
-				auto value = ::llvm::APInt(
-					integerType->getBitWidth(),
-					static_cast<uint64_t>(literal),
-					isSignedIntegerSemanticType(expectedSemanticType)
-				);
+				auto value = ::llvm::APInt(integerType->getBitWidth(), static_cast<uint64_t>(literal), isSignedIntegerSemanticType(expectedSemanticType));
 				return ::llvm::ConstantInt::get(integerType, value);
 			}
 
@@ -2622,7 +3066,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (constant->value_as_NullConstant() || constant->value_as_UndefinedConstant()) {
-			if (isAnyType(expectedSemanticType)) {
+			if (isBoxedDynamicType(expectedSemanticType)) {
 				return boxAny(nullptr, constant->type());
 			}
 
@@ -2632,21 +3076,11 @@ namespace yogi::core::llvm::internal {
 		return types.zero(expectedType);
 	}
 
-	::llvm::Value *ValueLowerer::lowerIdentifier(
-		const Yogi::Sir::IdentifierExpression *identifier,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerIdentifier(const Yogi::Sir::IdentifierExpression *identifier, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto name = fbString(identifier->name());
-		const auto identifierTypeKind = identifier->type()
-			? identifier->type()->kind()
-			: Yogi::Sir::TypeKind_unknown_type;
-		const auto loadValue = [&](::llvm::Value *loaded, Yogi::Sir::TypeKind storedType) -> ::llvm::Value * {
-			if (
-				storedType == Yogi::Sir::TypeKind_any_type &&
-				expectedSemanticType &&
-				!isAnyType(expectedSemanticType)
-			) {
+		const auto identifierTypeKind = identifier->type() ? identifier->type()->kind() : Yogi::Sir::TypeKind_unknown_type;
+		const auto loadValue = [&](::llvm::Value *loaded, Yogi::Sir::TypeKind storedType, const Yogi::Sir::TypeRef *storedSemanticType) -> ::llvm::Value * {
+			if ((storedType == Yogi::Sir::TypeKind_any_type || storedType == Yogi::Sir::TypeKind_union_type || isBoxedDynamicType(storedSemanticType)) && expectedSemanticType && !isBoxedDynamicType(expectedSemanticType)) {
 				return unboxAny(loaded, expectedSemanticType);
 			}
 
@@ -2656,19 +3090,17 @@ namespace yogi::core::llvm::internal {
 		if (context.locals.contains(name)) {
 			auto *slot = context.locals[name];
 			auto *loaded = context.builder.CreateLoad(slot->getAllocatedType(), slot, sanitizeSymbol(name) + ".load");
-			const auto type = context.localTypeKinds.contains(name)
-				? context.localTypeKinds[name]
-				: identifierTypeKind;
-			return loadValue(loaded, type);
+			const auto type = context.localTypeKinds.contains(name) ? context.localTypeKinds[name] : identifierTypeKind;
+			const auto *semanticType = context.localTypes.contains(name) ? context.localTypes[name] : identifier->type();
+			return loadValue(loaded, type, semanticType);
 		}
 
 		if (context.globals.contains(name)) {
 			auto *global = context.globals[name];
 			auto *loaded = context.builder.CreateLoad(global->getValueType(), global, sanitizeSymbol(name) + ".load");
-			const auto type = context.globalTypeKinds.contains(name)
-				? context.globalTypeKinds[name]
-				: identifierTypeKind;
-			return loadValue(loaded, type);
+			const auto type = context.globalTypeKinds.contains(name) ? context.globalTypeKinds[name] : identifierTypeKind;
+			const auto *semanticType = context.globalTypes.contains(name) ? context.globalTypes[name] : identifier->type();
+			return loadValue(loaded, type, semanticType);
 		}
 
 		const auto qualifiedName = fbString(identifier->qualified_name());
@@ -2679,21 +3111,14 @@ namespace yogi::core::llvm::internal {
 
 			if (!global) {
 				auto *type = types.lower(identifier->type());
-				global = new ::llvm::GlobalVariable(
-					*context.module,
-					type,
-					false,
-					::llvm::GlobalValue::ExternalLinkage,
-					nullptr,
-					symbolName
-				);
+				global = new ::llvm::GlobalVariable(*context.module, type, false, ::llvm::GlobalValue::ExternalLinkage, nullptr, symbolName);
 			}
 
 			context.globals[name] = global;
 			context.globalTypes[name] = identifier->type();
 			context.globalTypeKinds[name] = identifierTypeKind;
 			auto *loaded = context.builder.CreateLoad(global->getValueType(), global, sanitizeSymbol(name) + ".load");
-			return loadValue(loaded, identifierTypeKind);
+			return loadValue(loaded, identifierTypeKind, identifier->type());
 		}
 
 		return types.zero(expectedType);
@@ -2702,11 +3127,7 @@ namespace yogi::core::llvm::internal {
 	::llvm::Value *ValueLowerer::tagRuntimeCellPointer(::llvm::Value *cell) {
 		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *address = context.builder.CreatePtrToInt(cell, integerType, "ptr.cell.addr");
-		auto *tagged = context.builder.CreateOr(
-			address,
-			::llvm::ConstantInt::get(integerType, 1),
-			"ptr.cell.tag"
-		);
+		auto *tagged = context.builder.CreateOr(address, ::llvm::ConstantInt::get(integerType, 1), "ptr.cell.tag");
 
 		return context.builder.CreateIntToPtr(tagged, opaquePointer(), "ptr.cell.tagged");
 	}
@@ -2714,11 +3135,7 @@ namespace yogi::core::llvm::internal {
 	::llvm::Value *ValueLowerer::untagRuntimeCellPointer(::llvm::Value *pointer) {
 		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *address = context.builder.CreatePtrToInt(pointer, integerType, "ptr.cell.tagged.addr");
-		auto *untagged = context.builder.CreateAnd(
-			address,
-			::llvm::ConstantInt::get(integerType, ~static_cast<uint64_t>(7)),
-			"ptr.cell.untag"
-		);
+		auto *untagged = context.builder.CreateAnd(address, ::llvm::ConstantInt::get(integerType, ~static_cast<uint64_t>(7)), "ptr.cell.untag");
 
 		return context.builder.CreateIntToPtr(untagged, opaquePointer(), "ptr.cell.slot");
 	}
@@ -2726,23 +3143,12 @@ namespace yogi::core::llvm::internal {
 	::llvm::Value *ValueLowerer::isRuntimeCellPointer(::llvm::Value *pointer) {
 		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *address = context.builder.CreatePtrToInt(pointer, integerType, "ptr.kind.addr");
-		auto *tag = context.builder.CreateAnd(
-			address,
-			::llvm::ConstantInt::get(integerType, 1),
-			"ptr.kind.tag"
-		);
+		auto *tag = context.builder.CreateAnd(address, ::llvm::ConstantInt::get(integerType, 1), "ptr.kind.tag");
 
-		return context.builder.CreateICmpNE(
-			tag,
-			::llvm::ConstantInt::get(integerType, 0),
-			"ptr.kind.is_cell"
-		);
+		return context.builder.CreateICmpNE(tag, ::llvm::ConstantInt::get(integerType, 0), "ptr.kind.is_cell");
 	}
 
-	::llvm::Value *ValueLowerer::lowerPointerArrayDescriptor(
-		::llvm::Value *pointer,
-		const Yogi::Sir::TypeRef *pointeeSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerPointerArrayDescriptor(::llvm::Value *pointer, const Yogi::Sir::TypeRef *pointeeSemanticType) {
 		auto *isCell = isRuntimeCellPointer(pointer);
 		auto *function = context.builder.GetInsertBlock()->getParent();
 		auto *cellBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.array.cell", function);
@@ -2769,20 +3175,12 @@ namespace yogi::core::llvm::internal {
 		return phi;
 	}
 
-	::llvm::Value *ValueLowerer::lowerPointerRead(
-		::llvm::Value *pointer,
-		const Yogi::Sir::TypeRef *pointeeSemanticType,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerPointerRead(::llvm::Value *pointer, const Yogi::Sir::TypeRef *pointeeSemanticType, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto pointeeKind = resolvedTypeKind(pointeeSemanticType);
 		const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : pointeeSemanticType;
 		auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
 
-		if (
-			pointeeKind == Yogi::Sir::TypeKind_array_type ||
-			pointeeKind == Yogi::Sir::TypeKind_tuple_type
-		) {
+		if (pointeeKind == Yogi::Sir::TypeKind_array_type || pointeeKind == Yogi::Sir::TypeKind_tuple_type) {
 			auto *descriptor = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
 			return cast(descriptor, targetType, targetSemanticType, pointeeSemanticType);
 		}
@@ -2797,21 +3195,12 @@ namespace yogi::core::llvm::internal {
 
 		context.builder.SetInsertPoint(cellBlock);
 		auto *boxed = callRuntime("yogi_pointer_cell_get", opaquePointer(), {pointer});
-		auto *cellValue = cast(
-			unboxAny(boxed, targetSemanticType),
-			targetType,
-			targetSemanticType,
-			targetSemanticType
-		);
+		auto *cellValue = cast(unboxAny(boxed, targetSemanticType), targetType, targetSemanticType, targetSemanticType);
 		context.builder.CreateBr(mergeBlock);
 		auto *cellEnd = context.builder.GetInsertBlock();
 
 		context.builder.SetInsertPoint(rawBlock);
-		auto *loaded = context.builder.CreateLoad(
-			types.lower(pointeeSemanticType),
-			pointer,
-			"ptr.raw.load"
-		);
+		auto *loaded = context.builder.CreateLoad(types.lower(pointeeSemanticType), pointer, "ptr.raw.load");
 		auto *rawValue = cast(loaded, targetType, targetSemanticType, pointeeSemanticType);
 		context.builder.CreateBr(mergeBlock);
 		auto *rawEnd = context.builder.GetInsertBlock();
@@ -2824,12 +3213,7 @@ namespace yogi::core::llvm::internal {
 		return phi;
 	}
 
-	void ValueLowerer::lowerPointerWrite(
-		::llvm::Value *pointer,
-		::llvm::Value *value,
-		const Yogi::Sir::TypeRef *pointeeSemanticType,
-		const Yogi::Sir::TypeRef *sourceSemanticType
-	) {
+	void ValueLowerer::lowerPointerWrite(::llvm::Value *pointer, ::llvm::Value *value, const Yogi::Sir::TypeRef *pointeeSemanticType, const Yogi::Sir::TypeRef *sourceSemanticType) {
 		auto *isCell = isRuntimeCellPointer(pointer);
 		auto *function = context.builder.GetInsertBlock()->getParent();
 		auto *cellBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.write.cell", function);
@@ -2844,29 +3228,13 @@ namespace yogi::core::llvm::internal {
 		context.builder.CreateBr(mergeBlock);
 
 		context.builder.SetInsertPoint(rawBlock);
-		auto *storedValue = cast(
-			value,
-			types.lower(pointeeSemanticType),
-			pointeeSemanticType,
-			sourceSemanticType
-		);
+		auto *storedValue = cast(value, types.lower(pointeeSemanticType), pointeeSemanticType, sourceSemanticType);
 
-		if (
-			resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_string_type &&
-			storedValue->getType()->isPointerTy()
-		) {
-			auto *previousValue = context.builder.CreateLoad(
-				storedValue->getType(),
-				pointer,
-				"ptr.write.string.previous"
-			);
+		if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_string_type && storedValue->getType()->isPointerTy()) {
+			auto *previousValue = context.builder.CreateLoad(storedValue->getType(), pointer, "ptr.write.string.previous");
 			auto *hasPrevious = context.builder.CreateIsNotNull(previousValue, "ptr.write.string.has_previous");
 			auto *isReplacement = context.builder.CreateICmpNE(previousValue, storedValue, "ptr.write.string.replacement");
-			auto *shouldDestroyPrevious = context.builder.CreateAnd(
-				hasPrevious,
-				isReplacement,
-				"ptr.write.string.should_destroy"
-			);
+			auto *shouldDestroyPrevious = context.builder.CreateAnd(hasPrevious, isReplacement, "ptr.write.string.should_destroy");
 			auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.write.string.destroy", function);
 			auto *rawStoreBlock = ::llvm::BasicBlock::Create(context.llvmContext, "ptr.write.string.store", function);
 
@@ -2885,9 +3253,7 @@ namespace yogi::core::llvm::internal {
 		context.builder.SetInsertPoint(mergeBlock);
 	}
 
-	std::optional<ValueLowerer::AddressableSlot> ValueLowerer::lowerStructAddressableSlot(
-		const Yogi::Sir::PropertyAccessExpression *property
-	) {
+	std::optional<ValueLowerer::AddressableSlot> ValueLowerer::lowerStructAddressableSlot(const Yogi::Sir::PropertyAccessExpression *property) {
 		if (!property) {
 			return std::nullopt;
 		}
@@ -2910,12 +3276,7 @@ namespace yogi::core::llvm::internal {
 				continue;
 			}
 
-			auto *fieldAddress = context.builder.CreateStructGEP(
-				structType,
-				objectSlot->address,
-				static_cast<unsigned>(field.index),
-				"addr." + sanitizeSymbol(structName) + "." + sanitizeSymbol(field.name)
-			);
+			auto *fieldAddress = context.builder.CreateStructGEP(structType, objectSlot->address, static_cast<unsigned>(field.index), "addr." + sanitizeSymbol(structName) + "." + sanitizeSymbol(field.name));
 
 			auto fieldPath = objectSlot->fieldPath;
 			fieldPath.push_back(field.name);
@@ -2926,9 +3287,7 @@ namespace yogi::core::llvm::internal {
 		return std::nullopt;
 	}
 
-	std::optional<ValueLowerer::AddressableSlot> ValueLowerer::lowerStructAddressableSlot(
-		const Yogi::Sir::ValueRef *value
-	) {
+	std::optional<ValueLowerer::AddressableSlot> ValueLowerer::lowerStructAddressableSlot(const Yogi::Sir::ValueRef *value) {
 		if (!value) {
 			return std::nullopt;
 		}
@@ -2955,14 +3314,7 @@ namespace yogi::core::llvm::internal {
 
 				if (!address) {
 					auto *llvmType = types.lower(type);
-					address = new ::llvm::GlobalVariable(
-						*context.module,
-						llvmType,
-						false,
-						::llvm::GlobalValue::ExternalLinkage,
-						nullptr,
-						symbolName
-					);
+					address = new ::llvm::GlobalVariable(*context.module, llvmType, false, ::llvm::GlobalValue::ExternalLinkage, nullptr, symbolName);
 				}
 			}
 
@@ -2970,17 +3322,8 @@ namespace yogi::core::llvm::internal {
 				return std::nullopt;
 			}
 
-			if (
-				type &&
-				type->kind() == Yogi::Sir::TypeKind_pointer_type &&
-				type->element_type() &&
-				!structTypeName(type->element_type()).empty()
-			) {
-				auto *pointer = context.builder.CreateLoad(
-					opaquePointer(),
-					address,
-					sanitizeSymbol(name.empty() ? "struct.ptr" : name) + ".ptr.load"
-				);
+			if (type && type->kind() == Yogi::Sir::TypeKind_pointer_type && type->element_type() && !structTypeName(type->element_type()).empty()) {
+				auto *pointer = context.builder.CreateLoad(opaquePointer(), address, sanitizeSymbol(name.empty() ? "struct.ptr" : name) + ".ptr.load");
 
 				return AddressableSlot{pointer, type->element_type(), name, {}};
 			}
@@ -2995,11 +3338,7 @@ namespace yogi::core::llvm::internal {
 		return std::nullopt;
 	}
 
-	bool ValueLowerer::collectPointerStructPropertyChain(
-		const Yogi::Sir::PropertyAccessExpression *property,
-		const Yogi::Sir::ValueRef *&root,
-		std::vector<const Yogi::Sir::PropertyAccessExpression *> &chain
-	) const {
+	bool ValueLowerer::collectPointerStructPropertyChain(const Yogi::Sir::PropertyAccessExpression *property, const Yogi::Sir::ValueRef *&root, std::vector<const Yogi::Sir::PropertyAccessExpression *> &chain) const {
 		root = nullptr;
 		chain.clear();
 
@@ -3024,16 +3363,10 @@ namespace yogi::core::llvm::internal {
 		std::reverse(chain.begin(), chain.end());
 
 		const auto *rootType = valueSemanticType(root);
-		return rootType &&
-			rootType->kind() == Yogi::Sir::TypeKind_pointer_type &&
-			rootType->element_type() &&
-			!structTypeName(rootType->element_type()).empty();
+		return rootType && rootType->kind() == Yogi::Sir::TypeKind_pointer_type && rootType->element_type() && !structTypeName(rootType->element_type()).empty();
 	}
 
-	std::optional<std::pair<::llvm::Value *, const Yogi::Sir::TypeRef *>>
-	ValueLowerer::lowerPointerStructFieldPointer(
-		const Yogi::Sir::PropertyAccessExpression *property
-	) {
+	std::optional<std::pair<::llvm::Value *, const Yogi::Sir::TypeRef *>> ValueLowerer::lowerPointerStructFieldPointer(const Yogi::Sir::PropertyAccessExpression *property) {
 		const Yogi::Sir::ValueRef *root = nullptr;
 		std::vector<const Yogi::Sir::PropertyAccessExpression *> chain;
 
@@ -3047,12 +3380,7 @@ namespace yogi::core::llvm::internal {
 	}
 
 	std::optional<std::pair<::llvm::Value *, const Yogi::Sir::TypeRef *>>
-	ValueLowerer::lowerPointerStructFieldPointer(
-		::llvm::Value *pointer,
-		const Yogi::Sir::TypeRef *structSemanticType,
-		const std::vector<const Yogi::Sir::PropertyAccessExpression *> &chain,
-		std::size_t chainIndex
-	) {
+	ValueLowerer::lowerPointerStructFieldPointer(::llvm::Value *pointer, const Yogi::Sir::TypeRef *structSemanticType, const std::vector<const Yogi::Sir::PropertyAccessExpression *> &chain, std::size_t chainIndex) {
 		if (!pointer || !structSemanticType || chainIndex >= chain.size()) {
 			return std::nullopt;
 		}
@@ -3095,12 +3423,7 @@ namespace yogi::core::llvm::internal {
 		auto *cellEnd = context.builder.GetInsertBlock();
 
 		context.builder.SetInsertPoint(rawBlock);
-		auto *fieldAddress = context.builder.CreateStructGEP(
-			context.structTypes[structName],
-			pointer,
-			static_cast<unsigned>(fieldIndex),
-			"ptr.struct.field.addr." + sanitizeSymbol(propertyName)
-		);
+		auto *fieldAddress = context.builder.CreateStructGEP(context.structTypes[structName], pointer, static_cast<unsigned>(fieldIndex), "ptr.struct.field.addr." + sanitizeSymbol(propertyName));
 		context.builder.CreateBr(mergeBlock);
 		auto *rawEnd = context.builder.GetInsertBlock();
 
@@ -3116,9 +3439,7 @@ namespace yogi::core::llvm::internal {
 		return lowerPointerStructFieldPointer(fieldPointer, fieldType, chain, chainIndex + 1);
 	}
 
-	::llvm::Value *ValueLowerer::lowerRuntimeObjectCellForPointer(
-		const Yogi::Sir::PropertyAccessExpression *property
-	) {
+	::llvm::Value *ValueLowerer::lowerRuntimeObjectCellForPointer(const Yogi::Sir::PropertyAccessExpression *property) {
 		if (!property) {
 			return ::llvm::ConstantPointerNull::get(opaquePointer());
 		}
@@ -3141,9 +3462,7 @@ namespace yogi::core::llvm::internal {
 		return tagRuntimeCellPointer(cell);
 	}
 
-	::llvm::Value *ValueLowerer::lowerRuntimeObjectCell(
-		const Yogi::Sir::PropertyAccessExpression *property
-	) {
+	::llvm::Value *ValueLowerer::lowerRuntimeObjectCell(const Yogi::Sir::PropertyAccessExpression *property) {
 		auto *object = lowerRuntimeObjectValue(property->object());
 		auto *key = context.builder.CreateGlobalString(fbString(property->property()));
 		return callRuntime("yogi_object_cell", opaquePointer(), {object, key});
@@ -3162,11 +3481,11 @@ namespace yogi::core::llvm::internal {
 
 		if (const auto *property = value->property_access()) {
 			if (auto slot = lowerStructAddressableSlot(property)) {
-				auto *loaded = context.builder.CreateLoad(
-					types.lower(slot->type),
-					slot->address,
-					"runtime.object.struct.slot.load"
-				);
+				auto *loaded = context.builder.CreateLoad(types.lower(slot->type), slot->address, "runtime.object.struct.slot.load");
+				if (resolvedTypeKind(slot->type) == Yogi::Sir::TypeKind_type_literal) {
+					return loaded;
+				}
+
 				auto *boxed = boxAny(loaded, slot->type);
 				return callRuntime("yogi_any_to_object", opaquePointer(), {boxed});
 			}
@@ -3179,18 +3498,14 @@ namespace yogi::core::llvm::internal {
 		return lower(value, opaquePointer(), valueSemanticType(value));
 	}
 
-	::llvm::Value *ValueLowerer::lowerAddressableArrayCell(
-		const Yogi::Sir::ElementAccessExpression *access
-	) {
+	::llvm::Value *ValueLowerer::lowerAddressableArrayCell(const Yogi::Sir::ElementAccessExpression *access) {
 		const auto *objectSemanticType = valueSemanticType(access->object());
 		auto objectKind = resolvedTypeKind(objectSemanticType);
 		const auto *arraySemanticType = objectSemanticType;
 		auto *array = lower(access->object(), opaquePointer(), objectSemanticType);
 
 		if (objectKind == Yogi::Sir::TypeKind_pointer_type) {
-			arraySemanticType = objectSemanticType && objectSemanticType->element_type()
-				? objectSemanticType->element_type()
-				: access->type();
+			arraySemanticType = objectSemanticType && objectSemanticType->element_type() ? objectSemanticType->element_type() : access->type();
 			array = lowerPointerArrayDescriptor(array, arraySemanticType);
 			objectKind = resolvedTypeKind(arraySemanticType);
 		}
@@ -3213,17 +3528,13 @@ namespace yogi::core::llvm::internal {
 		}
 
 		for (flatbuffers::uoffset_t dimension = 0; dimension + 1 < indexCount; ++dimension) {
-			const auto *indexRef = indices && indices->size() > 0
-				? indices->Get(dimension)
-				: access->index();
+			const auto *indexRef = indices && indices->size() > 0 ? indices->Get(dimension) : access->index();
 			auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
 			auto *rowValue = callRuntime("yogi_array_get", opaquePointer(), {array, toIndex(indexValue)});
 			array = callRuntime("yogi_any_to_array", opaquePointer(), {rowValue});
 		}
 
-		const auto *lastIndexRef = indices && indices->size() > 0
-			? indices->Get(indexCount - 1)
-			: access->index();
+		const auto *lastIndexRef = indices && indices->size() > 0 ? indices->Get(indexCount - 1) : access->index();
 		auto *indexValue = lower(lastIndexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(lastIndexRef));
 		auto *cell = callRuntime("yogi_array_cell", opaquePointer(), {array, toIndex(indexValue)});
 		context.popMemorySourceLocation();
@@ -3231,18 +3542,14 @@ namespace yogi::core::llvm::internal {
 		return cell;
 	}
 
-	::llvm::Value *ValueLowerer::lowerAddressableArrayPointerCell(
-		const Yogi::Sir::ElementAccessExpression *access
-	) {
+	::llvm::Value *ValueLowerer::lowerAddressableArrayPointerCell(const Yogi::Sir::ElementAccessExpression *access) {
 		const auto *objectSemanticType = valueSemanticType(access->object());
 		auto objectKind = resolvedTypeKind(objectSemanticType);
 		const auto *arraySemanticType = objectSemanticType;
 		auto *array = lower(access->object(), opaquePointer(), objectSemanticType);
 
 		if (objectKind == Yogi::Sir::TypeKind_pointer_type) {
-			arraySemanticType = objectSemanticType && objectSemanticType->element_type()
-				? objectSemanticType->element_type()
-				: access->type();
+			arraySemanticType = objectSemanticType && objectSemanticType->element_type() ? objectSemanticType->element_type() : access->type();
 			array = lowerPointerArrayDescriptor(array, arraySemanticType);
 			objectKind = resolvedTypeKind(arraySemanticType);
 		}
@@ -3265,17 +3572,13 @@ namespace yogi::core::llvm::internal {
 		}
 
 		for (flatbuffers::uoffset_t dimension = 0; dimension + 1 < indexCount; ++dimension) {
-			const auto *indexRef = indices && indices->size() > 0
-				? indices->Get(dimension)
-				: access->index();
+			const auto *indexRef = indices && indices->size() > 0 ? indices->Get(dimension) : access->index();
 			auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
 			auto *rowValue = callRuntime("yogi_array_get", opaquePointer(), {array, toIndex(indexValue)});
 			array = callRuntime("yogi_any_to_array", opaquePointer(), {rowValue});
 		}
 
-		const auto *lastIndexRef = indices && indices->size() > 0
-			? indices->Get(indexCount - 1)
-			: access->index();
+		const auto *lastIndexRef = indices && indices->size() > 0 ? indices->Get(indexCount - 1) : access->index();
 		auto *indexValue = lower(lastIndexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(lastIndexRef));
 		auto *cell = callRuntime("yogi_array_pointer_cell", opaquePointer(), {array, toIndex(indexValue)});
 		context.popMemorySourceLocation();
@@ -3283,62 +3586,31 @@ namespace yogi::core::llvm::internal {
 		return cell;
 	}
 
-		::llvm::Value *ValueLowerer::lowerAddressOf(
-			const Yogi::Sir::AddressOfExpression *addressOf,
-			::llvm::Type *expectedType,
-			const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerAddressOf(const Yogi::Sir::AddressOfExpression *addressOf, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto *target = addressOf->target();
 		const auto *element = target ? target->element_access() : nullptr;
 		const auto *property = target ? target->property_access() : nullptr;
 
 		if (element) {
 			auto *taggedPointer = lowerAddressableArrayPointerCell(element);
-			return cast(
-				taggedPointer,
-				expectedType ? expectedType : opaquePointer(),
-				expectedSemanticType ? expectedSemanticType : addressOf->type(),
-				addressOf->type()
-			);
+			return cast(taggedPointer, expectedType ? expectedType : opaquePointer(), expectedSemanticType ? expectedSemanticType : addressOf->type(), addressOf->type());
 		}
 
 		if (property) {
 			if (auto slot = lowerStructAddressableSlot(target)) {
 				const auto slotKind = resolvedTypeKind(slot->type);
 
-				if (
-					slotKind == Yogi::Sir::TypeKind_array_type ||
-					slotKind == Yogi::Sir::TypeKind_tuple_type
-				) {
-					auto *loaded = context.builder.CreateLoad(
-						opaquePointer(),
-						slot->address,
-						"addr.aggregate.ptr.load"
-					);
+				if (slotKind == Yogi::Sir::TypeKind_array_type || slotKind == Yogi::Sir::TypeKind_tuple_type) {
+					auto *loaded = context.builder.CreateLoad(opaquePointer(), slot->address, "addr.aggregate.ptr.load");
 
-					return cast(
-						loaded,
-						expectedType ? expectedType : opaquePointer(),
-						expectedSemanticType ? expectedSemanticType : addressOf->type(),
-						addressOf->type()
-					);
+					return cast(loaded, expectedType ? expectedType : opaquePointer(), expectedSemanticType ? expectedSemanticType : addressOf->type(), addressOf->type());
 				}
 
-				return cast(
-					slot->address,
-					expectedType ? expectedType : opaquePointer(),
-					expectedSemanticType ? expectedSemanticType : addressOf->type(),
-					addressOf->type()
-				);
+				return cast(slot->address, expectedType ? expectedType : opaquePointer(), expectedSemanticType ? expectedSemanticType : addressOf->type(), addressOf->type());
 			}
 
 			auto *taggedPointer = lowerRuntimeObjectCellForPointer(property);
-			return cast(
-				taggedPointer,
-				expectedType ? expectedType : opaquePointer(),
-				expectedSemanticType ? expectedSemanticType : addressOf->type(),
-				addressOf->type()
-			);
+			return cast(taggedPointer, expectedType ? expectedType : opaquePointer(), expectedSemanticType ? expectedSemanticType : addressOf->type(), addressOf->type());
 		}
 
 		const auto *identifier = target ? target->identifier() : nullptr;
@@ -3356,14 +3628,7 @@ namespace yogi::core::llvm::internal {
 
 			if (!address) {
 				auto *type = types.lower(identifier->type());
-				address = new ::llvm::GlobalVariable(
-					*context.module,
-					type,
-					false,
-					::llvm::GlobalValue::ExternalLinkage,
-					nullptr,
-					symbolName
-				);
+				address = new ::llvm::GlobalVariable(*context.module, type, false, ::llvm::GlobalValue::ExternalLinkage, nullptr, symbolName);
 			}
 		}
 
@@ -3372,71 +3637,37 @@ namespace yogi::core::llvm::internal {
 		}
 
 		const auto *pointerType = addressOf->type();
-		const auto *pointeeSemanticType = pointerType && pointerType->element_type()
-			? pointerType->element_type()
-			: nullptr;
+		const auto *pointeeSemanticType = pointerType && pointerType->element_type() ? pointerType->element_type() : nullptr;
 		const auto pointeeKind = resolvedTypeKind(pointeeSemanticType);
 
-		if (
-			pointeeKind == Yogi::Sir::TypeKind_array_type ||
-			pointeeKind == Yogi::Sir::TypeKind_tuple_type
-		) {
-			auto *loaded = context.builder.CreateLoad(
-				opaquePointer(),
-				address,
-				sanitizeSymbol(name.empty() ? "aggregate" : name) + ".ptr.load"
-			);
+		if (pointeeKind == Yogi::Sir::TypeKind_array_type || pointeeKind == Yogi::Sir::TypeKind_tuple_type) {
+			auto *loaded = context.builder.CreateLoad(opaquePointer(), address, sanitizeSymbol(name.empty() ? "aggregate" : name) + ".ptr.load");
 
-			return cast(
-				loaded,
-				expectedType ? expectedType : opaquePointer(),
-				expectedSemanticType ? expectedSemanticType : addressOf->type(),
-				addressOf->type()
-			);
+			return cast(loaded, expectedType ? expectedType : opaquePointer(), expectedSemanticType ? expectedSemanticType : addressOf->type(), addressOf->type());
 		}
 
-		return cast(
-			address,
-			expectedType ? expectedType : opaquePointer(),
-			expectedSemanticType ? expectedSemanticType : addressOf->type(),
-				addressOf->type()
-			);
-		}
+		return cast(address, expectedType ? expectedType : opaquePointer(), expectedSemanticType ? expectedSemanticType : addressOf->type(), addressOf->type());
+	}
 
-		::llvm::Value *ValueLowerer::lowerDereference(
-			const Yogi::Sir::DereferenceExpression *dereference,
-			::llvm::Type *expectedType,
-			const Yogi::Sir::TypeRef *expectedSemanticType
-		) {
+	::llvm::Value *ValueLowerer::lowerDereference(const Yogi::Sir::DereferenceExpression *dereference, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 			const auto *pointerSemanticType = valueSemanticType(dereference->target());
 			auto *pointer = lower(dereference->target(), opaquePointer(), pointerSemanticType);
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : dereference->type();
 			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
 			const auto targetKind = resolvedTypeKind(targetSemanticType);
 
-			if (
-				targetKind == Yogi::Sir::TypeKind_array_type ||
-				targetKind == Yogi::Sir::TypeKind_tuple_type
-			) {
+		if (targetKind == Yogi::Sir::TypeKind_array_type || targetKind == Yogi::Sir::TypeKind_tuple_type) {
 				return lowerPointerRead(pointer, dereference->type(), targetType, targetSemanticType);
 			}
 
 			return lowerPointerRead(pointer, dereference->type(), targetType, targetSemanticType);
 		}
 
-		::llvm::Value *ValueLowerer::lowerArray(
-			const Yogi::Sir::ArrayExpression *array,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerArray(const Yogi::Sir::ArrayExpression *array, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto shape = fixedShape(expectedSemanticType);
 		const auto fixedLength = isFixedLengthArray(expectedSemanticType);
 		const auto hasSpread = arrayContainsSpread(array);
-		const auto length = fixedLength
-			? fixedShapeElementCount(shape)
-			: hasSpread
-				? 0
-				: static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
+		const auto length = fixedLength ? fixedShapeElementCount(shape) : hasSpread ? 0 : static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
 		context.pushMemorySourceLocation(array->position());
 		auto *storageMode = context.builder.CreateGlobalString(arrayStorageModeName(array, expectedSemanticType));
 		auto *aggregate = callRuntime(
@@ -3445,32 +3676,27 @@ namespace yogi::core::llvm::internal {
 			{
 				::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), length),
 				storageMode,
-			}
-		);
+		    });
+		installArrayBoxPolicy(aggregate, expectedSemanticType);
 
 		if (isFixedShapeArray(expectedSemanticType)) {
 			populateFixedShapeArray(array, aggregate, expectedSemanticType);
 		} else {
-			populateArray(array, aggregate, hasSpread && !fixedLength);
+			populateArray(array, aggregate, hasSpread && !fixedLength, expectedSemanticType);
 		}
 		context.popMemorySourceLocation();
+
+		if (isBoxedDynamicType(expectedSemanticType)) {
+			return callRuntime("yogi_any_from_array", opaquePointer(), {aggregate});
+		}
 
 		return cast(aggregate, expectedType ? expectedType : opaquePointer(), expectedSemanticType, array->type());
 	}
 
-	::llvm::Value *ValueLowerer::lowerObject(
-		const Yogi::Sir::ObjectExpression *object,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerObject(const Yogi::Sir::ObjectExpression *object, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto structName = structTypeName(expectedSemanticType);
 		if (!structName.empty() && context.structTypes.contains(structName)) {
-			return lowerStructObject(
-				object,
-				structName,
-				context.structTypes[structName],
-				context.structFields[structName]
-			);
+			return lowerStructObject(object, structName, context.structTypes[structName], context.structFields[structName]);
 		}
 
 		context.pushMemorySourceLocation(object->position());
@@ -3479,15 +3705,14 @@ namespace yogi::core::llvm::internal {
 		populateObject(object, aggregate);
 		context.popMemorySourceLocation();
 
+		if (isBoxedDynamicType(expectedSemanticType)) {
+			return callRuntime("yogi_any_from_object", opaquePointer(), {aggregate});
+		}
+
 		return cast(aggregate, expectedType ? expectedType : opaquePointer(), expectedSemanticType, object->type());
 	}
 
-	::llvm::Value *ValueLowerer::lowerStructObject(
-		const Yogi::Sir::ObjectExpression *object,
-		const std::string &structName,
-		::llvm::StructType *structType,
-		const std::vector<ModuleLoweringContext::StructFieldInfo> &fields
-	) {
+	::llvm::Value *ValueLowerer::lowerStructObject(const Yogi::Sir::ObjectExpression *object, const std::string &structName, ::llvm::StructType *structType, const std::vector<ModuleLoweringContext::StructFieldInfo> &fields) {
 		std::map<std::string, const Yogi::Sir::ObjectProperty *> properties;
 
 		if (object->properties()) {
@@ -3503,24 +3728,19 @@ namespace yogi::core::llvm::internal {
 
 			if (properties.contains(field.name)) {
 				const auto *property = properties[field.name];
-				fieldValue = cast(
-					lower(property->value(), types.lower(field.type), field.type),
-					types.lower(field.type),
-					field.type,
-					property->type()
-				);
+				fieldValue = cast(lower(property->value(), types.lower(field.type), field.type), types.lower(field.type), field.type, property->type());
 				if (context.retainEscapedObjectGraph) {
 					retainEscapedBorrowedViewSource(property->value(), fieldValue);
 					deactivateEscapedAggregateGraphOwner(property->value());
+				} else {
+					const auto fieldKind = resolvedTypeKind(field.type);
+					if (fieldKind == Yogi::Sir::TypeKind_array_type || fieldKind == Yogi::Sir::TypeKind_tuple_type || fieldKind == Yogi::Sir::TypeKind_type_literal) {
+						deactivateEscapedAggregateGraphOwner(property->value());
+					}
 				}
 			}
 
-			result = context.builder.CreateInsertValue(
-				result,
-				fieldValue,
-				{static_cast<unsigned>(field.index)},
-				"struct." + sanitizeSymbol(field.name)
-			);
+			result = context.builder.CreateInsertValue(result, fieldValue, {static_cast<unsigned>(field.index)}, "struct." + sanitizeSymbol(field.name));
 		}
 
 		emitStructValidateChain(structName, result);
@@ -3528,17 +3748,10 @@ namespace yogi::core::llvm::internal {
 		return result;
 	}
 
-	::llvm::Value *ValueLowerer::printStructObject(
-		const std::string &structName,
-		::llvm::Value *structValue
-	) {
+	::llvm::Value *ValueLowerer::printStructObject(const std::string &structName, ::llvm::Value *structValue) {
 		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
 
-		if (
-			structName.empty() ||
-			!structValue ||
-			!context.structFields.contains(structName)
-		) {
+		if (structName.empty() || !structValue || !context.structFields.contains(structName)) {
 			auto *value = context.builder.CreateGlobalString("[aggregate]");
 			return callRuntime("yogi_print_string", voidType, {value});
 		}
@@ -3553,7 +3766,11 @@ namespace yogi::core::llvm::internal {
 			);
 			auto *boxedValue = boxAny(fieldValue, field.type);
 			auto *key = context.builder.CreateGlobalString(field.name);
-			callRuntime("yogi_object_set", voidType, {object, key, boxedValue});
+			callRuntime(
+				resolvedTypeKind(field.type) == Yogi::Sir::TypeKind_pointer_type ? "yogi_object_set_unboxed" : "yogi_object_set_borrowed",
+				voidType,
+				{object, key, boxedValue}
+			);
 		}
 
 		auto *result = callRuntime("yogi_print_object", voidType, {object});
@@ -3584,11 +3801,7 @@ namespace yogi::core::llvm::internal {
 
 			const auto symbolName = "_yogi_fn_" + sanitizeSymbol(validatorName);
 			auto *validator = context.module->getFunction(symbolName);
-			auto *validatorArgument = coerceStructForValidator(
-				structName,
-				validatorStructName,
-				structValue
-			);
+			auto *validatorArgument = coerceStructForValidator(structName, validatorStructName, structValue);
 
 			if (!validator) {
 				std::vector<::llvm::Type *> parameters;
@@ -3597,56 +3810,30 @@ namespace yogi::core::llvm::internal {
 				}
 
 				auto *validatorType = ::llvm::FunctionType::get(booleanType, parameters, false);
-				validator = ::llvm::Function::Create(
-					validatorType,
-					::llvm::Function::ExternalLinkage,
-					symbolName,
-					context.module.get()
-				);
+				validator = ::llvm::Function::Create(validatorType, ::llvm::Function::ExternalLinkage, symbolName, context.module.get());
 			}
 
-			auto *isValid = context.builder.CreateCall(
-				validator,
-				validatorArgument ? std::vector<::llvm::Value *>{validatorArgument} : std::vector<::llvm::Value *>{},
-				"struct.validate." + sanitizeSymbol(validatorName)
-			);
-			auto *continueBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				"struct.validate.continue",
-				function
-			);
-			auto *failedBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				"struct.validate.failed",
-				function
-			);
+			auto *isValid = context.builder.CreateCall(validator, validatorArgument ? std::vector<::llvm::Value *>{validatorArgument} : std::vector<::llvm::Value *>{}, "struct.validate." + sanitizeSymbol(validatorName));
+			auto *continueBlock = ::llvm::BasicBlock::Create(context.llvmContext, "struct.validate.continue", function);
+			auto *failedBlock = ::llvm::BasicBlock::Create(context.llvmContext, "struct.validate.failed", function);
 
 			context.builder.CreateCondBr(isValid, continueBlock, failedBlock);
 
 			context.builder.SetInsertPoint(failedBlock);
-			auto *abort = context.runtimeFunction(
-				"yogi_struct_validate_failed",
-				voidType,
-				{pointerType, pointerType}
-			);
+			auto *abort = context.runtimeFunction("yogi_struct_validate_failed", voidType, {pointerType, pointerType});
 			context.builder.CreateCall(
 				abort,
 				{
 					context.builder.CreateGlobalString(structName),
 					context.builder.CreateGlobalString(validatorName),
-				}
-			);
+			    });
 			context.builder.CreateUnreachable();
 
 			context.builder.SetInsertPoint(continueBlock);
 		}
 	}
 
-	::llvm::Value *ValueLowerer::coerceStructForValidator(
-		const std::string &sourceStructName,
-		const std::string &targetStructName,
-		::llvm::Value *structValue
-	) {
+	::llvm::Value *ValueLowerer::coerceStructForValidator(const std::string &sourceStructName, const std::string &targetStructName, ::llvm::Value *structValue) {
 		if (!structValue || targetStructName.empty()) {
 			return structValue;
 		}
@@ -3655,10 +3842,7 @@ namespace yogi::core::llvm::internal {
 			return structValue;
 		}
 
-		if (
-			!context.structTypes.contains(targetStructName) ||
-			!context.structFields.contains(targetStructName)
-		) {
+		if (!context.structTypes.contains(targetStructName) || !context.structFields.contains(targetStructName)) {
 			return structValue;
 		}
 
@@ -3702,18 +3886,10 @@ namespace yogi::core::llvm::internal {
 			const auto shape = fixedShape(arrayType);
 			const auto fixedLength = isFixedLengthArray(arrayType);
 			const auto hasSpread = arrayContainsSpread(array);
-			const auto length = fixedLength
-				? fixedShapeElementCount(shape)
-				: hasSpread
-					? 0
-					: static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
+			const auto length = fixedLength ? fixedShapeElementCount(shape) : hasSpread ? 0 : static_cast<uint64_t>(array->elements() ? array->elements()->size() : 0);
 			context.pushMemorySourceLocation(array->position());
 			auto *size = callRuntime("yogi_array_sizeof", ::llvm::Type::getInt64Ty(context.llvmContext), {});
-			auto *storage = context.builder.CreateAlloca(
-				::llvm::Type::getInt8Ty(context.llvmContext),
-				size,
-				safeName + ".array.storage"
-			);
+			auto *storage = context.builder.CreateAlloca(::llvm::Type::getInt8Ty(context.llvmContext), size, safeName + ".array.storage");
 			auto *storageMode = context.builder.CreateGlobalString(arrayStorageModeName(array, arrayType));
 
 			callRuntime(
@@ -3723,12 +3899,12 @@ namespace yogi::core::llvm::internal {
 					storage,
 					::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), length),
 					storageMode,
-				}
-			);
+			    });
+			installArrayBoxPolicy(storage, arrayType);
 			if (isFixedShapeArray(arrayType)) {
 				populateFixedShapeArray(array, storage, arrayType);
 			} else {
-				populateArray(array, storage, hasSpread && !fixedLength);
+				populateArray(array, storage, hasSpread && !fixedLength, arrayType);
 			}
 			context.popMemorySourceLocation();
 
@@ -3738,11 +3914,7 @@ namespace yogi::core::llvm::internal {
 		if (const auto *object = value->object()) {
 			context.pushMemorySourceLocation(object->position());
 			auto *size = callRuntime("yogi_object_sizeof", ::llvm::Type::getInt64Ty(context.llvmContext), {});
-			auto *storage = context.builder.CreateAlloca(
-				::llvm::Type::getInt8Ty(context.llvmContext),
-				size,
-				safeName + ".object.storage"
-			);
+			auto *storage = context.builder.CreateAlloca(::llvm::Type::getInt8Ty(context.llvmContext), size, safeName + ".object.storage");
 
 			callRuntime("yogi_object_init", ::llvm::Type::getVoidTy(context.llvmContext), {storage});
 			populateObject(object, storage);
@@ -3797,6 +3969,11 @@ namespace yogi::core::llvm::internal {
 		}
 
 		switch (resolvedTypeKind(type)) {
+		case Yogi::Sir::TypeKind_any_type:
+		case Yogi::Sir::TypeKind_union_type:
+			callRuntime("yogi_any_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
+			return;
+
 			case Yogi::Sir::TypeKind_string_type:
 				callRuntime("yogi_string_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
 				return;
@@ -3818,11 +3995,45 @@ namespace yogi::core::llvm::internal {
 		}
 	}
 
-	void ValueLowerer::destroyNativeResourceStructFields(
-		const std::string &owner,
-		const Yogi::Sir::TypeRef *type,
-		::llvm::Value *value
-	) {
+	::llvm::Value *ValueLowerer::copyOwnedValue(::llvm::Value *value, const Yogi::Sir::TypeRef *type) {
+		if (!value || !type) {
+			return value;
+		}
+
+		const auto structName = structTypeName(type);
+		if (!structName.empty() && context.structFields.contains(structName)) {
+			::llvm::Value *copy = ::llvm::UndefValue::get(value->getType());
+
+			for (const auto &field: context.structFields[structName]) {
+				auto *fieldValue = context.builder.CreateExtractValue(value, {static_cast<unsigned>(field.index)}, "struct.copy." + sanitizeSymbol(field.name));
+				auto *fieldCopy = copyOwnedValue(fieldValue, field.type);
+				copy = context.builder.CreateInsertValue(copy, fieldCopy, {static_cast<unsigned>(field.index)}, "struct.copy.insert." + sanitizeSymbol(field.name));
+			}
+
+			return copy;
+		}
+
+		switch (resolvedTypeKind(type)) {
+			case Yogi::Sir::TypeKind_string_type:
+				return callRuntime("yogi_string_from_native_owned", opaquePointer(), {value});
+
+			case Yogi::Sir::TypeKind_array_type:
+			case Yogi::Sir::TypeKind_tuple_type:
+				return callRuntime("yogi_array_clone", opaquePointer(), {value});
+
+			case Yogi::Sir::TypeKind_type_literal:
+				return callRuntime("yogi_object_clone", opaquePointer(), {value});
+
+			case Yogi::Sir::TypeKind_any_type:
+			case Yogi::Sir::TypeKind_union_type:
+				return callRuntime("yogi_any_clone_owned", opaquePointer(), {value});
+
+			default:
+				return value;
+		}
+	}
+
+	void ValueLowerer::destroyNativeResourceStructFields(const std::string &owner, const Yogi::Sir::TypeRef *type, ::llvm::Value *value) {
 		if (owner.empty() || !type || !value) {
 			return;
 		}
@@ -3839,10 +4050,7 @@ namespace yogi::core::llvm::internal {
 
 				while (start <= fieldPath.size()) {
 					const auto end = fieldPath.find('.', start);
-					const auto part = fieldPath.substr(
-						start,
-						end == std::string::npos ? std::string::npos : end - start
-					);
+					const auto part = fieldPath.substr(start, end == std::string::npos ? std::string::npos : end - start);
 					if (!part.empty()) {
 						result.push_back(part);
 					}
@@ -3863,10 +4071,7 @@ namespace yogi::core::llvm::internal {
 
 			for (const auto &part: parts) {
 				const auto structName = structTypeName(currentType);
-				if (
-					structName.empty() ||
-					!context.structFields.contains(structName)
-				) {
+				if (structName.empty() || !context.structFields.contains(structName)) {
 					validPath = false;
 					break;
 				}
@@ -3884,11 +4089,7 @@ namespace yogi::core::llvm::internal {
 					break;
 				}
 
-				currentValue = context.builder.CreateExtractValue(
-					currentValue,
-					{static_cast<unsigned>(matchedField->index)},
-					"native.struct.destroy." + sanitizeSymbol(part)
-				);
+				currentValue = context.builder.CreateExtractValue(currentValue, {static_cast<unsigned>(matchedField->index)}, "native.struct.destroy." + sanitizeSymbol(part));
 				currentType = matchedField->type;
 			}
 
@@ -3898,35 +4099,19 @@ namespace yogi::core::llvm::internal {
 
 			auto *isNull = context.builder.CreateIsNull(currentValue);
 			auto *function = context.builder.GetInsertBlock()->getParent();
-			auto *destroyBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				"native.struct.field.destroy",
-				function
-			);
-			auto *skipBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				"native.struct.field.skip",
-				function
-			);
+			auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.field.destroy", function);
+			auto *skipBlock = ::llvm::BasicBlock::Create(context.llvmContext, "native.struct.field.skip", function);
 			context.builder.CreateCondBr(isNull, skipBlock, destroyBlock);
 			context.builder.SetInsertPoint(destroyBlock);
 
-			auto *destroy = context.runtimeFunction(
-				destroyFunction,
-				::llvm::Type::getVoidTy(context.llvmContext),
-				{::llvm::PointerType::getUnqual(context.llvmContext)}
-			);
+			auto *destroy = context.runtimeFunction(destroyFunction, ::llvm::Type::getVoidTy(context.llvmContext), {::llvm::PointerType::getUnqual(context.llvmContext)});
 			context.builder.CreateCall(destroy, {currentValue});
 			context.builder.CreateBr(skipBlock);
 			context.builder.SetInsertPoint(skipBlock);
 		}
 	}
 
-	void ValueLowerer::destroyNativeResourceArrayElements(
-		const std::string &owner,
-		const Yogi::Sir::TypeRef *type,
-		::llvm::Value *value
-	) {
+	void ValueLowerer::destroyNativeResourceArrayElements(const std::string &owner, const Yogi::Sir::TypeRef *type, ::llvm::Value *value) {
 		if (owner.empty() || !type || !value) {
 			return;
 		}
@@ -3941,54 +4126,123 @@ namespace yogi::core::llvm::internal {
 			return;
 		}
 
-		auto *integerType = ::llvm::Type::getInt64Ty(context.llvmContext);
-		auto *length = callRuntime("yogi_array_length", integerType, {value});
-		auto *function = context.builder.GetInsertBlock()->getParent();
-		auto *indexSlot = context.builder.CreateAlloca(integerType, nullptr, "array.resource.cleanup.index");
-		auto *conditionBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.resource.cleanup.cond", function);
-		auto *bodyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.resource.cleanup.body", function);
-		auto *afterBlock = ::llvm::BasicBlock::Create(context.llvmContext, "array.resource.cleanup.done", function);
-		const auto elementOwner = owner + ".$element";
-
-		context.registerNativeResourceFieldOwners(elementOwner, fields);
-		context.builder.CreateStore(::llvm::ConstantInt::get(integerType, 0), indexSlot);
-		context.builder.CreateBr(conditionBlock);
-
-		context.builder.SetInsertPoint(conditionBlock);
-		auto *index = context.builder.CreateLoad(integerType, indexSlot, "array.resource.cleanup.i");
-		auto *hasMore = context.builder.CreateICmpULT(index, length, "array.resource.cleanup.more");
-		context.builder.CreateCondBr(hasMore, bodyBlock, afterBlock);
-
-		context.builder.SetInsertPoint(bodyBlock);
-		auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {value, index});
-		auto *elementValue = unboxAny(boxedElement, elementType);
-		destroyNativeResourceStructFields(elementOwner, elementType, elementValue);
-		auto *nextIndex = context.builder.CreateAdd(
-			index,
-			::llvm::ConstantInt::get(integerType, 1),
-			"array.resource.cleanup.next"
-		);
-		context.builder.CreateStore(nextIndex, indexSlot);
-		context.builder.CreateBr(conditionBlock);
-
-		context.builder.SetInsertPoint(afterBlock);
-		context.clearNativeResourceFieldOwners(elementOwner);
+		installArrayElementOwnershipPolicy(value, fields, elementType);
 	}
 
-	bool ValueLowerer::isStructType(const Yogi::Sir::TypeRef *type) const {
-		return !structTypeName(type).empty();
+	bool ValueLowerer::isStructType(const Yogi::Sir::TypeRef *type) const { return !structTypeName(type).empty(); }
+
+	bool ValueLowerer::typeRequiresOwnedCopy(const Yogi::Sir::TypeRef *type) const {
+		std::vector<std::string> visited;
+		std::function<bool(const Yogi::Sir::TypeRef *)> visit = [&](const Yogi::Sir::TypeRef *current) {
+			if (!current) {
+				return false;
+			}
+
+			const auto structName = structTypeName(current);
+			if (!structName.empty() && context.structFields.contains(structName)) {
+				if (std::find(visited.begin(), visited.end(), structName) != visited.end()) {
+					return false;
+				}
+
+				visited.push_back(structName);
+				const auto requiresCopy = std::any_of(
+					context.structFields.at(structName).begin(),
+					context.structFields.at(structName).end(),
+					[&](const ModuleLoweringContext::StructFieldInfo &field) {
+						return visit(field.type);
+					});
+				visited.pop_back();
+				return requiresCopy;
+			}
+
+			switch (resolvedTypeKind(current)) {
+				case Yogi::Sir::TypeKind_string_type:
+				case Yogi::Sir::TypeKind_array_type:
+				case Yogi::Sir::TypeKind_tuple_type:
+				case Yogi::Sir::TypeKind_type_literal:
+				case Yogi::Sir::TypeKind_any_type:
+				case Yogi::Sir::TypeKind_union_type:
+					return true;
+
+				default:
+					return false;
+			}
+		};
+
+		return visit(type);
 	}
 
-	void ValueLowerer::destroyStructFields(
-		const std::string &structName,
-		::llvm::Value *structValue,
-		bool escaped
-	) {
-		if (
-			structName.empty() ||
-			!structValue ||
-			!context.structFields.contains(structName)
-		) {
+	bool ValueLowerer::typeContainsPointer(const Yogi::Sir::TypeRef *type) const {
+		std::vector<std::string> visited;
+		std::function<bool(const Yogi::Sir::TypeRef *)> visit = [&](const Yogi::Sir::TypeRef *current) {
+			if (!current) {
+				return false;
+			}
+
+			if (resolvedTypeKind(current) == Yogi::Sir::TypeKind_pointer_type) {
+				return true;
+			}
+
+			const auto structName = structTypeName(current);
+			if (structName.empty() || !context.structFields.contains(structName)) {
+				return false;
+			}
+
+			if (std::find(visited.begin(), visited.end(), structName) != visited.end()) {
+				return false;
+			}
+
+			visited.push_back(structName);
+			const auto containsPointer = std::any_of(
+				context.structFields.at(structName).begin(),
+				context.structFields.at(structName).end(),
+				[&](const ModuleLoweringContext::StructFieldInfo &field) {
+					return visit(field.type);
+				});
+			visited.pop_back();
+			return containsPointer;
+		};
+
+		return visit(type);
+	}
+
+	bool ValueLowerer::returnRequiresOwnedCopy(const Yogi::Sir::ValueRef *value, const Yogi::Sir::TypeRef *type) const {
+		if (!value || !type) {
+			return false;
+		}
+
+		const auto kind = resolvedTypeKind(type);
+		const auto managedReturn =
+			!structTypeName(type).empty() ||
+			kind == Yogi::Sir::TypeKind_string_type ||
+			kind == Yogi::Sir::TypeKind_array_type ||
+			kind == Yogi::Sir::TypeKind_tuple_type ||
+			kind == Yogi::Sir::TypeKind_type_literal ||
+			kind == Yogi::Sir::TypeKind_any_type ||
+			kind == Yogi::Sir::TypeKind_union_type;
+		if (!managedReturn) {
+			return false;
+		}
+
+		if (value->property_access() || value->element_access() || value->dereference()) {
+			return true;
+		}
+
+		const auto *call = value->call();
+		if (!call) {
+			return false;
+		}
+
+		const auto method = fbString(call->builtin_method());
+		return
+			method == "array.at" ||
+			method == "array.find" ||
+			method == "array.findLast" ||
+			callReturnsBorrowedArray(call);
+	}
+
+	void ValueLowerer::destroyStructFields(const std::string &structName, ::llvm::Value *structValue, bool escaped) {
+		if (structName.empty() || !structValue || !context.structFields.contains(structName)) {
 			return;
 		}
 
@@ -4000,31 +4254,30 @@ namespace yogi::core::llvm::internal {
 			const auto fieldStructName = structTypeName(field.type);
 			const auto fieldKind = resolvedTypeKind(field.type);
 			const auto shouldDestroy =
-				!fieldStructName.empty() ||
-				fieldKind == Yogi::Sir::TypeKind_string_type ||
-				fieldKind == Yogi::Sir::TypeKind_array_type ||
-				fieldKind == Yogi::Sir::TypeKind_tuple_type ||
-				fieldKind == Yogi::Sir::TypeKind_type_literal;
+			    !fieldStructName.empty() || fieldKind == Yogi::Sir::TypeKind_string_type || fieldKind == Yogi::Sir::TypeKind_array_type || fieldKind == Yogi::Sir::TypeKind_tuple_type ||
+			    fieldKind == Yogi::Sir::TypeKind_type_literal || fieldKind == Yogi::Sir::TypeKind_any_type || fieldKind == Yogi::Sir::TypeKind_union_type;
 
 			if (!shouldDestroy) {
 				continue;
 			}
 
-			auto *fieldValue = context.builder.CreateExtractValue(
-				structValue,
-				{static_cast<unsigned>(field.index)},
-				"struct.destroy." + sanitizeSymbol(field.name)
-			);
+			auto *fieldValue = context.builder.CreateExtractValue(structValue, {static_cast<unsigned>(field.index)}, "struct.destroy." + sanitizeSymbol(field.name));
+
+			if (fieldKind == Yogi::Sir::TypeKind_array_type || fieldKind == Yogi::Sir::TypeKind_tuple_type) {
+				callRuntime("yogi_array_release", ::llvm::Type::getVoidTy(context.llvmContext), {fieldValue});
+				continue;
+			}
+
+			if (!fieldStructName.empty()) {
+				destroyStructFields(fieldStructName, fieldValue, escaped);
+				continue;
+			}
 
 			destroyEscapedAggregate(field.type, fieldValue);
 		}
 	}
 
-	void ValueLowerer::populateArray(
-		const Yogi::Sir::ArrayExpression *array,
-		::llvm::Value *aggregate,
-		bool appendMode
-	) {
+	void ValueLowerer::populateArray(const Yogi::Sir::ArrayExpression *array, ::llvm::Value *aggregate, bool appendMode, const Yogi::Sir::TypeRef *arrayType) {
 		if (!array->elements()) {
 			return;
 		}
@@ -4050,6 +4303,7 @@ namespace yogi::core::llvm::internal {
 			context.builder.CreateStore(nextTargetIndex, targetIndexSlot);
 		};
 
+		std::map<std::string, std::string> elementResourceFields;
 		for (const auto *element: *array->elements()) {
 			if (const auto *spread = element ? element->spread() : nullptr) {
 				auto *sourceArray = lower(spread->expression(), opaquePointer(), spread->type());
@@ -4069,20 +4323,21 @@ namespace yogi::core::llvm::internal {
 
 				context.builder.SetInsertPoint(bodyBlock);
 				auto *boxedElement = callRuntime("yogi_array_get", opaquePointer(), {sourceArray, sourceIndex});
-				emitBoxedValue(boxedElement);
-				auto *nextSourceIndex = context.builder.CreateAdd(
-					sourceIndex,
-					::llvm::ConstantInt::get(i64, 1),
-					"array.spread.next"
-				);
+				auto *copiedElement = callRuntime("yogi_array_copy_element", opaquePointer(), {sourceArray, boxedElement});
+				emitBoxedValue(copiedElement);
+				auto *nextSourceIndex = context.builder.CreateAdd(sourceIndex, ::llvm::ConstantInt::get(i64, 1), "array.spread.next");
 				context.builder.CreateStore(nextSourceIndex, sourceIndexSlot);
 				context.builder.CreateBr(conditionBlock);
 
 				context.builder.SetInsertPoint(afterBlock);
+				if (isOwnedArrayExpression(spread->expression())) {
+					destroyArrayTemporary(sourceArray);
+				}
 				continue;
 			}
 
 			const auto *elementType = valueSemanticType(element);
+			mergeNativeResourceFields(elementResourceFields, nativeResourceStructFieldsFromValue(element, context));
 			auto *elementValue = lower(element, types.lower(elementType), elementType);
 			if (context.retainEscapedObjectGraph) {
 				retainEscapedBorrowedViewSource(element, elementValue);
@@ -4091,17 +4346,14 @@ namespace yogi::core::llvm::internal {
 			auto *boxedValue = boxAny(elementValue, elementType);
 			emitBoxedValue(boxedValue);
 		}
+
+		installArrayElementOwnershipPolicy(aggregate, elementResourceFields, arrayElementType(arrayType));
 	}
 
-	void ValueLowerer::populateFixedShapeArray(
-		const Yogi::Sir::ArrayExpression *array,
-		::llvm::Value *aggregate,
-		const Yogi::Sir::TypeRef *arrayType
-	) {
+	void ValueLowerer::populateFixedShapeArray(const Yogi::Sir::ArrayExpression *array, ::llvm::Value *aggregate, const Yogi::Sir::TypeRef *arrayType) {
 		uint64_t flatIndex = 0;
-		const auto *elementType = arrayType ? arrayType->element_type() : nullptr;
-		const std::function<void(const Yogi::Sir::ArrayExpression *)> emitElements =
-			[&](const Yogi::Sir::ArrayExpression *current) {
+		const auto *elementType = arrayElementType(arrayType);
+		const std::function<void(const Yogi::Sir::ArrayExpression *)> emitElements = [&](const Yogi::Sir::ArrayExpression *current) {
 				if (!current || !current->elements()) {
 					return;
 				}
@@ -4124,8 +4376,7 @@ namespace yogi::core::llvm::internal {
 							aggregate,
 							::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), flatIndex++),
 							boxedValue,
-						}
-					);
+				    });
 				}
 			};
 
@@ -4133,19 +4384,13 @@ namespace yogi::core::llvm::internal {
 	}
 
 	bool ValueLowerer::isFixedShapeArray(const Yogi::Sir::TypeRef *type) const {
-		return type &&
-			type->kind() == Yogi::Sir::TypeKind_array_type &&
-			type->fixed() &&
-			type->shape() &&
-			type->shape()->size() > 1;
+		const auto *resolved = resolvedType(type);
+		return resolved && resolved->kind() == Yogi::Sir::TypeKind_array_type && resolved->fixed() && resolved->shape() && resolved->shape()->size() > 1;
 	}
 
 	bool ValueLowerer::isFixedLengthArray(const Yogi::Sir::TypeRef *type) const {
-		return type &&
-			type->kind() == Yogi::Sir::TypeKind_array_type &&
-			type->fixed() &&
-			type->shape() &&
-			type->shape()->size() > 0;
+		const auto *resolved = resolvedType(type);
+		return resolved && resolved->kind() == Yogi::Sir::TypeKind_array_type && resolved->fixed() && resolved->shape() && resolved->shape()->size() > 0;
 	}
 
 	bool ValueLowerer::arrayContainsSpread(const Yogi::Sir::ArrayExpression *array) const {
@@ -4172,10 +4417,7 @@ namespace yogi::core::llvm::internal {
 		return false;
 	}
 
-	std::string ValueLowerer::arrayStorageModeName(
-		const Yogi::Sir::ArrayExpression *array,
-		const Yogi::Sir::TypeRef *arrayType
-	) const {
+	std::string ValueLowerer::arrayStorageModeName(const Yogi::Sir::ArrayExpression *array, const Yogi::Sir::TypeRef *arrayType) const {
 		if (isFixedLengthArray(arrayType)) {
 			return "contiguous_fast_path";
 		}
@@ -4183,19 +4425,18 @@ namespace yogi::core::llvm::internal {
 		const auto *mode = array ? array->storage_mode() : nullptr;
 		const auto value = mode ? mode->str() : "";
 
-		return value == "pointer_safe_chunked_mode"
-			? "pointer_safe_chunked_mode"
-			: "contiguous_fast_path";
+		return value == "pointer_safe_chunked_mode" ? "pointer_safe_chunked_mode" : "contiguous_fast_path";
 	}
 
 	std::vector<int64_t> ValueLowerer::fixedShape(const Yogi::Sir::TypeRef *type) const {
 		std::vector<int64_t> result;
+		const auto *resolved = resolvedType(type);
 
-		if (!type || !type->shape()) {
+		if (!resolved || !resolved->shape()) {
 			return result;
 		}
 
-		for (const auto dimension: *type->shape()) {
+		for (const auto dimension : *resolved->shape()) {
 			result.push_back(static_cast<int64_t>(dimension));
 		}
 
@@ -4212,20 +4453,13 @@ namespace yogi::core::llvm::internal {
 		return count;
 	}
 
-	::llvm::Value *ValueLowerer::fixedShapeLinearOffset(
-		const Yogi::Sir::ElementAccessExpression *access,
-		const std::vector<int64_t> &shape,
-		size_t consumedDimensions,
-		bool sliceStart
-	) {
+	::llvm::Value *ValueLowerer::fixedShapeLinearOffset(const Yogi::Sir::ElementAccessExpression *access, const std::vector<int64_t> &shape, size_t consumedDimensions, bool sliceStart) {
 		auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
 		::llvm::Value *offset = ::llvm::ConstantInt::get(i64, 0);
 		const auto *indices = access->indices();
 
 		for (size_t dimension = 0; dimension < consumedDimensions; ++dimension) {
-			const auto *indexRef = indices && indices->size() > 0
-				? indices->Get(static_cast<flatbuffers::uoffset_t>(dimension))
-				: access->index();
+			const auto *indexRef = indices && indices->size() > 0 ? indices->Get(static_cast<flatbuffers::uoffset_t>(dimension)) : access->index();
 			auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
 			auto *index = toIndex(indexValue);
 			auto *dimensionSize = ::llvm::ConstantInt::get(i64, static_cast<uint64_t>(shape[dimension]));
@@ -4241,11 +4475,7 @@ namespace yogi::core::llvm::internal {
 			context.builder.CreateUnreachable();
 
 			context.builder.SetInsertPoint(inBlock);
-			offset = context.builder.CreateAdd(
-				context.builder.CreateMul(offset, dimensionSize, "array.shape.stride.mul"),
-				index,
-				"array.shape.offset"
-			);
+			offset = context.builder.CreateAdd(context.builder.CreateMul(offset, dimensionSize, "array.shape.stride.mul"), index, "array.shape.offset");
 		}
 
 		if (sliceStart && consumedDimensions < shape.size()) {
@@ -4256,11 +4486,7 @@ namespace yogi::core::llvm::internal {
 		return offset;
 	}
 
-	::llvm::Value *ValueLowerer::createBorrowedFixedShapeView(
-		::llvm::Value *array,
-		::llvm::Value *startOffset,
-		uint64_t length
-	) {
+	::llvm::Value *ValueLowerer::createBorrowedFixedShapeView(::llvm::Value *array, ::llvm::Value *startOffset, uint64_t length) {
 		auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
 		return callRuntime(
 			"yogi_array_view",
@@ -4269,28 +4495,19 @@ namespace yogi::core::llvm::internal {
 				array,
 				startOffset,
 				::llvm::ConstantInt::get(i64, length),
-			}
-		);
+		    });
 	}
 
-	void ValueLowerer::copyFixedShapeSlice(
-		::llvm::Value *targetArray,
-		::llvm::Value *targetStart,
-		::llvm::Value *sourceArray,
-		uint64_t length
-	) {
+	void ValueLowerer::copyFixedShapeSlice(::llvm::Value *targetArray, ::llvm::Value *targetStart, ::llvm::Value *sourceArray, uint64_t length) {
 		auto *i64 = ::llvm::Type::getInt64Ty(context.llvmContext);
 		auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
 
 		for (uint64_t index = 0; index < length; ++index) {
 			auto *sourceIndex = ::llvm::ConstantInt::get(i64, index);
-			auto *targetIndex = context.builder.CreateAdd(
-				targetStart,
-				sourceIndex,
-				"array.shape.slice.copy.index"
-			);
+			auto *targetIndex = context.builder.CreateAdd(targetStart, sourceIndex, "array.shape.slice.copy.index");
 			auto *boxedValue = callRuntime("yogi_array_get", opaquePointer(), {sourceArray, sourceIndex});
-			callRuntime("yogi_array_set", voidType, {targetArray, targetIndex, boxedValue});
+			auto *copiedValue = callRuntime("yogi_array_copy_element", opaquePointer(), {sourceArray, boxedValue});
+			callRuntime("yogi_array_set", voidType, {targetArray, targetIndex, copiedValue});
 		}
 	}
 
@@ -4302,63 +4519,53 @@ namespace yogi::core::llvm::internal {
 				if (context.retainEscapedObjectGraph) {
 					retainEscapedBorrowedViewSource(property->value(), value);
 					deactivateEscapedAggregateGraphOwner(property->value());
+				} else {
+					const auto propertyKind = resolvedTypeKind(propertyType);
+					if (propertyKind == Yogi::Sir::TypeKind_array_type || propertyKind == Yogi::Sir::TypeKind_tuple_type || propertyKind == Yogi::Sir::TypeKind_type_literal) {
+						deactivateEscapedAggregateGraphOwner(property->value());
 				}
-				auto *boxedValue = boxAny(value, propertyType);
+				}
+				const auto pointerProperty = resolvedTypeKind(propertyType) == Yogi::Sir::TypeKind_pointer_type;
+				auto *storedValue = pointerProperty ? value : boxAny(value, propertyType);
 				auto *key = context.builder.CreateGlobalString(fbString(property->key()));
 
-				callRuntime(
-					"yogi_object_set",
-					::llvm::Type::getVoidTy(context.llvmContext),
-					{aggregate, key, boxedValue}
-				);
+				callRuntime(pointerProperty ? "yogi_object_set_unboxed" : "yogi_object_set", ::llvm::Type::getVoidTy(context.llvmContext), {aggregate, key, storedValue});
 			}
 		}
 	}
 
-	::llvm::Value *ValueLowerer::lowerPropertyAccess(
-		const Yogi::Sir::PropertyAccessExpression *access,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerPropertyAccess(const Yogi::Sir::PropertyAccessExpression *access, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto propertyName = fbString(access->property());
 		const auto *objectSemanticType = valueSemanticType(access->object());
 		const auto objectKind = resolvedTypeKind(objectSemanticType);
 
-		if (
-			propertyName == "length" &&
-			(objectKind == Yogi::Sir::TypeKind_array_type || objectKind == Yogi::Sir::TypeKind_tuple_type)
-		) {
+		if (propertyName == "length" && (objectKind == Yogi::Sir::TypeKind_array_type || objectKind == Yogi::Sir::TypeKind_tuple_type)) {
 			auto *array = lower(access->object(), opaquePointer(), objectSemanticType);
-			auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
-			auto *asNumber = context.builder.CreateUIToFP(
-				length,
-				::llvm::Type::getDoubleTy(context.llvmContext),
-				"array.length"
-			);
+			const auto shape = fixedShape(objectSemanticType);
+			auto *length = isFixedLengthArray(objectSemanticType) && !shape.empty() ? static_cast<::llvm::Value *>(::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), static_cast<uint64_t>(shape.front())))
+			                                                                        : callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+			auto *asNumber = context.builder.CreateUIToFP(length, ::llvm::Type::getDoubleTy(context.llvmContext), "array.length");
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
+			auto *result = cast(asNumber, targetType, targetSemanticType, access->type());
+			if (isOwnedArrayExpression(access->object())) {
+				destroyArrayTemporary(array);
+			}
 
-			return cast(asNumber, targetType, targetSemanticType, access->type());
+			return result;
 		}
 
 		if (propertyName == "length" && objectKind == Yogi::Sir::TypeKind_pointer_type) {
-			const auto *pointeeSemanticType = objectSemanticType && objectSemanticType->element_type()
-				? objectSemanticType->element_type()
-				: nullptr;
+			const auto *pointeeSemanticType = objectSemanticType && objectSemanticType->element_type() ? objectSemanticType->element_type() : nullptr;
 			const auto pointeeKind = resolvedTypeKind(pointeeSemanticType);
 
-			if (
-				pointeeKind == Yogi::Sir::TypeKind_array_type ||
-				pointeeKind == Yogi::Sir::TypeKind_tuple_type
-			) {
+			if (pointeeKind == Yogi::Sir::TypeKind_array_type || pointeeKind == Yogi::Sir::TypeKind_tuple_type) {
 				auto *pointer = lower(access->object(), opaquePointer(), objectSemanticType);
 				auto *array = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
-				auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
-				auto *asNumber = context.builder.CreateUIToFP(
-					length,
-					::llvm::Type::getDoubleTy(context.llvmContext),
-					"ptr.array.length"
-				);
+				const auto shape = fixedShape(pointeeSemanticType);
+				auto *length = isFixedLengthArray(pointeeSemanticType) && !shape.empty() ? static_cast<::llvm::Value *>(::llvm::ConstantInt::get(::llvm::Type::getInt64Ty(context.llvmContext), static_cast<uint64_t>(shape.front())))
+				                                                                         : callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
+				auto *asNumber = context.builder.CreateUIToFP(length, ::llvm::Type::getDoubleTy(context.llvmContext), "ptr.array.length");
 				const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 				auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
 
@@ -4369,11 +4576,7 @@ namespace yogi::core::llvm::internal {
 		if (propertyName == "length" && objectKind == Yogi::Sir::TypeKind_string_type) {
 			auto *text = lower(access->object(), opaquePointer(), objectSemanticType);
 			auto *length = callRuntime("yogi_string_length", ::llvm::Type::getInt64Ty(context.llvmContext), {text});
-			auto *asNumber = context.builder.CreateUIToFP(
-				length,
-				::llvm::Type::getDoubleTy(context.llvmContext),
-				"string.length"
-			);
+			auto *asNumber = context.builder.CreateUIToFP(length, ::llvm::Type::getDoubleTy(context.llvmContext), "string.length");
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
 
@@ -4388,11 +4591,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (auto slot = lowerStructAddressableSlot(access)) {
-			auto *value = context.builder.CreateLoad(
-				types.lower(slot->type),
-				slot->address,
-				"struct.field.load." + sanitizeSymbol(propertyName)
-			);
+			auto *value = context.builder.CreateLoad(types.lower(slot->type), slot->address, "struct.field.load." + sanitizeSymbol(propertyName));
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
 
@@ -4409,11 +4608,7 @@ namespace yogi::core::llvm::internal {
 					continue;
 				}
 
-				auto *value = context.builder.CreateExtractValue(
-					object,
-					{static_cast<unsigned>(field.index)},
-					"struct.field." + sanitizeSymbol(field.name)
-				);
+				auto *value = context.builder.CreateExtractValue(object, {static_cast<unsigned>(field.index)}, "struct.field." + sanitizeSymbol(field.name));
 				const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 				auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
 
@@ -4430,20 +4625,14 @@ namespace yogi::core::llvm::internal {
 		return cast(unboxAny(boxedValue, targetSemanticType), targetType, targetSemanticType, targetSemanticType);
 	}
 
-	::llvm::Value *ValueLowerer::lowerElementAccess(
-		const Yogi::Sir::ElementAccessExpression *access,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerElementAccess(const Yogi::Sir::ElementAccessExpression *access, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto *objectSemanticType = valueSemanticType(access->object());
 		const auto objectKind = resolvedTypeKind(objectSemanticType);
 		if (objectKind == Yogi::Sir::TypeKind_pointer_type) {
 			auto *pointer = lower(access->object(), opaquePointer(), objectSemanticType);
 			const auto *targetSemanticType = expectedSemanticType ? expectedSemanticType : access->type();
 			auto *targetType = expectedType ? expectedType : types.lower(targetSemanticType);
-			const auto *pointeeSemanticType = objectSemanticType && objectSemanticType->element_type()
-				? objectSemanticType->element_type()
-				: access->type();
+			const auto *pointeeSemanticType = objectSemanticType && objectSemanticType->element_type() ? objectSemanticType->element_type() : access->type();
 
 			if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
 				auto *array = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
@@ -4457,20 +4646,14 @@ namespace yogi::core::llvm::internal {
 
 					if (consumedDimensions < shape.size()) {
 						auto *startOffset = fixedShapeLinearOffset(access, shape, consumedDimensions, true);
-						auto *view = createBorrowedFixedShapeView(
-							array,
-							startOffset,
-							fixedShapeElementCount(shape, consumedDimensions)
-						);
+						auto *view = createBorrowedFixedShapeView(array, startOffset, fixedShapeElementCount(shape, consumedDimensions));
 						return cast(view, targetType, targetSemanticType, targetSemanticType);
 					}
 
 					auto *offset = fixedShapeLinearOffset(access, shape, consumedDimensions, false);
 					boxedValue = callRuntime("yogi_array_get", opaquePointer(), {array, offset});
 				} else {
-					const auto *indexRef = indices && indices->size() > 0
-						? indices->Get(0)
-						: access->index();
+					const auto *indexRef = indices && indices->size() > 0 ? indices->Get(0) : access->index();
 					auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
 					auto *index = toIndex(indexValue);
 					auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
@@ -4529,9 +4712,7 @@ namespace yogi::core::llvm::internal {
 		auto *boxedValue = static_cast<::llvm::Value *>(nullptr);
 
 		for (flatbuffers::uoffset_t dimension = 0; dimension < indexCount; ++dimension) {
-			const auto *indexRef = indices && indices->size() > 0
-				? indices->Get(dimension)
-				: access->index();
+			const auto *indexRef = indices && indices->size() > 0 ? indices->Get(dimension) : access->index();
 			auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
 			auto *index = toIndex(indexValue);
 			auto *length = callRuntime("yogi_array_length", ::llvm::Type::getInt64Ty(context.llvmContext), {array});
@@ -4560,33 +4741,19 @@ namespace yogi::core::llvm::internal {
 		return cast(unboxAny(boxedValue, targetSemanticType), targetType, targetSemanticType, targetSemanticType);
 	}
 
-	::llvm::Value *ValueLowerer::lowerAggregateAssignment(
-		const Yogi::Sir::AggregateAssignmentExpression *assignment
-	) {
+	::llvm::Value *ValueLowerer::lowerAggregateAssignment(const Yogi::Sir::AggregateAssignmentExpression *assignment) {
 		const auto *target = assignment->target();
 		const auto *rightType = valueSemanticType(assignment->right());
 		const auto targetRoot = rootIdentifierName(target);
-		const auto targetEscapes =
-			!targetRoot.empty() &&
-			context.globals.contains(targetRoot) &&
-			isAggregateLiteral(assignment->right());
-		auto *rightValue = targetEscapes
-			? lowerWithEscapedObjectGraphRetention(assignment->right(), types.lower(rightType), rightType)
-			: lower(assignment->right(), types.lower(rightType), rightType);
+		const auto targetEscapes = !targetRoot.empty() && context.globals.contains(targetRoot) && isAggregateLiteral(assignment->right());
+		auto *rightValue = targetEscapes ? lowerWithEscapedObjectGraphRetention(assignment->right(), types.lower(rightType), rightType) : lower(assignment->right(), types.lower(rightType), rightType);
 		const auto rightKind = resolvedTypeKind(rightType);
-		if (
-			rightKind == Yogi::Sir::TypeKind_array_type ||
-			rightKind == Yogi::Sir::TypeKind_tuple_type
-		) {
+		if (rightKind == Yogi::Sir::TypeKind_array_type || rightKind == Yogi::Sir::TypeKind_tuple_type) {
 			retainEscapedBorrowedViewSource(assignment->right(), rightValue);
 		}
 
 			if (const auto *dereference = target ? target->dereference() : nullptr) {
-				auto *pointer = lower(
-					dereference->target(),
-					opaquePointer(),
-					valueSemanticType(dereference->target())
-				);
+			auto *pointer = lower(dereference->target(), opaquePointer(), valueSemanticType(dereference->target()));
 				lowerPointerWrite(pointer, rightValue, dereference->type(), rightType);
 				return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
 			}
@@ -4595,9 +4762,7 @@ namespace yogi::core::llvm::internal {
 				const auto *objectType = valueSemanticType(element->object());
 				if (resolvedTypeKind(objectType) == Yogi::Sir::TypeKind_pointer_type) {
 				auto *pointer = lower(element->object(), opaquePointer(), objectType);
-				const auto *pointeeSemanticType = objectType && objectType->element_type()
-					? objectType->element_type()
-					: element->type();
+				const auto *pointeeSemanticType = objectType && objectType->element_type() ? objectType->element_type() : element->type();
 
 				if (resolvedTypeKind(pointeeSemanticType) == Yogi::Sir::TypeKind_array_type) {
 					auto *array = lowerPointerArrayDescriptor(pointer, pointeeSemanticType);
@@ -4608,18 +4773,8 @@ namespace yogi::core::llvm::internal {
 					if (isFixedLengthArray(pointeeSemanticType)) {
 						const auto shape = fixedShape(pointeeSemanticType);
 						if (static_cast<size_t>(indexCount) < shape.size()) {
-							auto *startOffset = fixedShapeLinearOffset(
-								element,
-								shape,
-								static_cast<size_t>(indexCount),
-								true
-							);
-							copyFixedShapeSlice(
-								array,
-								startOffset,
-								rightValue,
-								fixedShapeElementCount(shape, static_cast<size_t>(indexCount))
-							);
+							auto *startOffset = fixedShapeLinearOffset(element, shape, static_cast<size_t>(indexCount), true);
+							copyFixedShapeSlice(array, startOffset, rightValue, fixedShapeElementCount(shape, static_cast<size_t>(indexCount)));
 							context.popMemorySourceLocation();
 							return cast(rightValue, types.lower(assignment->type()), assignment->type(), rightType);
 						}
@@ -4632,9 +4787,7 @@ namespace yogi::core::llvm::internal {
 					}
 
 					auto *boxedValue = boxAny(rightValue, rightType);
-					const auto *indexRef = indices && indices->size() > 0
-						? indices->Get(0)
-						: element->index();
+					const auto *indexRef = indices && indices->size() > 0 ? indices->Get(0) : element->index();
 					auto *indexValue = lower(indexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(indexRef));
 					callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, toIndex(indexValue), boxedValue});
 					context.popMemorySourceLocation();
@@ -4656,65 +4809,30 @@ namespace yogi::core::llvm::internal {
 				const auto slotStructName = structTypeName(slot->type);
 				const auto slotKind = resolvedTypeKind(slot->type);
 				const auto slotOwnsResource =
-					!slotStructName.empty() ||
-					slotKind == Yogi::Sir::TypeKind_string_type ||
-					slotKind == Yogi::Sir::TypeKind_array_type ||
-					slotKind == Yogi::Sir::TypeKind_tuple_type ||
-					slotKind == Yogi::Sir::TypeKind_type_literal;
+				    !slotStructName.empty() || slotKind == Yogi::Sir::TypeKind_string_type || slotKind == Yogi::Sir::TypeKind_array_type || slotKind == Yogi::Sir::TypeKind_tuple_type || slotKind == Yogi::Sir::TypeKind_type_literal;
 
 				if (slotOwnsResource) {
-					auto *previousValue = context.builder.CreateLoad(
-						types.lower(slot->type),
-						slot->address,
-						"struct.assign.previous." + sanitizeSymbol(fbString(property->property()))
-					);
+					auto *previousValue = context.builder.CreateLoad(types.lower(slot->type), slot->address, "struct.assign.previous." + sanitizeSymbol(fbString(property->property())));
 					destroyEscapedAggregate(slot->type, previousValue);
 				}
 
-				auto *fieldValue = cast(
-					rightValue,
-					types.lower(slot->type),
-					slot->type,
-					rightType
-				);
+				auto *fieldValue = cast(rightValue, types.lower(slot->type), slot->type, rightType);
 				const auto slotPath = fieldPathKey(slot->fieldPath);
-				const auto currentNativeResourceDestructor =
-					context.nativeResourceFieldDestroyFunction(slot->owner, slotPath);
-				const auto nextNativeResourceDestructor =
-					nativeResourceOwnerDestructorFunction(assignment->right(), context);
+				const auto currentNativeResourceDestructor = context.nativeResourceFieldDestroyFunction(slot->owner, slotPath);
+				const auto nextNativeResourceDestructor = nativeResourceOwnerDestructorFunction(assignment->right(), context);
 
 				if (currentNativeResourceDestructor && fieldValue->getType()->isPointerTy()) {
-					auto *previousValue = context.builder.CreateLoad(
-						types.lower(slot->type),
-						slot->address,
-						"struct.native.previous." + sanitizeSymbol(slotPath)
-					);
+					auto *previousValue = context.builder.CreateLoad(types.lower(slot->type), slot->address, "struct.native.previous." + sanitizeSymbol(slotPath));
 					auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
 					auto *isReplacement = context.builder.CreateICmpNE(previousValue, fieldValue);
-					auto *shouldDestroyPrevious = context.builder.CreateAnd(
-						hasPrevious,
-						isReplacement,
-						"struct.native.should_destroy." + sanitizeSymbol(slotPath)
-					);
+					auto *shouldDestroyPrevious = context.builder.CreateAnd(hasPrevious, isReplacement, "struct.native.should_destroy." + sanitizeSymbol(slotPath));
 					auto *function = context.builder.GetInsertBlock()->getParent();
-					auto *destroyBlock = ::llvm::BasicBlock::Create(
-						context.llvmContext,
-						"struct.native.replace.destroy",
-						function
-					);
-					auto *storeBlock = ::llvm::BasicBlock::Create(
-						context.llvmContext,
-						"struct.native.replace.store",
-						function
-					);
+					auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, "struct.native.replace.destroy", function);
+					auto *storeBlock = ::llvm::BasicBlock::Create(context.llvmContext, "struct.native.replace.store", function);
 
 					context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, storeBlock);
 					context.builder.SetInsertPoint(destroyBlock);
-					auto *destroy = context.runtimeFunction(
-						*currentNativeResourceDestructor,
-						::llvm::Type::getVoidTy(context.llvmContext),
-						{::llvm::PointerType::getUnqual(context.llvmContext)}
-					);
+					auto *destroy = context.runtimeFunction(*currentNativeResourceDestructor, ::llvm::Type::getVoidTy(context.llvmContext), {::llvm::PointerType::getUnqual(context.llvmContext)});
 					context.builder.CreateCall(destroy, {previousValue});
 					context.builder.CreateBr(storeBlock);
 					context.builder.SetInsertPoint(storeBlock);
@@ -4736,7 +4854,8 @@ namespace yogi::core::llvm::internal {
 				}
 
 				auto *cell = lowerRuntimeObjectCell(property);
-				lowerPointerWrite(tagRuntimeCellPointer(cell), rightValue, property->type(), rightType);
+			auto *boxedValue = boxAny(rightValue, rightType);
+			callRuntime("yogi_object_cell_set", ::llvm::Type::getVoidTy(context.llvmContext), {cell, boxedValue});
 			const auto objectName = identifierName(property->object());
 			const auto rightName = identifierName(assignment->right());
 
@@ -4757,18 +4876,8 @@ namespace yogi::core::llvm::internal {
 			if (isFixedShapeArray(objectSemanticType)) {
 				const auto shape = fixedShape(objectSemanticType);
 				if (static_cast<size_t>(indexCount) < shape.size()) {
-					auto *startOffset = fixedShapeLinearOffset(
-						element,
-						shape,
-						static_cast<size_t>(indexCount),
-						true
-					);
-					copyFixedShapeSlice(
-						array,
-						startOffset,
-						rightValue,
-						fixedShapeElementCount(shape, static_cast<size_t>(indexCount))
-					);
+					auto *startOffset = fixedShapeLinearOffset(element, shape, static_cast<size_t>(indexCount), true);
+					copyFixedShapeSlice(array, startOffset, rightValue, fixedShapeElementCount(shape, static_cast<size_t>(indexCount)));
 					context.popMemorySourceLocation();
 					return cast(rightValue, types.lower(element->type()), element->type(), rightType);
 				}
@@ -4788,9 +4897,7 @@ namespace yogi::core::llvm::internal {
 				array = callRuntime("yogi_any_to_array", opaquePointer(), {rowValue});
 			}
 
-			const auto *lastIndexRef = indices && indices->size() > 0
-				? indices->Get(indexCount - 1)
-				: element->index();
+			const auto *lastIndexRef = indices && indices->size() > 0 ? indices->Get(indexCount - 1) : element->index();
 			auto *indexValue = lower(lastIndexRef, ::llvm::Type::getDoubleTy(context.llvmContext), valueSemanticType(lastIndexRef));
 			callRuntime("yogi_array_set", ::llvm::Type::getVoidTy(context.llvmContext), {array, toIndex(indexValue), boxedValue});
 			context.popMemorySourceLocation();
@@ -4834,11 +4941,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		const auto targetKind = resolvedTypeKind(targetSemanticType);
-		if (
-			targetKind == Yogi::Sir::TypeKind_array_type &&
-			!isFixedLengthArray(targetSemanticType) &&
-			targetType->isPointerTy()
-		) {
+		if (targetKind == Yogi::Sir::TypeKind_array_type && !isFixedLengthArray(targetSemanticType) && targetType->isPointerTy()) {
 			const auto receiverReturningArrayMethod = [](const Yogi::Sir::ValueRef *value) {
 				const auto *call = value ? value->call() : nullptr;
 				if (!call || !call->builtin_method()) {
@@ -4846,65 +4949,26 @@ namespace yogi::core::llvm::internal {
 				}
 
 				const auto method = fbString(call->builtin_method());
-				return method == "array.reverse" ||
-					method == "array.fill" ||
-					method == "array.copyWithin" ||
-					method == "array.sort";
+				return method == "array.reverse" || method == "array.fill" || method == "array.copyWithin" || method == "array.sort";
 			};
 			const auto *right = assignment->right();
-			const auto sourceArrayElementResourceFields =
-				right && right->call()
-					? nativeResourceArrayElementFieldsFromCall(right->call(), context)
-					: std::map<std::string, std::string>();
-			const auto shouldDestroySource =
-				isAggregateLiteral(right) ||
-				(right && right->call() && !receiverReturningArrayMethod(right));
+			const auto sourceArrayElementResourceFields = right && right->call() ? nativeResourceArrayElementFieldsFromCall(right->call(), context) : std::map<std::string, std::string>();
+			const auto shouldDestroySource = isAggregateLiteral(right) || (right && right->call() && !receiverReturningArrayMethod(right));
 			const auto shouldRetainGraph = targetIsGlobal && isAggregateLiteral(right);
-			auto *source = cast(
-				shouldRetainGraph
-					? lowerWithEscapedObjectGraphRetention(right, targetType, targetSemanticType)
-					: lower(right, targetType, targetSemanticType),
-				targetType,
-				targetSemanticType,
-				targetSemanticType
-			);
-			auto *previousValue = context.builder.CreateLoad(
-				targetType,
-				target,
-				sanitizeSymbol(name) + ".array.previous"
-			);
+			auto *source = cast(shouldRetainGraph ? lowerWithEscapedObjectGraphRetention(right, targetType, targetSemanticType) : lower(right, targetType, targetSemanticType), targetType, targetSemanticType, targetSemanticType);
+			auto *previousValue = context.builder.CreateLoad(targetType, target, sanitizeSymbol(name) + ".array.previous");
 			auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
-			auto *sameArray = context.builder.CreateICmpEQ(
-				previousValue,
-				source,
-				sanitizeSymbol(name) + ".array.same"
-			);
-			auto *shouldReplace = context.builder.CreateAnd(
-				hasPrevious,
-				context.builder.CreateNot(sameArray),
-				sanitizeSymbol(name) + ".array.should_replace"
-			);
+			auto *sameArray = context.builder.CreateICmpEQ(previousValue, source, sanitizeSymbol(name) + ".array.same");
+			auto *shouldReplace = context.builder.CreateAnd(hasPrevious, context.builder.CreateNot(sameArray), sanitizeSymbol(name) + ".array.should_replace");
 			auto *function = context.builder.GetInsertBlock()->getParent();
-			auto *replaceBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				sanitizeSymbol(name) + ".array.replace",
-				function
-			);
-			auto *storeBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				sanitizeSymbol(name) + ".array.store",
-				function
-			);
-			auto *mergeBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				sanitizeSymbol(name) + ".array.assignment.done",
-				function
-			);
+			auto *replaceBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".array.replace", function);
+			auto *storeBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".array.store", function);
+			auto *mergeBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".array.assignment.done", function);
 
 			context.builder.CreateCondBr(shouldReplace, replaceBlock, storeBlock);
 
 			context.builder.SetInsertPoint(replaceBlock);
-			callRuntime("yogi_array_replace_from", ::llvm::Type::getVoidTy(context.llvmContext), {previousValue, source});
+			callRuntime("yogi_array_move_replace_from", ::llvm::Type::getVoidTy(context.llvmContext), {previousValue, source});
 			if (shouldDestroySource) {
 				destroyEscapedAggregate(targetSemanticType, source);
 			}
@@ -4922,14 +4986,8 @@ namespace yogi::core::llvm::internal {
 		}
 
 		const auto retainGraph = targetIsGlobal && isAggregateLiteral(assignment->right());
-		auto *value = cast(
-			retainGraph
-				? lowerWithEscapedObjectGraphRetention(assignment->right(), targetType, targetSemanticType)
-				: lower(assignment->right(), targetType, targetSemanticType),
-			targetType,
-			targetSemanticType,
-			targetSemanticType
-		);
+		auto *value = cast(retainGraph ? lowerWithEscapedObjectGraphRetention(assignment->right(), targetType, targetSemanticType) : lower(assignment->right(), targetType, targetSemanticType), targetType, targetSemanticType, targetSemanticType);
+		value = materializeBoxedValueCopy(value, assignment->right(), targetSemanticType);
 		const auto nativeResourceDestructor = nativeResourceReturnDestructorFunction(assignment->right(), context);
 		std::optional<std::string> movedNativeResourceDestructor;
 		std::string movedNativeResourceName;
@@ -4939,46 +4997,24 @@ namespace yogi::core::llvm::internal {
 			movedNativeResourceDestructor = context.nativeResourceDestroyFunction(movedNativeResourceName);
 		}
 
-		const auto nextNativeResourceDestructor = !nativeResourceDestructor.empty()
-			? std::optional<std::string>(nativeResourceDestructor)
-			: movedNativeResourceDestructor;
+		const auto nextNativeResourceDestructor = !nativeResourceDestructor.empty() ? std::optional<std::string>(nativeResourceDestructor) : movedNativeResourceDestructor;
 		bool transferredNativeResource = false;
 
 		if (!targetIsGlobal && targetType->isPointerTy()) {
 			const auto currentNativeResourceDestructor = context.nativeResourceDestroyFunction(name);
 
 			if (currentNativeResourceDestructor) {
-				auto *previousValue = context.builder.CreateLoad(
-					targetType,
-					target,
-					sanitizeSymbol(name) + ".native.previous"
-				);
+				auto *previousValue = context.builder.CreateLoad(targetType, target, sanitizeSymbol(name) + ".native.previous");
 				auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
 				auto *isReplacement = context.builder.CreateICmpNE(previousValue, value);
-				auto *shouldDestroyPrevious = context.builder.CreateAnd(
-					hasPrevious,
-					isReplacement,
-					sanitizeSymbol(name) + ".native.should_destroy"
-				);
+				auto *shouldDestroyPrevious = context.builder.CreateAnd(hasPrevious, isReplacement, sanitizeSymbol(name) + ".native.should_destroy");
 				auto *function = context.builder.GetInsertBlock()->getParent();
-				auto *destroyBlock = ::llvm::BasicBlock::Create(
-					context.llvmContext,
-					sanitizeSymbol(name) + ".native.replace.destroy",
-					function
-				);
-				auto *storeBlock = ::llvm::BasicBlock::Create(
-					context.llvmContext,
-					sanitizeSymbol(name) + ".native.replace.store",
-					function
-				);
+				auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".native.replace.destroy", function);
+				auto *storeBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".native.replace.store", function);
 
 				context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, storeBlock);
 				context.builder.SetInsertPoint(destroyBlock);
-				auto *destroy = context.runtimeFunction(
-					*currentNativeResourceDestructor,
-					::llvm::Type::getVoidTy(context.llvmContext),
-					{::llvm::PointerType::getUnqual(context.llvmContext)}
-				);
+				auto *destroy = context.runtimeFunction(*currentNativeResourceDestructor, ::llvm::Type::getVoidTy(context.llvmContext), {::llvm::PointerType::getUnqual(context.llvmContext)});
 				context.builder.CreateCall(destroy, {previousValue});
 				context.builder.CreateBr(storeBlock);
 				context.builder.SetInsertPoint(storeBlock);
@@ -4988,13 +5024,7 @@ namespace yogi::core::llvm::internal {
 				if (!movedNativeResourceName.empty()) {
 					context.deactivateAggregateOwner(movedNativeResourceName);
 				}
-				context.registerNativeResourceOwner(
-					name,
-					assignment->left()->symbol_id(),
-					value,
-					target,
-					*nextNativeResourceDestructor
-				);
+				context.registerNativeResourceOwner(name, assignment->left()->symbol_id(), value, target, *nextNativeResourceDestructor, assignment->position());
 				transferredNativeResource = true;
 			} else if (currentNativeResourceDestructor) {
 				context.deactivateAggregateOwner(name);
@@ -5002,29 +5032,12 @@ namespace yogi::core::llvm::internal {
 		}
 
 		const auto structMoveSourceName = moveSourceName(assignment->right());
-		const auto structReturnFieldDestructors = nativeResourceStructReturnFieldDestructors(
-			assignment->right(),
-			context
-		);
-		const auto structObjectFieldDestructors = nativeResourceStructFieldsFromValue(
-			assignment->right(),
-			context
-		);
-		const auto isLocalResourceStructReplacement =
-			!targetIsGlobal &&
-			!structTypeName(targetSemanticType).empty() &&
-			(
-				!structMoveSourceName.empty() ||
-				!structReturnFieldDestructors.empty() ||
-				!structObjectFieldDestructors.empty()
-			);
+		const auto structReturnFieldDestructors = nativeResourceStructReturnFieldDestructors(assignment->right(), context);
+		const auto structObjectFieldDestructors = nativeResourceStructFieldsFromValue(assignment->right(), context);
+		const auto isLocalResourceStructReplacement = !targetIsGlobal && !structTypeName(targetSemanticType).empty() && (!structMoveSourceName.empty() || !structReturnFieldDestructors.empty() || !structObjectFieldDestructors.empty());
 
 		if (isLocalResourceStructReplacement) {
-			auto *previousValue = context.builder.CreateLoad(
-				targetType,
-				target,
-				sanitizeSymbol(name) + ".struct.previous"
-			);
+			auto *previousValue = context.builder.CreateLoad(targetType, target, sanitizeSymbol(name) + ".struct.previous");
 			destroyNativeResourceStructFields(name, targetSemanticType, previousValue);
 			context.clearNativeResourceFieldOwners(name);
 
@@ -5043,49 +5056,22 @@ namespace yogi::core::llvm::internal {
 			}
 		}
 
-		const auto targetIsAggregate =
-			targetKind == Yogi::Sir::TypeKind_array_type ||
-			targetKind == Yogi::Sir::TypeKind_tuple_type ||
-			targetKind == Yogi::Sir::TypeKind_type_literal ||
-			targetKind == Yogi::Sir::TypeKind_type_reference ||
-			targetKind == Yogi::Sir::TypeKind_string_type;
+		const auto targetIsAggregate = targetKind == Yogi::Sir::TypeKind_array_type || targetKind == Yogi::Sir::TypeKind_tuple_type || targetKind == Yogi::Sir::TypeKind_type_literal || targetKind == Yogi::Sir::TypeKind_type_reference ||
+		                               targetKind == Yogi::Sir::TypeKind_string_type || targetKind == Yogi::Sir::TypeKind_any_type || targetKind == Yogi::Sir::TypeKind_union_type;
 
-		if (
-			targetIsGlobal &&
-			targetIsAggregate &&
-			(
-				targetKind == Yogi::Sir::TypeKind_array_type ||
-				targetKind == Yogi::Sir::TypeKind_tuple_type
-			)
-		) {
+		if (targetIsGlobal && targetIsAggregate && (targetKind == Yogi::Sir::TypeKind_array_type || targetKind == Yogi::Sir::TypeKind_tuple_type)) {
 			retainEscapedBorrowedViewSource(assignment->right(), value);
 		}
 
 		if (targetIsGlobal && targetIsAggregate && targetType->isPointerTy()) {
-			auto *previousValue = context.builder.CreateLoad(
-				targetType,
-				target,
-				sanitizeSymbol(name) + ".global.previous"
-			);
+			auto *previousValue = context.builder.CreateLoad(targetType, target, sanitizeSymbol(name) + ".global.previous");
 			auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
 			auto *isReplacement = context.builder.CreateICmpNE(previousValue, value);
-			auto *shouldDestroyPrevious = context.builder.CreateAnd(
-				hasPrevious,
-				isReplacement,
-				sanitizeSymbol(name) + ".global.should_destroy"
-			);
+			auto *shouldDestroyPrevious = context.builder.CreateAnd(hasPrevious, isReplacement, sanitizeSymbol(name) + ".global.should_destroy");
 			auto *currentBlock = context.builder.GetInsertBlock();
 			auto *function = currentBlock->getParent();
-			auto *destroyBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				sanitizeSymbol(name) + ".global.replace.destroy",
-				function
-			);
-			auto *storeBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				sanitizeSymbol(name) + ".global.replace.store",
-				function
-			);
+			auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".global.replace.destroy", function);
+			auto *storeBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".global.replace.store", function);
 
 			context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, storeBlock);
 			context.builder.SetInsertPoint(destroyBlock);
@@ -5094,31 +5080,15 @@ namespace yogi::core::llvm::internal {
 			context.builder.SetInsertPoint(storeBlock);
 		}
 
-		if (!targetIsGlobal && targetKind == Yogi::Sir::TypeKind_string_type && targetType->isPointerTy()) {
-			auto *previousValue = context.builder.CreateLoad(
-				targetType,
-				target,
-				sanitizeSymbol(name) + ".local.previous"
-			);
+		if (!targetIsGlobal && (targetKind == Yogi::Sir::TypeKind_string_type || targetKind == Yogi::Sir::TypeKind_any_type || targetKind == Yogi::Sir::TypeKind_union_type) && targetType->isPointerTy()) {
+			auto *previousValue = context.builder.CreateLoad(targetType, target, sanitizeSymbol(name) + ".local.previous");
 			auto *hasPrevious = context.builder.CreateIsNotNull(previousValue);
 			auto *isReplacement = context.builder.CreateICmpNE(previousValue, value);
-			auto *shouldDestroyPrevious = context.builder.CreateAnd(
-				hasPrevious,
-				isReplacement,
-				sanitizeSymbol(name) + ".local.should_destroy"
-			);
+			auto *shouldDestroyPrevious = context.builder.CreateAnd(hasPrevious, isReplacement, sanitizeSymbol(name) + ".local.should_destroy");
 			auto *currentBlock = context.builder.GetInsertBlock();
 			auto *function = currentBlock->getParent();
-			auto *destroyBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				sanitizeSymbol(name) + ".local.replace.destroy",
-				function
-			);
-			auto *storeBlock = ::llvm::BasicBlock::Create(
-				context.llvmContext,
-				sanitizeSymbol(name) + ".local.replace.store",
-				function
-			);
+			auto *destroyBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".local.replace.destroy", function);
+			auto *storeBlock = ::llvm::BasicBlock::Create(context.llvmContext, sanitizeSymbol(name) + ".local.replace.store", function);
 
 			context.builder.CreateCondBr(shouldDestroyPrevious, destroyBlock, storeBlock);
 			context.builder.SetInsertPoint(destroyBlock);
@@ -5131,10 +5101,10 @@ namespace yogi::core::llvm::internal {
 
 		if (targetIsGlobal) {
 			const auto rightName = identifierName(assignment->right());
-			if (!rightName.empty()) {
+			if (!rightName.empty() && targetKind != Yogi::Sir::TypeKind_any_type && targetKind != Yogi::Sir::TypeKind_union_type) {
 				context.deactivateAggregateOwner(rightName);
 			}
-		} else if (!transferredNativeResource && assignment->right() && assignment->right()->identifier()) {
+		} else if (!transferredNativeResource && targetKind != Yogi::Sir::TypeKind_any_type && targetKind != Yogi::Sir::TypeKind_union_type && assignment->right() && assignment->right()->identifier()) {
 			const auto *rightIdentifier = assignment->right()->identifier();
 			context.aliasAggregateOwner(name, fbString(rightIdentifier->name()));
 		}
@@ -5142,11 +5112,7 @@ namespace yogi::core::llvm::internal {
 		return value;
 	}
 
-	::llvm::Value *ValueLowerer::lowerBinary(
-		const Yogi::Sir::BinaryExpression *binary,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerBinary(const Yogi::Sir::BinaryExpression *binary, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto op = fbString(binary->operator_());
 
 		if (op == "??") {
@@ -5164,36 +5130,39 @@ namespace yogi::core::llvm::internal {
 		auto *right = lower(binary->right(), types.lower(rightSemanticType), rightSemanticType);
 
 		if (op == "+" && resolvedTypeKind(binary->type()) == Yogi::Sir::TypeKind_string_type) {
-			auto *result = callRuntime(
-				"yogi_string_concat",
-				opaquePointer(),
-				{left, right}
-			);
+			auto *result = callRuntime("yogi_string_concat", opaquePointer(), {left, right});
 			destroyStringTemporaryIfOwned(left, binary->left());
 			destroyStringTemporaryIfOwned(right, binary->right());
 
 			return result;
 		}
 
-		if (op == "+") return context.builder.CreateFAdd(toNumber(left), toNumber(right), "addtmp");
-		if (op == "-") return context.builder.CreateFSub(toNumber(left), toNumber(right), "subtmp");
-		if (op == "*") return context.builder.CreateFMul(toNumber(left), toNumber(right), "multmp");
-		if (op == "/") return context.builder.CreateFDiv(toNumber(left), toNumber(right), "divtmp");
-		if (op == "%") return context.builder.CreateFRem(toNumber(left), toNumber(right), "modtmp");
+		if (op == "+")
+			return context.builder.CreateFAdd(toNumber(left), toNumber(right), "addtmp");
+		if (op == "-")
+			return context.builder.CreateFSub(toNumber(left), toNumber(right), "subtmp");
+		if (op == "*")
+			return context.builder.CreateFMul(toNumber(left), toNumber(right), "multmp");
+		if (op == "/")
+			return context.builder.CreateFDiv(toNumber(left), toNumber(right), "divtmp");
+		if (op == "%")
+			return context.builder.CreateFRem(toNumber(left), toNumber(right), "modtmp");
 
-		if (op == "<") return context.builder.CreateFCmpOLT(toNumber(left), toNumber(right), "cmptmp");
-		if (op == "<=") return context.builder.CreateFCmpOLE(toNumber(left), toNumber(right), "cmptmp");
-		if (op == ">") return context.builder.CreateFCmpOGT(toNumber(left), toNumber(right), "cmptmp");
-		if (op == ">=") return context.builder.CreateFCmpOGE(toNumber(left), toNumber(right), "cmptmp");
+		if (op == "<")
+			return context.builder.CreateFCmpOLT(toNumber(left), toNumber(right), "cmptmp");
+		if (op == "<=")
+			return context.builder.CreateFCmpOLE(toNumber(left), toNumber(right), "cmptmp");
+		if (op == ">")
+			return context.builder.CreateFCmpOGT(toNumber(left), toNumber(right), "cmptmp");
+		if (op == ">=")
+			return context.builder.CreateFCmpOGE(toNumber(left), toNumber(right), "cmptmp");
 
-		if (op == "&&") return context.builder.CreateAnd(toBoolean(left), toBoolean(right), "andtmp");
-		if (op == "||") return context.builder.CreateOr(toBoolean(left), toBoolean(right), "ortmp");
+		if (op == "&&")
+			return context.builder.CreateAnd(toBoolean(left), toBoolean(right), "andtmp");
+		if (op == "||")
+			return context.builder.CreateOr(toBoolean(left), toBoolean(right), "ortmp");
 
-		if (
-			(op == "==" || op == "===" || op == "!=" || op == "!==") &&
-			resolvedTypeKind(leftSemanticType) == Yogi::Sir::TypeKind_string_type &&
-			resolvedTypeKind(rightSemanticType) == Yogi::Sir::TypeKind_string_type
-		) {
+		if ((op == "==" || op == "===" || op == "!=" || op == "!==") && resolvedTypeKind(leftSemanticType) == Yogi::Sir::TypeKind_string_type && resolvedTypeKind(rightSemanticType) == Yogi::Sir::TypeKind_string_type) {
 			auto *result = callRuntime("yogi_string_equals", ::llvm::Type::getInt1Ty(context.llvmContext), {left, right});
 			destroyStringTemporaryIfOwned(left, binary->left());
 			destroyStringTemporaryIfOwned(right, binary->right());
@@ -5211,19 +5180,11 @@ namespace yogi::core::llvm::internal {
 		return types.zero(expectedType ? expectedType : types.lower(expectedSemanticType));
 	}
 
-	::llvm::Value *ValueLowerer::lowerConditional(
-		const Yogi::Sir::ConditionalExpression *conditional,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerConditional(const Yogi::Sir::ConditionalExpression *conditional, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		auto *resultType = expectedType ? expectedType : types.lower(conditional->type());
 		const auto *resultSemanticType = expectedSemanticType ? expectedSemanticType : conditional->type();
 		auto *function = context.builder.GetInsertBlock()->getParent();
-		auto *condition = toBoolean(lower(
-			conditional->condition(),
-			::llvm::Type::getInt1Ty(context.llvmContext),
-			valueSemanticType(conditional->condition())
-		));
+		auto *condition = toBoolean(lower(conditional->condition(), ::llvm::Type::getInt1Ty(context.llvmContext), valueSemanticType(conditional->condition())));
 
 		auto *thenBlock = ::llvm::BasicBlock::Create(context.llvmContext, "cond.then", function);
 		auto *elseBlock = ::llvm::BasicBlock::Create(context.llvmContext, "cond.else", function);
@@ -5232,24 +5193,14 @@ namespace yogi::core::llvm::internal {
 		context.builder.CreateCondBr(condition, thenBlock, elseBlock);
 
 		context.builder.SetInsertPoint(thenBlock);
-		auto *thenValue = cast(
-			lower(conditional->when_true(), resultType, resultSemanticType),
-			resultType,
-			resultSemanticType,
-			valueSemanticType(conditional->when_true())
-		);
+		auto *thenValue = cast(lower(conditional->when_true(), resultType, resultSemanticType), resultType, resultSemanticType, valueSemanticType(conditional->when_true()));
 		auto *thenEnd = context.builder.GetInsertBlock();
 		if (!thenEnd->hasTerminator()) {
 			context.builder.CreateBr(mergeBlock);
 		}
 
 		context.builder.SetInsertPoint(elseBlock);
-		auto *elseValue = cast(
-			lower(conditional->when_false(), resultType, resultSemanticType),
-			resultType,
-			resultSemanticType,
-			valueSemanticType(conditional->when_false())
-		);
+		auto *elseValue = cast(lower(conditional->when_false(), resultType, resultSemanticType), resultType, resultSemanticType, valueSemanticType(conditional->when_false()));
 		auto *elseEnd = context.builder.GetInsertBlock();
 		if (!elseEnd->hasTerminator()) {
 			context.builder.CreateBr(mergeBlock);
@@ -5263,20 +5214,14 @@ namespace yogi::core::llvm::internal {
 		return phi;
 	}
 
-	::llvm::Value *ValueLowerer::lowerNullish(
-		const Yogi::Sir::BinaryExpression *binary,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerNullish(const Yogi::Sir::BinaryExpression *binary, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		auto *resultType = expectedType ? expectedType : types.lower(binary->type());
 		const auto *resultSemanticType = expectedSemanticType ? expectedSemanticType : binary->type();
 		const auto *leftSemanticType = valueSemanticType(binary->left());
 		auto *leftStorageType = types.lower(leftSemanticType);
 		auto *leftValue = lower(binary->left(), leftStorageType, leftSemanticType);
 		const bool leftIsAggregateAccess = binary->left() && (binary->left()->property_access() || binary->left()->element_access());
-		auto *nullish = leftIsAggregateAccess
-			? callRuntime("yogi_any_is_nullish", ::llvm::Type::getInt1Ty(context.llvmContext), {leftValue})
-			: isNullish(leftValue);
+		auto *nullish = leftIsAggregateAccess ? callRuntime("yogi_any_is_nullish", ::llvm::Type::getInt1Ty(context.llvmContext), {leftValue}) : isNullish(leftValue);
 		auto *hasValue = context.builder.CreateNot(nullish, "nullish.has_value");
 		auto *function = context.builder.GetInsertBlock()->getParent();
 		auto *presentBlock = ::llvm::BasicBlock::Create(context.llvmContext, "nullish.present", function);
@@ -5286,20 +5231,13 @@ namespace yogi::core::llvm::internal {
 		context.builder.CreateCondBr(hasValue, presentBlock, fallbackBlock);
 
 		context.builder.SetInsertPoint(presentBlock);
-		auto *presentRawValue = leftIsAggregateAccess
-			? unboxAny(leftValue, resultSemanticType)
-			: leftValue;
-		auto *presentValue = cast(presentRawValue, resultType, resultSemanticType, leftSemanticType);
+		auto *presentRawValue = leftIsAggregateAccess ? unboxAny(leftValue, resultSemanticType) : leftValue;
+		auto *presentValue = cast(presentRawValue, resultType, resultSemanticType, leftIsAggregateAccess ? resultSemanticType : leftSemanticType);
 		auto *presentEnd = context.builder.GetInsertBlock();
 		context.builder.CreateBr(mergeBlock);
 
 		context.builder.SetInsertPoint(fallbackBlock);
-		auto *fallbackValue = cast(
-			lower(binary->right(), resultType, resultSemanticType),
-			resultType,
-			resultSemanticType,
-			valueSemanticType(binary->right())
-		);
+		auto *fallbackValue = cast(lower(binary->right(), resultType, resultSemanticType), resultType, resultSemanticType, valueSemanticType(binary->right()));
 		auto *fallbackEnd = context.builder.GetInsertBlock();
 		context.builder.CreateBr(mergeBlock);
 
@@ -5311,11 +5249,7 @@ namespace yogi::core::llvm::internal {
 		return phi;
 	}
 
-	::llvm::Value *ValueLowerer::lowerNullishAssignment(
-		const Yogi::Sir::BinaryExpression *binary,
-		::llvm::Type *expectedType,
-		const Yogi::Sir::TypeRef *expectedSemanticType
-	) {
+	::llvm::Value *ValueLowerer::lowerNullishAssignment(const Yogi::Sir::BinaryExpression *binary, ::llvm::Type *expectedType, const Yogi::Sir::TypeRef *expectedSemanticType) {
 		const auto *identifier = binary->left() ? binary->left()->identifier() : nullptr;
 
 		if (!identifier) {
@@ -5360,12 +5294,7 @@ namespace yogi::core::llvm::internal {
 		context.builder.CreateBr(mergeBlock);
 
 		context.builder.SetInsertPoint(assignBlock);
-		auto *assignedValue = cast(
-			lower(binary->right(), targetType, targetSemanticType),
-			targetType,
-			targetSemanticType,
-			valueSemanticType(binary->right())
-		);
+		auto *assignedValue = cast(lower(binary->right(), targetType, targetSemanticType), targetType, targetSemanticType, valueSemanticType(binary->right()));
 		context.builder.CreateStore(assignedValue, target);
 		auto *assignEnd = context.builder.GetInsertBlock();
 		context.builder.CreateBr(mergeBlock);
@@ -5425,11 +5354,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		if (value->getType()->isDoubleTy()) {
-			return context.builder.CreateFCmpONE(
-				value,
-				::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), 0.0),
-				"numtobooltmp"
-			);
+			return context.builder.CreateFCmpONE(value, ::llvm::ConstantFP::get(::llvm::Type::getDoubleTy(context.llvmContext), 0.0), "numtobooltmp");
 		}
 
 		if (value->getType()->isPointerTy()) {
@@ -5449,7 +5374,54 @@ namespace yogi::core::llvm::internal {
 			return false;
 		}
 
+		if (value->property_access() || value->element_access() || value->dereference()) {
+			return false;
+		}
+
+		if (const auto *call = value->call()) {
+			const auto method = fbString(call->builtin_method());
+			if (method == "array.at" || method == "array.find" || method == "array.findLast") {
+				const auto *property = call->callee() ? call->callee()->property_access() : nullptr;
+				return property && isOwnedArrayExpression(property->object());
+			}
+		}
+
 		return resolvedTypeKind(valueSemanticType(value)) == Yogi::Sir::TypeKind_string_type;
+	}
+
+	bool ValueLowerer::isOwnedArrayExpression(const Yogi::Sir::ValueRef *value) const {
+		if (!value) {
+			return false;
+		}
+
+		const auto kind = resolvedTypeKind(valueSemanticType(value));
+		if (kind != Yogi::Sir::TypeKind_array_type && kind != Yogi::Sir::TypeKind_tuple_type) {
+			return false;
+		}
+
+		if (value->array()) {
+			return true;
+		}
+
+		const auto *call = value->call();
+		if (!call || callReturnsBorrowedArray(call)) {
+			return false;
+		}
+
+		if (callReturnsReceiverArray(call)) {
+			const auto *property = call->callee() ? call->callee()->property_access() : nullptr;
+			return property && isOwnedArrayExpression(property->object());
+		}
+
+		return true;
+	}
+
+	void ValueLowerer::destroyArrayTemporary(::llvm::Value *value) {
+		if (!value || !value->getType()->isPointerTy()) {
+			return;
+		}
+
+		callRuntime("yogi_array_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
 	}
 
 	void ValueLowerer::destroyStringTemporary(::llvm::Value *value) {
@@ -5460,10 +5432,7 @@ namespace yogi::core::llvm::internal {
 		callRuntime("yogi_string_destroy", ::llvm::Type::getVoidTy(context.llvmContext), {value});
 	}
 
-	void ValueLowerer::destroyStringTemporaryIfOwned(
-		::llvm::Value *value,
-		const Yogi::Sir::ValueRef *source
-	) {
+	void ValueLowerer::destroyStringTemporaryIfOwned(::llvm::Value *value, const Yogi::Sir::ValueRef *source) {
 		if (!isOwnedStringExpression(source)) {
 			return;
 		}
@@ -5506,30 +5475,19 @@ namespace yogi::core::llvm::internal {
 		return ::llvm::ConstantInt::get(indexType, 0);
 	}
 
-	::llvm::Value *ValueLowerer::cast(
-		::llvm::Value *value,
-		::llvm::Type *targetType,
-		const Yogi::Sir::TypeRef *targetSemanticType,
-		const Yogi::Sir::TypeRef *sourceSemanticType
-	) {
+	::llvm::Value *ValueLowerer::cast(::llvm::Value *value, ::llvm::Type *targetType, const Yogi::Sir::TypeRef *targetSemanticType, const Yogi::Sir::TypeRef *sourceSemanticType) {
 		if (!value || !targetType) {
 			return types.zero(targetType);
 		}
 
-		if (isAnyType(targetSemanticType)) {
+		if (isBoxedDynamicType(targetSemanticType)) {
+			if (isBoxedDynamicType(sourceSemanticType)) {
+				return value;
+		}
 			return boxAny(value, sourceSemanticType);
 		}
 
-		if (isAnyType(sourceSemanticType)) {
-			return unboxAny(value, targetSemanticType);
-		}
-
-		if (
-			sourceSemanticType &&
-			sourceSemanticType->kind() == Yogi::Sir::TypeKind_union_type &&
-			value->getType()->isPointerTy() &&
-			!targetType->isPointerTy()
-		) {
+		if (isBoxedDynamicType(sourceSemanticType)) {
 			return unboxAny(value, targetSemanticType);
 		}
 
@@ -5570,6 +5528,32 @@ namespace yogi::core::llvm::internal {
 		return types.zero(targetType);
 	}
 
+	::llvm::Value *ValueLowerer::materializeBoxedValueCopy(::llvm::Value *value, const Yogi::Sir::ValueRef *source, const Yogi::Sir::TypeRef *targetSemanticType) {
+		if (!value || !source || !isBoxedDynamicType(targetSemanticType)) {
+			return value;
+		}
+
+		const auto borrowedRead = source->identifier() || source->property_access() || source->element_access() || source->dereference();
+		if (!borrowedRead) {
+			return value;
+		}
+
+		const auto *sourceType = valueSemanticType(source);
+		const auto sourceKind = resolvedTypeKind(sourceType);
+		const auto shouldCopy = isBoxedDynamicType(sourceType) || sourceKind == Yogi::Sir::TypeKind_string_type || sourceKind == Yogi::Sir::TypeKind_array_type || sourceKind == Yogi::Sir::TypeKind_tuple_type ||
+		                        sourceKind == Yogi::Sir::TypeKind_type_literal || sourceKind == Yogi::Sir::TypeKind_pointer_type;
+		if (!shouldCopy) {
+			return value;
+		}
+
+		auto *copy = callRuntime("yogi_any_clone_owned", opaquePointer(), {value});
+		if (!isBoxedDynamicType(sourceType)) {
+			callRuntime("yogi_any_release", ::llvm::Type::getVoidTy(context.llvmContext), {value});
+		}
+
+		return copy;
+	}
+
 	bool ValueLowerer::isSignedIntegerSemanticType(const Yogi::Sir::TypeRef *type) const {
 		if (!type || type->kind() != Yogi::Sir::TypeKind_type_reference) {
 			return true;
@@ -5589,7 +5573,7 @@ namespace yogi::core::llvm::internal {
 	}
 
 	::llvm::Value *ValueLowerer::boxAny(::llvm::Value *value, const Yogi::Sir::TypeRef *sourceSemanticType) {
-		if (isAnyType(sourceSemanticType)) {
+		if (isBoxedDynamicType(sourceSemanticType)) {
 			return value ? value : ::llvm::ConstantPointerNull::get(opaquePointer());
 		}
 
@@ -5617,16 +5601,12 @@ namespace yogi::core::llvm::internal {
 				return callRuntime("yogi_any_from_boolean", opaquePointer(), {toBoolean(value)});
 
 			case Yogi::Sir::TypeKind_string_type: {
-				auto *stringValue = value && value->getType()->isPointerTy()
-					? value
-					: ::llvm::ConstantPointerNull::get(opaquePointer());
+			auto *stringValue = value && value->getType()->isPointerTy() ? value : ::llvm::ConstantPointerNull::get(opaquePointer());
 				return callRuntime("yogi_any_from_string", opaquePointer(), {stringValue});
 			}
 
 			case Yogi::Sir::TypeKind_pointer_type:
-				return value && value->getType()->isPointerTy()
-					? value
-					: ::llvm::ConstantPointerNull::get(opaquePointer());
+			return callRuntime("yogi_any_from_pointer", opaquePointer(), {value && value->getType()->isPointerTy() ? value : ::llvm::ConstantPointerNull::get(opaquePointer())});
 
 			case Yogi::Sir::TypeKind_array_type:
 			case Yogi::Sir::TypeKind_tuple_type:
@@ -5641,14 +5621,15 @@ namespace yogi::core::llvm::internal {
 				auto *voidType = ::llvm::Type::getVoidTy(context.llvmContext);
 				auto *object = callRuntime("yogi_object_create", opaquePointer(), {});
 				for (const auto &field : context.structFields[structName]) {
-					auto *fieldValue = context.builder.CreateExtractValue(
-						value,
-						{static_cast<unsigned>(field.index)},
-						"boxstruct." + sanitizeSymbol(field.name)
-					);
+					auto *fieldValue = context.builder.CreateExtractValue(value, {static_cast<unsigned>(field.index)}, "boxstruct." + sanitizeSymbol(field.name));
 					auto *boxedField = boxAny(fieldValue, field.type);
+					const auto pointerField = resolvedTypeKind(field.type) == Yogi::Sir::TypeKind_pointer_type;
+					auto *ownedField = pointerField ? fieldValue : callRuntime("yogi_any_clone_owned", opaquePointer(), {boxedField});
+					if (!isBoxedDynamicType(field.type)) {
+						callRuntime("yogi_any_release", ::llvm::Type::getVoidTy(context.llvmContext), {boxedField});
+					}
 					auto *key = context.builder.CreateGlobalString(field.name);
-					callRuntime("yogi_object_set", voidType, {object, key, boxedField});
+					callRuntime(pointerField ? "yogi_object_set_unboxed" : "yogi_object_set", voidType, {object, key, resolvedTypeKind(field.type) == Yogi::Sir::TypeKind_pointer_type ? fieldValue : ownedField});
 				}
 				return callRuntime("yogi_any_from_object", opaquePointer(), {object});
 			}
@@ -5664,9 +5645,7 @@ namespace yogi::core::llvm::internal {
 					return callRuntime("yogi_any_from_string", opaquePointer(), {value});
 
 				case Yogi::Sir::TypeKind_pointer_type:
-					return value && value->getType()->isPointerTy()
-						? value
-						: ::llvm::ConstantPointerNull::get(opaquePointer());
+				return callRuntime("yogi_any_from_pointer", opaquePointer(), {value && value->getType()->isPointerTy() ? value : ::llvm::ConstantPointerNull::get(opaquePointer())});
 
 				case Yogi::Sir::TypeKind_array_type:
 				case Yogi::Sir::TypeKind_tuple_type:
@@ -5717,7 +5696,7 @@ namespace yogi::core::llvm::internal {
 				return callRuntime("yogi_any_to_string", opaquePointer(), {value});
 
 			case Yogi::Sir::TypeKind_pointer_type:
-				return value ? value : ::llvm::ConstantPointerNull::get(opaquePointer());
+			return callRuntime("yogi_any_to_pointer", opaquePointer(), {value});
 
 			case Yogi::Sir::TypeKind_array_type:
 			case Yogi::Sir::TypeKind_tuple_type:
@@ -5735,13 +5714,8 @@ namespace yogi::core::llvm::internal {
 				for (const auto &field : context.structFields[structName]) {
 					auto *key = context.builder.CreateGlobalString(field.name);
 					auto *fieldAny = callRuntime("yogi_object_get", opaquePointer(), {object, key});
-					auto *fieldValue = unboxAny(fieldAny, field.type);
-					result = context.builder.CreateInsertValue(
-						result,
-						fieldValue,
-						{static_cast<unsigned>(field.index)},
-						"unboxstruct." + sanitizeSymbol(field.name)
-					);
+					auto *fieldValue = resolvedTypeKind(field.type) == Yogi::Sir::TypeKind_pointer_type ? fieldAny : unboxAny(fieldAny, field.type);
+					result = context.builder.CreateInsertValue(result, fieldValue, {static_cast<unsigned>(field.index)}, "unboxstruct." + sanitizeSymbol(field.name));
 				}
 				return result;
 			}
@@ -5757,7 +5731,7 @@ namespace yogi::core::llvm::internal {
 					return callRuntime("yogi_any_to_string", opaquePointer(), {value});
 
 				case Yogi::Sir::TypeKind_pointer_type:
-					return value ? value : ::llvm::ConstantPointerNull::get(opaquePointer());
+				return callRuntime("yogi_any_to_pointer", opaquePointer(), {value});
 
 				case Yogi::Sir::TypeKind_array_type:
 				case Yogi::Sir::TypeKind_tuple_type:
@@ -5788,54 +5762,27 @@ namespace yogi::core::llvm::internal {
 		}
 	}
 
-	::llvm::Value *ValueLowerer::unboxArrayElement(
-		::llvm::Value *value,
-		::llvm::Type *targetType,
-		const Yogi::Sir::TypeRef *targetSemanticType,
-		const Yogi::Sir::TypeRef *sourceSemanticType
-	) {
+	::llvm::Value *ValueLowerer::unboxArrayElement(::llvm::Value *value, ::llvm::Type *targetType, const Yogi::Sir::TypeRef *targetSemanticType, const Yogi::Sir::TypeRef *sourceSemanticType) {
 		const auto targetKind = resolvedTypeKind(targetSemanticType);
 		const auto targetIsString = targetKind == Yogi::Sir::TypeKind_string_type;
 
-		if (
-			!value ||
-			!targetType ||
-			!value->getType()->isPointerTy() ||
-			(targetType->isPointerTy() && !targetIsString)
-		) {
+		if (!value || !targetType || !value->getType()->isPointerTy() || (targetType->isPointerTy() && !targetIsString)) {
 			return value;
 		}
 
-		if (
-			targetSemanticType &&
-			(
-				targetSemanticType->kind() == Yogi::Sir::TypeKind_number_type ||
-				targetSemanticType->kind() == Yogi::Sir::TypeKind_boolean_type ||
-				targetSemanticType->kind() == Yogi::Sir::TypeKind_string_type ||
-				targetSemanticType->kind() == Yogi::Sir::TypeKind_type_reference
-			)
-		) {
+		if (targetSemanticType && (targetSemanticType->kind() == Yogi::Sir::TypeKind_number_type || targetSemanticType->kind() == Yogi::Sir::TypeKind_boolean_type || targetSemanticType->kind() == Yogi::Sir::TypeKind_string_type ||
+		                           targetSemanticType->kind() == Yogi::Sir::TypeKind_type_reference)) {
 			return unboxAny(value, targetSemanticType);
 		}
 
-		if (
-			sourceSemanticType &&
-			(
-				sourceSemanticType->kind() == Yogi::Sir::TypeKind_union_type ||
-				sourceSemanticType->kind() == Yogi::Sir::TypeKind_any_type
-			)
-		) {
+		if (sourceSemanticType && (sourceSemanticType->kind() == Yogi::Sir::TypeKind_union_type || sourceSemanticType->kind() == Yogi::Sir::TypeKind_any_type)) {
 			return unboxAny(value, targetSemanticType);
 		}
 
 		return value;
 	}
 
-	::llvm::Value *ValueLowerer::callRuntime(
-		const std::string &name,
-		::llvm::Type *returnType,
-		const std::vector<::llvm::Value *> &arguments
-	) {
+	::llvm::Value *ValueLowerer::callRuntime(const std::string &name, ::llvm::Type *returnType, const std::vector<::llvm::Value *> &arguments) {
 		std::vector<::llvm::Type *> parameterTypes;
 		parameterTypes.reserve(arguments.size());
 
@@ -5931,8 +5878,11 @@ namespace yogi::core::llvm::internal {
 		return "";
 	}
 
-	bool ValueLowerer::isAnyType(const Yogi::Sir::TypeRef *type) const {
-		return type && type->kind() == Yogi::Sir::TypeKind_any_type;
+	bool ValueLowerer::isAnyType(const Yogi::Sir::TypeRef *type) const { return resolvedTypeKind(type) == Yogi::Sir::TypeKind_any_type; }
+
+	bool ValueLowerer::isBoxedDynamicType(const Yogi::Sir::TypeRef *type) const {
+		const auto kind = resolvedTypeKind(type);
+		return kind == Yogi::Sir::TypeKind_any_type || kind == Yogi::Sir::TypeKind_union_type;
 	}
 
 	Yogi::Sir::TypeKind ValueLowerer::resolvedTypeKind(const Yogi::Sir::TypeRef *type) const {
@@ -5958,9 +5908,7 @@ namespace yogi::core::llvm::internal {
 		return kind;
 	}
 
-	::llvm::PointerType *ValueLowerer::opaquePointer() const {
-		return ::llvm::PointerType::get(context.llvmContext, 0);
-	}
+	::llvm::PointerType *ValueLowerer::opaquePointer() const { return ::llvm::PointerType::get(context.llvmContext, 0); }
 
 } // namespace yogi::core::llvm::internal
 #endif

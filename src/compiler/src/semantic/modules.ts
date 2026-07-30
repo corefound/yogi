@@ -4,6 +4,8 @@ import { Helpers } from "../helpers";
 
 export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase) {
     return class extends base {
+        public importedStructDeclarations = new Set<string>();
+
         public visitModuleStatement(node: any): any {
             switch (node.kind) {
                 case Kinds.Modules.ImportCall:
@@ -19,6 +21,7 @@ export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: T
 
         public visitImportDeclaration(node: any): any {
             const importedModule = this.modules.get(node.module);
+            const importedDeclarations: any[] = [];
 
             if (!importedModule) {
                 const message =
@@ -39,7 +42,9 @@ export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             }
 
             if (node.defaultImport) {
-                this.bindImportedSymbol(node, importedModule, "default", node.defaultImport);
+                importedDeclarations.push(
+                    ...this.bindImportedSymbol(node, importedModule, "default", node.defaultImport),
+                );
             }
 
             if (node.namespaceImport) {
@@ -50,10 +55,12 @@ export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 const importedName = importSpecifier.alias ?? importSpecifier.name;
                 const localName = importSpecifier.name;
 
-                this.bindImportedSymbol(node, importedModule, importedName, localName);
+                importedDeclarations.push(
+                    ...this.bindImportedSymbol(node, importedModule, importedName, localName),
+                );
             }
 
-            return [];
+            return importedDeclarations;
         }
 
         public bindNamespaceImport(node: any, importedModule: Types.SemanticModuleInfo): void {
@@ -92,7 +99,7 @@ export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: T
             importedModule: Types.SemanticModuleInfo,
             importedName: string,
             localName: string,
-        ): void {
+        ): any[] {
             const exportedSymbol = importedModule.exports.get(importedName);
 
             if (!exportedSymbol) {
@@ -133,8 +140,32 @@ export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                 escapes: false,
                 trusted: true,
                 effectSummary: exportedSymbol.effectSummary,
-                node,
+                returnsNativeResourceFieldDestructors:
+                    exportedSymbol.returnsNativeResourceFieldDestructors,
+                returnsNativeResourceArrayElementFieldDestructors:
+                    exportedSymbol.returnsNativeResourceArrayElementFieldDestructors,
+                node: exportedSymbol.node ?? node,
             });
+
+            if (
+                exportedSymbol.kind !== Kinds.ScopeSymbols.Struct ||
+                exportedSymbol.node?.kind !== Kinds.Types.StructDeclaration
+            ) {
+                return [];
+            }
+
+            const declarationKey =
+                exportedSymbol.qualifiedName ??
+                this.getQualifiedName(importedModule.relativePath, importedName);
+            if (this.importedStructDeclarations.has(declarationKey)) {
+                return [];
+            }
+
+            this.importedStructDeclarations.add(declarationKey);
+            return [{
+                ...exportedSymbol.node,
+                export: false,
+            }];
         }
 
         public visitExportDeclaration(node: any): any {
@@ -164,7 +195,14 @@ export function ModulesSemantic<TBase extends Constructor<BaseSemantic>>(base: T
                     linkageName: symbol.linkageName ?? null,
                     qualifiedName: symbol.qualifiedName,
                     sourcePath: this.modulePath.relativePath,
+                    node: symbol.node,
                     effectSummary: symbol.effectSummary ?? symbol.node?.effectSummary,
+                    returnsNativeResourceFieldDestructors:
+                        symbol.returnsNativeResourceFieldDestructors ??
+                        symbol.node?.returnsNativeResourceFieldDestructors,
+                    returnsNativeResourceArrayElementFieldDestructors:
+                        symbol.returnsNativeResourceArrayElementFieldDestructors ??
+                        symbol.node?.returnsNativeResourceArrayElementFieldDestructors,
                 });
             }
 

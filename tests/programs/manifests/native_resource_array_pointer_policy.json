@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "name": "native-resource-array-pointer-policy",
+  "profile": "runtime-strict",
+  "trace": {
+    "categories": [
+      "session",
+      "semantic",
+      "function",
+      "memory",
+      "aggregate",
+      "resource",
+      "anomaly"
+    ]
+  },
+  "invariants": [
+    "event.envelope",
+    "event.sequence",
+    "memory.lifetime",
+    "aggregate.lifetime",
+    "resource.lifetime",
+    "function.frame_balance",
+    "sanitizer.clean"
+  ],
+  "allowLive": [
+    {
+      "category": "memory",
+      "typeName": "any value",
+      "reason": "transitional: AnyValue cleanup is not implemented yet"
+    },
+    {
+      "category": "memory",
+      "typeName": "runtime string",
+      "reason": "transitional: process-owned runtime strings are not fully classified yet"
+    },
+    {
+      "category": "memory",
+      "typeName": "object value",
+      "reason": "known debt: array element struct boxing is not recursively released yet"
+    },
+    {
+      "category": "memory",
+      "typeName": "object properties",
+      "reason": "known debt: array element struct boxing is not recursively released yet"
+    },
+    {
+      "category": "memory",
+      "typeName": "object property key",
+      "reason": "known debt: array element struct boxing is not recursively released yet"
+    },
+    {
+      "category": "memory",
+      "typeName": "array value",
+      "reason": "known debt: selected temporary heap array descriptors are not released yet"
+    },
+    {
+      "category": "aggregate",
+      "typeName": "object value",
+      "reason": "known debt: array element struct boxing is not recursively released yet"
+    },
+    {
+      "category": "aggregate",
+      "typeName": "array value",
+      "reason": "known debt: selected temporary heap array descriptors are not released yet"
+    }
+  ],
+  "expectations": [
+    {
+      "kind": "count",
+      "eventKind": "resource.create",
+      "equals": 33
+    },
+    {
+      "kind": "count",
+      "eventKind": "resource.destroy",
+      "equals": 33
+    }
+  ]
+}

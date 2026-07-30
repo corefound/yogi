@@ -16,7 +16,11 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
         public visitVariableDeclarations(node: any) {
             let value = node.value ? this.visitNode(node.value) : null;
-            const declaredType = this.toSerializableType(node.type);
+            const declaredType = this.toSerializableType(
+                node.compilerInferredType === true
+                    ? value?.type
+                    : node.type,
+            );
             const source = node.fullSource ?? node.source ?? node.raw;
             (this as any).rejectPersistentFunctionExpressions?.(
                 value,
@@ -24,15 +28,45 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 node,
                 `be stored in variable '${node.name}'`,
             );
+            const initializesBorrowedDynamicArray =
+                value &&
+                this.canBorrowAggregateThroughPointer(declaredType, value.type);
 
             if (
                 value &&
-                this.canReadThroughPointer(declaredType, value.type)
+                (
+                    this.canReadThroughPointer(declaredType, value.type) ||
+                    this.canBorrowAggregateThroughPointer(declaredType, value.type)
+                )
             ) {
                 value = this.createImplicitPointerReadThrough(value, declaredType, source);
             }
 
-            const context = { ...node, value };
+            if (value && !initializesBorrowedDynamicArray) {
+                value = this.materializeOwnedDynamicArrayValue(
+                    value,
+                    declaredType,
+                    source,
+                    node,
+                );
+            }
+
+            if (
+                value?.kind === Kinds.Collections.DictionaryExpression ||
+                value?.kind === Kinds.Collections.ArrayExpression
+            ) {
+                value = (this as any).materializeNestedDynamicArrayCopies(
+                    value,
+                    source,
+                    node,
+                );
+            }
+
+            const context = {
+                ...node,
+                type: declaredType,
+                value,
+            };
             const { trusted } = this.declarationVariableDiagnostics(context);
             const type = declaredType;
             const isAmbient =
@@ -176,6 +210,12 @@ export function VariablesSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 nativeResourceFieldDestructors: Object.keys(nativeResourceFieldDestructors).length > 0
                     ? nativeResourceFieldDestructors
                     : undefined,
+                nativeResourceArrayElementFieldDestructors:
+                    initializerSymbol?.nativeResourceArrayElementFieldDestructors
+                        ? { ...initializerSymbol.nativeResourceArrayElementFieldDestructors }
+                        : value?.nativeResourceArrayElementFieldDestructors
+                            ? { ...value.nativeResourceArrayElementFieldDestructors }
+                            : undefined,
                 ...pointerProvenance,
 
                 declare: isAmbient,

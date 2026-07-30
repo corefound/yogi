@@ -336,3 +336,45 @@ operation in SIR/LLVM lowering.
 The current model is enough to make function boundaries safe for direct
 function calls while preserving stack-first local aggregates whenever the callee
 only borrows.
+
+## Recursive Value Copy
+
+Copyable aggregates use value semantics recursively. This is distinct from the
+automatic ownership transfer used by resource-owning structs.
+
+```ts
+struct Team {
+    name: string
+    scores: number[]
+}
+
+let original: Team[] = [{ name: "compiler", scores: [10, 20] }]
+let snapshot: Team[] = original
+snapshot[0].scores[0] = 99
+```
+
+`original` still contains `10`. The copy operation creates independent boxes,
+strings, object/struct payloads, and nested array descriptors. All consuming
+copy surfaces share this operation:
+
+```txt
+array initialization from an owned value
+normal array assignment
+materialization from a borrowed ptr<T[]> view
+returning a borrowed array as an owned T[]
+T[] value parameters
+copy-producing array methods
+```
+
+Explicit pointer fields are copied as pointer values, not as pointee clones.
+That rule preserves Yogi's explicit sharing boundary.
+
+A struct containing an exclusive native resource has no implicit recursive copy.
+Semantic analysis rejects it and reports the nested resource field path. The
+runtime descriptor also rejects malformed copy attempts defensively.
+
+Array replacement follows a materialize-then-commit rule. The complete source
+copy is built before the target is changed, making self-assignment and
+overlapping borrowed-view assignment safe. Yogi currently treats allocation
+failure as fatal, so it does not expose recoverable copy exceptions or partially
+constructed values.

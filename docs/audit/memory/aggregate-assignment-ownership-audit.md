@@ -1,6 +1,6 @@
 # Aggregate Assignment Ownership Audit
 
-> Last updated: 2026-07-11
+> Last updated: 2026-07-28
 >
 > Runtime suite: `tests/runtime/sessions/03-memory-management/aggregate_assignment_ownership.cmake`
 >
@@ -21,8 +21,8 @@ coverage.
 
 | Feature / Case | Status | Test Exists? | Notes |
 |---|---|---|---|
-| normal function `saved = scores` | ✅ supported and tested | ✅ | `normal_function_local_to_global`; `main()` returns `1` |
-| nested block `saved = scores` | ✅ supported and tested | ✅ | `nested_block_local_to_global`; nested cleanup skips escaped `scores` |
+| normal function `saved = scores` | ✅ supported and tested | ✅ | `normal_function_local_to_global`; target receives a copy and `main()` returns `1` |
+| nested block `saved = scores` | ✅ supported and tested | ✅ | `nested_block_local_to_global`; target copy survives nested cleanup |
 | if branch escape | ✅ supported and tested | ✅ | `if_branch_local_to_global`; true path remains valid |
 | else branch escape | ✅ supported and tested | ✅ | `else_branch_local_to_global`; false path remains valid |
 | pre-branch aggregate escapes inside branch | ✅ supported and tested | ✅ | `pre_branch_local_to_global`; merge preserves deactivation on escaping path |
@@ -31,9 +31,9 @@ coverage.
 | switch case escape | ✅ supported and tested | ✅ | `switch_case_local_to_global`; break cleanup skips escaped owner |
 | pre-switch aggregate escapes inside case | ✅ supported and tested | ✅ | `pre_switch_local_to_global`; switch end does not reactivate cleanup |
 | fall-through switch escape | ✅ supported and tested | ✅ | `fallthrough_switch_local_to_global`; literal entry proves case 1 initializes before case 2 |
-| alias chain local -> alias -> global | ✅ supported and tested | ✅ | `alias_chain_local_to_global`; alias resolves to original owner |
+| alias chain local -> alias -> global | ✅ supported and tested | ✅ | `alias_chain_local_to_global`; each normal assignment keeps value semantics |
 | returned aggregate assigned to global | ✅ supported and tested | ✅ | `returned_aggregate_to_global`; return move then global store |
-| dynamic array global reassignment/replacement | ✅ supported and tested | ✅ | `global_reassignment_replaces_previous`; IR contains `yogi_array_replace_from` path |
+| dynamic array global reassignment/replacement | ✅ supported and tested | ✅ | `global_reassignment_replaces_previous`; IR contains the temporary-only `yogi_array_move_replace_from` path |
 | unsafe fall-through assignment | ✅ supported and tested | ✅ negative | `uninitialized_fallthrough_assignment`; semantic diagnostic before LLVM |
 | unsafe fall-through return | ✅ supported and tested | ✅ negative | `uninitialized_fallthrough_return`; semantic diagnostic before LLVM |
 | unsafe fall-through element read | ✅ supported and tested | ✅ negative | `uninitialized_fallthrough_read`; semantic diagnostic before LLVM |
@@ -47,14 +47,16 @@ coverage.
 
 ## Bug Found
 
-The plain local-to-global assignment path already deactivated the RHS owner:
+The original local-to-global assignment path deactivated the RHS owner:
 
 ```ts
 saved = scores
 ```
 
-However, global reassignment originally did not destroy the previous global
-aggregate before overwriting it:
+That behavior was later corrected: normal `=` has value semantics and must not
+deactivate or empty a named RHS. The compiler materializes a copy before target
+replacement. Global reassignment also had to preserve the previous target
+descriptor while replacing its values:
 
 ```ts
 saved = first
@@ -66,11 +68,10 @@ replacement, the backend loads the old global value, checks that it is non-null
 and different from the new pointer, emits the aggregate destructor, then stores
 the replacement.
 
-Dynamic arrays now have a more precise rule: assignment into an initialized
-dynamic-array binding calls `yogi_array_replace_from`. The target descriptor is
-kept, common slots are overwritten, new slots are created, and removed slots are
-invalidated. This avoids destroying a descriptor that live interior pointers may
-still target.
+Dynamic arrays now have a precise two-step rule: copy the observable RHS, then
+call `yogi_array_move_replace_from` on that compiler-created temporary. The
+target descriptor is kept, common slots are overwritten, new slots are created,
+and removed slots are invalidated. The named or borrowed source remains intact.
 
 ## Semantic Safety
 
@@ -106,13 +107,14 @@ The suite checks that every passing scenario:
   `yogi_memory_pop_context`
 
 The dynamic-array global replacement scenario additionally checks that the
-generated IR contains `yogi_array_replace_from`, proving the slot-preserving
-replacement path is used.
+generated IR contains `yogi_array_move_replace_from`, proving the
+slot-preserving path consumes only a compiler-created temporary.
 
 LLVM verification is still performed by the backend before writing the IR and
 object file.
 
 ## Current Verdict
 
-`saved = scores` safely updates global/module dynamic-array storage by in-place
-slot replacement. The behavior is tested outside switch and inside switch.
+`saved = scores` safely updates global/module dynamic-array storage from an
+independent owned copy. `scores` remains valid and unchanged. Target slot
+replacement is tested outside switch and inside switch.

@@ -5,6 +5,7 @@ import { Helpers } from "./helpers";
 import { Semantic } from "./semantic";
 import { FlatBuffer } from "./fbs";
 import { Types } from "./helpers/types";
+import { emitFrontendObservability } from "./observability/traceWriter";
 
 const rootPath = path.resolve(process.cwd(), process.argv[2], "../");
 const cachePath = path.relative(rootPath, path.resolve(process.cwd(), process.argv[2], "../", "packages/.cache"));
@@ -48,8 +49,9 @@ for (const component of scc) {
     });
 
     const sourceFile = scanner.takeSourceFile(moduleUrl);
-    const { ast, sourceHash, astHash } = visitor.parse(moduleUrl, sourceFile);
-    const { sir, sirHash, exports, links } = semantic.analyze(ast);
+    const { ast, sourceHash, astHash } = visitor.parse(moduleUrl, sourceFile, relativePath);
+    const { sir, sirHash, observability, exports, links } = semantic.analyze(ast);
+    emitFrontendObservability(relativePath, ast, observability);
 
     const qualifiedName = `${relativePath?.replace(/[\\/]/g, ":")}`
 
@@ -75,6 +77,7 @@ for (const component of scc) {
 
     const astOutput = path.join(rootPath, modulePath, qualifiedName, "/ast.fb");
     const astBuffer = FlatBuffer.createAstModuleBuffer({
+      moduleId: observability.moduleId,
       sourcePath: relativePath,
       nodes: ast,
     });
@@ -82,8 +85,11 @@ for (const component of scc) {
 
     const output = path.join(rootPath, modulePath, qualifiedName, "/sir.fb");
     const buffers = FlatBuffer.createSirModuleBuffer({
+      moduleId: observability.moduleId,
       sourcePath: relativePath,
       nodes: sir,
+      values: observability.values,
+      decisions: observability.decisions,
     });
 
     FlatBuffer.writeBufferToFile(buffers, output);

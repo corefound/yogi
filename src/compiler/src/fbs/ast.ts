@@ -11,6 +11,7 @@ import {
 } from "./generated/yogi/ast";
 
 const NODE_METADATA_FIELDS = new Set([
+    "nodeId",
     "kind",
     "source",
     "fullSource",
@@ -20,8 +21,9 @@ const NODE_METADATA_FIELDS = new Set([
 
 export function AstFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: TBase) {
     return class extends base {
-        static createAstModuleBuffer(input: { sourcePath: string; nodes: any[] }): Uint8Array {
+        static createAstModuleBuffer(input: { moduleId?: string; sourcePath: string; nodes: any[] }): Uint8Array {
             const builder = new fbs.Builder(1024);
+            const moduleId = builder.createString(input.moduleId ?? "");
             const sourcePath = builder.createString(input.sourcePath);
             const nodeOffsets = (input.nodes ?? []).map((node) => {
                 return this.createAstNode(builder, node);
@@ -31,6 +33,7 @@ export function AstFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             });
 
             Module.startModule(builder);
+            Module.addModuleId(builder, moduleId);
             Module.addSourcePath(builder, sourcePath);
             Module.addNodes(builder, nodes);
 
@@ -42,6 +45,7 @@ export function AstFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
         }
 
         static createAstNode(builder: fbs.Builder, node: any): fbs.Offset {
+            const nodeId = builder.createString(node?.nodeId ?? "");
             const kind = builder.createString(String(node?.kind ?? "UnknownNode"));
             const source = builder.createString(node?.source ?? node?.fullSource ?? "");
             const raw = builder.createString(node?.raw ?? node?.source ?? "");
@@ -55,6 +59,7 @@ export function AstFlatBuffer<TBase extends Constructor<BaseFlatBuffer>>(base: T
             });
 
             AstNode.startAstNode(builder);
+            AstNode.addNodeId(builder, nodeId);
             AstNode.addKind(builder, kind);
             AstNode.addFields(builder, fields);
             AstNode.addSource(builder, source);

@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "libs/flatbuffers/main_generated.h"
+#include "libs/flatbuffers/fbs_generated.h"
 
 namespace yogi::core::llvm {
 

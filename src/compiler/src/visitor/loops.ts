@@ -145,6 +145,7 @@ export function LoopVisitor<TBase extends Constructor<BaseVisitor>>(base: TBase)
                         kind: Kinds.Statements.VariableDeclaration,
                         name: iterableName,
                         flag: "let",
+                        compilerInferredType: true,
                         export: false,
                         declare: false,
                         ambient: false,

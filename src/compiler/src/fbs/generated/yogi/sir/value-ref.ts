@@ -39,154 +39,215 @@ static getSizePrefixedRootAsValueRef(bb:flatbuffers.ByteBuffer, obj?:ValueRef):V
   return (obj || new ValueRef()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-kind():string|null
-kind(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-kind(optionalEncoding?:any):string|Uint8Array|null {
+nodeId():string|null
+nodeId(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+nodeId(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-constant(obj?:Constant):Constant|null {
+valueId():string|null
+valueId(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+valueId(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+typeId():string|null
+typeId(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+typeId(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+decisionIds(index: number):string
+decisionIds(index: number,optionalEncoding:flatbuffers.Encoding):string|Uint8Array
+decisionIds(index: number,optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? this.bb!.__string(this.bb!.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
+}
+
+decisionIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+kind():string|null
+kind(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+kind(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+constant(obj?:Constant):Constant|null {
+  const offset = this.bb!.__offset(this.bb_pos, 14);
   return offset ? (obj || new Constant()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 identifier(obj?:IdentifierExpression):IdentifierExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 8);
+  const offset = this.bb!.__offset(this.bb_pos, 16);
   return offset ? (obj || new IdentifierExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 binary(obj?:BinaryExpression):BinaryExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 10);
+  const offset = this.bb!.__offset(this.bb_pos, 18);
   return offset ? (obj || new BinaryExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 assignment(obj?:AssignmentExpression):AssignmentExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 12);
+  const offset = this.bb!.__offset(this.bb_pos, 20);
   return offset ? (obj || new AssignmentExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 conditional(obj?:ConditionalExpression):ConditionalExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 14);
+  const offset = this.bb!.__offset(this.bb_pos, 22);
   return offset ? (obj || new ConditionalExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 call(obj?:CallExpression):CallExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 16);
+  const offset = this.bb!.__offset(this.bb_pos, 24);
   return offset ? (obj || new CallExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 spread(obj?:SpreadElement):SpreadElement|null {
-  const offset = this.bb!.__offset(this.bb_pos, 18);
+  const offset = this.bb!.__offset(this.bb_pos, 26);
   return offset ? (obj || new SpreadElement()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 array(obj?:ArrayExpression):ArrayExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 20);
+  const offset = this.bb!.__offset(this.bb_pos, 28);
   return offset ? (obj || new ArrayExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 object(obj?:ObjectExpression):ObjectExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 22);
+  const offset = this.bb!.__offset(this.bb_pos, 30);
   return offset ? (obj || new ObjectExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 propertyAccess(obj?:PropertyAccessExpression):PropertyAccessExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 24);
+  const offset = this.bb!.__offset(this.bb_pos, 32);
   return offset ? (obj || new PropertyAccessExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 elementAccess(obj?:ElementAccessExpression):ElementAccessExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 26);
+  const offset = this.bb!.__offset(this.bb_pos, 34);
   return offset ? (obj || new ElementAccessExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 addressOf(obj?:AddressOfExpression):AddressOfExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 28);
+  const offset = this.bb!.__offset(this.bb_pos, 36);
   return offset ? (obj || new AddressOfExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 dereference(obj?:DereferenceExpression):DereferenceExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 30);
+  const offset = this.bb!.__offset(this.bb_pos, 38);
   return offset ? (obj || new DereferenceExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 aggregateAssignment(obj?:AggregateAssignmentExpression):AggregateAssignmentExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 32);
+  const offset = this.bb!.__offset(this.bb_pos, 40);
   return offset ? (obj || new AggregateAssignmentExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 functionExpression(obj?:FunctionExpression):FunctionExpression|null {
-  const offset = this.bb!.__offset(this.bb_pos, 34);
+  const offset = this.bb!.__offset(this.bb_pos, 42);
   return offset ? (obj || new FunctionExpression()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startValueRef(builder:flatbuffers.Builder) {
-  builder.startObject(16);
+  builder.startObject(20);
+}
+
+static addNodeId(builder:flatbuffers.Builder, nodeIdOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(0, nodeIdOffset, 0);
+}
+
+static addValueId(builder:flatbuffers.Builder, valueIdOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(1, valueIdOffset, 0);
+}
+
+static addTypeId(builder:flatbuffers.Builder, typeIdOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, typeIdOffset, 0);
+}
+
+static addDecisionIds(builder:flatbuffers.Builder, decisionIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(3, decisionIdsOffset, 0);
+}
+
+static createDecisionIdsVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startDecisionIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
 }
 
 static addKind(builder:flatbuffers.Builder, kindOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(0, kindOffset, 0);
+  builder.addFieldOffset(4, kindOffset, 0);
 }
 
 static addConstant(builder:flatbuffers.Builder, constantOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, constantOffset, 0);
+  builder.addFieldOffset(5, constantOffset, 0);
 }
 
 static addIdentifier(builder:flatbuffers.Builder, identifierOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(2, identifierOffset, 0);
+  builder.addFieldOffset(6, identifierOffset, 0);
 }
 
 static addBinary(builder:flatbuffers.Builder, binaryOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(3, binaryOffset, 0);
+  builder.addFieldOffset(7, binaryOffset, 0);
 }
 
 static addAssignment(builder:flatbuffers.Builder, assignmentOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(4, assignmentOffset, 0);
+  builder.addFieldOffset(8, assignmentOffset, 0);
 }
 
 static addConditional(builder:flatbuffers.Builder, conditionalOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(5, conditionalOffset, 0);
+  builder.addFieldOffset(9, conditionalOffset, 0);
 }
 
 static addCall(builder:flatbuffers.Builder, callOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(6, callOffset, 0);
+  builder.addFieldOffset(10, callOffset, 0);
 }
 
 static addSpread(builder:flatbuffers.Builder, spreadOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(7, spreadOffset, 0);
+  builder.addFieldOffset(11, spreadOffset, 0);
 }
 
 static addArray(builder:flatbuffers.Builder, arrayOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(8, arrayOffset, 0);
+  builder.addFieldOffset(12, arrayOffset, 0);
 }
 
 static addObject(builder:flatbuffers.Builder, objectOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(9, objectOffset, 0);
+  builder.addFieldOffset(13, objectOffset, 0);
 }
 
 static addPropertyAccess(builder:flatbuffers.Builder, propertyAccessOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(10, propertyAccessOffset, 0);
+  builder.addFieldOffset(14, propertyAccessOffset, 0);
 }
 
 static addElementAccess(builder:flatbuffers.Builder, elementAccessOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(11, elementAccessOffset, 0);
+  builder.addFieldOffset(15, elementAccessOffset, 0);
 }
 
 static addAddressOf(builder:flatbuffers.Builder, addressOfOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(12, addressOfOffset, 0);
+  builder.addFieldOffset(16, addressOfOffset, 0);
 }
 
 static addDereference(builder:flatbuffers.Builder, dereferenceOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(13, dereferenceOffset, 0);
+  builder.addFieldOffset(17, dereferenceOffset, 0);
 }
 
 static addAggregateAssignment(builder:flatbuffers.Builder, aggregateAssignmentOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(14, aggregateAssignmentOffset, 0);
+  builder.addFieldOffset(18, aggregateAssignmentOffset, 0);
 }
 
 static addFunctionExpression(builder:flatbuffers.Builder, functionExpressionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(15, functionExpressionOffset, 0);
+  builder.addFieldOffset(19, functionExpressionOffset, 0);
 }
 
 static endValueRef(builder:flatbuffers.Builder):flatbuffers.Offset {

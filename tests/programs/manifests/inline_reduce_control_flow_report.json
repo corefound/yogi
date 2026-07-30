@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "name": "inline-reduce-control-flow-report",
+  "profile": "runtime-strict",
+  "trace": {
+    "categories": [
+      "session",
+      "semantic",
+      "cleanup",
+      "function",
+      "memory",
+      "aggregate",
+      "resource",
+      "anomaly"
+    ]
+  },
+  "invariants": [
+    "event.envelope",
+    "event.sequence",
+    "decision.correlation",
+    "owner.reducer",
+    "borrow.reducer",
+    "memory.lifetime",
+    "aggregate.lifetime",
+    "function.frame_balance",
+    "cleanup.dynamic_obligations",
+    "cleanup.exit_path",
+    "sanitizer.clean"
+  ],
+  "allowLive": [],
+  "expectations": [],
+  "ir": [
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_array_clone",
+      "atLeast": 8
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_string_from_native_owned",
+      "atLeast": 5
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_object_clone",
+      "atLeast": 4
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_array_release",
+      "atLeast": 5
+    }
+  ]
+}

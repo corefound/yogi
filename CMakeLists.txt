@@ -34,11 +34,75 @@ set_property(CACHE YOGI_ALLOCATOR PROPERTY STRINGS mimalloc jemalloc system)
 set(YOGI_PORTABLE_BUILD "OFF" CACHE STRING "Build Yogi with portable relative runtime paths: ON or OFF")
 set_property(CACHE YOGI_PORTABLE_BUILD PROPERTY STRINGS ON OFF)
 
+option(YOGI_ENABLE_SANITIZERS "Instrument Yogi/runtime program tests with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(YOGI_ENABLE_PROGRAM_OBSERVABILITY "Enable structured Program Test compiler/runtime tracing" OFF)
+set(YOGI_SANITIZER_COMPILE_OPTIONS "")
+set(YOGI_SANITIZER_RUNTIME_PATHS "")
+set(YOGI_PROGRAM_SANITIZER_C_FLAGS "")
+set(YOGI_PROGRAM_ASAN_OPTIONS "detect_leaks=1:halt_on_error=1:abort_on_error=1")
+
+if(YOGI_ENABLE_SANITIZERS)
+        if(MSVC)
+                message(FATAL_ERROR "YOGI_ENABLE_SANITIZERS currently requires Clang or GCC")
+        endif()
+
+        set(YOGI_SANITIZER_COMPILE_OPTIONS
+                -fsanitize=address,undefined
+                -fno-omit-frame-pointer
+        )
+        set(YOGI_PROGRAM_SANITIZER_C_FLAGS "-fsanitize=address,undefined -fno-omit-frame-pointer")
+
+        if(APPLE)
+                set(YOGI_PROGRAM_ASAN_OPTIONS "detect_leaks=0:halt_on_error=1:abort_on_error=1")
+                execute_process(
+                        COMMAND "${CMAKE_CXX_COMPILER}" --print-resource-dir
+                        OUTPUT_VARIABLE YOGI_CLANG_RESOURCE_DIR
+                        OUTPUT_STRIP_TRAILING_WHITESPACE
+                        RESULT_VARIABLE YOGI_CLANG_RESOURCE_RESULT
+                )
+
+                if(NOT YOGI_CLANG_RESOURCE_RESULT EQUAL 0)
+                        message(FATAL_ERROR "Unable to locate Clang sanitizer runtimes")
+                endif()
+
+                foreach(YOGI_SANITIZER_LIBRARY IN ITEMS
+                        "${YOGI_CLANG_RESOURCE_DIR}/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
+                        "${YOGI_CLANG_RESOURCE_DIR}/lib/darwin/libclang_rt.ubsan_osx_dynamic.dylib")
+                        if(NOT EXISTS "${YOGI_SANITIZER_LIBRARY}")
+                                message(FATAL_ERROR "Missing sanitizer runtime: ${YOGI_SANITIZER_LIBRARY}")
+                        endif()
+                        list(APPEND YOGI_SANITIZER_RUNTIME_PATHS "${YOGI_SANITIZER_LIBRARY}")
+                endforeach()
+        else()
+                foreach(YOGI_SANITIZER_NAME IN ITEMS asan ubsan)
+                        execute_process(
+                                COMMAND "${CMAKE_CXX_COMPILER}" "-print-file-name=lib${YOGI_SANITIZER_NAME}.so"
+                                OUTPUT_VARIABLE YOGI_SANITIZER_LIBRARY
+                                OUTPUT_STRIP_TRAILING_WHITESPACE
+                        )
+                        if(NOT EXISTS "${YOGI_SANITIZER_LIBRARY}")
+                                message(FATAL_ERROR "Missing lib${YOGI_SANITIZER_NAME} runtime: ${YOGI_SANITIZER_LIBRARY}")
+                        endif()
+                        list(APPEND YOGI_SANITIZER_RUNTIME_PATHS "${YOGI_SANITIZER_LIBRARY}")
+                endforeach()
+        endif()
+
+        message(STATUS "Program test sanitizers: address, undefined, leak detection through ASan when supported")
+endif()
+
 unset(ENV{LLVM_CONFIG})
 unset(ENV{LLVM_DIR})
 
 cmake_policy(SET CMP0075 NEW)
 cmake_policy(SET CMP0074 NEW)
+
+if(POLICY CMP0156)
+        cmake_policy(SET CMP0156 NEW)
+endif()
+
+if(POLICY CMP0179)
+        cmake_policy(SET CMP0179 NEW)
+endif()
 
 foreach(_YOGI_LINKER_FLAGS_VAR
                 CMAKE_EXE_LINKER_FLAGS
@@ -198,23 +262,6 @@ if(NOT YOGI_ENABLE_LLVM STREQUAL "OFF")
 
                 find_package(OpenSSL QUIET)
 
-                find_library(YOGI_LLD_COMMON_LIB
-                        NAMES lldCommon liblldCommon
-                        PATHS ${LLVM_LIBRARY_DIRS} "${LLVM_ROOT}/lib"
-                        NO_DEFAULT_PATH
-                )
-
-                find_library(YOGI_LLD_ELF_LIB
-                        NAMES lldELF liblldELF
-                        PATHS ${LLVM_LIBRARY_DIRS} "${LLVM_ROOT}/lib"
-                        NO_DEFAULT_PATH
-                )
-
-                find_library(YOGI_LLD_MACHO_LIB
-                        NAMES lldMachO liblldMachO
-                        PATHS ${LLVM_LIBRARY_DIRS} "${LLVM_ROOT}/lib"
-                        NO_DEFAULT_PATH
-                )
         else()
                 message(FATAL_ERROR
                         "YOGI_ENABLE_LLVM is ON, but vendored LLVM was not found at ${LLVM_ROOT}. "
@@ -259,6 +306,11 @@ endif()
 # ============================================================
 add_subdirectory(src/runtime)
 
+if(YOGI_ENABLE_SANITIZERS)
+        target_compile_options(yogi_runtime PRIVATE ${YOGI_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(yogi_runtime INTERFACE -fsanitize=address,undefined)
+endif()
+
 # ============================================================
 #                     EXECUTABLE
 # ============================================================
@@ -267,6 +319,11 @@ add_executable(${PROJECT_NAME}
         ${CMAKE_SOURCE_DIR}/src/core/yogi.cpp
         ${PROD_SOURCES}
 )
+
+if(YOGI_ENABLE_SANITIZERS)
+        target_compile_options(${PROJECT_NAME} PRIVATE ${YOGI_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address,undefined)
+endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CORE_DIR}
@@ -286,6 +343,7 @@ set(YOGI_RUNTIME_LIBRARY_PATH_DEFINE "$<TARGET_FILE:yogi_runtime>")
 set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH_DEFINE "")
 set(YOGI_LLD_PATH_DEFINE "${YOGI_LLD_EXECUTABLE}")
 set(YOGI_LD64_LLD_PATH_DEFINE "${YOGI_LD64_LLD_EXECUTABLE}")
+string(JOIN "|" YOGI_SANITIZER_RUNTIME_PATHS_DEFINE ${YOGI_SANITIZER_RUNTIME_PATHS})
 
 if(DEFINED YOGI_RUNTIME_ALLOCATOR_TARGET AND TARGET ${YOGI_RUNTIME_ALLOCATOR_TARGET})
         set(YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH_DEFINE "$<TARGET_FILE:${YOGI_RUNTIME_ALLOCATOR_TARGET}>")
@@ -340,19 +398,12 @@ if(YOGI_LLVM_ENABLED)
                 YOGI_MACOS_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}"
                 YOGI_RUNTIME_LIBRARY_PATH="${YOGI_RUNTIME_LIBRARY_PATH_DEFINE}"
                 YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH="${YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH_DEFINE}"
+                YOGI_SANITIZER_RUNTIME_PATHS="${YOGI_SANITIZER_RUNTIME_PATHS_DEFINE}"
         )
 
         target_link_libraries(${PROJECT_NAME} PRIVATE
                 ${llvm_libs}
         )
-
-        if(YOGI_LLD_COMMON_LIB AND YOGI_LLD_ELF_LIB AND YOGI_LLD_MACHO_LIB)
-                target_link_libraries(${PROJECT_NAME} PRIVATE
-                        "${YOGI_LLD_COMMON_LIB}"
-                        "${YOGI_LLD_ELF_LIB}"
-                        "${YOGI_LLD_MACHO_LIB}"
-                )
-        endif()
 
         if(OpenSSL_FOUND)
                 target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto)
@@ -376,6 +427,41 @@ target_link_libraries(${PROJECT_NAME} PRIVATE yogi_runtime)
 include(CTest)
 
 if(BUILD_TESTING)
+        if(YOGI_LLVM_ENABLED)
+                llvm_map_components_to_libnames(YOGI_PROGRAM_TEST_LLVM_LIBS
+                        Core
+                        IRReader
+                        Support
+                )
+
+                add_executable(yogi_program_trace_analyzer
+                        ${CMAKE_SOURCE_DIR}/tests/programs/runner/programTraceAnalyzer.cpp
+                        ${CMAKE_SOURCE_DIR}/tests/programs/runner/llvm/programIrInspector.cpp
+                )
+
+                set_target_properties(yogi_program_trace_analyzer PROPERTIES
+                        CXX_STANDARD 20
+                        CXX_STANDARD_REQUIRED ON
+                )
+
+                target_include_directories(yogi_program_trace_analyzer PRIVATE
+                        ${LLVM_INCLUDE_DIRS}
+                        ${CMAKE_SOURCE_DIR}/tests/programs/runner
+                )
+
+                target_link_libraries(yogi_program_trace_analyzer PRIVATE
+                        ${YOGI_PROGRAM_TEST_LLVM_LIBS}
+                )
+
+                add_test(
+                        NAME yogi_program_trace_analyzer_test
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_PROGRAM_TRACE_ANALYZER=$<TARGET_FILE:yogi_program_trace_analyzer>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/program-trace-analyzer
+                                -P ${CMAKE_SOURCE_DIR}/tests/programs/runner/programTraceAnalyzerTest.cmake
+                )
+        endif()
+
         add_executable(yogi_runtime_cast_test
                 ${CMAKE_SOURCE_DIR}/tests/runtime/unit/runtime_cast_test.cpp
         )
@@ -435,18 +521,84 @@ if(BUILD_TESTING)
                 COMMAND yogi_runtime_array_storage_test
         )
 
+        add_executable(yogi_runtime_memory_telemetry_test
+                ${CMAKE_SOURCE_DIR}/tests/runtime/unit/runtime_memory_telemetry_test.cpp
+        )
+
+        target_link_libraries(yogi_runtime_memory_telemetry_test PRIVATE yogi_runtime)
+
+        add_test(
+                NAME yogi_runtime_memory_telemetry_test
+                COMMAND yogi_runtime_memory_telemetry_test
+        )
+
+        if(YOGI_ENABLE_PROGRAM_OBSERVABILITY AND YOGI_LLVM_ENABLED)
+                add_executable(yogi_runtime_program_observability_test
+                        ${CMAKE_SOURCE_DIR}/tests/runtime/unit/runtime_program_observability_test.cpp
+                )
+
+                target_link_libraries(yogi_runtime_program_observability_test PRIVATE yogi_runtime)
+
+                add_test(
+                        NAME yogi_runtime_program_observability_test
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_RUNTIME_OBSERVABILITY_TEST=$<TARGET_FILE:yogi_runtime_program_observability_test>
+                                -DYOGI_PROGRAM_TRACE_ANALYZER=$<TARGET_FILE:yogi_program_trace_analyzer>
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/runtime-program-observability
+                                -P ${CMAKE_SOURCE_DIR}/tests/runtime/unit/runtimeProgramObservability.cmake
+                )
+        endif()
+
         function(add_yogi_pipeline_test TEST_NAME TEST_WORK_DIR TEST_SCRIPT)
                 add_test(
                         NAME ${TEST_NAME}
                         COMMAND ${CMAKE_COMMAND}
                                 -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
                                 -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/${TEST_WORK_DIR}
+                                -DYOGI_PROGRAM_SANITIZER_C_FLAGS=${YOGI_PROGRAM_SANITIZER_C_FLAGS}
                                 -P ${CMAKE_SOURCE_DIR}/${TEST_SCRIPT}
                 )
         endfunction()
 
         function(add_yogi_program_test TEST_NAME TEST_WORK_DIR TEST_SCRIPT)
-                add_yogi_pipeline_test(${TEST_NAME} ${TEST_WORK_DIR} ${TEST_SCRIPT})
+                set(PROGRAM_TEST_PROFILE "runtime-strict")
+                if(ARGC GREATER 3)
+                        set(PROGRAM_TEST_PROFILE "${ARGV3}")
+                endif()
+
+                get_filename_component(PROGRAM_TEST_STEM "${TEST_SCRIPT}" NAME_WE)
+                set(PROGRAM_TEST_MANIFEST
+                        "${CMAKE_SOURCE_DIR}/tests/programs/manifests/${PROGRAM_TEST_STEM}.json"
+                )
+
+                if(NOT EXISTS "${PROGRAM_TEST_MANIFEST}")
+                        set(PROGRAM_TEST_MANIFEST "")
+                endif()
+
+                if(YOGI_ENABLE_PROGRAM_OBSERVABILITY)
+                        set(PROGRAM_OBSERVABILITY_ENABLED 1)
+                else()
+                        set(PROGRAM_OBSERVABILITY_ENABLED 0)
+                endif()
+
+                add_test(
+                        NAME ${TEST_NAME}
+                        COMMAND ${CMAKE_COMMAND}
+                                -DYOGI_EXECUTABLE=$<TARGET_FILE:${PROJECT_NAME}>
+                                -DYOGI_PROGRAM_TRACE_ANALYZER=$<TARGET_FILE:yogi_program_trace_analyzer>
+                                -DYOGI_PROGRAM_OBSERVABILITY_ENABLED=${PROGRAM_OBSERVABILITY_ENABLED}
+                                -DYOGI_PROGRAM_SANITIZER_C_FLAGS=${YOGI_PROGRAM_SANITIZER_C_FLAGS}
+                                -DPROGRAM_TEST_NAME=${TEST_NAME}
+                                -DPROGRAM_TEST_PROFILE=${PROGRAM_TEST_PROFILE}
+                                -DPROGRAM_TEST_SCRIPT=${CMAKE_SOURCE_DIR}/${TEST_SCRIPT}
+                                -DPROGRAM_TEST_MANIFEST=${PROGRAM_TEST_MANIFEST}
+                                -DTEST_WORK_DIR=${CMAKE_BINARY_DIR}/tests/${TEST_WORK_DIR}
+                                -P ${CMAKE_SOURCE_DIR}/tests/programs/runner/runProgramTest.cmake
+                )
+
+                set_tests_properties(${TEST_NAME} PROPERTIES
+                        ENVIRONMENT "ASAN_OPTIONS=${YOGI_PROGRAM_ASAN_OPTIONS};LSAN_OPTIONS=exitcode=86:report_objects=1;UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1"
+                )
         endfunction()
 
         if(YOGI_LLVM_ENABLED)
@@ -454,6 +606,12 @@ if(BUILD_TESTING)
                         yogi_pipeline_runtime_any
                         pipeline-runtime-any
                         tests/runtime/sessions/01-runtime/runtime_any.cmake
+                )
+
+                add_yogi_pipeline_test(
+                        yogi_pipeline_union_any_runtime_narrowing
+                        pipeline-union-any-runtime-narrowing
+                        tests/runtime/sessions/02-variables-aggregates/union_any_runtime_narrowing.cmake
                 )
 
                 add_yogi_pipeline_test(
@@ -523,6 +681,24 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_pipeline_test(
+                        yogi_pipeline_fixed_shape_array_iteration
+                        pipeline-fixed-shape-array-iteration
+                        tests/runtime/sessions/02-variables-aggregates/fixed_shape_array_iteration.cmake
+                )
+
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_expression_lifetime
+                        pipeline-array-expression-lifetime
+                        tests/runtime/sessions/02-variables-aggregates/array_expression_lifetime.cmake
+                )
+
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_scalar_receiver_lifetime
+                        pipeline-array-scalar-receiver-lifetime
+                        tests/runtime/sessions/02-variables-aggregates/array_scalar_receiver_lifetime.cmake
+                )
+
+                add_yogi_pipeline_test(
                         yogi_pipeline_array_borrow_summaries
                         pipeline-array-borrow-summaries
                         tests/runtime/sessions/02-variables-aggregates/array_borrow_summaries.cmake
@@ -532,6 +708,12 @@ if(BUILD_TESTING)
                         yogi_pipeline_array_view_lifetime_analysis
                         pipeline-array-view-lifetime-analysis
                         tests/runtime/sessions/02-variables-aggregates/array_view_lifetime_analysis.cmake
+                )
+
+                add_yogi_pipeline_test(
+                        yogi_pipeline_dynamic_array_escaping_borrows
+                        pipeline-dynamic-array-escaping-borrows
+                        tests/runtime/sessions/02-variables-aggregates/dynamic_array_escaping_borrows.cmake
                 )
 
                 add_yogi_pipeline_test(
@@ -634,6 +816,12 @@ if(BUILD_TESTING)
                         yogi_pipeline_array_callback_ownership_borrow
                         pipeline-array-callback-ownership-borrow
                         tests/runtime/sessions/02-variables-aggregates/array_callback_ownership_borrow.cmake
+                )
+
+                add_yogi_pipeline_test(
+                        yogi_pipeline_array_reduce_aggregate_ownership
+                        pipeline-array-reduce-aggregate-ownership
+                        tests/runtime/sessions/02-variables-aggregates/array_reduce_aggregate_ownership.cmake
                 )
 
                 add_yogi_pipeline_test(
@@ -775,6 +963,78 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_program_test(
+                        yogi_program_fixed_matrix_iteration_report
+                        program-fixed-matrix-iteration-report
+                        tests/programs/fixed_matrix_iteration_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_array_expression_lifetime_report
+                        program-array-expression-lifetime-report
+                        tests/programs/array_expression_lifetime_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_array_scalar_receiver_lifetime_report
+                        program-array-scalar-receiver-lifetime-report
+                        tests/programs/array_scalar_receiver_lifetime_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_array_reduce_aggregate_report
+                        program-array-reduce-aggregate-report
+                        tests/programs/array_reduce_aggregate_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_managed_struct_reduce_report
+                        program-managed-struct-reduce-report
+                        tests/programs/managed_struct_reduce_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_inline_reduce_branch_ownership_report
+                        program-inline-reduce-branch-ownership-report
+                        tests/programs/inline_reduce_branch_ownership_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_inline_reduce_control_flow_report
+                        program-inline-reduce-control-flow-report
+                        tests/programs/inline_reduce_control_flow_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_inline_callback_loop_switch_report
+                        program-inline-callback-loop-switch-report
+                        tests/programs/inline_callback_loop_switch_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_dynamic_array_borrow_archive
+                        program-dynamic-array-borrow-archive
+                        tests/programs/dynamic_array_borrow_archive.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_array_value_assignment_report
+                        program-array-value-assignment-report
+                        tests/programs/array_value_assignment_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_recursive_aggregate_array_copy_report
+                        program-recursive-aggregate-array-copy-report
+                        tests/programs/recursive_aggregate_array_copy_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_union_any_narrowing_report
+                        program-union-any-narrowing-report
+                        tests/programs/union_any_narrowing_report.cmake
+                )
+
+                add_yogi_program_test(
                         yogi_program_sales_destructuring_report
                         program-sales-destructuring-report
                         tests/programs/sales_destructuring_report.cmake
@@ -784,6 +1044,12 @@ if(BUILD_TESTING)
                         yogi_program_array_storage_policy_report
                         program-array-storage-policy-report
                         tests/programs/array_storage_policy_report.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_array_copying_methods
+                        program-array-copying-methods
+                        tests/programs/array_copying_methods.cmake
                 )
 
                 add_yogi_program_test(
@@ -847,15 +1113,34 @@ if(BUILD_TESTING)
                 )
 
                 add_yogi_program_test(
+                        yogi_program_ownership_control_flow_observability
+                        program-ownership-control-flow-observability
+                        tests/programs/ownership_control_flow_observability.cmake
+                )
+
+                add_yogi_program_test(
                         yogi_program_native_resource_array_ownership
                         program-native-resource-array-ownership
                         tests/programs/native_resource_array_ownership.cmake
                 )
 
                 add_yogi_program_test(
+                        yogi_program_native_resource_array_function_boundaries
+                        program-native-resource-array-function-boundaries
+                        tests/programs/native_resource_array_function_boundaries.cmake
+                )
+
+                add_yogi_program_test(
+                        yogi_program_native_resource_array_pointer_policy
+                        program-native-resource-array-pointer-policy
+                        tests/programs/native_resource_array_pointer_policy.cmake
+                )
+
+                add_yogi_program_test(
                         yogi_program_native_extern_destructor_missing_symbol
                         program-native-extern-destructor-missing-symbol
                         tests/programs/native_extern_destructor_missing_symbol.cmake
+                        compile-negative
                 )
         endif()
 endif()

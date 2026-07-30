@@ -254,6 +254,17 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 );
 
                 if (
+                    args[index]?.kind === Kinds.Collections.DictionaryExpression ||
+                    args[index]?.kind === Kinds.Collections.ArrayExpression
+                ) {
+                    args[index] = (this as any).materializeNestedDynamicArrayCopies(
+                        args[index],
+                        node.fullSource ?? node.source,
+                        args[index] ?? node,
+                    );
+                }
+
+                if (
                     calleeName !== "print" &&
                     !this.isPointerType(expectedType)
                 ) {
@@ -346,6 +357,53 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     args[index].arrowLength = args[index].source?.length ?? 1;
                     this.throwError(message, args[index].position ?? node.position, node.fullSource ?? node.source, args[index]);
                 }
+
+                const resolvedActual = this.resolveType(actualType);
+                const expectedUsesDynamicBox =
+                    resolvedExpected?.kind === Kinds.Types.AnyType ||
+                    resolvedExpected?.kind === Kinds.Types.UnionType;
+                const actualUsesDynamicBox =
+                    resolvedActual?.kind === Kinds.Types.AnyType ||
+                    resolvedActual?.kind === Kinds.Types.UnionType;
+                const internalFunction =
+                    symbol.ambient !== true &&
+                    symbol.declare !== true &&
+                    calleeName !== "print";
+
+                if (internalFunction && expectedUsesDynamicBox && !actualUsesDynamicBox) {
+                    const argument = args[index];
+                    args[index] = {
+                        kind: Kinds.Expressions.CallExpression,
+                        callee: {
+                            kind: Kinds.Expressions.IdentifierExpression,
+                            name: "__yogi_box",
+                            value: "__yogi_box",
+                            raw: "__yogi_box",
+                            source: argument.source,
+                            position: argument.position,
+                            type: {
+                                kind: Kinds.Types.FunctionType,
+                                raw: "(value: any) => any",
+                                parameters: [{
+                                    name: "value",
+                                    type: { kind: Kinds.Types.AnyType, raw: "any" },
+                                }],
+                                returnType: expectedType,
+                            },
+                        },
+                        arguments: [argument],
+                        argumentEffects: [{
+                            index: 0,
+                            escapes: false,
+                            mutates: false,
+                            consumes: false,
+                        }],
+                        builtinMethod: "runtime.box",
+                        type: this.toSerializableType(expectedType),
+                        source: argument.source,
+                        position: argument.position,
+                    };
+                }
             }
 
             const returnType = this.toSerializableType(symbol.node?.returnType ?? {
@@ -359,13 +417,56 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const returnIsPointer = this.isPointerType(returnType);
             const effectSummary = symbol.effectSummary ?? symbol.node?.effectSummary ?? null;
             const external = symbol.ambient === true || symbol.declare === true || !effectSummary;
+            const returnBorrow = effectSummary?.returnBorrow;
+            const borrowedReturnParameterIndex =
+                returnBorrow?.ownership === "borrowed"
+                    ? returnBorrow.parameterIndex
+                    : -1;
+            const parameterEscapesBeyondCall = (effect: any, index: number): boolean => {
+                if (effect?.stores === true) {
+                    return true;
+                }
+
+                if (
+                    borrowedReturnParameterIndex === index &&
+                    effect?.returns === true
+                ) {
+                    return false;
+                }
+
+                return effect?.escapes === true || effect?.returns === true;
+            };
+
+            args.forEach((argument: any, index: number) => {
+                const parameterType = this.resolveType(parameters[index]?.type);
+                const isDynamicArrayValueParameter =
+                    parameterType?.kind === Kinds.Types.ArrayType &&
+                    parameterType.fixed !== true;
+
+                if (!isDynamicArrayValueParameter) {
+                    return;
+                }
+
+                const resourceFields = this.nativeResourceArrayValueFields(argument);
+                if (Object.keys(resourceFields).length > 0) {
+                    argument.arrowLength = argument.source?.length ?? 1;
+                    this.throwError(
+                        `cannot pass resource-owning array to value parameter ${Helpers.RED}'${parameters[index]?.name ?? index + 1}'${Helpers.RESET}`,
+                        argument.position ?? node.position,
+                        node.fullSource ?? node.source,
+                        argument,
+                        `  = '${parameterType.raw ?? "T[]"}' parameters create a local array copy, which would duplicate native resource ownership\n` +
+                        `  = declare the parameter as 'ptr<${parameterType.raw ?? "T[]"}>' and pass '&${this.getAggregateRootIdentifier(argument) ?? "array"}' to borrow it`,
+                    );
+                }
+            });
 
             args.forEach((argument: any, index: number) => {
                 const effect = effectSummary?.parameterEffects?.[index];
                 const parameterType = parameters[index]?.type;
                 const parameterMayEscape = external
                     ? this.isAggregateType(parameterType)
-                    : effect?.escapes === true || effect?.stores === true || effect?.returns === true;
+                    : parameterEscapesBeyondCall(effect, index);
 
                 if (parameterMayEscape) {
                     args[index] = (this as any).materializeBorrowedViewForEscape(
@@ -447,7 +548,9 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
                 return {
                     index,
-                    escapes: external ? this.isAggregateType(parameters[index]?.type) : effect?.escapes === true,
+                    escapes: external
+                        ? this.isAggregateType(parameters[index]?.type)
+                        : parameterEscapesBeyondCall(effect, index),
                     mutates: effect?.mutates === true,
                     consumes: effect?.consumes === true || this.isMoveCallExpression(args[index]),
                 };
@@ -469,11 +572,6 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
             });
 
-            const returnBorrow = effectSummary?.returnBorrow;
-            const borrowedReturnParameterIndex =
-                returnBorrow?.ownership === "borrowed"
-                    ? returnBorrow.parameterIndex
-                    : -1;
             const borrowedReturnArgument =
                 typeof borrowedReturnParameterIndex === "number" &&
                     borrowedReturnParameterIndex >= 0 &&
@@ -489,6 +587,32 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             const borrowedReturnPointerInfo = borrowedReturnArgument && returnIsPointer
                 ? this.borrowedPointerReturnInfo(borrowedReturnArgument, returnBorrow)
                 : null;
+            const resolvedReturnType = this.resolveType(returnType);
+            const returnsDynamicArrayValue =
+                resolvedReturnType?.kind === Kinds.Types.ArrayType &&
+                resolvedReturnType.fixed !== true;
+            const nativeResourceArrayElementFieldDestructors =
+                !returnsDynamicArrayValue
+                    ? {}
+                    : borrowedReturnArgument
+                    ? this.nativeResourceArrayValueFields(borrowedReturnArgument)
+                    : symbol.returnsNativeResourceArrayElementFieldDestructors ??
+                        symbol.node?.returnsNativeResourceArrayElementFieldDestructors ??
+                        {};
+            const arrayReturnMetadata = this.nativeResourceArrayReturnMetadata(
+                nativeResourceArrayElementFieldDestructors,
+            );
+            const arrayOwnershipMetadata =
+                returnsDynamicArrayValue && borrowedReturnParameterIndex >= 0
+                    ? `array.return.ownership=borrowed;parameter=${borrowedReturnParameterIndex}`
+                    : "";
+            const builtinMethod = [
+                symbol.node?.builtinMethod,
+                arrayOwnershipMetadata,
+                arrayReturnMetadata,
+            ]
+                .filter((part: string | undefined) => !!part)
+                .join("|");
 
             return {
                 ...node,
@@ -502,7 +626,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 qualifiedName: symbol.qualifiedName,
                 external,
                 effectSummary,
-                builtinMethod: symbol.node?.builtinMethod,
+                builtinMethod: builtinMethod || undefined,
                 borrowedView: borrowedReturnInfo !== null,
                 borrowedViewReadonly: borrowedReturnInfo
                     ? borrowedReturnInfo.borrowedViewReadonly || borrowedReturnInfo.readonly
@@ -513,6 +637,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 pointerAccessPath: borrowedReturnPointerInfo?.accessPath ?? [],
                 pointerPermission: borrowedReturnPointerInfo?.permission,
                 nativeResourceFieldDestructors,
+                nativeResourceArrayElementFieldDestructors:
+                    Object.keys(nativeResourceArrayElementFieldDestructors).length > 0
+                        ? nativeResourceArrayElementFieldDestructors
+                        : undefined,
             };
         }
 
@@ -1037,6 +1165,8 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 args[0] = pushedArgument;
             }
 
+            this.registerNativeResourceArrayValues(receiver, [pushedArgument]);
+
             this.updateKnownDynamicArrayPathLength(symbol, pushOwner.accessPath, (length) =>
                 typeof length === "number" ? length + 1 : null,
                 receiver,
@@ -1449,6 +1579,231 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 pointerReceiver: false,
                 accessPath: this.aggregateAccessPath(receiver),
             };
+        }
+
+        public nativeResourceArrayElementFields(receiver: any): Record<string, string> {
+            const { symbol } = this.dynamicArrayReceiverOwner(receiver);
+            return symbol?.nativeResourceArrayElementFieldDestructors
+                ? { ...symbol.nativeResourceArrayElementFieldDestructors }
+                : receiver?.nativeResourceArrayElementFieldDestructors
+                    ? { ...receiver.nativeResourceArrayElementFieldDestructors }
+                    : {};
+        }
+
+        public nativeResourceArrayValueFields(value: any): Record<string, string> {
+            if (!value) {
+                return {};
+            }
+
+            const resolvedType = this.resolveType(value.type);
+            const pointeeType = resolvedType?.kind === Kinds.Types.PointerType
+                ? this.resolveType(resolvedType.elementType ?? resolvedType.pointee)
+                : null;
+            if (
+                resolvedType?.kind === Kinds.Types.ArrayType ||
+                resolvedType?.kind === Kinds.Types.TupleType ||
+                pointeeType?.kind === Kinds.Types.ArrayType ||
+                pointeeType?.kind === Kinds.Types.TupleType
+            ) {
+                return this.nativeResourceArrayElementFields(value);
+            }
+
+            const ownership = this.collectNativeResourceFieldOwnership(value);
+            return {
+                ...ownership.destructors,
+                ...this.nativeResourceFieldDestructorsFromExpression(value),
+            };
+        }
+
+        public registerNativeResourceArrayValues(receiver: any, values: any[]): Record<string, string> {
+            const { symbol } = this.dynamicArrayReceiverOwner(receiver);
+            const fields = values.reduce((result: Record<string, string>, value: any) => ({
+                ...result,
+                ...this.nativeResourceArrayValueFields(value),
+            }), {});
+
+            if (symbol && Object.keys(fields).length > 0) {
+                symbol.nativeResourceArrayElementFieldDestructors = {
+                    ...(symbol.nativeResourceArrayElementFieldDestructors ?? {}),
+                    ...fields,
+                };
+            }
+
+            return fields;
+        }
+
+        public nativeResourceArrayReturnMetadata(fields: Record<string, string>): string {
+            return Object.entries(fields)
+                .map(([fieldPath, destructor]) =>
+                    `native.return.array.element.resource.destructor=${fieldPath}=${destructor}`,
+                )
+                .join("|");
+        }
+
+        public assertArrayCopyDoesNotDuplicateNativeResources(
+            node: any,
+            rawCallee: any,
+            receiver: any,
+            methodName: string,
+            source: string,
+            copiedValues: any[] = [],
+        ): void {
+            const fields = {
+                ...this.nativeResourceArrayElementFields(receiver),
+                ...copiedValues.reduce((result: Record<string, string>, value: any) => ({
+                    ...result,
+                    ...this.nativeResourceArrayValueFields(value),
+                }), {}),
+            };
+
+            if (Object.keys(fields).length === 0) {
+                return;
+            }
+
+            const fieldList = Object.keys(fields).join(", ");
+            rawCallee.arrowLength = rawCallee.source?.length ?? methodName.length;
+            this.throwError(
+                `array method ${Helpers.RED}'${methodName}'${Helpers.RESET} cannot copy resource-owning elements`,
+                rawCallee.position ?? node.position,
+                source,
+                rawCallee,
+                `  = owned native resource field(s): ${fieldList}\n` +
+                "  = copying would create multiple owners for the same native resource; use splice(), pop(), or shift() to transfer ownership",
+            );
+        }
+
+        public reduceStructContainsPointerFields(type: any, visited = new Set<any>()): boolean {
+            const resolved = this.resolveType(type);
+            if (!this.isStructResolvedType(resolved) || visited.has(resolved)) {
+                return false;
+            }
+
+            visited.add(resolved);
+
+            return this.objectMembers(resolved).some((field: any) => {
+                const fieldType = this.resolveType(field?.type);
+                if (!fieldType) {
+                    return false;
+                }
+
+                if (this.isStructResolvedType(fieldType)) {
+                    return this.reduceStructContainsPointerFields(fieldType, visited);
+                }
+
+                return fieldType.kind === Kinds.Types.PointerType;
+            });
+        }
+
+        public validateReduceAggregateCallbackOwnership(
+            node: any,
+            rawCallee: any,
+            methodName: string,
+            semanticCallback: any,
+            symbol: any,
+            params: any[],
+            accumulatorType: any,
+            source: string,
+        ): void {
+            const resolvedAccumulator = this.resolveType(accumulatorType);
+            const managedAccumulator =
+                this.isAggregateType(resolvedAccumulator) ||
+                resolvedAccumulator?.kind === Kinds.Types.StringType ||
+                resolvedAccumulator?.kind === Kinds.Types.AnyType ||
+                resolvedAccumulator?.kind === Kinds.Types.UnionType;
+
+            if (!managedAccumulator) {
+                return;
+            }
+
+            if (this.reduceStructContainsPointerFields(resolvedAccumulator)) {
+                rawCallee.arrowLength = rawCallee.source?.length ?? methodName.length;
+                this.throwError(
+                    `array method ${Helpers.RED}'${methodName}'${Helpers.RESET} cannot use a pointer-bearing struct accumulator`,
+                    rawCallee.position ?? node.position,
+                    source,
+                    rawCallee,
+                    "  = structs containing strings, arrays, objects, unions, and nested copyable structs are supported\n" +
+                    "  = pointer fields may represent borrowed or exclusive native resources and need an explicit clone/transfer contract",
+                );
+            }
+
+            const callbackNode = semanticCallback.kind === Kinds.Functions.FunctionExpression
+                ? semanticCallback
+                : symbol?.node;
+            const returnStatements = (this as any).findFunctionReturnStatements(callbackNode?.body) ?? [];
+            const parameterNames = new Set((params ?? []).map((parameter: any) =>
+                parameter?.name ?? parameter?.value ?? parameter?.raw,
+            ));
+            const accumulatorName = params?.[0]?.name ?? params?.[0]?.value ?? params?.[0]?.raw;
+            const inlineCallback = semanticCallback.kind === Kinds.Functions.FunctionExpression;
+            const localNames = new Set<string>();
+            const collectLocalNames = (value: any): void => {
+                if (!value) return;
+                if (Array.isArray(value)) {
+                    value.forEach(collectLocalNames);
+                    return;
+                }
+
+                if (value.kind === Kinds.Statements.VariableDeclaration && value.name) {
+                    localNames.add(value.name);
+                }
+
+                for (const key of ["statements", "then", "else", "body", "clauses"]) {
+                    collectLocalNames(value[key]);
+                }
+            };
+            collectLocalNames(callbackNode?.body);
+
+            const returnCandidates = (value: any): any[] => {
+                if (!value) {
+                    return [];
+                }
+
+                if (value.kind === Kinds.Expressions.ConditionalExpression) {
+                    return [
+                        ...returnCandidates(value.whenTrue),
+                        ...returnCandidates(value.whenFalse),
+                    ];
+                }
+
+                return [value];
+            };
+            for (const returnStatement of returnStatements) {
+                for (const value of returnCandidates(returnStatement?.value)) {
+                    if (!value) continue;
+
+                    const identifierName = this.getIdentifierName(value);
+                    const directBorrow =
+                        value.kind === Kinds.Expressions.PropertyAccessExpression ||
+                        value.kind === Kinds.Expressions.ElementAccessExpression ||
+                        value.kind === Kinds.Expressions.DereferenceExpression ||
+                        value.effectSummary?.returnBorrow?.ownership === "borrowed";
+                    const inlineParameterBorrow =
+                        inlineCallback &&
+                        identifierName &&
+                        parameterNames.has(identifierName) &&
+                        identifierName !== accumulatorName;
+                    const capturedIdentifierBorrow =
+                        identifierName &&
+                        identifierName !== accumulatorName &&
+                        !parameterNames.has(identifierName) &&
+                        !localNames.has(identifierName);
+
+                    if (!directBorrow && !inlineParameterBorrow && !capturedIdentifierBorrow) {
+                        continue;
+                    }
+
+                    value.arrowLength = value.source?.length ?? identifierName?.length ?? 1;
+                    this.throwError(
+                        `array method ${Helpers.RED}'${methodName}'${Helpers.RESET} callback cannot return a borrowed aggregate as its next accumulator`,
+                        value.position ?? rawCallee.position ?? node.position,
+                        source,
+                        value,
+                        "  = return the accumulator parameter, a fresh aggregate value, or an owned value local to a named callback\n" +
+                        "  = borrowed elements and captured aggregate owners must be copied explicitly before becoming the accumulator",
+                    );
+                }
+            }
         }
 
         public aggregateAccessPath(node: any): string[] {
@@ -1864,8 +2219,9 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
 
             const elementType = this.arrayReadableElementType(receiverType);
+            const unshiftOwner = this.dynamicArrayReceiverOwner(receiver);
 
-            args.forEach((argument: any) => {
+            args.forEach((argument: any, index: number) => {
                 const actualType = argument?.type;
 
                 if (!this.isTypeAssignable(elementType, actualType)) {
@@ -1877,9 +2233,18 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     argument.arrowLength = argument.source?.length ?? 1;
                     this.throwError(message, argument.position ?? node.position, source, argument);
                 }
+
+                if (this.resourceOwningStructSymbolFromExpression(argument)) {
+                    args[index] = this.createInternalMoveExpression(
+                        argument,
+                        `it was inserted into array '${unshiftOwner.rootName ?? receiver.source ?? "array"}' by unshift()`,
+                        node,
+                    );
+                }
             });
 
-            const unshiftOwner = this.dynamicArrayReceiverOwner(receiver);
+            this.registerNativeResourceArrayValues(receiver, args);
+
             this.updateKnownDynamicArrayPathLength(unshiftOwner.symbol, unshiftOwner.accessPath, (length) =>
                 typeof length === "number" ? length + args.length : null,
                 receiver,
@@ -1892,11 +2257,11 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 args,
                 { kind: Kinds.Types.NumberType, raw: "number" },
                 methodName,
-                args.map((_: any, index: number) => ({
+                args.map((argument: any, index: number) => ({
                     index,
                     escapes: false,
                     mutates: true,
-                    consumes: false,
+                    consumes: this.isMoveCallExpression(argument),
                 })),
             );
         }
@@ -1956,6 +2321,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.validateNumberArrayMethodArgument(node, methodName, argument, source, "index");
             });
 
+            this.assertArrayCopyDoesNotDuplicateNativeResources(
+                node,
+                rawCallee,
+                receiver,
+                methodName,
+                source,
+            );
+
             return this.createArrayBuiltinCall(
                 node,
                 rawCallee,
@@ -1976,6 +2349,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 rawCallee.arrowLength = rawCallee.source?.length ?? methodName?.length ?? 1;
                 this.throwError(message, rawCallee.position ?? node.position, source, rawCallee);
             }
+
+            this.assertArrayCopyDoesNotDuplicateNativeResources(
+                node,
+                rawCallee,
+                receiver,
+                methodName,
+                source,
+            );
 
             return this.createArrayBuiltinCall(
                 node,
@@ -2041,6 +2422,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 this.validateConcatArgument(node, methodName, argument, elementType, source);
             });
 
+            this.assertArrayCopyDoesNotDuplicateNativeResources(
+                node,
+                rawCallee,
+                receiver,
+                methodName,
+                source,
+                args,
+            );
+
             return this.createArrayBuiltinCall(
                 node,
                 rawCallee,
@@ -2100,6 +2490,9 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             }
 
             const elementType = this.arrayReadableElementType(receiverType);
+            const receiverResourceFieldsBeforeMutation = mutating
+                ? this.nativeResourceArrayElementFields(receiver)
+                : {};
             args.slice(2).forEach((argument: any, offset: number) => {
                 this.validateArrayElementValue(node, methodName, argument, elementType, source, "insert value");
                 const index = offset + 2;
@@ -2172,9 +2565,20 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     const deleted = Math.min(requestedDeleteCount, length - normalizedStart);
                     return length - deleted + args.slice(2).length;
                 }, receiver);
+
+                this.registerNativeResourceArrayValues(receiver, args.slice(2));
+            } else {
+                this.assertArrayCopyDoesNotDuplicateNativeResources(
+                    node,
+                    rawCallee,
+                    receiver,
+                    methodName,
+                    source,
+                    args.slice(2),
+                );
             }
 
-            return this.createArrayBuiltinCall(
+            const result = this.createArrayBuiltinCall(
                 node,
                 rawCallee,
                 receiver,
@@ -2190,10 +2594,30 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     }]
                     : [],
             );
+
+            if (mutating) {
+                const literalDeleteCount = args[1] ? this.literalIndexValue(args[1]) : null;
+                if (
+                    literalDeleteCount !== 0 &&
+                    Object.keys(receiverResourceFieldsBeforeMutation).length > 0
+                ) {
+                    result.nativeResourceArrayElementFieldDestructors = receiverResourceFieldsBeforeMutation;
+                }
+            }
+
+            return result;
         }
 
         public validateAndCreateToReversedCall(node: any, rawCallee: any, receiver: any, receiverType: any, methodName: string, args: any[], source: string): any {
             this.validateArrayMethodArgumentCount(node, methodName, args, source, 0, 0);
+
+            this.assertArrayCopyDoesNotDuplicateNativeResources(
+                node,
+                rawCallee,
+                receiver,
+                methodName,
+                source,
+            );
 
             return this.createArrayBuiltinCall(
                 node,
@@ -2245,6 +2669,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 
             if (mutating) {
                 this.validateMutableArrayReceiver(node, rawCallee, receiver, receiverType, methodName, source);
+            } else {
+                this.assertArrayCopyDoesNotDuplicateNativeResources(
+                    node,
+                    rawCallee,
+                    receiver,
+                    methodName,
+                    source,
+                );
             }
 
             if (args[0]) {
@@ -2321,6 +2753,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 args[0].arrowLength = args[0].source?.length ?? 1;
                 this.throwError(message, args[0].position ?? node.position, source, args[0]);
             }
+
+            this.assertArrayCopyDoesNotDuplicateNativeResources(
+                node,
+                rawCallee,
+                receiver,
+                methodName,
+                source,
+            );
 
             return this.createArrayBuiltinCall(
                 node,
@@ -2457,6 +2897,15 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
             this.validateNumberArrayMethodArgument(node, methodName, args[0], source, "index");
             this.validateArrayElementValue(node, methodName, args[1], this.arrayReadableElementType(receiverType), source, "replacement value");
 
+            this.assertArrayCopyDoesNotDuplicateNativeResources(
+                node,
+                rawCallee,
+                receiver,
+                methodName,
+                source,
+                [args[1]],
+            );
+
             return this.createArrayBuiltinCall(
                 node,
                 rawCallee,
@@ -2572,6 +3021,25 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     this.throwError(message, semanticCallback.position ?? node.position, source, semanticCallback);
                 }
 
+                this.assertArrayCopyDoesNotDuplicateNativeResources(
+                    node,
+                    rawCallee,
+                    receiver,
+                    methodName,
+                    source,
+                    args[1] ? [args[1]] : [],
+                );
+                this.validateReduceAggregateCallbackOwnership(
+                    node,
+                    rawCallee,
+                    methodName,
+                    semanticCallback,
+                    symbol,
+                    params,
+                    accumulatorType,
+                    source,
+                );
+
                 returnType = accumulatorType;
             } else
             if (methodName === "map") {
@@ -2623,6 +3091,34 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 returnType = { kind: Kinds.Types.VoidType, raw: "void" };
             }
 
+            if (methodName === "filter") {
+                this.assertArrayCopyDoesNotDuplicateNativeResources(
+                    node,
+                    rawCallee,
+                    receiver,
+                    methodName,
+                    source,
+                );
+            }
+
+            if (methodName === "map" || methodName === "flatMap") {
+                const resultElementType = this.arrayReadableElementType(returnType);
+                const resultElementKind = this.resolveType(resultElementType)?.kind;
+                const resultMayRetainBorrowedOwnership =
+                    this.isAggregateType(resultElementType) ||
+                    resultElementKind === Kinds.Types.PointerType;
+
+                if (resultMayRetainBorrowedOwnership) {
+                    this.assertArrayCopyDoesNotDuplicateNativeResources(
+                        node,
+                        rawCallee,
+                        receiver,
+                        methodName,
+                        source,
+                    );
+                }
+            }
+
             this.validateArrayCallbackDoesNotMutateSource(
                 node,
                 methodName,
@@ -2632,7 +3128,7 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 source,
             );
 
-            return this.createArrayBuiltinCall(
+            const result = this.createArrayBuiltinCall(
                 node,
                 rawCallee,
                 receiver,
@@ -2640,6 +3136,27 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 returnType,
                 methodName,
             );
+            result.effectSummary = {
+                parameterEffects: result.arguments.map((_: any, index: number) => ({
+                    index,
+                    returns: false,
+                    stores: false,
+                    escapes: false,
+                    mutates: false,
+                    consumes: false,
+                    invalidations: [] as Types.Sir.SemanticArrayInvalidationEffect[],
+                })),
+                returnsAggregate: this.isAggregateType(returnType),
+                returnBorrow: {
+                    ownership: "owned",
+                    parameterIndex: -1,
+                    readonlyFollowsParameter: false,
+                    viewShape: [],
+                    accessPath: [],
+                },
+            };
+
+            return result;
         }
 
         public validateCallbackBooleanReturn(node: any, methodName: string, callback: any, callbackName: string, callbackReturnType: any, source: string): void {
@@ -2900,6 +3417,40 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
 	        public visitUnaryExpression(node: any): any {
             if (node.operator !== "++" && node.operator !== "--") {
                 const operand = this.visitNode(node.operand);
+
+                if (node.operator === "typeof") {
+                    return {
+                        kind: Kinds.Expressions.CallExpression,
+                        callee: {
+                            kind: Kinds.Expressions.IdentifierExpression,
+                            name: "__yogi_typeof",
+                            value: "__yogi_typeof",
+                            raw: "__yogi_typeof",
+                            source: "typeof",
+                            position: node.position,
+                            type: {
+                                kind: Kinds.Types.FunctionType,
+                                raw: "(value: any) => string",
+                                parameters: [{
+                                    name: "value",
+                                    type: { kind: Kinds.Types.AnyType, raw: "any" },
+                                }],
+                                returnType: { kind: Kinds.Types.StringType, raw: "string" },
+                            },
+                        },
+                        arguments: [operand],
+                        argumentEffects: [{
+                            index: 0,
+                            escapes: false,
+                            mutates: false,
+                            consumes: false,
+                        }],
+                        builtinMethod: "runtime.typeof",
+                        type: { kind: Kinds.Types.StringType, raw: "string" },
+                        source: node.source,
+                        position: node.position,
+                    };
+                }
 
                 if (node.operator === "!" && operand?.type?.kind === Kinds.Types.BooleanType) {
                     return {
@@ -4255,7 +4806,10 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             this.throwError(message, right.position, context.fullSource ?? node.fullSource ?? node.source, right);
                         }
 
-                        if (this.canReadThroughPointer(assignmentType, rightType)) {
+                        if (
+                            this.canReadThroughPointer(assignmentType, rightType) ||
+                            this.canBorrowAggregateThroughPointer(assignmentType, rightType)
+                        ) {
                             right = this.createImplicitPointerReadThrough(
                                 right,
                                 assignmentType,
@@ -4263,6 +4817,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                             );
                             rightType = right.type;
                         }
+
+                        right = this.materializeOwnedDynamicArrayValue(
+                            right,
+                            assignmentType,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            node,
+                        );
+                        rightType = right.type;
 
                         right = this.materializeResourceTransfersInStructConstruction(
                             right,
@@ -4274,6 +4836,14 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                         rightType = right.type;
 
                         trackDynamicArrayReplacement(identifierName, symbol, assignmentType, right, left);
+
+                        if (this.isDynamicArrayType(assignmentType)) {
+                            const arrayResourceFields = this.nativeResourceArrayValueFields(right);
+                            symbol.nativeResourceArrayElementFieldDestructors =
+                                Object.keys(arrayResourceFields).length > 0
+                                    ? { ...arrayResourceFields }
+                                    : undefined;
+                        }
 
                         if (!this.isTypeAssignable(assignmentType, rightType)) {
                             const message = this.isPointerType(rightType)
@@ -4740,6 +5310,22 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                 }
 
                 if (this.isAggregateType(right.type)) {
+                    if (
+                        right.kind === Kinds.Collections.DictionaryExpression ||
+                        right.kind === Kinds.Collections.ArrayExpression
+                    ) {
+                        right = (this as any).materializeNestedDynamicArrayCopies(
+                            right,
+                            context.fullSource ?? node.fullSource ?? node.source,
+                            right ?? node,
+                        );
+                    }
+                    right = this.materializeOwnedDynamicArrayValue(
+                        right,
+                        left.type,
+                        context.fullSource ?? node.fullSource ?? node.source,
+                        node,
+                    );
                     right = (this as any).prepareBorrowedViewForEscapingStorage(
                         right,
                         context.fullSource ?? node.fullSource ?? node.source,
@@ -4904,6 +5490,22 @@ export function ExpressionsSemantic<TBase extends Constructor<BaseSemantic>>(bas
                     }
 
                     if (this.isAggregateType(right.type)) {
+                        if (
+                            right.kind === Kinds.Collections.DictionaryExpression ||
+                            right.kind === Kinds.Collections.ArrayExpression
+                        ) {
+                            right = (this as any).materializeNestedDynamicArrayCopies(
+                                right,
+                                source,
+                                right ?? node,
+                            );
+                        }
+                        right = this.materializeOwnedDynamicArrayValue(
+                            right,
+                            left.type,
+                            source,
+                            node,
+                        );
                         right = (this as any).prepareBorrowedViewForEscapingStorage(
                             right,
                             source,

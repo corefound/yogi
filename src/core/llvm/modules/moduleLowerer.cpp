@@ -37,6 +37,7 @@ namespace yogi::core::llvm::internal {
 		}
 
 		context.module->setTargetTriple(configuredTargetTriple());
+		context.recordSemanticDecisions();
 		statements.predeclareStructs();
 		variables.predeclareGlobals();
 		functions.lowerFunctions();

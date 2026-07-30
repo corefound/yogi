@@ -14,6 +14,7 @@ import { IfSemantic } from "./if";
 import { Helpers } from "../helpers";
 import { ModulesSemantic } from "./modules";
 import { Kinds } from "../helpers/types";
+import { buildSemanticObservability } from "../observability/identity";
 
 
 export class Semantic extends applySemanticMixins(
@@ -54,10 +55,15 @@ export class Semantic extends applySemanticMixins(
 
         const promotedSir = this.applyBorrowedViewOwnerPromotions(sir);
         const analyzedSir = this.applyDynamicArrayStorageDecisions(promotedSir);
+        const observability = buildSemanticObservability(
+            analyzedSir,
+            this.modulePath.relativePath,
+        );
 
         return {
             sir: analyzedSir,
             sirHash: Helpers.hash(JSON.stringify(analyzedSir)),
+            observability,
             exports: this.exportedSymbols,
             links: [...this.externalLinks.values()],
         }

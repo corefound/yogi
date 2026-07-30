@@ -210,6 +210,30 @@ void *yogi_any_from_object(void *value) {
 	return yogi::runtime::AnyValue::fromObject(value);
 }
 
+void *yogi_any_from_pointer(void *value) {
+	return yogi::runtime::AnyValue::fromPointer(value);
+}
+
+void *yogi_any_clone_owned(void *value) {
+	return yogi::runtime::AnyValue::cloneOwned(value);
+}
+
+void yogi_any_destroy_owned_payload(void *value) {
+	yogi::runtime::AnyValue::destroyOwnedPayload(value);
+}
+
+void yogi_any_destroy(void *value) {
+	yogi::runtime::AnyValue::destroy(value);
+}
+
+void yogi_any_retain(void *value) {
+	yogi::runtime::AnyValue::retain(value);
+}
+
+void yogi_any_release(void *value) {
+	yogi::runtime::AnyValue::release(value);
+}
+
 double yogi_any_to_number(void *value) {
 	return yogi::runtime::AnyValue::require(value, "number")->asNumber();
 }
@@ -230,6 +254,10 @@ void *yogi_any_to_object(void *value) {
 	return yogi::runtime::AnyValue::require(value, "object")->asObject();
 }
 
+void *yogi_any_to_pointer(void *value) {
+	return yogi::runtime::AnyValue::require(value, "pointer")->asPointer();
+}
+
 void *yogi_any_to_null(void *value) {
 	return yogi::runtime::AnyValue::require(value, "null")->asNull();
 }
@@ -245,6 +273,14 @@ bool yogi_any_is_nullish(void *value) {
 
 	const auto *anyValue = static_cast<const yogi::runtime::AnyValue *>(value);
 	return anyValue->isNullish();
+}
+
+const char *yogi_any_typeof(void *value) {
+	if (!value) {
+		return "object";
+	}
+
+	return yogi::runtime::AnyValue::require(value, "any")->javascriptTypeName();
 }
 
 unsigned long long yogi_string_length(const char *value) {
@@ -271,13 +307,10 @@ const char *yogi_string_concat(const char *left, const char *right) {
 	const auto *rightText = safeString(right);
 	const auto leftLength = std::strlen(leftText);
 	const auto rightLength = std::strlen(rightText);
-	auto *result = static_cast<char *>(
-		yogi::runtime::MemoryManager::allocate(leftLength + rightLength + 1, "runtime string")
-	);
+	auto *result = allocateRuntimeString(leftLength + rightLength);
 
 	std::memcpy(result, leftText, leftLength);
 	std::memcpy(result + leftLength, rightText, rightLength);
-	result[leftLength + rightLength] = '\0';
 	return result;
 }
 

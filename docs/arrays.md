@@ -1,4 +1,4 @@
-# Array TODO
+# Arrays
 
 This file tracks array work that is intentionally not complete yet.
 
@@ -887,6 +887,16 @@ Supported:
 -   Returning an aggregate from `map`, `flatMap`, or `reduce` transfers that
     aggregate into the method result according to the normal Yogi ownership
     rules.
+-   `reduce` and `reduceRight` materialize an independent owned accumulator
+    from an explicit seed or from the first source element.
+-   A named callback receives array, string, object, union, and `any`
+    accumulator parameters by value. Each returned replacement becomes the
+    next owner and the previous accumulator is destroyed exactly once.
+-   Array, string, object/type-literal, and primitive-only struct accumulators
+    are supported. Struct accumulators containing managed fields are rejected
+    until field-level callback transfer is defined.
+-   Inline callbacks cannot return an aggregate borrowed from the source
+    element or a captured aggregate owner as the next accumulator.
 -   Mutating a different captured array from inside a callback is allowed.
 -   Mutating the source array while its callback method is running is rejected
     by semantic analysis.
@@ -927,6 +937,65 @@ Covered by:
 
 ``` txt
 tests/runtime/sessions/02-variables-aggregates/array_callback_ownership_borrow.cmake
+tests/runtime/sessions/02-variables-aggregates/array_reduce_aggregate_ownership.cmake
+tests/programs/array_reduce_aggregate_report.cmake
+```
+
+------------------------------------------------------------------------
+
+### Copy-producing array methods and native resources
+
+The JavaScript copy-producing method family is supported for copyable array
+elements:
+
+``` txt
+slice
+concat
+toSpliced
+toReversed
+toSorted
+flat
+with
+map
+filter
+flatMap
+```
+
+These methods leave their source array unchanged and create a new array with
+the same observable ordering, index, depth, comparator, and callback behavior
+as their JavaScript counterparts.
+
+Resource-owning struct elements are move-only. Yogi therefore rejects any of
+these operations when it would shallow-copy an owned native pointer into a
+second array:
+
+``` ts
+let copied: JobTicket[] = tickets.slice()       // error
+let sorted: JobTicket[] = tickets.toSorted()    // error
+let kept: JobTicket[] = tickets.filter(keepJob) // error
+```
+
+The diagnostic names the native resource fields and recommends a transfer
+operation such as `splice`, `pop`, or `shift`. Yogi never silently aliases two
+owners and does not invent a native clone operation.
+
+Callbacks may still borrow resource-owning elements and produce copyable
+results:
+
+``` ts
+let scores: number[] = tickets.map((ticket: JobTicket): number => ticket.score)
+```
+
+`map` and `flatMap` are rejected only when their result may retain aggregate or
+pointer ownership borrowed from a resource-owning source. The LLVM backend
+repeats the ownership check defensively so malformed SIR cannot create an
+unsafe shallow copy.
+
+Covered by:
+
+``` txt
+tests/programs/array_copying_methods.cmake
+tests/programs/native_resource_array_ownership.cmake
 ```
 
 ------------------------------------------------------------------------
@@ -1786,7 +1855,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ### Next Lots
 
 ``` txt
-⬜ Automatic view escape and lifetime analysis for fixed-shape/dynamic borrowed views
+✅ Automatic lifetime policy for existing fixed-shape views and dynamic T[] borrows
 ```
 
 ### Future Work
@@ -1812,7 +1881,7 @@ Yogi borrows partial array views locally and materializes escaping views automat
 ## Recommended Implementation Order
 
 ``` txt
-1. Automatic view escape and lifetime analysis for fixed-shape/dynamic borrowed views
+1. Dynamic-rank Array<T, Rank> views and lifetime analysis
 2. Real persistent closure runtime for captured borrowed views
 3. Borrow summaries interprocedural for explicit borrowed views if Yogi later adds explicit view types
 4. Cleanup/destructor rules for promoted owners and materialized copies
@@ -2002,6 +2071,8 @@ Other slot identities survive even though logical indices change.
 New slots are inserted at the front.
 Existing slot identities survive.
 Pointers to existing elements remain valid.
+Resource-owning struct arguments transfer ownership into the array.
+Multiple arguments are evaluated left-to-right and retain their source order.
 ```
 
 ### `splice`
@@ -2010,6 +2081,9 @@ Pointers to existing elements remain valid.
 Removed slots are invalidated.
 Surviving slots preserve identity.
 Inserted values receive new slots.
+Resource-owning inserted values transfer ownership into the source array.
+When removal and insertion happen together, removed resources move to the
+returned array while inserted resources move into the source array.
 ```
 
 ### `reverse` and `sort`
@@ -2033,7 +2107,7 @@ Pointers remain valid and observe the resulting value.
 ## Whole Dynamic Array Assignment
 
 Assigning a new value to an existing dynamic array is implemented as
-in-place slot replacement.
+value-semantic copy followed by in-place replacement of the target slots.
 
 Example:
 
@@ -2044,26 +2118,32 @@ users = newUsers
 Conceptually:
 
 ``` txt
+ownedCopy = copy(newUsers)
 oldLen = users.length
-newLen = newUsers.length
+newLen = ownedCopy.length
 commonLen = min(oldLen, newLen)
 
 common slots:
     preserve target slot identity
-    overwrite values
+    overwrite values from ownedCopy
 
 newLen > oldLen:
     create new slots
 
 newLen < oldLen:
     invalidate removed trailing slots
+
+newUsers:
+    remains alive and unchanged
 ```
 
 Runtime support includes:
 
 ``` txt
-ArrayValue::replaceFrom(...)
-yogi_array_replace_from
+ArrayValue::replaceFrom(...)          // non-consuming copy
+ArrayValue::moveReplaceFrom(...)      // compiler-internal temporary transfer
+yogi_array_replace_from               // non-consuming ABI
+yogi_array_move_replace_from          // internal consuming ABI
 ```
 
 Example:
@@ -2088,7 +2168,8 @@ print(users[0].age) // 50
 ```
 
 Slot `0` survived, so the pointer survived and observes the replacement
-value.
+value. A pointer into `newUsers` remains attached to `newUsers`; assignment
+does not retarget it and does not empty its source array.
 
 If a shorter replacement removes the target slot, the pointer becomes
 invalid.
@@ -2994,6 +3075,81 @@ safe region materialization when semantically equivalent
 readonly propagation from the original owner
 ```
 
+# Runtime Element Ownership Policy
+
+Dynamic array descriptors are now self-contained for element ownership.
+The descriptor travels with:
+
+``` txt
+whether elements are trivial or resource-owning
+the element destroy callback
+the element move callback, when a specialized move is required
+an opaque callback context
+a stable policy identity used for defensive compatibility checks
+```
+
+The compiler installs this policy when it creates or first populates a
+resource-owning array. The policy remains attached when the descriptor is
+moved, returned, passed through `ptr<T[]>`, stored in another aggregate, or
+used across module boundaries.
+
+``` ts
+function removeFirst(items: ptr<JobTicket[]>): void {
+    items.shift()
+}
+```
+
+`removeFirst` borrows the array. It does not become its owner, and it does
+not need a caller-local destructor table. `shift()` asks the runtime
+descriptor how to move or destroy the removed element.
+
+Structural operations follow one policy:
+
+``` txt
+push/unshift/splice insertion:
+  move the incoming resource value into descriptor-owned storage
+
+pop/shift/splice extraction:
+  move removed ownership into the returned value/array
+
+discarded pop/shift/splice result:
+  destroy through the policy carried by the descriptor
+
+array cleanup:
+  destroy every still-active element exactly once through the descriptor
+```
+
+Views delegate ownership policy queries to their source descriptor.
+`splice()` transfers the same policy to its returned removed-elements
+array. Normal whole-array assignment first copies the source and then replaces
+the target in place, preserving target slot behavior without consuming or
+emptying the source. Compiler-internal operations may use the distinct
+consuming replacement ABI only for proven owned temporaries.
+
+Imported struct declarations are materialized as non-exported type
+dependencies in the consumer SIR. This gives each LLVM module the field
+layout required to box resource-owning elements and generate the policy
+destroy thunk, while the runtime descriptor carries that thunk across
+module calls.
+
+The runtime rejects incompatible policy identities and refuses to clone a
+resource-owning array defensively. These checks protect the frontend/runtime
+contract; normal Yogi source continues to receive semantic diagnostics
+before unsafe shallow copies reach LLVM.
+
+The Program Test
+`tests/programs/native_resource_array_pointer_policy.cmake` validates this
+through multiple modules, `ptr<T[]>`, returns, nested aggregates,
+reallocation stress, `if`, loops, `break`, `continue`, discarded results,
+exact native resource counters, LLVM IR, object files, final linking, and
+sanitizer execution when supported.
+
+This runtime policy is type-erased and reusable for every concrete
+resource-owning element type. User-facing generic function syntax is a
+separate language feature and was not introduced by this lot.
+
+------------------------------------------------------------------------
+
 # Final Implementation Checklist
 
 ## Completed
@@ -3086,15 +3242,34 @@ readonly propagation from the original owner
 ✅ Array cleanup destroys remaining resource-owning struct elements exactly once
 ✅ `pop()` / `shift()` transfer owned resource struct elements when the array is proven non-empty
 ✅ `splice()` transfers removed resource-owning struct elements into the returned removed-elements array
+✅ `unshift()` transfers one or more resource-owning struct values into the array
+✅ `splice()` insertion and replacement transfer inserted resource-owning struct values into the source array
+✅ Copy-producing JavaScript array methods preserve source values for copyable elements
+✅ Copy-producing methods reject shallow copies of resource-owning struct elements
+✅ `map()` may borrow resource-owning elements when it produces copyable results
+✅ Owned resource-array returns transfer element cleanup metadata to the caller
+✅ Forwarded owned resource-array returns preserve cleanup metadata across functions
+✅ `ptr<T[]>` parameters borrow resource-owning arrays without copying ownership
+✅ Resource-owning arrays are rejected for normal `T[]` value parameters
+✅ Discarded owned array returns destroy their resource-owning elements
+✅ Program tests verify exact cleanup across early return, loops, break, and continue
+✅ Runtime array descriptors carry element destroy/move policy and callback context
+✅ Structural mutation through `ptr<T[]>` uses descriptor-owned policy without caller tables
+✅ Resource-array policy survives return, movement, nested storage, and module boundaries
+✅ Imported struct layouts are materialized in consumer SIR for LLVM lowering
 ```
 
 ## Remaining
 
 ``` txt
 ⬜ Real persistent closure runtime for captured borrowed views
-⬜ Cleanup/destructor rules for escaped views, promoted owners, and safe materialization
-⬜ Broader array copy/move/ownership semantics
-⬜ Union-array runtime/narrowing completion
+✅ Cleanup/destructor rules for existing escaped fixed views, promoted owners,
+   dynamic T[] borrows, and safe materialization
+✅ Copy-producing array method ownership policy and backend enforcement
+✅ Cross-function ownership summaries for resource-owning array returns and `ptr<T[]>` borrows
+✅ Structural mutation of resource-owning arrays through `ptr<T[]>` callees transports element policy in the runtime descriptor
+🟡 Core union/any runtime classification and direct typeof narrowing complete;
+   advanced structural/discriminated narrowing remains
 ⬜ Dynamic shaped arrays: Array<T, Rank>
 ⬜ Dynamic shaped views/slices
 ✅ Numeric array native ABI via temporary contiguous buffers
@@ -3141,7 +3316,7 @@ The following feature block is complete at the core design and
 implementation level:
 
 ``` txt
-Dynamic Array Pointer Validity
+Dynamic Array Pointer Validity and Descriptor-Owned Element Cleanup
 ```
 
 That includes:
@@ -3156,7 +3331,601 @@ runtime invalidation
 compile-time invalidation
 branch-sensitive merging
 function-summary propagation
+descriptor-owned element destroy/move policy
+resource-safe structural mutation through ptr<T[]>
+cross-module policy propagation
 ```
 
 The complete Yogi array subsystem is not finished yet. The remaining
 work is intentionally divided into focused lots in the roadmap above.
+
+------------------------------------------------------------------------
+
+# Fixed-Shape Iteration Completion
+
+Fixed arrays and multidimensional matrices now preserve their complete
+shape through type aliases, function parameters, return values, synthetic
+`for...of` temporaries, SIR serialization, and LLVM lowering.
+
+```ts
+type Week = number[4]
+type SalesGrid = number[3, 4]
+
+function total(grid: SalesGrid): number {
+    let result: number = 0
+
+    for (let week: Week of grid) {
+        for (let value: number of week) {
+            result = result + value
+        }
+    }
+
+    return result
+}
+```
+
+Iteration over the outer dimension produces a borrowed row view. The view
+descriptor has its own local cleanup obligation, while the row storage
+continues to belong to the matrix:
+
+```txt
+create row view descriptor
+borrow matrix storage
+execute loop body
+release row view descriptor on normal exit, continue, break, or return
+leave matrix storage untouched
+```
+
+For `T[N, M]`, `.length` returns `N`, not the flattened row-major element
+count. A row view has length `M`. The same rule applies through
+`ptr<T[N, M]>`.
+
+Completed by this lot:
+
+```txt
+✅ Fixed-shape aliases survive frontend -> SIR -> LLVM
+✅ Function-return matrix expressions can be iterated directly
+✅ Nested row/value for...of iteration
+✅ Mutable row views update the original matrix
+✅ Readonly row views preserve readonly diagnostics
+✅ Row-view cleanup on normal exit, continue, break, and early return
+✅ Pointer matrix and pointer row .length use logical dimensions
+✅ LLVM emits row-major indexing and yogi_array_view
+✅ Program Test validates output, artifacts, observability, and cleanup
+```
+
+Follow-up work after fixed-shape iteration:
+
+```txt
+✅ Anonymous owned array/matrix temporaries passed directly to calls are cleaned.
+✅ Runtime array element boxes have explicit ownership and recursive payload copy/destruction.
+✅ Existing one-dimensional dynamic T[] borrows have explicit local,
+   assignment, and return lifetime rules.
+⬜ Future dynamic-rank Array<T, Rank> views still need shape-aware lifetime
+   analysis.
+```
+
+The complete Program Test is
+`tests/programs/fixed_matrix_iteration_report.cmake`.
+
+------------------------------------------------------------------------
+
+# Array Expression Lifetime and Element Boxes
+
+An array descriptor states whether its cells contain runtime `AnyValue` boxes
+or raw pointer values. Compiler-created Yogi arrays use boxes consistently:
+
+```txt
+number[]       -> boxed element cells
+string[]       -> boxed element cells
+Struct[]       -> boxed element cells
+ptr<T>[]       -> boxed YOGI_ANY_POINTER element cells
+```
+
+This policy travels with the descriptor and is inherited by copies,
+slices, views, returned arrays, callback-produced arrays, and structural
+operations. The runtime does not guess from a caller-local ownership
+table. Raw/unboxed pointer cells remain an internal runtime capability for
+explicit native or low-level descriptors; normal `ptr<T>[]` source lowering
+does not mix that representation with `AnyValue` boxes.
+
+The element-box contract is:
+
+```txt
+fresh box                    reference count = 1
+insert into an array         array consumes that reference
+copy a primitive             create an independent primitive box
+copy a string                create an independent Yogi string
+copy an array                recursively clone its descriptor and elements
+copy an object/struct        recursively clone its owned properties
+copy a ptr<T> field          copy the pointer value; never clone the pointee
+move an element              transfer the existing reference
+overwrite/remove/drop slot   release the reference exactly once
+undefined/null               immortal singleton, release is a no-op
+ptr<T>[] cell                release the pointer box, never the pointee
+```
+
+Copy-producing operations such as `slice`, `copy`, `filter`, spreads,
+`concat`, `copyWithin`, and runtime clones use the same recursive element
+copy operation. The resulting array owns an independent boxed value graph.
+Mutating an array, object, struct, or string nested in the copy cannot
+mutate the source. Explicit `ptr<T>` fields preserve pointer identity and
+remain borrows; their pointees are not cloned.
+
+The runtime object descriptor records whether each property is boxed and
+whether that box owns its payload. This lets recursive destruction release
+nested arrays/objects exactly once while print-only wrappers and pointer
+properties remain borrowed/unboxed.
+
+Owned array expressions now have an explicit full-expression lifetime.
+For example:
+
+```ts
+function makeValues(seed: number): number[] {
+    return [seed, seed + 1, seed + 2]
+}
+
+function sum(values: number[]): number {
+    let total: number = 0
+    for (let value: number of values) {
+        total = total + value
+    }
+    return total
+}
+
+let total: number = sum(makeValues(10))
+```
+
+`sum` receives its normal value-parameter copy. After the call,
+the caller destroys the anonymous result of `makeValues(10)`. The same
+rule applies to literals passed directly to calls, temporary spreads,
+fixed-shape matrices, and owned copy chains:
+
+```ts
+sum([1, 2, 3])
+sum(makeValues(10).toReversed().slice(0, 2))
+let joined: number[] = [0, ...makeValues(20), 99]
+```
+
+LLVM lowering emits descriptor policy initialization, recursive element
+copies, and `yogi_array_destroy` at the end of each owned temporary
+lifetime. The runtime test verifies that clone/slice/destruction returns
+to the allocation baseline, including compiler-created `ptr<T>[]` boxes and
+explicit internal unboxed descriptors.
+
+The strict Program Test
+`tests/programs/array_expression_lifetime_report.cmake` combines direct
+temporary arguments, method chains, spreads, callbacks, extraction,
+pointer arrays, matrices, early return, `continue`, `break`, and stress
+loops. Its observability manifest uses `allowLive: []`.
+
+Remaining boundary:
+
+```txt
+✅ Existing dynamic T[] borrow lifetime boundaries: local alias, owned return
+   materialization, and assignment replacement without descriptor alias escape.
+🟡 Core union/any aggregate lifetime and direct typeof narrowing complete;
+   advanced structural/discriminated narrowing remains.
+✅ Recursive copy and payload ownership metadata for boxed object properties.
+✅ Scalar/element/string-returning methods close anonymous owned receivers
+   after materializing the result; borrowed ptr<T[]> receivers remain alive.
+```
+
+------------------------------------------------------------------------
+
+# Temporary Receiver Cleanup
+
+An array expression owns its descriptor until the full expression has
+finished using it:
+
+```ts
+function makeValues(): number[] {
+    return [3, 1, 20]
+}
+
+print(makeValues().includes(20))
+print(makeValues().at(-1) as number)
+print(makeValues().join("-"))
+print(makeValues().map((value: number): number => value * 2).length)
+```
+
+The lowering order is:
+
+```txt
+1. evaluate the receiver;
+2. execute the method;
+3. materialize any result that still references a receiver element;
+4. destroy the receiver if it is an anonymous owned array;
+5. return the independent result to the surrounding expression.
+```
+
+This policy covers:
+
+```txt
+length
+push, unshift
+pop, shift, at
+includes, indexOf, lastIndexOf
+join, toString, toLocaleString
+toSorted
+forEach, map, filter, flatMap
+some, every
+find, findIndex, findLast, findLastIndex
+reduce, reduceRight
+discarded pop/shift calls
+```
+
+Receiver-returning mutators such as `sort`, `reverse`, `fill`, and
+`copyWithin` keep the descriptor alive for the next operation in the chain.
+The final scalar/property operation closes it:
+
+```ts
+print([3, 1, 20].sort().length)
+```
+
+`ptr<T[]>` and local views derived from it remain borrows:
+
+```ts
+let values: number[] = [1, 2, 3]
+let pointer: ptr<number[]> = &values
+let view: number[] = pointer
+
+print(view.includes(2))
+view[0] = 99
+print(values[0]) // 99
+```
+
+Neither the search nor the view destroys the owner descriptor. Search methods
+also retain a dynamic `union`/`any` search box before calling the runtime,
+because the runtime consumes one temporary reference. This keeps the source
+variable valid after `includes`, `indexOf`, or `lastIndexOf`.
+
+`join` and `toString` now return strings registered in the normal runtime
+string ownership table. Consequently, the compiler-generated
+`yogi_string_destroy` call really frees the result instead of silently
+ignoring an unregistered buffer.
+
+Coverage:
+
+```txt
+tests/runtime/sessions/02-variables-aggregates/array_scalar_receiver_lifetime.cmake
+tests/programs/array_scalar_receiver_lifetime_report.cmake
+tests/programs/manifests/array_scalar_receiver_lifetime_report.json
+docs/lots/100-array-scalar-receiver-lifetime.md
+```
+
+The Program Test combines temporary methods, callback loops, short-circuit
+search, `continue`, early return, union search values, borrowed array views,
+LLVM inspection, runtime execution, sanitizer integration, and strict
+observability with `allowLive: []`.
+
+------------------------------------------------------------------------
+
+# Dynamic Array Borrow Lifetime Boundaries
+
+`ptr<T[]>` remains a borrow, but Yogi can now read that borrow into an
+explicitly typed array value when the surrounding context defines a safe
+lifetime:
+
+```ts
+let values: number[] = [1, 2, 3]
+let pointer: ptr<number[]> = &values
+let view: number[] = pointer
+
+view[1] = 20
+print(values[1]) // 20
+```
+
+The local `view` aliases the same descriptor and does not register an
+independent cleanup.
+
+Returning that borrow as `T[]` has different semantics:
+
+```ts
+function snapshot(values: ptr<number[]>): number[] {
+    return values
+}
+```
+
+The compiler materializes an owned array for the caller through
+`yogi_array_clone`. A descriptor with resource-owning elements aborts
+defensively, while semantic analysis normally rejects the copy first and names
+the resource-owning field path. Yogi never creates a shallow second owner.
+
+Assignment continues to follow the established dynamic-array replacement rule:
+
+```ts
+archived = view
+```
+
+The compiler first materializes an owned copy of `view`. LLVM then calls
+`yogi_array_move_replace_from` only to transfer that unobservable temporary
+into `archived`. The target preserves surviving slots, while `view` and its
+owner remain unchanged. The borrowed descriptor itself does not escape into
+target storage.
+
+The same rule applies to a named owned source:
+
+```ts
+let source: number[] = [1, 2, 3]
+let target: number[] = source
+target[0] = 99
+
+print(source[0]) // 1
+print(target[0]) // 99
+```
+
+Coverage:
+
+```txt
+tests/runtime/sessions/02-variables-aggregates/dynamic_array_escaping_borrows.cmake
+tests/programs/dynamic_array_borrow_archive.cmake
+tests/programs/array_value_assignment_report.cmake
+tests/programs/recursive_aggregate_array_copy_report.cmake
+docs/lots/96-dynamic-array-borrow-lifetimes.md
+docs/lots/97-array-value-assignment-semantics.md
+docs/lots/98-recursive-aggregate-element-copy.md
+```
+
+------------------------------------------------------------------------
+
+# Recursive Aggregate Element Copy
+
+Normal `=` keeps value semantics even when an array element is itself an
+aggregate:
+
+```ts
+struct Team {
+    name: string
+    scores: number[]
+}
+
+let source: Team[] = [{ name: "core", scores: [1, 2] }]
+let copy: Team[] = source
+
+copy[0].scores[0] = 99
+
+print(source[0].scores[0]) // 1
+print(copy[0].scores[0])   // 99
+```
+
+One runtime copy primitive recursively handles primitives, strings, nested
+arrays, objects, structs, tuples represented as arrays, and combinations of
+those values. It is used by initialization, assignment, value parameters,
+borrowed-return materialization, `.copy()`, and JavaScript-compatible
+copy-producing array methods.
+
+`ptr<T>` properties are deliberately different: copying the aggregate copies
+the pointer value. This preserves explicit shared access without inventing a
+second pointee owner.
+
+Copying an aggregate that contains an exclusive native resource remains a
+semantic error. The diagnostic includes the nested field path, for example
+`payload.resource`. The runtime repeats this check defensively if malformed or
+stale compiler metadata reaches it.
+
+Whole-array assignment is alias-safe. The runtime recursively materializes the
+complete source first and mutates the destination only after that succeeds.
+Consequently, `values = values` and assignment from a view of `values` cannot
+destroy source data while it is still being copied. Allocation failures are
+fatal runtime errors today; they leave the destination uncommitted rather than
+exposing a partially copied value.
+
+------------------------------------------------------------------------
+
+# Union and `any` Runtime Classification
+
+Union values and `any` use a tagged runtime box. Scalar union variables,
+aggregate union branches, parameters, returns, assignments, and array elements
+now preserve their real runtime value instead of degrading to a null pointer.
+
+`typeof` uses TypeScript syntax and JavaScript-compatible categories:
+
+```ts
+type Cell = number | string
+
+let value: Cell = 10
+
+if (typeof value == "number") {
+    print(value + 2)
+} else {
+    print(value.toUpperCase())
+}
+```
+
+The branch narrows the identifier before SIR is written. LLVM then reads the
+same tagged value and unboxes only the proven branch. A bad explicit cast still
+fails in runtime; narrowing does not disable defensive tag checks.
+
+Aggregate branches use the same recursive value-copy policy as ordinary
+arrays:
+
+```ts
+type Payload = number[] | string
+
+let values: Payload[] = [[1, 2], "ready"]
+let detached: Payload = values[0]
+
+if (typeof detached == "object") {
+    detached[0] = 99
+}
+
+print((values[0] as number[])[0]) // 1
+print((detached as number[])[0])  // 99
+```
+
+Local/global boxes are destroyed automatically. Reassignment destroys the
+previous branch, return transfers the box to the caller, and by-value function
+parameters receive an independent box.
+
+Coverage:
+
+```txt
+tests/runtime/sessions/02-variables-aggregates/union_any_runtime_narrowing.cmake
+tests/programs/union_any_narrowing_report.cmake
+docs/lots/99-union-any-runtime-classification.md
+```
+
+## Real Limitations
+
+These are explicit future boundaries, not implied support:
+
+```txt
+1. Owned aggregate graphs must be acyclic. Arbitrary cyclic object graphs do
+   not yet have a clone/cleanup policy.
+2. Aggregates containing exclusive native resources cannot be copied until
+   the resource declares an explicit clone contract.
+3. Allocation failure is fatal. Copy-before-commit protects the destination,
+   but Yogi has no recoverable copy exception or failure injection API.
+4. typeof narrowing currently recognizes direct identifiers in if/else
+   equality checks. Property-path narrowing, discriminated unions,
+   user-defined type guards, switch narrowing, Array.isArray narrowing, and
+   persistence after a terminating branch such as `if (...) return` remain
+   future work.
+5. Runtime typeof currently classifies number, string, boolean, undefined,
+   object, and function. BigInt classification and narrowing are not defined.
+6. JavaScript typeof reports arrays, structs, objects, null, and pointers as
+   "object". It cannot distinguish those branches. An explicit cast or a
+   future structural guard is still required when multiple object-like union
+   members remain.
+7. typeof on any can safely narrow primitive tags. It cannot infer an object
+   shape that was not declared, so object-like any values still require an
+   explicit concrete cast before field access.
+8. Native ABI marshalling for union/any aggregate payloads is not defined.
+9. A boxed ptr<T> owns only its AnyValue wrapper. It never owns or extends the
+   pointee lifetime. Copies preserve the same borrow identity, so the normal
+   pointer provenance and invalidation rules still apply.
+10. `reduce`/`reduceRight` support copyable real structs containing strings,
+    arrays, objects/type literals, unions, and nested copyable structs.
+    Pointer-bearing structs remain rejected because a pointer field can be a
+    borrow or an exclusive native resource and no clone contract is implied.
+    Inline callbacks may return managed struct locals and may conditionally
+    choose between the accumulator, a managed local, and fresh owned values.
+    Each branch materializes the next owner before callback-local cleanup.
+    Callbacks still cannot retain aggregate borrows from source elements or
+    captured owners.
+11. Returning a `ptr<T>` or a projected pointer from an anonymous array method
+    does not extend the receiver lifetime. Pointer provenance rules must reject
+    use after the temporary receiver is destroyed.
+```
+
+------------------------------------------------------------------------
+
+# Aggregate Accumulators in `reduce`
+
+`reduce` and `reduceRight` keep exactly one owned accumulator across the loop.
+The seed remains independent:
+
+```ts
+function append(accumulator: number[], value: number): number[] {
+    accumulator.push(value)
+    return accumulator
+}
+
+let seed: number[] = [10]
+let result: number[] = [1, 2, 3].reduce(append, seed)
+
+result[0] = 99
+
+print(seed[0])   // 10
+print(result[0]) // 99
+```
+
+The lowering follows this ownership cycle:
+
+```txt
+materialize owned accumulator
+  -> invoke callback
+  -> callback returns next owned accumulator
+  -> destroy the previous accumulator if it was replaced
+  -> continue with one owner
+  -> transfer the final accumulator to the caller
+```
+
+The same policy applies to strings, object/type-literal values, and real
+structs whose managed fields are copyable:
+
+```ts
+type Counters = {
+    total: number
+}
+
+struct Trail {
+    values: number[]
+    label: string
+}
+
+struct Report {
+    trail: Trail
+    tags: string[]
+    counters: Counters
+}
+
+function collect(accumulator: Report, value: number): Report {
+    accumulator.trail.values.push(value)
+    accumulator.trail.label = accumulator.trail.label + "+"
+    accumulator.counters.total = accumulator.counters.total + value
+    return accumulator
+}
+```
+
+At each named by-value callback boundary, LLVM recursively clones the struct
+fields. Returning the accumulator transfers those cloned fields to the reduce
+loop. Returning a fresh struct cleans the unused parameter clone before the
+fresh fields become the next accumulator. The previous loop owner is then
+destroyed field by field.
+
+Inline callbacks clone the managed struct accumulator before mutation and
+register that clone in a callback-local cleanup slot. Managed locals receive
+their own cleanup slots. Before returning, each conditional branch materializes
+an independent next accumulator; fresh branch temporaries and all callback
+locals are then destroyed in reverse order. This makes direct accumulator,
+managed-local, fresh-value, and nested ternary returns safe.
+
+Inline callback bodies lower nested blocks, `if/else`, `while`, `for`, and
+`switch` as real LLVM control flow. Every early return stores its result in the
+callback return slot, emits the cleanup obligations active on that path, and
+branches to the shared callback exit. A branch that does not return keeps its
+outer owners alive for the remaining callback statements.
+
+This applies to `map`, `filter`, `some`, `every`, `find`/`findIndex`,
+`forEach`, `flatMap`, `reduce`, and `reduceRight`. Callback-local `break`
+targets the nearest loop or switch, while `continue` skips switch frames and
+targets the nearest enclosing loop. Switch cases share their normal
+fall-through scope.
+
+Each managed callback local also has a runtime active flag next to its cleanup
+slot. This matters for direct switch entry: cleanup cannot destroy a local
+declared in an earlier case unless execution actually initialized it. The flag
+is cleared after cleanup, preventing duplicate destruction across
+`break`, `continue`, and early-return paths.
+
+Type aliases used as struct fields carry their resolved shape into SIR. This is
+required so a field such as `counters: Counters` is cloned and destroyed as an
+object rather than treated as an opaque pointer.
+
+Borrowed projections returned from a copied struct parameter are materialized
+before parameter cleanup. Printing a borrowed string field also leaves the
+field owned by its struct; `print(report.trail.label)` never consumes
+`report.trail.label`.
+
+A callback that tries to make a borrowed source element or captured owner
+become the next aggregate accumulator is rejected before FlatBuffer/LLVM
+generation. Pointer-bearing struct accumulators are also rejected until the
+pointer/resource declares an explicit clone or transfer contract.
+
+Coverage:
+
+```txt
+tests/runtime/sessions/02-variables-aggregates/array_reduce_aggregate_ownership.cmake
+tests/programs/array_reduce_aggregate_report.cmake
+tests/programs/managed_struct_reduce_report.cmake
+tests/programs/inline_reduce_branch_ownership_report.cmake
+tests/programs/inline_reduce_control_flow_report.cmake
+tests/programs/inline_callback_loop_switch_report.cmake
+docs/lots/101-array-reduce-aggregate-ownership.md
+docs/lots/102-managed-struct-reduce-ownership.md
+docs/lots/103-inline-managed-callback-cleanup.md
+docs/lots/104-inline-callback-control-flow.md
+docs/lots/105-inline-callback-loop-switch.md
+```

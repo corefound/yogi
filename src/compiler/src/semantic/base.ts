@@ -203,7 +203,12 @@ export class BaseSemantic {
             linkageName: symbol.linkageName ?? null,
             qualifiedName: symbol.qualifiedName,
             sourcePath: this.modulePath.relativePath,
+            node: symbol.node,
             effectSummary: symbol.effectSummary,
+            returnsNativeResourceFieldDestructors:
+                symbol.returnsNativeResourceFieldDestructors,
+            returnsNativeResourceArrayElementFieldDestructors:
+                symbol.returnsNativeResourceArrayElementFieldDestructors,
         });
     }
 
@@ -645,6 +650,252 @@ export class BaseSemantic {
         }
 
         return this.isTypeAssignable(expected, pointee);
+    }
+
+    public canBorrowAggregateThroughPointer(expectedType: any, actualType: any): boolean {
+        const expected = this.resolveType(expectedType);
+        const actual = this.resolveType(actualType);
+        const pointee = this.pointerPointeeType(actual);
+
+        if (
+            !expected ||
+            !actual ||
+            !pointee ||
+            actual.kind !== Kinds.Types.PointerType ||
+            expected.kind !== Kinds.Types.ArrayType ||
+            pointee.kind !== Kinds.Types.ArrayType ||
+            expected.fixed === true ||
+            pointee.fixed === true
+        ) {
+            return false;
+        }
+
+        return this.isTypeAssignable(expected, pointee);
+    }
+
+    public dynamicArrayValueNeedsOwnedCopy(value: any): boolean {
+        const valueType = this.resolveType(value?.type);
+        if (
+            !value ||
+            valueType?.kind !== Kinds.Types.ArrayType ||
+            valueType.fixed === true
+        ) {
+            return false;
+        }
+
+        if (value.borrowedView === true) {
+            return true;
+        }
+
+        switch (value.kind) {
+            case Kinds.Collections.ArrayExpression:
+                return false;
+
+            case Kinds.Expressions.CallExpression: {
+                if (value.builtinMethod === "array.copy") {
+                    return false;
+                }
+
+                return new Set([
+                    "array.reverse",
+                    "array.fill",
+                    "array.copyWithin",
+                    "array.sort",
+                ]).has(value.builtinMethod);
+            }
+
+            case Kinds.Expressions.IdentifierExpression:
+            case Kinds.Expressions.DereferenceExpression:
+            case Kinds.Expressions.PropertyAccessExpression:
+            case Kinds.Expressions.ElementAccessExpression:
+                return true;
+
+            default:
+                return true;
+        }
+    }
+
+    public supportsIndependentDynamicArrayElementCopy(type: any, seen = new Set<any>()): boolean {
+        if (!type) {
+            return false;
+        }
+
+        const resolved = this.resolveType(type);
+        if (!resolved) {
+            return false;
+        }
+        if (seen.has(resolved)) {
+            return true;
+        }
+        seen.add(resolved);
+
+        const scalarStructBase = this.scalarStructBaseType(resolved);
+        if (scalarStructBase) {
+            return this.supportsIndependentDynamicArrayElementCopy(scalarStructBase, seen);
+        }
+
+        switch (resolved.kind) {
+            case Kinds.Types.NumberType:
+            case Kinds.Types.StringType:
+            case Kinds.Types.BooleanType:
+            case Kinds.Types.NullType:
+            case Kinds.Types.UndefinedType:
+            case Kinds.Types.PointerType:
+            case Kinds.Types.AnyType:
+                return true;
+
+            case Kinds.Types.ArrayType:
+                return this.supportsIndependentDynamicArrayElementCopy(
+                    resolved.elementType,
+                    new Set(seen),
+                );
+
+            case Kinds.Types.TupleType:
+                return (
+                    (resolved.elements ?? []).length > 0 &&
+                    (resolved.elements ?? []).every((element: any) =>
+                        this.supportsIndependentDynamicArrayElementCopy(element, new Set(seen)),
+                    )
+                );
+
+            case Kinds.Types.StructDeclaration:
+            case "StructDeclaration":
+                return (resolved.fields ?? []).every((field: any) =>
+                    this.supportsIndependentDynamicArrayElementCopy(field.type, new Set(seen)),
+                );
+
+            case Kinds.Types.TypeLiteral:
+                return (resolved.members ?? []).every((member: any) =>
+                    !member.type ||
+                    this.supportsIndependentDynamicArrayElementCopy(member.type, new Set(seen)),
+                );
+
+            case Kinds.Types.LiteralType:
+                return this.supportsIndependentDynamicArrayElementCopy(
+                    this.literalTypeBase(resolved),
+                    seen,
+                );
+
+            case Kinds.Types.UnionType:
+            case Kinds.Types.IntersectionType:
+                return (
+                    (resolved.types ?? []).length > 0 &&
+                    (resolved.types ?? []).every((part: any) =>
+                        this.supportsIndependentDynamicArrayElementCopy(part, new Set(seen)),
+                    )
+                );
+
+            default:
+                return false;
+        }
+    }
+
+    public assertIndependentDynamicArrayElementCopy(
+        arrayType: any,
+        value: any,
+        source: string,
+        node: any,
+    ): void {
+        const resolvedArrayType = this.resolveType(arrayType);
+        if (
+            resolvedArrayType?.kind !== Kinds.Types.ArrayType ||
+            resolvedArrayType.fixed === true ||
+            this.supportsIndependentDynamicArrayElementCopy(resolvedArrayType.elementType)
+        ) {
+            return;
+        }
+
+        const elementType = resolvedArrayType.elementType;
+        const elementRaw = elementType?.raw ?? this.getTypeReferenceName(elementType) ?? "unknown";
+        value.arrowLength = value.source?.length ?? 1;
+        this.throwError(
+            `cannot copy array element type ${Helpers.RED}'${elementRaw}'${Helpers.RESET} with normal assignment`,
+            value.position ?? node?.position,
+            source,
+            value,
+            "  = normal array assignment must create a fully independent owner\n" +
+            "  = this element contains a payload without a safe recursive copy policy\n" +
+            "  = use ptr<T[]> when explicit shared borrowing is intended",
+        );
+    }
+
+    public materializeOwnedDynamicArrayValue(
+        value: any,
+        expectedType: any,
+        source: string,
+        node: any,
+        force = false,
+    ): any {
+        const resolvedExpectedType = this.resolveType(expectedType);
+        const resolvedValueType = this.resolveType(value?.type);
+        if (
+            !value ||
+            resolvedExpectedType?.kind !== Kinds.Types.ArrayType ||
+            resolvedExpectedType.fixed === true ||
+            resolvedValueType?.kind !== Kinds.Types.ArrayType ||
+            resolvedValueType.fixed === true ||
+            (!force && !this.dynamicArrayValueNeedsOwnedCopy(value))
+        ) {
+            return value;
+        }
+
+        if (value.kind === Kinds.Expressions.CallExpression && value.builtinMethod === "array.copy") {
+            return value;
+        }
+
+        const resourceFields =
+            (this as any).nativeResourceArrayValueFields?.(value) ?? {};
+        if (Object.keys(resourceFields).length > 0) {
+            const fieldList = Object.keys(resourceFields).join(", ");
+            value.arrowLength = value.source?.length ?? 1;
+            this.throwError(
+                `cannot copy resource-owning array ${Helpers.RED}'${value.source ?? "value"}'${Helpers.RESET}`,
+                value.position ?? node?.position,
+                source,
+                value,
+                "  = normal array assignment has value semantics and cannot duplicate owned native resources\n" +
+                `  = exclusive native resource field(s): ${fieldList}\n` +
+                "  = borrow with ptr<T[]> or use an explicitly consuming array operation instead",
+            );
+        }
+
+        this.assertIndependentDynamicArrayElementCopy(
+            resolvedExpectedType,
+            value,
+            source,
+            node,
+        );
+
+        const valueSource = value.source ?? "array";
+        const position = value.position ?? node?.position;
+
+        return {
+            kind: Kinds.Expressions.CallExpression,
+            callee: {
+                kind: Kinds.Expressions.PropertyAccessExpression,
+                object: value,
+                property: "copy",
+                optional: false,
+                type: {
+                    kind: Kinds.Types.FunctionType,
+                    raw: "Function",
+                },
+                source: `${valueSource}.copy`,
+                position,
+            },
+            arguments: [],
+            argumentEffects: [],
+            type: {
+                ...this.toSerializableType(expectedType),
+                readonly: false,
+            },
+            external: false,
+            builtinMethod: "array.copy",
+            source: `${valueSource}.copy()`,
+            fullSource: source,
+            position,
+            materializedArrayValueCopy: true,
+        };
     }
 
     public createImplicitPointerReadThrough(value: any, expectedType: any, source: string): any {
@@ -2423,6 +2674,7 @@ export class BaseSemantic {
             builtinMethod: "move",
             nativeResourceFieldDestructors,
             moveSourceName: argumentName,
+            ownershipReason: reason,
             internal: true,
         };
     }

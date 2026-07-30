@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "name": "fixed-matrix-iteration-report",
+  "profile": "runtime-strict",
+  "trace": {
+    "categories": [
+      "session",
+      "semantic",
+      "cleanup",
+      "function",
+      "memory",
+      "aggregate",
+      "resource",
+      "anomaly"
+    ]
+  },
+  "invariants": [
+    "decision.correlation",
+    "owner.reducer",
+    "borrow.reducer",
+    "function.frame_balance",
+    "cleanup.dynamic_obligations",
+    "cleanup.exit_path",
+    "sanitizer.clean"
+  ],
+  "allowLive": [
+    {
+      "category": "memory",
+      "typeName": "any value",
+      "reason": "transitional: AnyValue cleanup is not implemented yet"
+    }
+  ],
+  "expectations": [
+    {
+      "kind": "decision",
+      "decisionKind": "Borrow",
+      "decisionReason": "DerivedViewBorrow",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "decision",
+      "decisionKind": "Borrow",
+      "decisionReason": "AddressOfBorrow",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    }
+  ],
+  "ir": [
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_array_view",
+      "atLeast": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_observe_cleanup",
+      "atLeast": 1,
+      "metadata": [
+        "yogi.cleanup",
+        "yogi.owner",
+        "yogi.destroy",
+        "yogi.cleanup.exit"
+      ]
+    },
+    {
+      "kind": "namedMetadata",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "name": "yogi.cleanup.obligations",
+      "atLeast": 1
+    }
+  ]
+}

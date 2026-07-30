@@ -6,6 +6,63 @@ include "externs.fbs";
 
 namespace Yogi.Sir;
 
+enum SemanticDecisionKind:byte {
+  Unknown = 0,
+  Copy,
+  Move,
+  Borrow,
+  Escape,
+  Storage,
+  Materialize,
+  Promote
+}
+
+enum SemanticDecisionReason:byte {
+  Unknown = 0,
+  TrivialValueCopy,
+  ExplicitArrayCopy,
+  CopyingArrayMethod,
+  ResourceOwningInitialization,
+  ResourceOwningAssignment,
+  ReturnTransfersToCaller,
+  ValueParameterConsumes,
+  AddressOfBorrow,
+  DerivedViewBorrow,
+  KnownCalleeBorrow,
+  UnknownExternalConservativeEscape,
+  DeclaredValueEscapes,
+  StackStorage,
+  HeapStorage,
+  GlobalStorage,
+  BorrowedViewMaterialization,
+  BorrowedViewOwnerPromotion,
+  EscapeRequiresHeap
+}
+
+table ValueIdentity {
+  value_id:string;
+  origin_node_id:string;
+  symbol_id:string;
+  scope_id:string;
+  type_id:string;
+  source:string;
+  position:SourcePosition;
+}
+
+table SemanticDecision {
+  decision_id:string;
+  node_id:string;
+  value_id:string;
+  type_id:string;
+  kind:SemanticDecisionKind = Unknown;
+  reason:SemanticDecisionReason = Unknown;
+  context:string;
+  related_ids:[string];
+  runtime_required:bool = false;
+  source:string;
+  position:SourcePosition;
+}
+
 table IdentifierExpression {
   name:string;
   type:TypeRef;
@@ -18,6 +75,10 @@ table IdentifierExpression {
 }
 
 table ValueRef {
+  node_id:string;
+  value_id:string;
+  type_id:string;
+  decision_ids:[string];
   kind:string;
   constant:Constant;
   identifier:IdentifierExpression;
@@ -398,12 +459,17 @@ union SirNodeValue {
 }
 
 table SirNode {
+  node_id:string;
+  decision_ids:[string];
   value:SirNodeValue;
 }
 
 table Module {
+  module_id:string;
   source_path:string;
   nodes:[SirNode];
+  values:[ValueIdentity];
+  decisions:[SemanticDecision];
 }
 
 root_type Module;

@@ -222,6 +222,80 @@ function splicePastEndTickets(): void {
     print(jobs.destroyedJobCount())
 }
 
+function unshiftOwnedTickets(): void {
+    let tickets: JobTicket[] = []
+    let local: JobTicket = createTicket(21, 2)
+
+    tickets.unshift(createTicket(20, 1), local, createTicket(22, 3))
+
+    print(tickets[0].score)
+    print(tickets[1].score)
+    print(tickets[2].score)
+    print(jobs.destroyedJobCount())
+}
+
+function unshiftAliasTicket(): void {
+    let tickets: JobTicket[] = []
+    let original: JobTicket = createTicket(23, 4)
+    let alias: JobTicket = original
+
+    tickets.unshift(alias)
+
+    print(tickets[0].score)
+    print(jobs.destroyedJobCount())
+}
+
+function spliceReplacedTickets(): void {
+    let tickets: JobTicket[] = []
+    tickets.push(createTicket(24, 1))
+    tickets.push(createTicket(25, 2))
+    tickets.push(createTicket(26, 3))
+
+    let first: JobTicket = createTicket(27, 4)
+    let second: JobTicket = createTicket(28, 5)
+    const removed: JobTicket[] = tickets.splice(1, 1, first, second)
+
+    print(removed[0].score)
+    print(tickets[1].score)
+    print(tickets[2].score)
+    print(tickets.length)
+    print(jobs.destroyedJobCount())
+}
+
+function spliceInsertedTicket(): void {
+    let tickets: JobTicket[] = []
+    tickets.push(createTicket(29, 1))
+
+    let inserted: JobTicket = createTicket(30, 6)
+    const removed: JobTicket[] = tickets.splice(1, 0, inserted)
+
+    print(removed.length)
+    print(tickets[1].score)
+    print(jobs.destroyedJobCount())
+}
+
+function spliceReturnedTickets(): void {
+    let tickets: JobTicket[] = []
+
+    tickets.splice(0, 0, createTicket(31, 7), createTicket(32, 8))
+
+    print(tickets[0].score)
+    print(tickets[1].score)
+    print(jobs.destroyedJobCount())
+}
+
+function mapOwnedTicketsToScores(): void {
+    let tickets: JobTicket[] = []
+    tickets.push(createTicket(33, 1))
+    tickets.push(createTicket(34, 2))
+
+    let scores: number[] = tickets.map((ticket: JobTicket): number => ticket.score)
+
+    print(scores[0])
+    print(scores[1])
+    print(jobs.destroyedJobCount())
+}
+
 pushReturnedTickets()
 print(jobs.destroyedJobCount())
 print(jobs.orderAt(0))
@@ -264,6 +338,39 @@ print(jobs.destroyedJobCount())
 print(jobs.orderAt(16))
 print(jobs.orderAt(17))
 print(jobs.orderAt(18))
+
+unshiftOwnedTickets()
+print(jobs.destroyedJobCount())
+print(jobs.orderAt(19))
+print(jobs.orderAt(20))
+print(jobs.orderAt(21))
+
+unshiftAliasTicket()
+print(jobs.destroyedJobCount())
+print(jobs.orderAt(22))
+
+spliceReplacedTickets()
+print(jobs.destroyedJobCount())
+print(jobs.orderAt(23))
+print(jobs.orderAt(24))
+print(jobs.orderAt(25))
+print(jobs.orderAt(26))
+print(jobs.orderAt(27))
+
+spliceInsertedTicket()
+print(jobs.destroyedJobCount())
+print(jobs.orderAt(28))
+print(jobs.orderAt(29))
+
+spliceReturnedTickets()
+print(jobs.destroyedJobCount())
+print(jobs.orderAt(30))
+print(jobs.orderAt(31))
+
+mapOwnedTicketsToScores()
+print(jobs.destroyedJobCount())
+print(jobs.orderAt(32))
+print(jobs.orderAt(33))
 ]=])
 
 execute_process(
@@ -289,7 +396,7 @@ foreach(path IN ITEMS "${EXECUTABLE}" "${IR}" "${OBJECT}")
 endforeach()
 
 file(READ "${IR}" ir)
-foreach(symbol IN ITEMS createJob scoreJob destructor yogi_array_push yogi_array_pop yogi_array_shift yogi_array_splice yogi_array_get)
+foreach(symbol IN ITEMS createJob scoreJob destructor yogi_array_push yogi_array_pop yogi_array_shift yogi_array_unshift yogi_array_splice yogi_array_get)
 	if(NOT ir MATCHES "${symbol}")
 		message(FATAL_ERROR "expected native resource array ownership IR to contain ${symbol}")
 	endif()
@@ -307,7 +414,7 @@ if(NOT run_result EQUAL 0)
 	message(FATAL_ERROR "native resource array ownership executable failed:\nstdout:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()
 
-set(expected_stdout "0\n2\n1\n2\n2\n3\n3\n52\n3\n5\n5\n4\n63\n5\n7\n6\n7\n92\n103\n2\n7\n11\n9\n10\n8\n11\n13\n14\n12\n13\n14\n0\n14\n16\n15\n16\n182\n193\n16\n19\n18\n19\n17\n")
+set(expected_stdout "0\n2\n1\n2\n2\n3\n3\n52\n3\n5\n5\n4\n63\n5\n7\n6\n7\n92\n103\n2\n7\n11\n9\n10\n8\n11\n13\n14\n12\n13\n14\n0\n14\n16\n15\n16\n182\n193\n16\n19\n18\n19\n17\n201\n212\n223\n19\n22\n20\n21\n22\n234\n22\n23\n23\n252\n274\n285\n4\n23\n28\n25\n24\n27\n28\n26\n0\n306\n28\n30\n29\n30\n317\n328\n30\n32\n31\n32\n331\n342\n32\n34\n33\n34\n")
 if(NOT run_stdout STREQUAL expected_stdout)
 	message(FATAL_ERROR "native resource array ownership printed unexpected output:\nexpected:\n${expected_stdout}\nactual:\n${run_stdout}\nstderr:\n${run_stderr}")
 endif()

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "name": "dynamic-array-borrow-archive",
+  "profile": "runtime-strict",
+  "trace": {
+    "categories": [
+      "session",
+      "semantic",
+      "cleanup",
+      "function",
+      "memory",
+      "aggregate",
+      "resource",
+      "anomaly"
+    ]
+  },
+  "invariants": [
+    "event.envelope",
+    "event.sequence",
+    "decision.correlation",
+    "owner.reducer",
+    "borrow.reducer",
+    "memory.lifetime",
+    "aggregate.lifetime",
+    "function.frame_balance",
+    "cleanup.dynamic_obligations",
+    "cleanup.exit_path",
+    "sanitizer.clean"
+  ],
+  "allowLive": [],
+  "expectations": [],
+  "ir": [
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_array_move_replace_from",
+      "atLeast": 1
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_array_clone",
+      "atLeast": 1
+    }
+  ]
+}

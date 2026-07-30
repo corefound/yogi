@@ -84,6 +84,14 @@ export class BaseVisitor {
         if (ts.isVariableStatement(node)) return this.visitVariableDeclaration(node);
         if (ts.isExpressionStatement(node)) return this.visitExpression(node);
         if (ts.isBlock(node)) return this.visitBlockStatement(node);
+        if (ts.isEmptyStatement(node)) {
+            return {
+                kind: Kinds.Statements.BlockStatement,
+                statements: [],
+                source: node.getText(),
+                position: this.getNodePosistion(node),
+            };
+        }
         if (ts.isReturnStatement(node)) {
             return {
                 kind: Kinds.Statements.ReturnStatement,

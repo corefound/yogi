@@ -40,6 +40,59 @@ export type SemanticType = {
     [key: string]: any;
 };
 
+export type SemanticValueIdentity = {
+    valueId: string;
+    originNodeId: string;
+    symbolId: string;
+    scopeId: string;
+    typeId: string;
+    source: string;
+    position?: SourcePosition;
+};
+
+export type SemanticDecisionKind =
+    | "Copy"
+    | "Move"
+    | "Borrow"
+    | "Escape"
+    | "Storage"
+    | "Materialize"
+    | "Promote";
+
+export type SemanticDecisionReason =
+    | "TrivialValueCopy"
+    | "ExplicitArrayCopy"
+    | "CopyingArrayMethod"
+    | "ResourceOwningInitialization"
+    | "ResourceOwningAssignment"
+    | "ReturnTransfersToCaller"
+    | "ValueParameterConsumes"
+    | "AddressOfBorrow"
+    | "DerivedViewBorrow"
+    | "KnownCalleeBorrow"
+    | "UnknownExternalConservativeEscape"
+    | "DeclaredValueEscapes"
+    | "StackStorage"
+    | "HeapStorage"
+    | "GlobalStorage"
+    | "BorrowedViewMaterialization"
+    | "BorrowedViewOwnerPromotion"
+    | "EscapeRequiresHeap";
+
+export type SemanticDecision = {
+    decisionId: string;
+    nodeId: string;
+    valueId: string;
+    typeId: string;
+    kind: SemanticDecisionKind;
+    reason: SemanticDecisionReason;
+    context: string;
+    relatedIds: string[];
+    runtimeRequired: boolean;
+    source: string;
+    position?: SourcePosition;
+};
+
 export type SemanticNumberConstant = {
     kind: "NumberConstant";
     type: SemanticType;
@@ -454,6 +507,8 @@ export type SemanticFunctionDeclaration = {
     linkageName?: string | null;
     qualifiedName?: string;
     effectSummary?: SemanticFunctionEffectSummary;
+    returnsNativeResourceFieldDestructors?: Record<string, string>;
+    returnsNativeResourceArrayElementFieldDestructors?: Record<string, string>;
     source?: string;
     position?: SourcePosition;
 };
@@ -599,6 +654,9 @@ export type SemanticNodeInput =
     | SemanticStructDeclaration;
 
 export type SemanticModuleInput = {
+    moduleId: string;
     sourcePath: string;
     nodes: SemanticNodeInput[];
+    values: SemanticValueIdentity[];
+    decisions: SemanticDecision[];
 };

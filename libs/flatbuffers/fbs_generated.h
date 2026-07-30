@@ -99,6 +99,12 @@ struct ExternVariableBuilder;
 struct ExternDeclaration;
 struct ExternDeclarationBuilder;
 
+struct ValueIdentity;
+struct ValueIdentityBuilder;
+
+struct SemanticDecision;
+struct SemanticDecisionBuilder;
+
 struct IdentifierExpression;
 struct IdentifierExpressionBuilder;
 
@@ -415,6 +421,135 @@ template <bool B = false>
 bool VerifyConstantValue(::flatbuffers::VerifierTemplate<B> &verifier, const void *obj, ConstantValue type);
 template <bool B = false>
 bool VerifyConstantValueVector(::flatbuffers::VerifierTemplate<B> &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<uint8_t> *types);
+
+enum SemanticDecisionKind : int8_t {
+  SemanticDecisionKind_Unknown = 0,
+  SemanticDecisionKind_Copy = 1,
+  SemanticDecisionKind_Move = 2,
+  SemanticDecisionKind_Borrow = 3,
+  SemanticDecisionKind_Escape = 4,
+  SemanticDecisionKind_Storage = 5,
+  SemanticDecisionKind_Materialize = 6,
+  SemanticDecisionKind_Promote = 7,
+  SemanticDecisionKind_MIN = SemanticDecisionKind_Unknown,
+  SemanticDecisionKind_MAX = SemanticDecisionKind_Promote
+};
+
+inline const SemanticDecisionKind (&EnumValuesSemanticDecisionKind())[8] {
+  static const SemanticDecisionKind values[] = {
+    SemanticDecisionKind_Unknown,
+    SemanticDecisionKind_Copy,
+    SemanticDecisionKind_Move,
+    SemanticDecisionKind_Borrow,
+    SemanticDecisionKind_Escape,
+    SemanticDecisionKind_Storage,
+    SemanticDecisionKind_Materialize,
+    SemanticDecisionKind_Promote
+  };
+  return values;
+}
+
+inline const char * const *EnumNamesSemanticDecisionKind() {
+  static const char * const names[9] = {
+    "Unknown",
+    "Copy",
+    "Move",
+    "Borrow",
+    "Escape",
+    "Storage",
+    "Materialize",
+    "Promote",
+    nullptr
+  };
+  return names;
+}
+
+inline const char *EnumNameSemanticDecisionKind(SemanticDecisionKind e) {
+  if (::flatbuffers::IsOutRange(e, SemanticDecisionKind_Unknown, SemanticDecisionKind_Promote)) return "";
+  const size_t index = static_cast<size_t>(e);
+  return EnumNamesSemanticDecisionKind()[index];
+}
+
+enum SemanticDecisionReason : int8_t {
+  SemanticDecisionReason_Unknown = 0,
+  SemanticDecisionReason_TrivialValueCopy = 1,
+  SemanticDecisionReason_ExplicitArrayCopy = 2,
+  SemanticDecisionReason_CopyingArrayMethod = 3,
+  SemanticDecisionReason_ResourceOwningInitialization = 4,
+  SemanticDecisionReason_ResourceOwningAssignment = 5,
+  SemanticDecisionReason_ReturnTransfersToCaller = 6,
+  SemanticDecisionReason_ValueParameterConsumes = 7,
+  SemanticDecisionReason_AddressOfBorrow = 8,
+  SemanticDecisionReason_DerivedViewBorrow = 9,
+  SemanticDecisionReason_KnownCalleeBorrow = 10,
+  SemanticDecisionReason_UnknownExternalConservativeEscape = 11,
+  SemanticDecisionReason_DeclaredValueEscapes = 12,
+  SemanticDecisionReason_StackStorage = 13,
+  SemanticDecisionReason_HeapStorage = 14,
+  SemanticDecisionReason_GlobalStorage = 15,
+  SemanticDecisionReason_BorrowedViewMaterialization = 16,
+  SemanticDecisionReason_BorrowedViewOwnerPromotion = 17,
+  SemanticDecisionReason_EscapeRequiresHeap = 18,
+  SemanticDecisionReason_MIN = SemanticDecisionReason_Unknown,
+  SemanticDecisionReason_MAX = SemanticDecisionReason_EscapeRequiresHeap
+};
+
+inline const SemanticDecisionReason (&EnumValuesSemanticDecisionReason())[19] {
+  static const SemanticDecisionReason values[] = {
+    SemanticDecisionReason_Unknown,
+    SemanticDecisionReason_TrivialValueCopy,
+    SemanticDecisionReason_ExplicitArrayCopy,
+    SemanticDecisionReason_CopyingArrayMethod,
+    SemanticDecisionReason_ResourceOwningInitialization,
+    SemanticDecisionReason_ResourceOwningAssignment,
+    SemanticDecisionReason_ReturnTransfersToCaller,
+    SemanticDecisionReason_ValueParameterConsumes,
+    SemanticDecisionReason_AddressOfBorrow,
+    SemanticDecisionReason_DerivedViewBorrow,
+    SemanticDecisionReason_KnownCalleeBorrow,
+    SemanticDecisionReason_UnknownExternalConservativeEscape,
+    SemanticDecisionReason_DeclaredValueEscapes,
+    SemanticDecisionReason_StackStorage,
+    SemanticDecisionReason_HeapStorage,
+    SemanticDecisionReason_GlobalStorage,
+    SemanticDecisionReason_BorrowedViewMaterialization,
+    SemanticDecisionReason_BorrowedViewOwnerPromotion,
+    SemanticDecisionReason_EscapeRequiresHeap
+  };
+  return values;
+}
+
+inline const char * const *EnumNamesSemanticDecisionReason() {
+  static const char * const names[20] = {
+    "Unknown",
+    "TrivialValueCopy",
+    "ExplicitArrayCopy",
+    "CopyingArrayMethod",
+    "ResourceOwningInitialization",
+    "ResourceOwningAssignment",
+    "ReturnTransfersToCaller",
+    "ValueParameterConsumes",
+    "AddressOfBorrow",
+    "DerivedViewBorrow",
+    "KnownCalleeBorrow",
+    "UnknownExternalConservativeEscape",
+    "DeclaredValueEscapes",
+    "StackStorage",
+    "HeapStorage",
+    "GlobalStorage",
+    "BorrowedViewMaterialization",
+    "BorrowedViewOwnerPromotion",
+    "EscapeRequiresHeap",
+    nullptr
+  };
+  return names;
+}
+
+inline const char *EnumNameSemanticDecisionReason(SemanticDecisionReason e) {
+  if (::flatbuffers::IsOutRange(e, SemanticDecisionReason_Unknown, SemanticDecisionReason_EscapeRequiresHeap)) return "";
+  const size_t index = static_cast<size_t>(e);
+  return EnumNamesSemanticDecisionReason()[index];
+}
 
 enum SirNodeValue : uint8_t {
   SirNodeValue_NONE = 0,
@@ -1471,12 +1606,16 @@ inline ::flatbuffers::Offset<AstField> CreateAstFieldDirect(
 struct AstNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef AstNodeBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_KIND = 4,
-    VT_FIELDS = 6,
-    VT_SOURCE = 8,
-    VT_RAW = 10,
-    VT_POSITION = 12
+    VT_NODE_ID = 4,
+    VT_KIND = 6,
+    VT_FIELDS = 8,
+    VT_SOURCE = 10,
+    VT_RAW = 12,
+    VT_POSITION = 14
   };
+  const ::flatbuffers::String *node_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NODE_ID);
+  }
   const ::flatbuffers::String *kind() const {
     return GetPointer<const ::flatbuffers::String *>(VT_KIND);
   }
@@ -1495,6 +1634,8 @@ struct AstNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NODE_ID) &&
+           verifier.VerifyString(node_id()) &&
            VerifyOffset(verifier, VT_KIND) &&
            verifier.VerifyString(kind()) &&
            VerifyOffset(verifier, VT_FIELDS) &&
@@ -1514,6 +1655,9 @@ struct AstNodeBuilder {
   typedef AstNode Table;
   ::flatbuffers::FlatBufferBuilder &fbb_;
   ::flatbuffers::uoffset_t start_;
+  void add_node_id(::flatbuffers::Offset<::flatbuffers::String> node_id) {
+    fbb_.AddOffset(AstNode::VT_NODE_ID, node_id);
+  }
   void add_kind(::flatbuffers::Offset<::flatbuffers::String> kind) {
     fbb_.AddOffset(AstNode::VT_KIND, kind);
   }
@@ -1542,6 +1686,7 @@ struct AstNodeBuilder {
 
 inline ::flatbuffers::Offset<AstNode> CreateAstNode(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> node_id = 0,
     ::flatbuffers::Offset<::flatbuffers::String> kind = 0,
     ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Ast::AstField>>> fields = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source = 0,
@@ -1553,22 +1698,26 @@ inline ::flatbuffers::Offset<AstNode> CreateAstNode(
   builder_.add_source(source);
   builder_.add_fields(fields);
   builder_.add_kind(kind);
+  builder_.add_node_id(node_id);
   return builder_.Finish();
 }
 
 inline ::flatbuffers::Offset<AstNode> CreateAstNodeDirect(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *node_id = nullptr,
     const char *kind = nullptr,
     const std::vector<::flatbuffers::Offset<Yogi::Ast::AstField>> *fields = nullptr,
     const char *source = nullptr,
     const char *raw = nullptr,
     ::flatbuffers::Offset<Yogi::Ast::SourcePosition> position = 0) {
+  auto node_id__ = node_id ? _fbb.CreateString(node_id) : 0;
   auto kind__ = kind ? _fbb.CreateString(kind) : 0;
   auto fields__ = fields ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Ast::AstField>>(*fields) : 0;
   auto source__ = source ? _fbb.CreateString(source) : 0;
   auto raw__ = raw ? _fbb.CreateString(raw) : 0;
   return Yogi::Ast::CreateAstNode(
       _fbb,
+      node_id__,
       kind__,
       fields__,
       source__,
@@ -1579,9 +1728,13 @@ inline ::flatbuffers::Offset<AstNode> CreateAstNodeDirect(
 struct Module FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ModuleBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_SOURCE_PATH = 4,
-    VT_NODES = 6
+    VT_MODULE_ID = 4,
+    VT_SOURCE_PATH = 6,
+    VT_NODES = 8
   };
+  const ::flatbuffers::String *module_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_MODULE_ID);
+  }
   const ::flatbuffers::String *source_path() const {
     return GetPointer<const ::flatbuffers::String *>(VT_SOURCE_PATH);
   }
@@ -1591,6 +1744,8 @@ struct Module FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_MODULE_ID) &&
+           verifier.VerifyString(module_id()) &&
            VerifyOffset(verifier, VT_SOURCE_PATH) &&
            verifier.VerifyString(source_path()) &&
            VerifyOffset(verifier, VT_NODES) &&
@@ -1604,6 +1759,9 @@ struct ModuleBuilder {
   typedef Module Table;
   ::flatbuffers::FlatBufferBuilder &fbb_;
   ::flatbuffers::uoffset_t start_;
+  void add_module_id(::flatbuffers::Offset<::flatbuffers::String> module_id) {
+    fbb_.AddOffset(Module::VT_MODULE_ID, module_id);
+  }
   void add_source_path(::flatbuffers::Offset<::flatbuffers::String> source_path) {
     fbb_.AddOffset(Module::VT_SOURCE_PATH, source_path);
   }
@@ -1623,22 +1781,27 @@ struct ModuleBuilder {
 
 inline ::flatbuffers::Offset<Module> CreateModule(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> module_id = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source_path = 0,
     ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Ast::AstNode>>> nodes = 0) {
   ModuleBuilder builder_(_fbb);
   builder_.add_nodes(nodes);
   builder_.add_source_path(source_path);
+  builder_.add_module_id(module_id);
   return builder_.Finish();
 }
 
 inline ::flatbuffers::Offset<Module> CreateModuleDirect(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *module_id = nullptr,
     const char *source_path = nullptr,
     const std::vector<::flatbuffers::Offset<Yogi::Ast::AstNode>> *nodes = nullptr) {
+  auto module_id__ = module_id ? _fbb.CreateString(module_id) : 0;
   auto source_path__ = source_path ? _fbb.CreateString(source_path) : 0;
   auto nodes__ = nodes ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Ast::AstNode>>(*nodes) : 0;
   return Yogi::Ast::CreateModule(
       _fbb,
+      module_id__,
       source_path__,
       nodes__);
 }
@@ -2641,6 +2804,327 @@ inline ::flatbuffers::Offset<ExternDeclaration> CreateExternDeclarationDirect(
       position);
 }
 
+struct ValueIdentity FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ValueIdentityBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_VALUE_ID = 4,
+    VT_ORIGIN_NODE_ID = 6,
+    VT_SYMBOL_ID = 8,
+    VT_SCOPE_ID = 10,
+    VT_TYPE_ID = 12,
+    VT_SOURCE = 14,
+    VT_POSITION = 16
+  };
+  const ::flatbuffers::String *value_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_VALUE_ID);
+  }
+  const ::flatbuffers::String *origin_node_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_ORIGIN_NODE_ID);
+  }
+  const ::flatbuffers::String *symbol_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SYMBOL_ID);
+  }
+  const ::flatbuffers::String *scope_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SCOPE_ID);
+  }
+  const ::flatbuffers::String *type_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_TYPE_ID);
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_VALUE_ID) &&
+           verifier.VerifyString(value_id()) &&
+           VerifyOffset(verifier, VT_ORIGIN_NODE_ID) &&
+           verifier.VerifyString(origin_node_id()) &&
+           VerifyOffset(verifier, VT_SYMBOL_ID) &&
+           verifier.VerifyString(symbol_id()) &&
+           VerifyOffset(verifier, VT_SCOPE_ID) &&
+           verifier.VerifyString(scope_id()) &&
+           VerifyOffset(verifier, VT_TYPE_ID) &&
+           verifier.VerifyString(type_id()) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct ValueIdentityBuilder {
+  typedef ValueIdentity Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_value_id(::flatbuffers::Offset<::flatbuffers::String> value_id) {
+    fbb_.AddOffset(ValueIdentity::VT_VALUE_ID, value_id);
+  }
+  void add_origin_node_id(::flatbuffers::Offset<::flatbuffers::String> origin_node_id) {
+    fbb_.AddOffset(ValueIdentity::VT_ORIGIN_NODE_ID, origin_node_id);
+  }
+  void add_symbol_id(::flatbuffers::Offset<::flatbuffers::String> symbol_id) {
+    fbb_.AddOffset(ValueIdentity::VT_SYMBOL_ID, symbol_id);
+  }
+  void add_scope_id(::flatbuffers::Offset<::flatbuffers::String> scope_id) {
+    fbb_.AddOffset(ValueIdentity::VT_SCOPE_ID, scope_id);
+  }
+  void add_type_id(::flatbuffers::Offset<::flatbuffers::String> type_id) {
+    fbb_.AddOffset(ValueIdentity::VT_TYPE_ID, type_id);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(ValueIdentity::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(ValueIdentity::VT_POSITION, position);
+  }
+  explicit ValueIdentityBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ValueIdentity> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ValueIdentity>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ValueIdentity> CreateValueIdentity(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> value_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> origin_node_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> symbol_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> scope_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> type_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  ValueIdentityBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_type_id(type_id);
+  builder_.add_scope_id(scope_id);
+  builder_.add_symbol_id(symbol_id);
+  builder_.add_origin_node_id(origin_node_id);
+  builder_.add_value_id(value_id);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<ValueIdentity> CreateValueIdentityDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *value_id = nullptr,
+    const char *origin_node_id = nullptr,
+    const char *symbol_id = nullptr,
+    const char *scope_id = nullptr,
+    const char *type_id = nullptr,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto value_id__ = value_id ? _fbb.CreateString(value_id) : 0;
+  auto origin_node_id__ = origin_node_id ? _fbb.CreateString(origin_node_id) : 0;
+  auto symbol_id__ = symbol_id ? _fbb.CreateString(symbol_id) : 0;
+  auto scope_id__ = scope_id ? _fbb.CreateString(scope_id) : 0;
+  auto type_id__ = type_id ? _fbb.CreateString(type_id) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateValueIdentity(
+      _fbb,
+      value_id__,
+      origin_node_id__,
+      symbol_id__,
+      scope_id__,
+      type_id__,
+      source__,
+      position);
+}
+
+struct SemanticDecision FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef SemanticDecisionBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_DECISION_ID = 4,
+    VT_NODE_ID = 6,
+    VT_VALUE_ID = 8,
+    VT_TYPE_ID = 10,
+    VT_KIND = 12,
+    VT_REASON = 14,
+    VT_CONTEXT = 16,
+    VT_RELATED_IDS = 18,
+    VT_RUNTIME_REQUIRED = 20,
+    VT_SOURCE = 22,
+    VT_POSITION = 24
+  };
+  const ::flatbuffers::String *decision_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_DECISION_ID);
+  }
+  const ::flatbuffers::String *node_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NODE_ID);
+  }
+  const ::flatbuffers::String *value_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_VALUE_ID);
+  }
+  const ::flatbuffers::String *type_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_TYPE_ID);
+  }
+  Yogi::Sir::SemanticDecisionKind kind() const {
+    return static_cast<Yogi::Sir::SemanticDecisionKind>(GetField<int8_t>(VT_KIND, 0));
+  }
+  Yogi::Sir::SemanticDecisionReason reason() const {
+    return static_cast<Yogi::Sir::SemanticDecisionReason>(GetField<int8_t>(VT_REASON, 0));
+  }
+  const ::flatbuffers::String *context() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_CONTEXT);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *related_ids() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *>(VT_RELATED_IDS);
+  }
+  bool runtime_required() const {
+    return GetField<uint8_t>(VT_RUNTIME_REQUIRED, 0) != 0;
+  }
+  const ::flatbuffers::String *source() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_SOURCE);
+  }
+  const Yogi::Sir::SourcePosition *position() const {
+    return GetPointer<const Yogi::Sir::SourcePosition *>(VT_POSITION);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_DECISION_ID) &&
+           verifier.VerifyString(decision_id()) &&
+           VerifyOffset(verifier, VT_NODE_ID) &&
+           verifier.VerifyString(node_id()) &&
+           VerifyOffset(verifier, VT_VALUE_ID) &&
+           verifier.VerifyString(value_id()) &&
+           VerifyOffset(verifier, VT_TYPE_ID) &&
+           verifier.VerifyString(type_id()) &&
+           VerifyField<int8_t>(verifier, VT_KIND, 1) &&
+           VerifyField<int8_t>(verifier, VT_REASON, 1) &&
+           VerifyOffset(verifier, VT_CONTEXT) &&
+           verifier.VerifyString(context()) &&
+           VerifyOffset(verifier, VT_RELATED_IDS) &&
+           verifier.VerifyVector(related_ids()) &&
+           verifier.VerifyVectorOfStrings(related_ids()) &&
+           VerifyField<uint8_t>(verifier, VT_RUNTIME_REQUIRED, 1) &&
+           VerifyOffset(verifier, VT_SOURCE) &&
+           verifier.VerifyString(source()) &&
+           VerifyOffset(verifier, VT_POSITION) &&
+           verifier.VerifyTable(position()) &&
+           verifier.EndTable();
+  }
+};
+
+struct SemanticDecisionBuilder {
+  typedef SemanticDecision Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_decision_id(::flatbuffers::Offset<::flatbuffers::String> decision_id) {
+    fbb_.AddOffset(SemanticDecision::VT_DECISION_ID, decision_id);
+  }
+  void add_node_id(::flatbuffers::Offset<::flatbuffers::String> node_id) {
+    fbb_.AddOffset(SemanticDecision::VT_NODE_ID, node_id);
+  }
+  void add_value_id(::flatbuffers::Offset<::flatbuffers::String> value_id) {
+    fbb_.AddOffset(SemanticDecision::VT_VALUE_ID, value_id);
+  }
+  void add_type_id(::flatbuffers::Offset<::flatbuffers::String> type_id) {
+    fbb_.AddOffset(SemanticDecision::VT_TYPE_ID, type_id);
+  }
+  void add_kind(Yogi::Sir::SemanticDecisionKind kind) {
+    fbb_.AddElement<int8_t>(SemanticDecision::VT_KIND, static_cast<int8_t>(kind), 0);
+  }
+  void add_reason(Yogi::Sir::SemanticDecisionReason reason) {
+    fbb_.AddElement<int8_t>(SemanticDecision::VT_REASON, static_cast<int8_t>(reason), 0);
+  }
+  void add_context(::flatbuffers::Offset<::flatbuffers::String> context) {
+    fbb_.AddOffset(SemanticDecision::VT_CONTEXT, context);
+  }
+  void add_related_ids(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> related_ids) {
+    fbb_.AddOffset(SemanticDecision::VT_RELATED_IDS, related_ids);
+  }
+  void add_runtime_required(bool runtime_required) {
+    fbb_.AddElement<uint8_t>(SemanticDecision::VT_RUNTIME_REQUIRED, static_cast<uint8_t>(runtime_required), 0);
+  }
+  void add_source(::flatbuffers::Offset<::flatbuffers::String> source) {
+    fbb_.AddOffset(SemanticDecision::VT_SOURCE, source);
+  }
+  void add_position(::flatbuffers::Offset<Yogi::Sir::SourcePosition> position) {
+    fbb_.AddOffset(SemanticDecision::VT_POSITION, position);
+  }
+  explicit SemanticDecisionBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<SemanticDecision> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<SemanticDecision>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<SemanticDecision> CreateSemanticDecision(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> decision_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> node_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> value_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> type_id = 0,
+    Yogi::Sir::SemanticDecisionKind kind = Yogi::Sir::SemanticDecisionKind_Unknown,
+    Yogi::Sir::SemanticDecisionReason reason = Yogi::Sir::SemanticDecisionReason_Unknown,
+    ::flatbuffers::Offset<::flatbuffers::String> context = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> related_ids = 0,
+    bool runtime_required = false,
+    ::flatbuffers::Offset<::flatbuffers::String> source = 0,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  SemanticDecisionBuilder builder_(_fbb);
+  builder_.add_position(position);
+  builder_.add_source(source);
+  builder_.add_related_ids(related_ids);
+  builder_.add_context(context);
+  builder_.add_type_id(type_id);
+  builder_.add_value_id(value_id);
+  builder_.add_node_id(node_id);
+  builder_.add_decision_id(decision_id);
+  builder_.add_runtime_required(runtime_required);
+  builder_.add_reason(reason);
+  builder_.add_kind(kind);
+  return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<SemanticDecision> CreateSemanticDecisionDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *decision_id = nullptr,
+    const char *node_id = nullptr,
+    const char *value_id = nullptr,
+    const char *type_id = nullptr,
+    Yogi::Sir::SemanticDecisionKind kind = Yogi::Sir::SemanticDecisionKind_Unknown,
+    Yogi::Sir::SemanticDecisionReason reason = Yogi::Sir::SemanticDecisionReason_Unknown,
+    const char *context = nullptr,
+    const std::vector<::flatbuffers::Offset<::flatbuffers::String>> *related_ids = nullptr,
+    bool runtime_required = false,
+    const char *source = nullptr,
+    ::flatbuffers::Offset<Yogi::Sir::SourcePosition> position = 0) {
+  auto decision_id__ = decision_id ? _fbb.CreateString(decision_id) : 0;
+  auto node_id__ = node_id ? _fbb.CreateString(node_id) : 0;
+  auto value_id__ = value_id ? _fbb.CreateString(value_id) : 0;
+  auto type_id__ = type_id ? _fbb.CreateString(type_id) : 0;
+  auto context__ = context ? _fbb.CreateString(context) : 0;
+  auto related_ids__ = related_ids ? _fbb.CreateVector<::flatbuffers::Offset<::flatbuffers::String>>(*related_ids) : 0;
+  auto source__ = source ? _fbb.CreateString(source) : 0;
+  return Yogi::Sir::CreateSemanticDecision(
+      _fbb,
+      decision_id__,
+      node_id__,
+      value_id__,
+      type_id__,
+      kind,
+      reason,
+      context__,
+      related_ids__,
+      runtime_required,
+      source__,
+      position);
+}
+
 struct IdentifierExpression FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef IdentifierExpressionBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
@@ -2788,23 +3272,39 @@ inline ::flatbuffers::Offset<IdentifierExpression> CreateIdentifierExpressionDir
 struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ValueRefBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_KIND = 4,
-    VT_CONSTANT = 6,
-    VT_IDENTIFIER = 8,
-    VT_BINARY = 10,
-    VT_ASSIGNMENT = 12,
-    VT_CONDITIONAL = 14,
-    VT_CALL = 16,
-    VT_SPREAD = 18,
-    VT_ARRAY = 20,
-    VT_OBJECT = 22,
-    VT_PROPERTY_ACCESS = 24,
-    VT_ELEMENT_ACCESS = 26,
-    VT_ADDRESS_OF = 28,
-    VT_DEREFERENCE = 30,
-    VT_AGGREGATE_ASSIGNMENT = 32,
-    VT_FUNCTION_EXPRESSION = 34
+    VT_NODE_ID = 4,
+    VT_VALUE_ID = 6,
+    VT_TYPE_ID = 8,
+    VT_DECISION_IDS = 10,
+    VT_KIND = 12,
+    VT_CONSTANT = 14,
+    VT_IDENTIFIER = 16,
+    VT_BINARY = 18,
+    VT_ASSIGNMENT = 20,
+    VT_CONDITIONAL = 22,
+    VT_CALL = 24,
+    VT_SPREAD = 26,
+    VT_ARRAY = 28,
+    VT_OBJECT = 30,
+    VT_PROPERTY_ACCESS = 32,
+    VT_ELEMENT_ACCESS = 34,
+    VT_ADDRESS_OF = 36,
+    VT_DEREFERENCE = 38,
+    VT_AGGREGATE_ASSIGNMENT = 40,
+    VT_FUNCTION_EXPRESSION = 42
   };
+  const ::flatbuffers::String *node_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NODE_ID);
+  }
+  const ::flatbuffers::String *value_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_VALUE_ID);
+  }
+  const ::flatbuffers::String *type_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_TYPE_ID);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *decision_ids() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *>(VT_DECISION_IDS);
+  }
   const ::flatbuffers::String *kind() const {
     return GetPointer<const ::flatbuffers::String *>(VT_KIND);
   }
@@ -2856,6 +3356,15 @@ struct ValueRef FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NODE_ID) &&
+           verifier.VerifyString(node_id()) &&
+           VerifyOffset(verifier, VT_VALUE_ID) &&
+           verifier.VerifyString(value_id()) &&
+           VerifyOffset(verifier, VT_TYPE_ID) &&
+           verifier.VerifyString(type_id()) &&
+           VerifyOffset(verifier, VT_DECISION_IDS) &&
+           verifier.VerifyVector(decision_ids()) &&
+           verifier.VerifyVectorOfStrings(decision_ids()) &&
            VerifyOffset(verifier, VT_KIND) &&
            verifier.VerifyString(kind()) &&
            VerifyOffset(verifier, VT_CONSTANT) &&
@@ -2896,6 +3405,18 @@ struct ValueRefBuilder {
   typedef ValueRef Table;
   ::flatbuffers::FlatBufferBuilder &fbb_;
   ::flatbuffers::uoffset_t start_;
+  void add_node_id(::flatbuffers::Offset<::flatbuffers::String> node_id) {
+    fbb_.AddOffset(ValueRef::VT_NODE_ID, node_id);
+  }
+  void add_value_id(::flatbuffers::Offset<::flatbuffers::String> value_id) {
+    fbb_.AddOffset(ValueRef::VT_VALUE_ID, value_id);
+  }
+  void add_type_id(::flatbuffers::Offset<::flatbuffers::String> type_id) {
+    fbb_.AddOffset(ValueRef::VT_TYPE_ID, type_id);
+  }
+  void add_decision_ids(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> decision_ids) {
+    fbb_.AddOffset(ValueRef::VT_DECISION_IDS, decision_ids);
+  }
   void add_kind(::flatbuffers::Offset<::flatbuffers::String> kind) {
     fbb_.AddOffset(ValueRef::VT_KIND, kind);
   }
@@ -2957,6 +3478,10 @@ struct ValueRefBuilder {
 
 inline ::flatbuffers::Offset<ValueRef> CreateValueRef(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> node_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> value_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::String> type_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> decision_ids = 0,
     ::flatbuffers::Offset<::flatbuffers::String> kind = 0,
     ::flatbuffers::Offset<Yogi::Sir::Constant> constant = 0,
     ::flatbuffers::Offset<Yogi::Sir::IdentifierExpression> identifier = 0,
@@ -2990,11 +3515,19 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRef(
   builder_.add_identifier(identifier);
   builder_.add_constant(constant);
   builder_.add_kind(kind);
+  builder_.add_decision_ids(decision_ids);
+  builder_.add_type_id(type_id);
+  builder_.add_value_id(value_id);
+  builder_.add_node_id(node_id);
   return builder_.Finish();
 }
 
 inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *node_id = nullptr,
+    const char *value_id = nullptr,
+    const char *type_id = nullptr,
+    const std::vector<::flatbuffers::Offset<::flatbuffers::String>> *decision_ids = nullptr,
     const char *kind = nullptr,
     ::flatbuffers::Offset<Yogi::Sir::Constant> constant = 0,
     ::flatbuffers::Offset<Yogi::Sir::IdentifierExpression> identifier = 0,
@@ -3011,9 +3544,17 @@ inline ::flatbuffers::Offset<ValueRef> CreateValueRefDirect(
     ::flatbuffers::Offset<Yogi::Sir::DereferenceExpression> dereference = 0,
     ::flatbuffers::Offset<Yogi::Sir::AggregateAssignmentExpression> aggregate_assignment = 0,
     ::flatbuffers::Offset<Yogi::Sir::FunctionExpression> function_expression = 0) {
+  auto node_id__ = node_id ? _fbb.CreateString(node_id) : 0;
+  auto value_id__ = value_id ? _fbb.CreateString(value_id) : 0;
+  auto type_id__ = type_id ? _fbb.CreateString(type_id) : 0;
+  auto decision_ids__ = decision_ids ? _fbb.CreateVector<::flatbuffers::Offset<::flatbuffers::String>>(*decision_ids) : 0;
   auto kind__ = kind ? _fbb.CreateString(kind) : 0;
   return Yogi::Sir::CreateValueRef(
       _fbb,
+      node_id__,
+      value_id__,
+      type_id__,
+      decision_ids__,
       kind__,
       constant,
       identifier,
@@ -7293,9 +7834,17 @@ inline ::flatbuffers::Offset<StructDeclaration> CreateStructDeclarationDirect(
 struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef SirNodeBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_VALUE_TYPE = 4,
-    VT_VALUE = 6
+    VT_NODE_ID = 4,
+    VT_DECISION_IDS = 6,
+    VT_VALUE_TYPE = 8,
+    VT_VALUE = 10
   };
+  const ::flatbuffers::String *node_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_NODE_ID);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *decision_ids() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>> *>(VT_DECISION_IDS);
+  }
   Yogi::Sir::SirNodeValue value_type() const {
     return static_cast<Yogi::Sir::SirNodeValue>(GetField<uint8_t>(VT_VALUE_TYPE, 0));
   }
@@ -7384,6 +7933,11 @@ struct SirNode FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_NODE_ID) &&
+           verifier.VerifyString(node_id()) &&
+           VerifyOffset(verifier, VT_DECISION_IDS) &&
+           verifier.VerifyVector(decision_ids()) &&
+           verifier.VerifyVectorOfStrings(decision_ids()) &&
            VerifyField<uint8_t>(verifier, VT_VALUE_TYPE, 1) &&
            VerifyOffset(verifier, VT_VALUE) &&
            VerifySirNodeValue(verifier, value(), value_type()) &&
@@ -7499,6 +8053,12 @@ struct SirNodeBuilder {
   typedef SirNode Table;
   ::flatbuffers::FlatBufferBuilder &fbb_;
   ::flatbuffers::uoffset_t start_;
+  void add_node_id(::flatbuffers::Offset<::flatbuffers::String> node_id) {
+    fbb_.AddOffset(SirNode::VT_NODE_ID, node_id);
+  }
+  void add_decision_ids(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> decision_ids) {
+    fbb_.AddOffset(SirNode::VT_DECISION_IDS, decision_ids);
+  }
   void add_value_type(Yogi::Sir::SirNodeValue value_type) {
     fbb_.AddElement<uint8_t>(SirNode::VT_VALUE_TYPE, static_cast<uint8_t>(value_type), 0);
   }
@@ -7518,34 +8078,74 @@ struct SirNodeBuilder {
 
 inline ::flatbuffers::Offset<SirNode> CreateSirNode(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> node_id = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<::flatbuffers::String>>> decision_ids = 0,
     Yogi::Sir::SirNodeValue value_type = Yogi::Sir::SirNodeValue_NONE,
     ::flatbuffers::Offset<void> value = 0) {
   SirNodeBuilder builder_(_fbb);
   builder_.add_value(value);
+  builder_.add_decision_ids(decision_ids);
+  builder_.add_node_id(node_id);
   builder_.add_value_type(value_type);
   return builder_.Finish();
+}
+
+inline ::flatbuffers::Offset<SirNode> CreateSirNodeDirect(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *node_id = nullptr,
+    const std::vector<::flatbuffers::Offset<::flatbuffers::String>> *decision_ids = nullptr,
+    Yogi::Sir::SirNodeValue value_type = Yogi::Sir::SirNodeValue_NONE,
+    ::flatbuffers::Offset<void> value = 0) {
+  auto node_id__ = node_id ? _fbb.CreateString(node_id) : 0;
+  auto decision_ids__ = decision_ids ? _fbb.CreateVector<::flatbuffers::Offset<::flatbuffers::String>>(*decision_ids) : 0;
+  return Yogi::Sir::CreateSirNode(
+      _fbb,
+      node_id__,
+      decision_ids__,
+      value_type,
+      value);
 }
 
 struct Module FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef ModuleBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_SOURCE_PATH = 4,
-    VT_NODES = 6
+    VT_MODULE_ID = 4,
+    VT_SOURCE_PATH = 6,
+    VT_NODES = 8,
+    VT_VALUES = 10,
+    VT_DECISIONS = 12
   };
+  const ::flatbuffers::String *module_id() const {
+    return GetPointer<const ::flatbuffers::String *>(VT_MODULE_ID);
+  }
   const ::flatbuffers::String *source_path() const {
     return GetPointer<const ::flatbuffers::String *>(VT_SOURCE_PATH);
   }
   const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SirNode>> *nodes() const {
     return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SirNode>> *>(VT_NODES);
   }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueIdentity>> *values() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueIdentity>> *>(VT_VALUES);
+  }
+  const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SemanticDecision>> *decisions() const {
+    return GetPointer<const ::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SemanticDecision>> *>(VT_DECISIONS);
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_MODULE_ID) &&
+           verifier.VerifyString(module_id()) &&
            VerifyOffset(verifier, VT_SOURCE_PATH) &&
            verifier.VerifyString(source_path()) &&
            VerifyOffset(verifier, VT_NODES) &&
            verifier.VerifyVector(nodes()) &&
            verifier.VerifyVectorOfTables(nodes()) &&
+           VerifyOffset(verifier, VT_VALUES) &&
+           verifier.VerifyVector(values()) &&
+           verifier.VerifyVectorOfTables(values()) &&
+           VerifyOffset(verifier, VT_DECISIONS) &&
+           verifier.VerifyVector(decisions()) &&
+           verifier.VerifyVectorOfTables(decisions()) &&
            verifier.EndTable();
   }
 };
@@ -7554,11 +8154,20 @@ struct ModuleBuilder {
   typedef Module Table;
   ::flatbuffers::FlatBufferBuilder &fbb_;
   ::flatbuffers::uoffset_t start_;
+  void add_module_id(::flatbuffers::Offset<::flatbuffers::String> module_id) {
+    fbb_.AddOffset(Module::VT_MODULE_ID, module_id);
+  }
   void add_source_path(::flatbuffers::Offset<::flatbuffers::String> source_path) {
     fbb_.AddOffset(Module::VT_SOURCE_PATH, source_path);
   }
   void add_nodes(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SirNode>>> nodes) {
     fbb_.AddOffset(Module::VT_NODES, nodes);
+  }
+  void add_values(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueIdentity>>> values) {
+    fbb_.AddOffset(Module::VT_VALUES, values);
+  }
+  void add_decisions(::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SemanticDecision>>> decisions) {
+    fbb_.AddOffset(Module::VT_DECISIONS, decisions);
   }
   explicit ModuleBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
@@ -7573,24 +8182,39 @@ struct ModuleBuilder {
 
 inline ::flatbuffers::Offset<Module> CreateModule(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Offset<::flatbuffers::String> module_id = 0,
     ::flatbuffers::Offset<::flatbuffers::String> source_path = 0,
-    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SirNode>>> nodes = 0) {
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SirNode>>> nodes = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::ValueIdentity>>> values = 0,
+    ::flatbuffers::Offset<::flatbuffers::Vector<::flatbuffers::Offset<Yogi::Sir::SemanticDecision>>> decisions = 0) {
   ModuleBuilder builder_(_fbb);
+  builder_.add_decisions(decisions);
+  builder_.add_values(values);
   builder_.add_nodes(nodes);
   builder_.add_source_path(source_path);
+  builder_.add_module_id(module_id);
   return builder_.Finish();
 }
 
 inline ::flatbuffers::Offset<Module> CreateModuleDirect(
     ::flatbuffers::FlatBufferBuilder &_fbb,
+    const char *module_id = nullptr,
     const char *source_path = nullptr,
-    const std::vector<::flatbuffers::Offset<Yogi::Sir::SirNode>> *nodes = nullptr) {
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::SirNode>> *nodes = nullptr,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::ValueIdentity>> *values = nullptr,
+    const std::vector<::flatbuffers::Offset<Yogi::Sir::SemanticDecision>> *decisions = nullptr) {
+  auto module_id__ = module_id ? _fbb.CreateString(module_id) : 0;
   auto source_path__ = source_path ? _fbb.CreateString(source_path) : 0;
   auto nodes__ = nodes ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::SirNode>>(*nodes) : 0;
+  auto values__ = values ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::ValueIdentity>>(*values) : 0;
+  auto decisions__ = decisions ? _fbb.CreateVector<::flatbuffers::Offset<Yogi::Sir::SemanticDecision>>(*decisions) : 0;
   return Yogi::Sir::CreateModule(
       _fbb,
+      module_id__,
       source_path__,
-      nodes__);
+      nodes__,
+      values__,
+      decisions__);
 }
 
 }  // namespace Sir

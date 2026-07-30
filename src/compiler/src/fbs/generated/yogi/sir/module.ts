@@ -4,7 +4,9 @@
 
 import * as flatbuffers from 'flatbuffers';
 
+import { SemanticDecision } from '../../yogi/sir/semantic-decision.js';
 import { SirNode } from '../../yogi/sir/sir-node.js';
+import { ValueIdentity } from '../../yogi/sir/value-identity.js';
 
 
 export class Module {
@@ -25,33 +27,64 @@ static getSizePrefixedRootAsModule(bb:flatbuffers.ByteBuffer, obj?:Module):Modul
   return (obj || new Module()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-sourcePath():string|null
-sourcePath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-sourcePath(optionalEncoding?:any):string|Uint8Array|null {
+moduleId():string|null
+moduleId(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+moduleId(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-nodes(index: number, obj?:SirNode):SirNode|null {
+sourcePath():string|null
+sourcePath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+sourcePath(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+nodes(index: number, obj?:SirNode):SirNode|null {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? (obj || new SirNode()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
 }
 
 nodesLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 6);
+  const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+values(index: number, obj?:ValueIdentity):ValueIdentity|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? (obj || new ValueIdentity()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+valuesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+decisions(index: number, obj?:SemanticDecision):SemanticDecision|null {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? (obj || new SemanticDecision()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+decisionsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 static startModule(builder:flatbuffers.Builder) {
-  builder.startObject(2);
+  builder.startObject(5);
+}
+
+static addModuleId(builder:flatbuffers.Builder, moduleIdOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(0, moduleIdOffset, 0);
 }
 
 static addSourcePath(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(0, sourcePathOffset, 0);
+  builder.addFieldOffset(1, sourcePathOffset, 0);
 }
 
 static addNodes(builder:flatbuffers.Builder, nodesOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, nodesOffset, 0);
+  builder.addFieldOffset(2, nodesOffset, 0);
 }
 
 static createNodesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
@@ -66,15 +99,50 @@ static startNodesVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 
+static addValues(builder:flatbuffers.Builder, valuesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(3, valuesOffset, 0);
+}
+
+static createValuesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startValuesVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addDecisions(builder:flatbuffers.Builder, decisionsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(4, decisionsOffset, 0);
+}
+
+static createDecisionsVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startDecisionsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
 static endModule(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   return offset;
 }
 
-static createModule(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset, nodesOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createModule(builder:flatbuffers.Builder, moduleIdOffset:flatbuffers.Offset, sourcePathOffset:flatbuffers.Offset, nodesOffset:flatbuffers.Offset, valuesOffset:flatbuffers.Offset, decisionsOffset:flatbuffers.Offset):flatbuffers.Offset {
   Module.startModule(builder);
+  Module.addModuleId(builder, moduleIdOffset);
   Module.addSourcePath(builder, sourcePathOffset);
   Module.addNodes(builder, nodesOffset);
+  Module.addValues(builder, valuesOffset);
+  Module.addDecisions(builder, decisionsOffset);
   return Module.endModule(builder);
 }
 }

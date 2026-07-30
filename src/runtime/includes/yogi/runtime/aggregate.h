@@ -13,138 +13,175 @@ namespace yogi::runtime {
 
 	class ObjectValue final {
 		public:
-			static ObjectValue *create();
-			static void init(void *address);
-			static std::size_t size();
+		static ObjectValue *create();
+		static void init(void *address);
+		static std::size_t size();
 
-			void set(const char *name, void *value);
-			void *get(const char *name) const;
-			void **cell(const char *name);
-			void **cell(const char *name, void **ownerArraySlot);
-			static void *cellGet(void *cell);
-			static void cellSet(void *cell, void *value);
-			static void **ownerArraySlotForCell(void *cell);
-			std::size_t length() const;
-			const char *keyAt(std::size_t index) const;
-			void *valueAt(std::size_t index) const;
-			void destroy();
+		void set(const char *name, void *value, bool boxed = true, bool ownsPayload = true);
+		void *get(const char *name) const;
+		void **cell(const char *name);
+		void **cell(const char *name, void **ownerArraySlot);
+		static void *cellGet(void *cell);
+		static void cellSet(void *cell, void *value);
+		static void **ownerArraySlotForCell(void *cell);
+		std::size_t length() const;
+		const char *keyAt(std::size_t index) const;
+		void *valueAt(std::size_t index) const;
+		ObjectValue *clone() const;
+		void destroy();
 
 		private:
-			struct Property {
-				void *value;
-				char *key;
-				void **ownerArraySlot;
-			};
+		struct Property {
+			void *value;
+			char *key;
+			void **ownerArraySlot;
+			bool boxed;
+			bool ownsPayload;
+		};
 
-			Property *properties = nullptr;
-			std::size_t propertyCount = 0;
-			std::size_t propertyCapacity = 0;
+		Property *properties = nullptr;
+		std::size_t propertyCount = 0;
+		std::size_t propertyCapacity = 0;
 
-			void ensureCapacity();
-			std::size_t find(const char *name) const;
-			static char *copyKey(const char *name);
+		void ensureCapacity();
+		std::size_t find(const char *name) const;
+		static char *copyKey(const char *name);
 	};
 
 	class ArrayValue final {
 		public:
-			enum class StorageMode {
-				ContiguousFastPath,
-				PointerSafeChunkedMode,
-			};
-			struct ElementSlot;
+		enum class StorageMode {
+			ContiguousFastPath,
+			PointerSafeChunkedMode,
+		};
+		struct ElementSlot;
+		struct ElementOwnershipPolicy {
+			YogiArrayElementDestroyFunction destroyFunction = nullptr;
+			YogiArrayElementMoveFunction moveFunction = nullptr;
+			void *context = nullptr;
+			const char *identity = nullptr;
+			bool configured = false;
+			bool resourceOwning = false;
+		};
 
-			static ArrayValue *create(std::size_t length, StorageMode storageMode = StorageMode::ContiguousFastPath);
-			static ArrayValue *createView(ArrayValue *source, std::size_t offset, std::size_t length);
-			static void init(void *address, std::size_t length, StorageMode storageMode = StorageMode::ContiguousFastPath);
-			static StorageMode storageModeFromName(const char *name);
-			static void *cellGet(void *cell);
-			static void cellSet(void *cell, void *value);
-			static std::size_t size();
+		static ArrayValue *create(std::size_t length, StorageMode storageMode = StorageMode::ContiguousFastPath);
+		static ArrayValue *createView(ArrayValue *source, std::size_t offset, std::size_t length);
+		static void init(
+			void *address,
+			std::size_t length,
+			StorageMode storageMode = StorageMode::ContiguousFastPath,
+			bool registerStackOwnership = true
+		);
+		static StorageMode storageModeFromName(const char *name);
+		static void *cellGet(void *cell);
+		static void cellSet(void *cell, void *value);
+		static std::size_t size();
 
-			void set(std::size_t index, void *value);
-			void *get(std::size_t index) const;
-			void **cell(std::size_t index);
-			void *pointerCell(std::size_t index);
-			std::size_t push(void *value);
-			void *pop();
-			void *at(std::size_t index) const;
-			void *at(double index) const;
-			std::size_t length() const;
-			void *shift();
-			std::size_t unshift(void *value);
-			bool includes(void *value, double fromIndex) const;
-			long long indexOf(void *value, double fromIndex) const;
-			long long lastIndexOf(void *value, double fromIndex) const;
-			void reverse();
-			ArrayValue *clone() const;
-			void appendArray(const ArrayValue *source);
-			void insert(std::size_t index, void *value);
-			void fill(void *value, double start, double end);
-			void copyWithin(double target, double start, double end);
-			ArrayValue *splice(double start, double deleteCount, const ArrayValue *inserted);
-			void swapSlots(std::size_t left, std::size_t right);
-			ArrayValue *toReversed() const;
-			ArrayValue *toSpliced(double start, double deleteCount, const ArrayValue *inserted) const;
-			ArrayValue *with(double index, void *value) const;
-			ArrayValue *slice(double start, double end) const;
-			ArrayValue *flat(std::size_t depth) const;
-			ArrayValue *keys() const;
-			ArrayValue *values() const;
-			ArrayValue *entries() const;
-			const char *join(const char *separator) const;
-			const char *toString() const;
-			const char *storageModeName() const;
-			void sort();
-			ArrayValue *toSorted() const;
-			void replaceFrom(const ArrayValue *source);
-			void retainViewSource();
-			void destroy();
+		void set(std::size_t index, void *value);
+		void setElementOwnershipPolicy(bool resourceOwning, YogiArrayElementDestroyFunction destroyFunction, YogiArrayElementMoveFunction moveFunction, void *context, const char *identity);
+		void setBoxedElements(bool boxed);
+		void *copyElement(void *value) const;
+		void retainBoxedElement(void *value) const;
+		void releaseBoxedElement(void *value) const;
+		bool hasResourceOwningElements() const;
+		void assertCopyable() const;
+		void *get(std::size_t index) const;
+		void **cell(std::size_t index);
+		void *pointerCell(std::size_t index);
+		std::size_t push(void *value);
+		void *pop();
+		void popDiscard();
+		void *at(std::size_t index) const;
+		void *at(double index) const;
+		std::size_t length() const;
+		void *shift();
+		void shiftDiscard();
+		std::size_t unshift(void *value);
+		bool includes(void *value, double fromIndex) const;
+		long long indexOf(void *value, double fromIndex) const;
+		long long lastIndexOf(void *value, double fromIndex) const;
+		void reverse();
+		ArrayValue *clone() const;
+		void appendArray(const ArrayValue *source);
+		void insert(std::size_t index, void *value);
+		void fill(void *value, double start, double end);
+		void copyWithin(double target, double start, double end);
+		ArrayValue *splice(double start, double deleteCount, ArrayValue *inserted);
+		void swapSlots(std::size_t left, std::size_t right);
+		ArrayValue *toReversed() const;
+		ArrayValue *toSpliced(double start, double deleteCount, ArrayValue *inserted) const;
+		ArrayValue *with(double index, void *value) const;
+		ArrayValue *slice(double start, double end) const;
+		ArrayValue *flat(std::size_t depth) const;
+		ArrayValue *keys() const;
+		ArrayValue *values() const;
+		ArrayValue *entries() const;
+		const char *join(const char *separator) const;
+		const char *toString() const;
+		const char *storageModeName() const;
+		void sort();
+		ArrayValue *toSorted() const;
+		void replaceFrom(const ArrayValue *source);
+		void moveReplaceFrom(ArrayValue *source);
+		void retainViewSource();
+		void destroy();
+		void release();
 
 		private:
-			friend class ArrayIterationPlan;
+		friend class ArrayIterationPlan;
 
-			StorageMode storageMode = StorageMode::ContiguousFastPath;
-			void **contiguousValues = nullptr;
-			void ***elements = nullptr;
-			void ***retiredElements = nullptr;
-			std::size_t elementCount = 0;
-			std::size_t elementCapacity = 0;
-			std::size_t retiredElementCount = 0;
-			std::size_t retiredElementCapacity = 0;
-			ArrayValue *viewSource = nullptr;
-			std::size_t viewOffset = 0;
-			std::size_t owningViewCount = 0;
-			bool ownsViewSource = false;
+		StorageMode storageMode = StorageMode::ContiguousFastPath;
+		void **contiguousValues = nullptr;
+		void ***elements = nullptr;
+		void ***retiredElements = nullptr;
+		std::size_t elementCount = 0;
+		std::size_t elementCapacity = 0;
+		std::size_t retiredElementCount = 0;
+		std::size_t retiredElementCapacity = 0;
+		ArrayValue *viewSource = nullptr;
+		std::size_t viewOffset = 0;
+		std::size_t owningViewCount = 0;
+		bool ownsViewSource = false;
+		bool heapAllocated = false;
+		bool boxedElements = true;
+		ElementOwnershipPolicy elementOwnershipPolicy;
 
-			bool usesPointerSafeStorage() const;
-			void resetContiguousSlots(std::size_t start = 0);
-			static void **createSlot(void *value);
-			void *slotValue(std::size_t index) const;
-			void setSlotValue(std::size_t index, void *value);
-			void invalidateSlot(std::size_t index);
-			void promoteToPointerSafeStorage();
-			void retireSlot(void **slot);
-			void releaseSlot(std::size_t index);
-			void releaseCell(void **slot);
-			void releaseRetiredSlots();
-			void ensureCapacity(std::size_t requiredCapacity);
-			bool isView() const;
+		bool usesPointerSafeStorage() const;
+		bool storesBoxedElements() const;
+		void resetContiguousSlots(std::size_t start = 0);
+		void **createSlot(void *value);
+		void *slotValue(std::size_t index) const;
+		void setSlotValue(std::size_t index, void *value);
+		void retainElementBox(void *value) const;
+		void releaseElementBox(void *value) const;
+		void invalidateSlot(std::size_t index);
+		void promoteToPointerSafeStorage();
+		void retireSlot(void **slot);
+		void releaseSlot(std::size_t index);
+		void releaseCell(void **slot);
+		void releaseRetiredSlots();
+		void inheritElementOwnershipPolicy(const ArrayValue *source);
+		void requireCompatibleElementOwnershipPolicy(const ArrayValue *source) const;
+		void *moveElement(void *value) const;
+		void destroyElement(void *value) const;
+		void ensureCapacity(std::size_t requiredCapacity);
+		bool isView() const;
 	};
 
 	class ArrayIterationPlan final {
 		public:
-			static ArrayIterationPlan *create(ArrayValue *source);
+		static ArrayIterationPlan *create(ArrayValue *source);
 
-			std::size_t length() const;
-			bool valid(std::size_t index) const;
-			void *value(std::size_t index) const;
-			void *pointer(std::size_t index) const;
-			void destroy();
+		std::size_t length() const;
+		bool valid(std::size_t index) const;
+		void *value(std::size_t index) const;
+		void *pointer(std::size_t index) const;
+		void destroy();
 
 		private:
-			ArrayValue *source = nullptr;
-			void ***slots = nullptr;
-			std::size_t slotCount = 0;
+		ArrayValue *source = nullptr;
+		void ***slots = nullptr;
+		std::size_t slotCount = 0;
 	};
 
 } // namespace yogi::runtime

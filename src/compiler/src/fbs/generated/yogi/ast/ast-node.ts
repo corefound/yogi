@@ -26,52 +26,63 @@ static getSizePrefixedRootAsAstNode(bb:flatbuffers.ByteBuffer, obj?:AstNode):Ast
   return (obj || new AstNode()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-kind():string|null
-kind(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-kind(optionalEncoding?:any):string|Uint8Array|null {
+nodeId():string|null
+nodeId(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+nodeId(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-fields(index: number, obj?:AstField):AstField|null {
+kind():string|null
+kind(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+kind(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+fields(index: number, obj?:AstField):AstField|null {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? (obj || new AstField()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
 }
 
 fieldsLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 6);
+  const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 source():string|null
 source(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 source(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 8);
+  const offset = this.bb!.__offset(this.bb_pos, 10);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 raw():string|null
 raw(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 raw(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 10);
+  const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 position(obj?:SourcePosition):SourcePosition|null {
-  const offset = this.bb!.__offset(this.bb_pos, 12);
+  const offset = this.bb!.__offset(this.bb_pos, 14);
   return offset ? (obj || new SourcePosition()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 static startAstNode(builder:flatbuffers.Builder) {
-  builder.startObject(5);
+  builder.startObject(6);
+}
+
+static addNodeId(builder:flatbuffers.Builder, nodeIdOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(0, nodeIdOffset, 0);
 }
 
 static addKind(builder:flatbuffers.Builder, kindOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(0, kindOffset, 0);
+  builder.addFieldOffset(1, kindOffset, 0);
 }
 
 static addFields(builder:flatbuffers.Builder, fieldsOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, fieldsOffset, 0);
+  builder.addFieldOffset(2, fieldsOffset, 0);
 }
 
 static createFieldsVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
@@ -87,15 +98,15 @@ static startFieldsVector(builder:flatbuffers.Builder, numElems:number) {
 }
 
 static addSource(builder:flatbuffers.Builder, sourceOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(2, sourceOffset, 0);
+  builder.addFieldOffset(3, sourceOffset, 0);
 }
 
 static addRaw(builder:flatbuffers.Builder, rawOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(3, rawOffset, 0);
+  builder.addFieldOffset(4, rawOffset, 0);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(4, positionOffset, 0);
+  builder.addFieldOffset(5, positionOffset, 0);
 }
 
 static endAstNode(builder:flatbuffers.Builder):flatbuffers.Offset {

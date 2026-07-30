@@ -2348,6 +2348,11 @@ backend receives normalized metadata only.
 validators run parent-to-child.
 validate parameter is readonly.
 layout must be deterministic and cannot use runtime values.
+copyable struct fields use compiler-generated recursive value copy.
+array/string/object fields receive independent owned payloads when copied.
+ptr<T> fields copy pointer identity and never clone the pointee.
+exclusive native resource fields make implicit copy unavailable.
+structs do not expose copy, clone, destroy, constructors, or destructors.
 ```
 
 ---

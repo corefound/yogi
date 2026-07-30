@@ -10,6 +10,9 @@
 #include <string>
 
 namespace {
+    void destroyOwnedArrayElement(void*, void*) {
+    }
+
     void runCase(const char* name) {
         yogi_memory_push_context("ownership-negative", name);
         yogi_memory_push_source_location("tests/runtime/ownership_negative.io", 7, 3);
@@ -39,6 +42,19 @@ namespace {
             void* array = yogi_array_create(1);
             yogi_array_destroy(array);
             (void)yogi_array_get(array, 0);
+            return;
+        }
+
+        if (std::strcmp(name, "resource-array-copy") == 0) {
+            void* array = yogi_array_create(0);
+            yogi_array_set_element_ownership_policy(
+                array,
+                true,
+                destroyOwnedArrayElement,
+                nullptr,
+                nullptr,
+                "ownership-negative-resource-array");
+            yogi_array_assert_copyable(array);
             return;
         }
 
@@ -112,6 +128,10 @@ int main() {
     }
 
     if (!expectAbort("use-after-destroy", "array get")) {
+        return 1;
+    }
+
+    if (!expectAbort("resource-array-copy", "resource-owning array has no safe recursive copy policy")) {
         return 1;
     }
 

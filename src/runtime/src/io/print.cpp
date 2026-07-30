@@ -83,6 +83,12 @@ void printAnyInline(void *value, std::size_t depth) {
     case YOGI_ANY_OBJECT:
         printObjectInline(anyValue->asObject(), depth);
         break;
+
+    case YOGI_ANY_POINTER:
+        std::fputs(NULLISH, stdout);
+        std::printf("[pointer %p]", anyValue->asPointer());
+        std::fputs(RESET, stdout);
+        break;
     }
 }
 

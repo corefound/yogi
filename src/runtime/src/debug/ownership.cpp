@@ -6,8 +6,10 @@
 #include "yogi/runtime.h"
 #include "yogi/runtime/errors.h"
 #include "yogi/runtime/memory/telemetry.h"
+#include "yogi/runtime/observability/programObservability.h"
 
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -34,6 +36,7 @@ namespace yogi::runtime {
             bool aggregateKnown = false;
             bool aggregateAlive = false;
             bool stackAggregate = false;
+            std::uint64_t aggregateId = 0;
         };
 
         OwnershipRecord* records = nullptr;
@@ -108,7 +111,7 @@ namespace yogi::runtime {
             captureCurrentLocation(record.lastEvent);
         }
 
-        void abortOwnership(const char* reason, const void* address, const char* typeName, const OwnershipRecord* record) {
+        [[noreturn]] void abortOwnership(const char* reason, const void* address, const char* typeName, const OwnershipRecord* record) {
             OwnershipLocation detected = {};
             captureCurrentLocation(detected);
 
@@ -289,6 +292,19 @@ namespace yogi::runtime {
         record->stackAggregate = false;
         record->allocationKnown = true;
         record->allocationAlive = true;
+#if YOGI_ENABLE_PROGRAM_OBSERVABILITY
+        record->aggregateId = ProgramObservability::nextAggregateId();
+        ProgramObservability::recordAggregateCreate(
+            record->aggregateId,
+            address,
+            record->typeName,
+            "heap",
+            record->created.moduleName,
+            record->created.functionName,
+            record->created.sourcePath,
+            record->created.line,
+            record->created.column);
+#endif
 #else
         (void)address;
         (void)typeName;
@@ -309,6 +325,19 @@ namespace yogi::runtime {
         record->stackAggregate = true;
         record->allocationKnown = false;
         record->allocationAlive = false;
+#if YOGI_ENABLE_PROGRAM_OBSERVABILITY
+        record->aggregateId = ProgramObservability::nextAggregateId();
+        ProgramObservability::recordAggregateCreate(
+            record->aggregateId,
+            address,
+            record->typeName,
+            "stack",
+            record->created.moduleName,
+            record->created.functionName,
+            record->created.sourcePath,
+            record->created.line,
+            record->created.column);
+#endif
 #else
         (void)address;
         (void)typeName;
@@ -336,6 +365,18 @@ namespace yogi::runtime {
         }
 
         captureLastEvent(*record);
+#if YOGI_ENABLE_PROGRAM_OBSERVABILITY
+        ProgramObservability::recordAggregateDestroy(
+            record->aggregateId,
+            address,
+            record->typeName,
+            "stack",
+            record->lastEvent.moduleName,
+            record->lastEvent.functionName,
+            record->lastEvent.sourcePath,
+            record->lastEvent.line,
+            record->lastEvent.column);
+#endif
         record->aggregateAlive = false;
 #else
         (void)address;
@@ -364,6 +405,18 @@ namespace yogi::runtime {
         }
 
         captureLastEvent(*record);
+#if YOGI_ENABLE_PROGRAM_OBSERVABILITY
+        ProgramObservability::recordAggregateDestroy(
+            record->aggregateId,
+            address,
+            record->typeName,
+            "heap",
+            record->lastEvent.moduleName,
+            record->lastEvent.functionName,
+            record->lastEvent.sourcePath,
+            record->lastEvent.line,
+            record->lastEvent.column);
+#endif
         record->aggregateAlive = false;
 #else
         (void)address;
@@ -390,6 +443,15 @@ namespace yogi::runtime {
         (void)address;
         (void)operation;
         (void)typeName;
+#endif
+    }
+
+    void OwnershipTracker::failAggregate(void* address, const char* reason, const char* typeName) {
+#if YOGI_RUNTIME_DEBUG_OWNERSHIP
+        auto* record = address ? findRecord(address) : nullptr;
+        abortOwnership(reason ? reason : "aggregate ownership violation", address, typeName, record);
+#else
+        RuntimeError::abortOwnership(reason, address, typeName);
 #endif
     }
 

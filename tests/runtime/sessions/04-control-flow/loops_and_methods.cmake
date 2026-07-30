@@ -162,12 +162,21 @@ execute_process(
 	ERROR_VARIABLE invalid_stderr
 )
 
-if(invalid_result EQUAL 0)
-	message(FATAL_ERROR "loop move-state invalid program unexpectedly compiled\nstdout:\n${invalid_stdout}")
+if(NOT invalid_result EQUAL 0)
+	message(FATAL_ERROR "loop array value-semantics program failed to compile\nstdout:\n${invalid_stdout}\nstderr:\n${invalid_stderr}")
 endif()
 
-if(NOT invalid_stderr MATCHES "cannot use aggregate")
-	message(FATAL_ERROR "loop move-state invalid program did not report use-after-move:\n${invalid_stderr}")
+set(INVALID_EXECUTABLE "${INVALID_DIR}/packages/.cache/bin/main")
+execute_process(
+	COMMAND "${INVALID_EXECUTABLE}"
+	WORKING_DIRECTORY "${INVALID_DIR}"
+	RESULT_VARIABLE invalid_run_result
+	OUTPUT_VARIABLE invalid_run_stdout
+	ERROR_VARIABLE invalid_run_stderr
+)
+
+if(NOT invalid_run_result EQUAL 0)
+	message(FATAL_ERROR "loop array value-semantics executable failed:\nstdout:\n${invalid_run_stdout}\nstderr:\n${invalid_run_stderr}")
 endif()
 
 set(READONLY_LENGTH_DIR "${TEST_WORK_DIR}/readonly-length")

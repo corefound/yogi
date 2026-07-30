@@ -38,6 +38,18 @@ export class Helpers {
                 continue;
             }
 
+            if (current === "=") {
+                const lineStart = output.lastIndexOf("\n") + 1;
+                const linePrefix = output.slice(lineStart).trim();
+                const startsTypeAlias =
+                    /^(?:export\s+)?type\s+[A-Za-z_]\w*(?:\s*<[^>\n]+>)?\s*$/.test(linePrefix);
+
+                inTypeAnnotation = startsTypeAlias;
+                output += current;
+                index++;
+                continue;
+            }
+
             if (inTypeAnnotation) {
                 if (current === "[") {
                     const end = source.indexOf("]", index + 1);
@@ -55,7 +67,7 @@ export class Helpers {
                     }
                 }
 
-                if (current === "=" || current === "{" || current === ";" || current === "\n" || current === ",") {
+                if (current === "{" || current === ";" || current === "\n" || current === ",") {
                     inTypeAnnotation = false;
                 }
             }

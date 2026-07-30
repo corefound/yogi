@@ -190,6 +190,13 @@ export function ArraysSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
 
                 return [element.type];
             });
+            const nativeResourceArrayElementFieldDestructors = elements.reduce(
+                (result: Record<string, string>, element: any) => ({
+                    ...result,
+                    ...((this as any).nativeResourceArrayValueFields?.(element) ?? {}),
+                }),
+                {},
+            );
 
             return {
                 ...node,
@@ -200,6 +207,10 @@ export function ArraysSemantic<TBase extends Constructor<BaseSemantic>>(base: TB
                     raw: `[${elementTypes.map((type: any) => type?.raw ?? "unknown").join(", ")}]`,
                     elements: elementTypes,
                 },
+                nativeResourceArrayElementFieldDestructors:
+                    Object.keys(nativeResourceArrayElementFieldDestructors).length > 0
+                        ? nativeResourceArrayElementFieldDestructors
+                        : undefined,
             };
         }
 

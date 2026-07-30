@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "name": "ownership-control-flow-observability",
+  "profile": "runtime-strict",
+  "trace": {
+    "categories": [
+      "session",
+      "semantic",
+      "cleanup",
+      "function",
+      "memory",
+      "aggregate",
+      "resource",
+      "anomaly"
+    ]
+  },
+  "invariants": [
+    "decision.correlation",
+    "owner.reducer",
+    "borrow.reducer",
+    "function.frame_balance",
+    "cleanup.dynamic_obligations",
+    "cleanup.exit_path",
+    "sanitizer.clean"
+  ],
+  "allowLive": [],
+  "expectations": [
+    {
+      "kind": "decision",
+      "decisionKind": "Move",
+      "decisionReason": "ReturnTransfersToCaller",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "decision",
+      "decisionKind": "Borrow",
+      "decisionReason": "AddressOfBorrow",
+      "plannedAtLeast": 1,
+      "loweredAtLeast": 1,
+      "runtimeAtLeast": 1
+    },
+    {
+      "kind": "cleanup",
+      "owner": "ticket",
+      "cleanupKind": "struct",
+      "scheduledAtLeast": 3,
+      "emittedAtLeast": 4,
+      "cancelledAtLeast": 1,
+      "runtimeAtLeast": 5,
+      "runtimeByExit": {
+        "normal": 2,
+        "return": 1,
+        "break": 1,
+        "continue": 1
+      }
+    },
+    {
+      "kind": "cleanup",
+      "owner": "label",
+      "cleanupKind": "string",
+      "destroyFunction": "yogi_string_destroy",
+      "scheduledAtLeast": 1,
+      "emittedAtLeast": 3,
+      "runtimeAtLeast": 3,
+      "runtimeByExit": {
+        "normal": 1,
+        "break": 1,
+        "continue": 1
+      }
+    }
+  ],
+  "ir": [
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_observe_cleanup",
+      "atLeast": 1,
+      "metadata": [
+        "yogi.cleanup",
+        "yogi.owner",
+        "yogi.destroy",
+        "yogi.cleanup.exit"
+      ]
+    },
+    {
+      "kind": "call",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "callee": "yogi_memory_pop_context_with_reason",
+      "atLeast": 1
+    },
+    {
+      "kind": "namedMetadata",
+      "file": "packages/.cache/modules/main.ts/main.ll",
+      "name": "yogi.cleanup.obligations",
+      "atLeast": 1
+    }
+  ]
+}

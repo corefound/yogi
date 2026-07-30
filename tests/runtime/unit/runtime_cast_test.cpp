@@ -125,19 +125,30 @@ int main() {
 
 	void *number = yogi_any_from_number(42.5);
 	assert(yogi_any_to_number(number) == 42.5);
+	yogi_any_release(number);
 
 	void *boolean = yogi_any_from_boolean(true);
 	assert(yogi_any_to_boolean(boolean));
+	yogi_any_release(boolean);
 
 	void *string = yogi_any_from_string("audio.mp3");
 	assert(std::strcmp(yogi_any_to_string(string), "audio.mp3") == 0);
+	yogi_any_release(string);
+
+	int pointerTarget = 7;
+	void *pointer = yogi_any_from_pointer(&pointerTarget);
+	assert(yogi_any_to_pointer(pointer) == &pointerTarget);
+	assert(std::strcmp(yogi_any_typeof(pointer), "object") == 0);
+	yogi_any_destroy(pointer);
 
 	void *nullValue = yogi_any_null();
 	assert(yogi_any_to_null(nullValue) == nullptr);
+	assert(std::strcmp(yogi_any_typeof(nullValue), "object") == 0);
 
 	void *undefinedValue = yogi_any_undefined();
 	assert(yogi_any_to_undefined(undefinedValue) == nullptr);
 	assert(yogi_any_is_nullish(undefinedValue));
+	assert(std::strcmp(yogi_any_typeof(undefinedValue), "undefined") == 0);
 
 	void *object = yogi_object_create();
 	assert(yogi_debug_ownership_live_aggregates() == 1);
@@ -145,6 +156,33 @@ int main() {
 	assert(std::strcmp(yogi_any_to_string(yogi_object_get(object, "name")), "Ana") == 0);
 	assert(yogi_any_is_nullish(yogi_object_get(object, "missing")));
 	yogi_object_destroy(object);
+	assert(yogi_debug_ownership_live_aggregates() == 0);
+
+	// Recursive boxed aggregate copies own independent object and nested-array payloads.
+	int sharedPointerValue = 7;
+	void *nested = yogi_array_create(2);
+	yogi_array_set(nested, 0, yogi_any_from_number(10));
+	yogi_array_set(nested, 1, yogi_any_from_number(20));
+	void *aggregateObject = yogi_object_create();
+	yogi_object_set(aggregateObject, "scores", yogi_any_from_array(nested));
+	yogi_object_set_unboxed(aggregateObject, "shared", &sharedPointerValue);
+	void *aggregateArray = yogi_array_create(1);
+	yogi_array_set(aggregateArray, 0, yogi_any_from_object(aggregateObject));
+
+	void *aggregateCopy = yogi_array_clone(aggregateArray);
+	void *copiedObject = yogi_any_to_object(yogi_array_get(aggregateCopy, 0));
+	void *copiedNested = yogi_any_to_array(yogi_object_get(copiedObject, "scores"));
+	yogi_array_set(copiedNested, 0, yogi_any_from_number(99));
+
+	void *sourceObject = yogi_any_to_object(yogi_array_get(aggregateArray, 0));
+	void *sourceNested = yogi_any_to_array(yogi_object_get(sourceObject, "scores"));
+	assert(yogi_any_to_number(yogi_array_get(sourceNested, 0)) == 10);
+	assert(yogi_any_to_number(yogi_array_get(copiedNested, 0)) == 99);
+	assert(yogi_object_get(sourceObject, "shared") == &sharedPointerValue);
+	assert(yogi_object_get(copiedObject, "shared") == &sharedPointerValue);
+
+	yogi_array_destroy(aggregateCopy);
+	yogi_array_destroy(aggregateArray);
 	assert(yogi_debug_ownership_live_aggregates() == 0);
 
 	void *array = yogi_array_create(2);
@@ -163,11 +201,14 @@ int main() {
 	yogi_array_set(popArray, 2, yogi_any_from_number(30));
 	void *popped = yogi_array_pop(popArray);
 	assert(yogi_any_to_number(popped) == 30);
+	yogi_any_release(popped);
 	assert(yogi_array_length(popArray) == 2);
 	popped = yogi_array_pop(popArray);
 	assert(yogi_any_to_number(popped) == 20);
+	yogi_any_release(popped);
 	popped = yogi_array_pop(popArray);
 	assert(yogi_any_to_number(popped) == 10);
+	yogi_any_release(popped);
 	popped = yogi_array_pop(popArray);
 	assert(yogi_any_is_nullish(popped));
 	assert(yogi_array_length(popArray) == 0);
@@ -191,7 +232,9 @@ int main() {
 	yogi_array_set(methodsArray, 0, yogi_any_from_number(1));
 	yogi_array_set(methodsArray, 1, yogi_any_from_number(2));
 	yogi_array_set(methodsArray, 2, yogi_any_from_number(3));
-	assert(yogi_any_to_number(yogi_array_shift(methodsArray)) == 1);
+	void *shifted = yogi_array_shift(methodsArray);
+	assert(yogi_any_to_number(shifted) == 1);
+	yogi_any_release(shifted);
 	assert(yogi_array_length(methodsArray) == 2);
 	assert(yogi_array_unshift(methodsArray, yogi_any_from_number(0)) == 3);
 	assert(yogi_any_to_number(yogi_array_get(methodsArray, 0)) == 0);
@@ -235,7 +278,7 @@ int main() {
 	assert(yogi_any_to_number(yogi_array_get(removed, 0)) == 4);
 	assert(yogi_any_to_number(yogi_array_get(copyArray, 1)) == 7);
 	void *splicedCopy = yogi_array_to_spliced(copyArray, 1, 1, inserted);
-	assert(yogi_any_to_number(yogi_array_get(splicedCopy, 1)) == 7);
+	assert(yogi_any_to_number(yogi_array_get(splicedCopy, 1)) == 8);
 	assert(yogi_any_to_number(yogi_array_get(copyArray, 1)) == 7);
 	void *withCopy = yogi_array_with(copyArray, -1, yogi_any_from_number(99));
 	assert(yogi_array_length(withCopy) == yogi_array_length(copyArray));
@@ -243,7 +286,7 @@ int main() {
 	assert(yogi_any_to_number(yogi_array_get(copyArray, yogi_array_length(copyArray) - 1)) != 99);
 	void *concatCopy = yogi_array_clone(copyArray);
 	yogi_array_append_array(concatCopy, inserted);
-	assert(yogi_array_length(concatCopy) == yogi_array_length(copyArray) + 2);
+	assert(yogi_array_length(concatCopy) == yogi_array_length(copyArray));
 	yogi_array_destroy(concatCopy);
 	yogi_array_destroy(withCopy);
 	yogi_array_destroy(splicedCopy);

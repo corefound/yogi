@@ -27,6 +27,15 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
 
         public visitFunctionDeclarations(node: any) {
             const { trusted } = this.declarationFunctionDiagnostics(node);
+            node = {
+                ...node,
+                type: this.toSerializableType(node.type),
+                returnType: this.toSerializableType(node.returnType),
+                params: (node.params ?? []).map((param: any) => ({
+                    ...param,
+                    type: this.toSerializableType(param.type),
+                })),
+            };
 
             const linkageName = node.export
                 ? this.getLinkageName(this.modulePath.relativePath, node.name)
@@ -87,12 +96,17 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             const effectSummary = this.analyzeAggregateEscapes(functionContext);
             const returnsNativeResourceFieldDestructors =
                 this.inferNativeResourceFieldReturnDestructors(functionContext);
+            const returnsNativeResourceArrayElementFieldDestructors =
+                this.inferNativeResourceArrayElementReturnDestructors(functionContext);
             symbol.effectSummary = effectSummary;
             symbol.returnsNativeResourceFieldDestructors = returnsNativeResourceFieldDestructors;
+            symbol.returnsNativeResourceArrayElementFieldDestructors =
+                returnsNativeResourceArrayElementFieldDestructors;
             symbol.node = {
                 ...functionContext,
                 effectSummary,
                 returnsNativeResourceFieldDestructors,
+                returnsNativeResourceArrayElementFieldDestructors,
             };
             this.functionEffectSummaries.set(symbol.id, effectSummary);
             this.validateFunctionReturnType(functionContext);
@@ -120,11 +134,14 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 body,
                 effectSummary,
                 returnsNativeResourceFieldDestructors,
+                returnsNativeResourceArrayElementFieldDestructors,
             };
         }
 
         public visitFunctionParameterDeclaration(functionNode: any, param: any): any {
-            if (!param.type || param.type.kind === Kinds.Types.UnTyped) {
+            const parameterType = this.toSerializableType(param.type);
+
+            if (!parameterType || parameterType.kind === Kinds.Types.UnTyped) {
                 const message =
                     `parameter ${Helpers.RED}'${param.name}'${Helpers.RESET} is missing explicit type annotation`;
 
@@ -138,7 +155,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 );
             }
 
-            this.validateTypeUsages(param.type, functionNode.fullSource ?? functionNode.source ?? param.source);
+            this.validateTypeUsages(parameterType, functionNode.fullSource ?? functionNode.source ?? param.source);
 
             const localSymbol = this.resolveLocalSymbol(param.name);
 
@@ -166,8 +183,8 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 name: param.name,
                 linkageName: null,
                 qualifiedName,
-                type: param.type,
-                declaredType: param.type,
+                type: parameterType,
+                declaredType: parameterType,
                 mutable: param.mutable ?? true,
                 storage: Kinds.Storage.stack,
                 escapes: false,
@@ -181,6 +198,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 ...param,
                 symbolId: symbol.id,
                 scopeId: symbol.scopeId,
+                type: parameterType,
                 mutable: symbol.mutable,
                 storage: symbol.storage,
                 trusted: symbol.trusted,
@@ -200,7 +218,10 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             if (
                 value &&
                 expectedReturnType &&
-                this.canReadThroughPointer(expectedReturnType, value.type)
+                (
+                    this.canReadThroughPointer(expectedReturnType, value.type) ||
+                    this.canBorrowAggregateThroughPointer(expectedReturnType, value.type)
+                )
             ) {
                 value = this.createImplicitPointerReadThrough(
                     value,
@@ -213,7 +234,18 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 value,
                 node.fullSource ?? node.source,
                 node,
+                true,
             );
+            if (
+                value?.kind === Kinds.Collections.DictionaryExpression ||
+                value?.kind === Kinds.Collections.ArrayExpression
+            ) {
+                value = this.materializeNestedDynamicArrayCopies(
+                    value,
+                    node.fullSource ?? node.source,
+                    node,
+                );
+            }
             value = this.materializeResourceTransfersInStructConstruction(
                 value,
                 expectedReturnType,
@@ -255,6 +287,15 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         "it was returned inside native resource field(s)",
                         value,
                     );
+                }
+            }
+
+            if (this.isDynamicArrayType(value?.type)) {
+                const returnedArrayResourceFields = (this as any).nativeResourceArrayValueFields?.(value) ?? {};
+                if (Object.keys(returnedArrayResourceFields).length > 0) {
+                    value.nativeResourceArrayElementFieldDestructors = {
+                        ...returnedArrayResourceFields,
+                    };
                 }
             }
 
@@ -342,7 +383,47 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             return resourceReturns[0].destructors;
         }
 
-        public materializeBorrowedViewForEscape(value: any, source: string, node: any): any {
+        public inferNativeResourceArrayElementReturnDestructors(
+            functionNode: any,
+        ): Record<string, string> | undefined {
+            if (!this.isDynamicArrayType(functionNode.returnType)) {
+                return undefined;
+            }
+
+            const result: Record<string, string> = {};
+
+            for (const statement of this.findFunctionReturnStatements(functionNode.body)) {
+                const value = statement.value;
+                if (!value || !this.isDynamicArrayType(value.type)) {
+                    continue;
+                }
+
+                const fields: Record<string, string> =
+                    value.nativeResourceArrayElementFieldDestructors ??
+                    (this as any).nativeResourceArrayValueFields?.(value) ??
+                    {};
+
+                for (const [fieldPath, destructor] of Object.entries(fields)) {
+                    const previous = result[fieldPath];
+                    if (previous && previous !== destructor) {
+                        value.arrowLength = value.source?.length ?? 1;
+                        this.throwError(
+                            `function ${Helpers.RED}'${functionNode.name}'${Helpers.RESET} returns arrays with incompatible resource ownership`,
+                            value.position ?? statement.position ?? functionNode.position,
+                            functionNode.fullSource ?? functionNode.source,
+                            value,
+                            `  = field '${fieldPath}' uses both '${previous}' and '${destructor}' as destructors`,
+                        );
+                    }
+
+                    result[fieldPath] = destructor;
+                }
+            }
+
+            return Object.keys(result).length > 0 ? result : undefined;
+        }
+
+        public materializeBorrowedViewForEscape(value: any, source: string, node: any, force = false): any {
             if (!value) {
                 return value;
             }
@@ -354,6 +435,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                         property.value,
                         source,
                         property.value ?? node,
+                        force,
                     );
 
                     if (materialized !== property.value) {
@@ -373,7 +455,7 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             if (value.kind === Kinds.Collections.ArrayExpression) {
                 let changed = false;
                 const elements = (value.elements ?? []).map((element: any) => {
-                    const materialized = this.materializeBorrowedViewForEscape(element, source, element ?? node);
+                    const materialized = this.materializeBorrowedViewForEscape(element, source, element ?? node, force);
 
                     if (materialized !== element) {
                         changed = true;
@@ -385,8 +467,18 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
                 return changed ? { ...value, elements } : value;
             }
 
-            if (!this.shouldMaterializeBorrowedViewForEscape(value)) {
+            if (!this.shouldMaterializeBorrowedViewForEscape(value, force)) {
                 return value;
+            }
+
+            if (this.isDynamicArrayType(value.type)) {
+                return this.materializeOwnedDynamicArrayValue(
+                    value,
+                    value.type,
+                    source,
+                    node,
+                    true,
+                );
             }
 
             const valueSource = value.source ?? "view";
@@ -419,9 +511,77 @@ export function FunctionsSemantic<TBase extends Constructor<BaseSemantic>>(base:
             };
         }
 
-        public shouldMaterializeBorrowedViewForEscape(value: any): boolean {
+        public materializeNestedDynamicArrayCopies(value: any, source: string, node: any): any {
+            if (!value) {
+                return value;
+            }
+
+            if (value.kind === Kinds.Expressions.SpreadElement) {
+                return value;
+            }
+
+            if (value.kind === Kinds.Collections.DictionaryExpression) {
+                let changed = false;
+                const properties = (value.properties ?? []).map((property: any) => {
+                    const copied = this.materializeNestedDynamicArrayCopies(
+                        property.value,
+                        source,
+                        property.value ?? node,
+                    );
+                    changed ||= copied !== property.value;
+                    return copied === property.value
+                        ? property
+                        : {
+                            ...property,
+                            value: copied,
+                            type: copied?.type ?? property.type,
+                        };
+                });
+
+                return changed ? { ...value, properties } : value;
+            }
+
+            if (value.kind === Kinds.Collections.ArrayExpression) {
+                let changed = false;
+                const elements = (value.elements ?? []).map((element: any) => {
+                    const copied = this.materializeNestedDynamicArrayCopies(
+                        element,
+                        source,
+                        element ?? node,
+                    );
+                    changed ||= copied !== element;
+                    return copied;
+                });
+
+                return changed ? { ...value, elements } : value;
+            }
+
+            if (!this.isDynamicArrayType(value.type)) {
+                return value;
+            }
+
+            const nativeResourceFields =
+                (this as any).nativeResourceArrayValueFields?.(value) ?? {};
+            if (Object.keys(nativeResourceFields).length > 0) {
+                return value;
+            }
+
+            return this.materializeOwnedDynamicArrayValue(
+                value,
+                value.type,
+                source,
+                node,
+                true,
+            );
+        }
+
+        public shouldMaterializeBorrowedViewForEscape(value: any, force = false): boolean {
             if (!value || value.borrowedView !== true) {
                 return false;
+            }
+
+            if (force) {
+                return true;
             }
 
             const sourceName =

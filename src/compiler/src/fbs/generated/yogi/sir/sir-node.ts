@@ -25,26 +25,65 @@ static getSizePrefixedRootAsSirNode(bb:flatbuffers.ByteBuffer, obj?:SirNode):Sir
   return (obj || new SirNode()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-valueType():SirNodeValue {
+nodeId():string|null
+nodeId(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+nodeId(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+decisionIds(index: number):string
+decisionIds(index: number,optionalEncoding:flatbuffers.Encoding):string|Uint8Array
+decisionIds(index: number,optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__string(this.bb!.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
+}
+
+decisionIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+valueType():SirNodeValue {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? this.bb!.readUint8(this.bb_pos + offset) : SirNodeValue.NONE;
 }
 
 value<T extends flatbuffers.Table>(obj:any):any|null {
-  const offset = this.bb!.__offset(this.bb_pos, 6);
+  const offset = this.bb!.__offset(this.bb_pos, 10);
   return offset ? this.bb!.__union(obj, this.bb_pos + offset) : null;
 }
 
 static startSirNode(builder:flatbuffers.Builder) {
-  builder.startObject(2);
+  builder.startObject(4);
+}
+
+static addNodeId(builder:flatbuffers.Builder, nodeIdOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(0, nodeIdOffset, 0);
+}
+
+static addDecisionIds(builder:flatbuffers.Builder, decisionIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(1, decisionIdsOffset, 0);
+}
+
+static createDecisionIdsVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startDecisionIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
 }
 
 static addValueType(builder:flatbuffers.Builder, valueType:SirNodeValue) {
-  builder.addFieldInt8(0, valueType, SirNodeValue.NONE);
+  builder.addFieldInt8(2, valueType, SirNodeValue.NONE);
 }
 
 static addValue(builder:flatbuffers.Builder, valueOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, valueOffset, 0);
+  builder.addFieldOffset(3, valueOffset, 0);
 }
 
 static endSirNode(builder:flatbuffers.Builder):flatbuffers.Offset {
@@ -52,8 +91,10 @@ static endSirNode(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createSirNode(builder:flatbuffers.Builder, valueType:SirNodeValue, valueOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createSirNode(builder:flatbuffers.Builder, nodeIdOffset:flatbuffers.Offset, decisionIdsOffset:flatbuffers.Offset, valueType:SirNodeValue, valueOffset:flatbuffers.Offset):flatbuffers.Offset {
   SirNode.startSirNode(builder);
+  SirNode.addNodeId(builder, nodeIdOffset);
+  SirNode.addDecisionIds(builder, decisionIdsOffset);
   SirNode.addValueType(builder, valueType);
   SirNode.addValue(builder, valueOffset);
   return SirNode.endSirNode(builder);

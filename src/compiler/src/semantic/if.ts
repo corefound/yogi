@@ -574,6 +574,28 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
             const right = condition.right;
             const positive = condition.operator === "==" || condition.operator === "===";
 
+            const typeofPair = this.getTypeofComparablePair(left, right) ??
+                this.getTypeofComparablePair(right, left);
+
+            if (typeofPair) {
+                const symbol = this.resolveSymbol(typeofPair.name);
+                if (!symbol) {
+                    return empty;
+                }
+
+                const narrowed = this.narrowTypeByTypeof(symbol.type, typeofPair.runtimeType, false);
+                const excluded = this.narrowTypeByTypeof(symbol.type, typeofPair.runtimeType, true);
+
+                return {
+                    thenNarrowings: positive
+                        ? new Map([[typeofPair.name, narrowed]])
+                        : new Map([[typeofPair.name, excluded]]),
+                    elseNarrowings: positive
+                        ? new Map([[typeofPair.name, excluded]])
+                        : new Map([[typeofPair.name, narrowed]]),
+                };
+            }
+
             const pair = this.getIdentifierComparablePair(left, right) ??
                 this.getIdentifierComparablePair(right, left);
 
@@ -597,6 +619,122 @@ export function IfSemantic<TBase extends Constructor<BaseSemantic>>(base: TBase)
                     ? new Map([[pair.name, excluded]])
                     : new Map([[pair.name, narrowed]]),
             };
+        }
+
+        public getTypeofComparablePair(left: any, right: any): any {
+            if (
+                left?.kind !== Kinds.Expressions.CallExpression ||
+                left.builtinMethod !== "runtime.typeof"
+            ) {
+                return null;
+            }
+
+            const operand = left.arguments?.[0];
+            if (operand?.kind !== Kinds.Expressions.IdentifierExpression) {
+                return null;
+            }
+
+            if (
+                right?.kind !== Kinds.Sir.StringConstant &&
+                right?.kind !== Kinds.Literals.StringLiteral
+            ) {
+                return null;
+            }
+
+            const runtimeType = right.value;
+            if (!["number", "string", "boolean", "undefined", "object", "function"].includes(runtimeType)) {
+                return null;
+            }
+
+            return {
+                name: operand.value ?? operand.name ?? operand.raw,
+                runtimeType,
+            };
+        }
+
+        public narrowTypeByTypeof(sourceType: any, runtimeType: string, exclude: boolean): any {
+            const resolved = this.resolveType(sourceType);
+
+            if (
+                resolved?.kind === Kinds.Types.AnyType ||
+                resolved?.kind === Kinds.Types.UnknownType
+            ) {
+                if (exclude || runtimeType === "object" || runtimeType === "function") {
+                    return sourceType;
+                }
+
+                return this.typeForRuntimeTypeof(runtimeType) ?? sourceType;
+            }
+
+            const candidates = resolved?.kind === Kinds.Types.UnionType
+                ? resolved.types ?? []
+                : [sourceType];
+            const types = candidates.filter((type: any) => {
+                const matches = this.runtimeTypeofCategory(type) === runtimeType;
+                return exclude ? !matches : matches;
+            });
+
+            if (types.length === 0) {
+                return { kind: Kinds.Types.NeverType, raw: "never" };
+            }
+
+            if (types.length === 1) {
+                return types[0];
+            }
+
+            return {
+                kind: Kinds.Types.UnionType,
+                types,
+                raw: types.map((type: any) => type.raw ?? "unknown").join(" | "),
+            };
+        }
+
+        public typeForRuntimeTypeof(runtimeType: string): any {
+            switch (runtimeType) {
+                case "number":
+                    return { kind: Kinds.Types.NumberType, raw: "number" };
+                case "string":
+                    return { kind: Kinds.Types.StringType, raw: "string" };
+                case "boolean":
+                    return { kind: Kinds.Types.BooleanType, raw: "boolean" };
+                case "undefined":
+                    return { kind: Kinds.Types.UndefinedType, raw: "undefined" };
+                default:
+                    return null;
+            }
+        }
+
+        public runtimeTypeofCategory(type: any): string | null {
+            const resolved = this.resolveType(type);
+            if (!resolved) return null;
+
+            switch (resolved.kind) {
+                case Kinds.Types.NumberType:
+                    return "number";
+                case Kinds.Types.StringType:
+                    return "string";
+                case Kinds.Types.BooleanType:
+                    return "boolean";
+                case Kinds.Types.UndefinedType:
+                    return "undefined";
+                case Kinds.Types.FunctionType:
+                    return "function";
+                case Kinds.Types.NullType:
+                case Kinds.Types.ArrayType:
+                case Kinds.Types.TupleType:
+                case Kinds.Types.TypeLiteral:
+                case Kinds.Types.StructDeclaration:
+                case Kinds.Types.PointerType:
+                    return "object";
+                case Kinds.Types.LiteralType:
+                    return this.runtimeTypeofCategory(this.literalTypeBase(resolved));
+                case Kinds.Types.TypeReference:
+                    return resolved.resolved
+                        ? this.runtimeTypeofCategory(resolved.resolved)
+                        : "object";
+                default:
+                    return null;
+            }
         }
 
         public getIdentifierComparablePair(left: any, right: any): any {

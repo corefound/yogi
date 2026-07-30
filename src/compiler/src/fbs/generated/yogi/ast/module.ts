@@ -25,33 +25,44 @@ static getSizePrefixedRootAsModule(bb:flatbuffers.ByteBuffer, obj?:Module):Modul
   return (obj || new Module()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-sourcePath():string|null
-sourcePath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-sourcePath(optionalEncoding?:any):string|Uint8Array|null {
+moduleId():string|null
+moduleId(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+moduleId(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
-nodes(index: number, obj?:AstNode):AstNode|null {
+sourcePath():string|null
+sourcePath(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+sourcePath(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+nodes(index: number, obj?:AstNode):AstNode|null {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? (obj || new AstNode()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
 }
 
 nodesLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 6);
+  const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 static startModule(builder:flatbuffers.Builder) {
-  builder.startObject(2);
+  builder.startObject(3);
+}
+
+static addModuleId(builder:flatbuffers.Builder, moduleIdOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(0, moduleIdOffset, 0);
 }
 
 static addSourcePath(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(0, sourcePathOffset, 0);
+  builder.addFieldOffset(1, sourcePathOffset, 0);
 }
 
 static addNodes(builder:flatbuffers.Builder, nodesOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, nodesOffset, 0);
+  builder.addFieldOffset(2, nodesOffset, 0);
 }
 
 static createNodesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
@@ -71,8 +82,9 @@ static endModule(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createModule(builder:flatbuffers.Builder, sourcePathOffset:flatbuffers.Offset, nodesOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createModule(builder:flatbuffers.Builder, moduleIdOffset:flatbuffers.Offset, sourcePathOffset:flatbuffers.Offset, nodesOffset:flatbuffers.Offset):flatbuffers.Offset {
   Module.startModule(builder);
+  Module.addModuleId(builder, moduleIdOffset);
   Module.addSourcePath(builder, sourcePathOffset);
   Module.addNodes(builder, nodesOffset);
   return Module.endModule(builder);

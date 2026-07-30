@@ -23,11 +23,39 @@ function createProject(files) {
   return root;
 }
 
-function runCompiler(root, entry = "main.io") {
+function runCompiler(root, entry = "main.io", environment = {}) {
   return spawnSync(tsxBin, ["src/index.ts", path.join(root, entry)], {
     cwd: compilerRoot,
     encoding: "utf8",
+    env: {
+      ...process.env,
+      ...environment,
+    },
   });
+}
+
+function readTraceEvents(traceDirectory) {
+  return fs.readdirSync(traceDirectory)
+    .filter((name) => name.endsWith(".events.jsonl"))
+    .sort()
+    .flatMap((name) => fs.readFileSync(path.join(traceDirectory, name), "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line)));
+}
+
+function stableSemanticEvents(events) {
+  return events
+    .filter((event) => event.category === "semantic")
+    .map((event) => ({
+      phase: event.phase,
+      eventKind: event.eventKind,
+      entityId: event.entityId,
+      moduleId: event.moduleId,
+      source: event.source,
+      details: event.details,
+    }));
 }
 
 describe("Yogi frontend semantic pipeline", () => {
@@ -84,6 +112,50 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toContain("raw");
   });
 
+  test("narrows union and any values through typeof checks", () => {
+    const root = createProject({
+      "main.io": `
+        type Cell = number | string
+
+        function score(value: Cell): number {
+          if (typeof value == "number") {
+            return value + 2
+          } else {
+            return value.length
+          }
+        }
+
+        let cell: Cell = 10
+        let raw: any = 40
+
+        if (typeof raw == "number") {
+          let answer: number = raw + 2
+        }
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects union operations that are not protected by narrowing", () => {
+    const root = createProject({
+      "main.io": `
+        type Cell = number | string
+        let cell: Cell = 10
+        let invalid: number = cell + 1
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("operator");
+    expect(result.stderr).toContain("'Cell'");
+  });
+
   test("resolves imports and validates exported symbols across modules", () => {
     const root = createProject({
       "math.io": `
@@ -102,6 +174,48 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
     expect(fs.existsSync(path.join(root, "packages/.cache/modules/math.io/sir.fb"))).toBe(true);
     expect(fs.existsSync(path.join(root, "packages/.cache/modules/main.io/sir.fb"))).toBe(true);
+  });
+
+  test("preserves imported function signatures across modules", () => {
+    const root = createProject({
+      "math.ts": `
+        export function add(left: number, right: number): number {
+          return left + right
+        }
+      `,
+      "main.ts": `
+        import { add } from "./math"
+
+        let total: number = add(20, 22)
+      `,
+    });
+
+    const result = runCompiler(root, "main.ts");
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("materializes imported struct layouts in the consumer SIR", () => {
+    const root = createProject({
+      "models.ts": `
+        export struct User {
+          name: string
+          score: number
+        }
+      `,
+      "main.ts": `
+        import { User } from "./models"
+
+        let users: User[] = [{ name: "Ana", score: 42 }]
+        let score: number = users[0].score
+      `,
+    });
+
+    const result = runCompiler(root, "main.ts");
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
   });
 
   test("validates object, tuple, and array variables with readable access", () => {
@@ -254,6 +368,120 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
+  test("validates aggregate accumulator ownership for reduce", () => {
+    const root = createProject({
+      "main.io": `
+        type Summary = {
+          total: number
+          count: number
+        }
+
+        function append(accumulator: number[], value: number): number[] {
+          accumulator.push(value)
+          return accumulator
+        }
+
+        function summarize(accumulator: Summary, value: number): Summary {
+          accumulator.total = accumulator.total + value
+          accumulator.count = accumulator.count + 1
+          return accumulator
+        }
+
+        let values: number[] = [1, 2, 3]
+        let arraySeed: number[] = []
+        let collected: number[] = values.reduce(append, arraySeed)
+        let summarySeed: Summary = { total: 0, count: 0 }
+        let summary: Summary = values.reduce(summarize, summarySeed)
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("accepts managed struct locals and mixed owned branches in inline reduce callbacks", () => {
+    const root = createProject({
+      "main.io": `
+        struct Bucket {
+          values: number[]
+          label: string
+        }
+
+        let values: number[] = [1, 2, 3]
+        let seed: Bucket = { values: [0], label: "seed" }
+        let result: Bucket = values.reduce(
+          (accumulator: Bucket, value: number): Bucket => {
+            let next: Bucket = accumulator
+            next.values.push(value)
+            if (value == 1) {
+              return next
+            } else {
+              {
+                let fresh: Bucket = { values: [value], label: "fresh" }
+                return fresh
+              }
+            }
+          },
+          seed
+        )
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects borrowed aggregate returns from nested inline callback branches", () => {
+    const root = createProject({
+      "main.io": `
+        struct Bucket {
+          values: number[]
+        }
+
+        let values: Bucket[] = [{ values: [1] }, { values: [2] }]
+        let seed: Bucket = { values: [] }
+        let result: Bucket = values.reduce(
+          (accumulator: Bucket, value: Bucket): Bucket => {
+            if (value.values.length > 0) {
+              return value
+            }
+            return accumulator
+          },
+          seed
+        )
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("cannot return a borrowed aggregate");
+  });
+
+  test("rejects borrowed aggregate results from inline reduce callbacks", () => {
+    const root = createProject({
+      "main.io": `
+        let groups: number[][] = [[1], [2]]
+        let seed: number[] = []
+        let result: number[] = groups.reduce(
+          (accumulator: number[], value: number[]): number[] => {
+            return value
+          },
+          seed
+        )
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("cannot return a borrowed aggregate");
+  });
+
   test("accepts inline callback captures", () => {
     const root = createProject({
       "main.io": `
@@ -283,6 +511,40 @@ describe("Yogi frontend semantic pipeline", () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("must return");
+  });
+
+  test("accepts loop and switch control flow inside inline callbacks", () => {
+    const root = createProject({
+      "main.io": `
+        let scores: number[] = [1, 2]
+        let shifted: number[] = scores.map((value: number): number => {
+          let next: number = value
+          while (next < 3) {
+            next = next + 1
+            if (next == 2) {
+              continue
+            }
+          }
+          for (let index: number = 0; index < 2; index = index + 1) {
+            if (index == 1) {
+              break
+            }
+            next = next + index
+          }
+          switch (next) {
+            case 3:
+              return next
+            default:
+              return 0
+          }
+        })
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
   });
 
   test("rejects reassignment to const variables", () => {
@@ -675,6 +937,28 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(dynamicNullishAssignment.stderr).toBe("");
   });
 
+  test("accepts a trailing empty statement after a regular function declaration", () => {
+    const result = runCompiler(createProject({
+      "main.ts": `
+        function maximumProduct(nums: number[]): number {
+          nums.sort()
+
+          const n: number = nums.length
+          const p1: number = nums[n - 1] * nums[n - 2] * nums[n - 3]
+          const p2: number = nums[0] * nums[1] * nums[n - 1]
+
+          return p1 > p2 ? p1 : p2
+        };
+
+        const result: number = maximumProduct([1, 2, 3])
+        print(result)
+      `,
+    }), "main.ts");
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
   test("supports aggregate storage reads and writes in semantic output", () => {
     const root = createProject({
       "main.io": `
@@ -862,6 +1146,36 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(variable.status).not.toBe(0);
     expect(variable.stderr).toContain("native ABI");
     expect(variable.stderr).toContain("extern variable");
+  });
+
+  test("preserves multidimensional fixed shapes through type aliases and for-of temporaries", () => {
+    const root = createProject({
+      "main.io": `
+        type Row = number[3]
+        type Matrix = number[2, 3]
+
+        function makeMatrix(): Matrix {
+          return [[1, 2, 3], [4, 5, 6]]
+        }
+
+        function total(): number {
+          let result: number = 0
+
+          for (let row: Row of makeMatrix()) {
+            for (let value: number of row) {
+              result = result + value
+            }
+          }
+
+          return result
+        }
+      `,
+    });
+
+    const result = runCompiler(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
   });
 
   test("supports native ABI ownership contracts on extern function signatures", () => {
@@ -1451,7 +1765,7 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(nestedConstructionMove.stderr).toContain("after it was moved");
   });
 
-  test("rejects aggregate use after ownership moved through retained callees and unknown calls", () => {
+  test("keeps value-array sources live through copying callees and rejects unknown aggregate escapes", () => {
     const retainedByKnownCallee = runCompiler(createProject({
       "main.io": `
         let saved: number[] = [0]
@@ -1468,10 +1782,8 @@ describe("Yogi frontend semantic pipeline", () => {
         }
       `,
     }));
-    expect(retainedByKnownCallee.status).not.toBe(0);
-    expect(retainedByKnownCallee.stderr).toContain("cannot use aggregate");
-    expect(retainedByKnownCallee.stderr).toContain("local");
-    expect(retainedByKnownCallee.stderr).toContain("may retain or return");
+    expect(retainedByKnownCallee.status).toBe(0);
+    expect(retainedByKnownCallee.stderr).toBe("");
 
     const conditionalMove = runCompiler(createProject({
       "main.io": `
@@ -1492,9 +1804,8 @@ describe("Yogi frontend semantic pipeline", () => {
         }
       `,
     }));
-    expect(conditionalMove.status).not.toBe(0);
-    expect(conditionalMove.stderr).toContain("cannot use aggregate");
-    expect(conditionalMove.stderr).toContain("local");
+    expect(conditionalMove.status).toBe(0);
+    expect(conditionalMove.stderr).toBe("");
 
     const unknownCall = runCompiler(createProject({
       "main.io": `
@@ -1574,7 +1885,7 @@ describe("Yogi frontend semantic pipeline", () => {
     expect(result.stderr).toBe("");
   });
 
-  test("rejects invalid array push and use after move from loop body", () => {
+  test("rejects invalid array push and preserves value arrays passed from loop bodies", () => {
     const wrongPushType = runCompiler(createProject({
       "main.io": `
         function invalid(): void {
@@ -1607,9 +1918,8 @@ describe("Yogi frontend semantic pipeline", () => {
         }
       `,
     }));
-    expect(movedInLoop.status).not.toBe(0);
-    expect(movedInLoop.stderr).toContain("cannot use aggregate");
-    expect(movedInLoop.stderr).toContain("local");
+    expect(movedInLoop.status).toBe(0);
+    expect(movedInLoop.stderr).toBe("");
   });
 
   test("supports array rest destructuring and still rejects object rest", () => {
@@ -1729,5 +2039,415 @@ describe("Yogi frontend semantic pipeline", () => {
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
+  });
+
+  test("rejects array-copy methods that would duplicate native resource ownership", () => {
+    const operations = {
+      slice: "let copied: Holder[] = items.slice(0)",
+      concat: "let copied: Holder[] = items.concat(items)",
+      toSpliced: "let copied: Holder[] = items.toSpliced(0, 0)",
+      toReversed: "let copied: Holder[] = items.toReversed()",
+      toSorted: "let copied: Holder[] = items.toSorted()",
+      flat: "let copied: Holder[] = items.flat()",
+      with: "let copied: Holder[] = items.with(0, make())",
+      filter: "let copied: Holder[] = items.filter((item: Holder): boolean => true)",
+      map: "let copied: Holder[] = items.map((item: Holder): Holder => item)",
+      flatMap: "let copied: Holder[] = items.flatMap((item: Holder): Holder[] => [item])",
+      copy: "let copied: Holder[] = items.copy()",
+    };
+
+    for (const [method, operation] of Object.entries(operations)) {
+      const result = runCompiler(createProject({
+        "main.io": `
+          struct NativeResource {
+            value: number
+          }
+
+          struct Holder {
+            resource: ptr<NativeResource>
+          }
+
+          extern native from "./libnative.a" {
+            create(): ptr<NativeResource>
+            destructor(resource: ptr<void>): void
+          }
+
+          function make(): Holder {
+            let holder: Holder = { resource: native.create() }
+            return holder
+          }
+
+          function run(): void {
+            let items: Holder[] = []
+            items.push(make())
+            ${operation}
+          }
+        `,
+      }));
+
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(method);
+      expect(result.stderr).toContain("cannot copy resource-owning elements");
+    }
+  });
+
+  test("requires ptr<T[]> when passing a resource-owning array across a function boundary", () => {
+    const result = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        struct Holder {
+          resource: ptr<NativeResource>
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): void
+        }
+
+        function make(): Holder {
+          let holder: Holder = { resource: native.create() }
+          return holder
+        }
+
+        function inspect(items: Holder[]): number {
+          return items.length
+        }
+
+        let items: Holder[] = []
+        items.push(make())
+        print(inspect(items))
+      `,
+    }));
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("cannot pass resource-owning array to value parameter");
+    expect(result.stderr).toContain("ptr<Holder[]>");
+  });
+
+  test("allows ptr<T[]> borrows and owned resource-array returns", () => {
+    const result = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        struct Holder {
+          resource: ptr<NativeResource>
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): void
+        }
+
+        function makeHolder(): Holder {
+          let holder: Holder = { resource: native.create() }
+          return holder
+        }
+
+        function makeBatch(): Holder[] {
+          let items: Holder[] = []
+          items.push(makeHolder())
+          return items
+        }
+
+        function inspect(items: ptr<Holder[]>): number {
+          return items.length
+        }
+
+        function run(): number {
+          let items: Holder[] = makeBatch()
+          return inspect(&items)
+        }
+
+        print(run())
+      `,
+    }));
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("models ptr<T[]> value reads as local borrows and materializes returned values", () => {
+    const result = runCompiler(createProject({
+      "main.io": `
+        let saved: number[] = [0]
+
+        function store(values: ptr<number[]>): void {
+          let view: number[] = values
+          saved = view
+        }
+
+        function snapshot(values: ptr<number[]>): number[] {
+          return values
+        }
+
+        function run(): number {
+          let values: number[] = [1, 2, 3]
+          let pointer: ptr<number[]> = &values
+          let view: number[] = pointer
+          view[0] = 9
+          let copy: number[] = snapshot(&values)
+          store(&values)
+          return copy[0]
+        }
+
+        print(run())
+      `,
+    }));
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("uses value semantics for owned array bindings while keeping pointer-derived local views borrowed", () => {
+    const result = runCompiler(createProject({
+      "main.io": `
+        function snapshot(values: ptr<number[]>): number[] {
+          return values
+        }
+
+        function run(): number {
+          let source: number[] = [1, 2, 3]
+          let owned: number[] = source
+          owned[0] = 99
+
+          let pointer: ptr<number[]> = &source
+          let view: number[] = pointer
+          view[1] = 88
+
+          let copiedView: number[] = view
+          copiedView[2] = 77
+
+          let returned: number[] = snapshot(pointer)
+          returned[0] = 55
+
+          return source[0] + source[1] + source[2] + owned[0] + copiedView[2] + returned[0]
+        }
+
+        print(run())
+      `,
+    }));
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("rejects normal assignment when array elements own native resources", () => {
+    const result = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        struct Holder {
+          resource: ptr<NativeResource>
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): void
+        }
+
+        function make(): Holder {
+          let holder: Holder = { resource: native.create() }
+          return holder
+        }
+
+        function run(): void {
+          let source: Holder[] = []
+          source.push(make())
+          let target: Holder[] = source
+          print(target.length)
+        }
+      `,
+    }));
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("cannot copy resource-owning array");
+    expect(result.stderr).toContain("normal array assignment has value semantics");
+  });
+
+  test("accepts normal array assignment for recursively copyable aggregate elements", () => {
+    const result = runCompiler(createProject({
+      "main.io": `
+        struct Point {
+          x: number
+          y: number
+        }
+
+        struct Team {
+          name: string
+          scores: number[]
+        }
+
+        struct Entity {
+          point: Point
+          team: Team
+        }
+
+        function snapshot(values: ptr<Entity[]>): Entity[] {
+          return values
+        }
+
+        function inspect(values: Entity[]): number {
+          return values[0].team.scores[0]
+        }
+
+        function run(): number {
+          let source: Point[] = [{ x: 1, y: 2 }]
+          let target: Point[] = source
+          target[0].x = 99
+
+          let matrix: number[][] = [[1, 2], [3, 4]]
+          let matrixCopy: number[][] = matrix
+          matrixCopy[0][0] = 88
+
+          let entities: Entity[] = [{
+            point: { x: 10, y: 20 },
+            team: { name: "core", scores: [7, 8] }
+          }]
+          let entityCopy: Entity[] = entities
+          entityCopy[0].point.x = 66
+          entityCopy[0].team.scores[0] = 77
+
+          let pointer: ptr<Entity[]> = &entities
+          let borrowed: Entity[] = pointer
+          borrowed[0].point.y = 33
+          let materialized: Entity[] = borrowed
+          materialized[0].point.y = 44
+
+          let returned: Entity[] = snapshot(pointer)
+          returned[0].team.scores[0] = 55
+
+          return source[0].x
+            + matrix[0][0]
+            + entities[0].point.x
+            + entities[0].point.y
+            + entities[0].team.scores[0]
+            + inspect(entities)
+        }
+      `,
+    }));
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  test("reports the native resource field that prevents recursive array copying", () => {
+    const result = runCompiler(createProject({
+      "main.io": `
+        struct NativeResource {
+          value: number
+        }
+
+        struct Payload {
+          resource: ptr<NativeResource>
+        }
+
+        struct Envelope {
+          payload: Payload
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): void
+        }
+
+        function run(): void {
+          let source: Envelope[] = [{
+            payload: { resource: native.create() }
+          }]
+          let target: Envelope[] = source
+          print(target.length)
+        }
+      `,
+    }));
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("cannot copy resource-owning array");
+    expect(result.stderr).toContain("payload.resource");
+  });
+
+  test("emits deterministic correlated semantic identities without primitive false borrows", () => {
+    const root = createProject({
+      "main.io": `
+        struct Point {
+          x: number
+          y: number
+        }
+
+        struct NativeResource {
+          value: number
+        }
+
+        struct Holder {
+          resource: ptr<NativeResource>
+        }
+
+        extern native from "./libnative.a" {
+          create(): ptr<NativeResource>
+          destructor(resource: ptr<void>): void
+        }
+
+        function add(left: number, right: number): number {
+          return left + right
+        }
+
+        function consume(holder: Holder): number {
+          return holder.resource.value
+        }
+
+        function run(): number {
+          let point: Point = { x: 10, y: 20 }
+          let copied: Point = point
+          let holder: Holder = { resource: native.create() }
+          let total: number = add(copied.x, copied.y)
+          return total + consume(holder)
+        }
+      `,
+    });
+    const firstTrace = fs.mkdtempSync(path.join(os.tmpdir(), "yogi-trace-first-"));
+    const secondTrace = fs.mkdtempSync(path.join(os.tmpdir(), "yogi-trace-second-"));
+    const traceEnvironment = (directory, session) => ({
+      YOGI_TRACE_DIRECTORY: directory,
+      YOGI_TRACE_SESSION: session,
+      YOGI_TRACE_STRICT: "1",
+      YOGI_TRACE_CATEGORIES: "semantic",
+    });
+
+    const first = runCompiler(root, "main.io", traceEnvironment(firstTrace, "first"));
+    const second = runCompiler(root, "main.io", traceEnvironment(secondTrace, "second"));
+
+    expect(first.status).toBe(0);
+    expect(first.stderr).toBe("");
+    expect(second.status).toBe(0);
+    expect(second.stderr).toBe("");
+
+    const firstEvents = stableSemanticEvents(readTraceEvents(firstTrace));
+    const secondEvents = stableSemanticEvents(readTraceEvents(secondTrace));
+    expect(secondEvents).toEqual(firstEvents);
+
+    const decisions = firstEvents
+      .filter((event) => event.eventKind === "semantic.decision.plan")
+      .map((event) => event.details);
+    expect(decisions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        decisionKind: "Copy",
+        decisionReason: "TrivialValueCopy",
+      }),
+      expect.objectContaining({
+        decisionKind: "Move",
+        decisionReason: "ValueParameterConsumes",
+      }),
+    ]));
+    expect(decisions.some((decision) =>
+      decision.decisionKind === "Borrow" &&
+      decision.decisionReason === "KnownCalleeBorrow" &&
+      decision.context.includes("known callee")
+    )).toBe(false);
   });
 });

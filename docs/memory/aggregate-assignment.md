@@ -18,20 +18,20 @@ function store(): void {
 }
 ```
 
-`scores` is a local aggregate owner. `saved` is module/global storage. For
-ordinary owning aggregates, assignment can move/escape ownership into `saved`.
-Dynamic arrays use a more specific rule: if `saved` already owns a dynamic array
-descriptor, assignment replaces `saved` in place by preserving, creating, and
-invalidating slots by index. The RHS local descriptor can still be cleaned after
-its values have been copied into the target slots.
+`scores` is a local aggregate owner. `saved` is module/global storage.
+Resource-owning structs may use compiler-internal ownership transfer, but
+dynamic arrays have value semantics: assignment copies `scores`, then replaces
+`saved` in place by preserving, creating, and invalidating target slots by
+index. The RHS local descriptor remains alive and unchanged.
 
 ## Ownership Rules
 
 | Assignment | Meaning | Cleanup behavior |
 |---|---|---|
-| local aggregate -> global/module binding | Ownership escapes into module storage | RHS local owner is deactivated; global/module cleanup owns the value |
-| local aggregate -> local alias | Alias points at the same aggregate owner | No destroy is emitted for the alias; the original owner remains the cleanup root |
-| local alias -> global/module binding | Alias resolves back to the original owner | Original owner is deactivated; global/module cleanup owns the value |
+| local dynamic array -> global/module binding | Independent array value is stored in module storage | RHS owner remains active; global/module cleanup owns the copied value |
+| local dynamic array -> local binding | Destination becomes an independent owner | Both bindings receive their own descriptor cleanup |
+| borrowed dynamic-array view -> owned binding | Borrow is materialized as an independent owner | View keeps no cleanup; destination owns and cleans the copy |
+| `ptr<T[]>` -> explicitly typed local `T[]` | Explicit local borrow | Local view aliases the pointer target and does not register a second owner |
 | returned aggregate -> global/module binding | Return moves to caller, then assignment moves into module storage | Callee does not clean the returned value; global/module cleanup owns it |
 | global/module aggregate replacement | New aggregate replaces old aggregate in module storage | Previous global value is destroyed before storing the replacement |
 | dynamic array -> initialized dynamic array binding | Target descriptor is replaced in place by slot | Preserved slots stay valid, new slots are created, removed slots are invalidated; RHS descriptor cleanup remains separate |
@@ -81,9 +81,9 @@ function store(): void {
 }
 ```
 
-`alias` does not become an independent owner. The lowering context records an
-alias relationship and resolves `alias` back to `scores` when ownership changes.
-When `saved = alias` executes, the original `scores` cleanup owner is deactivated.
+Despite the historical variable name, `alias` is now an independent owned copy.
+When `saved = alias` executes, `saved` receives another owned value and both
+`scores` and `alias` remain valid. Sharing requires `ptr<number[]>`.
 
 ## Returned Aggregate To Global
 
@@ -126,29 +126,33 @@ non-dynamic aggregate globals, the backend emits this sequence:
 1. Load the previous global value.
 2. If the previous value is non-null and is not the same pointer as the new value,
    destroy the previous aggregate.
-3. Store the new value.
-4. Deactivate the RHS local owner if the RHS is an identifier.
+3. Store or replace from an owned copy of the new value.
+4. Keep a named RHS active and unchanged.
 
 This keeps `main()` returning `4` while avoiding both early-free and leaks for
 the replaced global value.
 
-Dynamic arrays use `yogi_array_replace_from` instead. The global descriptor stays
-stable, common slots are overwritten, longer assignments create slots, and
-shorter assignments invalidate removed slots.
+Dynamic arrays materialize a copy and then use
+`yogi_array_move_replace_from` on that temporary. The global descriptor stays
+stable, common slots are overwritten, longer assignments create slots, shorter
+assignments invalidate removed slots, and the source remains unchanged.
 
 ## Cleanup Rules After Assignment
 
 Local cleanup is skipped only when the current scope no longer owns the resource.
 The important cases are:
 
-- RHS identifier moved/escaped into global/module storage: deactivate RHS owner.
-- RHS alias moved/escaped into global/module storage: resolve alias, then
-  deactivate the original owner.
+- RHS named dynamic array assigned into global/module storage: materialize an
+  independent owned copy and keep the RHS owner active.
+- RHS borrowed dynamic-array view assigned into global/module storage:
+  materialize an independent owned copy; never install the borrowed descriptor
+  as a second owner.
 - RHS returned aggregate assigned to global/module storage: no local owner exists
   in the caller, so the global takes responsibility.
 - Global/module replacement: destroy the previous global value before the store.
-- Dynamic array assignment into an initialized binding: call the runtime
-  replacement helper instead of destroying the whole target descriptor.
+- Dynamic array assignment into an initialized binding: copy the observable RHS,
+  then move-replace from the compiler-owned temporary instead of destroying the
+  whole target descriptor.
 
 This applies from normal functions, nested blocks, if/else branches, loops, and
 switch cases. Cleanup remains control-flow aware through scope cleanup lists and

@@ -40,6 +40,10 @@
 #define YOGI_RUNTIME_ALLOCATOR_LIBRARY_PATH ""
 #endif
 
+#ifndef YOGI_SANITIZER_RUNTIME_PATHS
+#define YOGI_SANITIZER_RUNTIME_PATHS ""
+#endif
+
 namespace {
 	std::string quoteArg(const std::string &value) {
 		std::string quoted = "'";
@@ -87,6 +91,29 @@ namespace {
 		return linkPath.is_absolute()
 				? linkPath
 				: rootPath / linkPath;
+	}
+
+	std::vector<std::filesystem::path> sanitizerRuntimePaths() {
+		std::vector<std::filesystem::path> paths;
+		const std::string encoded = YOGI_SANITIZER_RUNTIME_PATHS;
+		std::size_t start = 0;
+
+		while (start <= encoded.size()) {
+			const auto end = encoded.find('|', start);
+			const auto value = encoded.substr(
+				start,
+				end == std::string::npos ? std::string::npos : end - start
+			);
+			if (!value.empty()) {
+				paths.emplace_back(value);
+			}
+			if (end == std::string::npos) {
+				break;
+			}
+			start = end + 1;
+		}
+
+		return paths;
 	}
 }
 
@@ -188,6 +215,13 @@ namespace yogi::core::llvm {
 			return false;
 		}
 
+		const auto sanitizerLibraries = sanitizerRuntimePaths();
+		for (const auto &sanitizerLibrary: sanitizerLibraries) {
+			if (!appendLinkPath(sanitizerLibrary, "sanitizer runtime", true)) {
+				return false;
+			}
+		}
+
 		std::filesystem::create_directories(absoluteOutputPath.parent_path());
 
 		std::ostringstream command;
@@ -234,6 +268,14 @@ namespace yogi::core::llvm {
 
 		for (const auto &link: externalLinks) {
 			command << " " << quoteArg(link.string());
+		}
+
+		std::unordered_set<std::string> sanitizerRuntimeDirectories;
+		for (const auto &sanitizerLibrary: sanitizerLibraries) {
+			const auto directory = sanitizerLibrary.parent_path().string();
+			if (!directory.empty() && sanitizerRuntimeDirectories.insert(directory).second) {
+				command << " -rpath " << quoteArg(directory);
+			}
 		}
 
 		command << " -o " << quoteArg(absoluteOutputPath.string());

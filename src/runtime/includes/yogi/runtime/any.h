@@ -5,6 +5,8 @@
 
 #include "yogi/runtime.h"
 
+#include <cstddef>
+
 namespace yogi::runtime {
 
 	class AnyValue final {
@@ -16,6 +18,12 @@ namespace yogi::runtime {
 			static AnyValue *fromString(const char *value);
 			static AnyValue *fromArray(void *value);
 			static AnyValue *fromObject(void *value);
+			static AnyValue *fromPointer(void *value);
+			static AnyValue *cloneOwned(void *value);
+			static void destroyOwnedPayload(void *value);
+			static void destroy(void *value);
+			static void retain(void *value);
+			static void release(void *value);
 			static const AnyValue *require(void *value, const char *targetType);
 
 			YogiAnyTag tag() const;
@@ -26,23 +34,30 @@ namespace yogi::runtime {
 			const char *asString() const;
 			void *asArray() const;
 			void *asObject() const;
+			void *asPointer() const;
 			void *asNull() const;
 			void *asUndefined() const;
 			bool isNullish() const;
+			const char *javascriptTypeName() const;
 
 		private:
-			explicit AnyValue(YogiAnyTag tag);
+			explicit AnyValue(YogiAnyTag tag, bool immortal = false);
 
 			static AnyValue *allocate(YogiAnyTag tag);
+			static AnyValue undefinedValue;
+			static AnyValue nullValue;
 			void requireTag(YogiAnyTag expectedTag, const char *targetType) const;
 
 			YogiAnyTag valueTag;
+			std::size_t references;
+			bool immortal;
 			union {
 				double number;
 				bool boolean;
 				const char *string;
 				void *array;
 				void *object;
+				void *pointer;
 			} storage;
 	};
 

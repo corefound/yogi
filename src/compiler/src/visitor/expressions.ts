@@ -32,6 +32,9 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 
 			if (ts.isBinaryExpression(node)) return this.visitBinaryExpression(node);
 
+			if (ts.isTypeOfExpression(node))
+				return this.visitTypeOfExpression(node);
+
 			if (ts.isPrefixUnaryExpression(node))
 				return this.visitPrefixUnaryExpression(node);
 
@@ -196,6 +199,18 @@ export function ExpressionVisitor<TBase extends Constructor<BaseVisitor>>(
 				operator: ts.tokenToString(node.operator) ?? node.getText()[0],
 				operand: this.visitNode(node.operand),
 				source: node.getText(),
+				position: this.getNodePosistion(node),
+			};
+		}
+
+		visitTypeOfExpression(node: ts.TypeOfExpression) {
+			return {
+				kind: Kinds.Expressions.UnaryExpression,
+				prefix: true,
+				operator: "typeof",
+				operand: this.visitNode(node.expression),
+				source: node.getText(),
+				fullSource: node.getFullText(),
 				position: this.getNodePosistion(node),
 			};
 		}
